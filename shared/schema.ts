@@ -72,6 +72,21 @@ export const issues = pgTable("issues", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Tasks (for Gantt Chart)
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  progress: integer("progress").default(0), // 0-100 percentage
+  status: text("status").default("Not Started"), // Not Started, In Progress, Completed
+  assignee: text("assignee"),
+  parentId: integer("parent_id"), // For subtasks/dependencies
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === RELATIONS ===
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -101,6 +116,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   risks: many(risks),
   milestones: many(milestones),
   issues: many(issues),
+  tasks: many(tasks),
 }));
 
 export const risksRelations = relations(risks, ({ one }) => ({
@@ -124,6 +140,13 @@ export const issuesRelations = relations(issues, ({ one }) => ({
   }),
 }));
 
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  project: one(projects, {
+    fields: [tasks.projectId],
+    references: [projects.id],
+  }),
+}));
+
 // === SCHEMAS ===
 
 // insertUserSchema is now handled by models/auth types or we create one here for other uses
@@ -137,6 +160,7 @@ export const insertProjectSchema = createInsertSchema(projects).omit({ id: true,
 export const insertRiskSchema = createInsertSchema(risks).omit({ id: true, createdAt: true });
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
 export const insertIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
+export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 
@@ -157,6 +181,9 @@ export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
 export type Issue = typeof issues.$inferSelect;
 export type InsertIssue = z.infer<typeof insertIssueSchema>;
 
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = z.infer<typeof insertTaskSchema>;
+
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
 export type UpdatePortfolioRequest = Partial<InsertPortfolio>;
@@ -175,3 +202,6 @@ export type UpdateMilestoneRequest = Partial<InsertMilestone>;
 
 export type CreateIssueRequest = InsertIssue;
 export type UpdateIssueRequest = Partial<InsertIssue>;
+
+export type CreateTaskRequest = InsertTask;
+export type UpdateTaskRequest = Partial<InsertTask>;

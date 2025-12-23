@@ -1,12 +1,13 @@
 import { db } from "./db";
 import {
-  users, portfolios, projects, risks, milestones, issues,
+  users, portfolios, projects, risks, milestones, issues, tasks,
   type User, type UpsertUser,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
   type Milestone, type InsertMilestone, type UpdateMilestoneRequest,
-  type Issue, type InsertIssue, type UpdateIssueRequest
+  type Issue, type InsertIssue, type UpdateIssueRequest,
+  type Task, type InsertTask, type UpdateTaskRequest
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -48,6 +49,13 @@ export interface IStorage {
   createIssue(issue: InsertIssue): Promise<Issue>;
   updateIssue(id: number, updates: UpdateIssueRequest): Promise<Issue>;
   deleteIssue(id: number): Promise<void>;
+
+  // Tasks
+  getTasks(projectId: number): Promise<Task[]>;
+  getAllTasks(): Promise<Task[]>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: number, updates: UpdateTaskRequest): Promise<Task>;
+  deleteTask(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -192,6 +200,32 @@ export class DatabaseStorage implements IStorage {
 
   async deleteIssue(id: number): Promise<void> {
     await db.delete(issues).where(eq(issues.id, id));
+  }
+
+  // Tasks
+  async getTasks(projectId: number): Promise<Task[]> {
+    return await db.select().from(tasks).where(eq(tasks.projectId, projectId));
+  }
+
+  async getAllTasks(): Promise<Task[]> {
+    return await db.select().from(tasks);
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    const [newTask] = await db.insert(tasks).values(task).returning();
+    return newTask;
+  }
+
+  async updateTask(id: number, updates: UpdateTaskRequest): Promise<Task> {
+    const [updated] = await db.update(tasks)
+      .set(updates)
+      .where(eq(tasks.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTask(id: number): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, id));
   }
 }
 
