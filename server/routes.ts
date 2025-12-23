@@ -354,5 +354,43 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // --- Tasks ---
+  app.get(api.tasks.list.path, async (req, res) => {
+    const tasks = await storage.getTasks(Number(req.params.projectId));
+    res.json(tasks);
+  });
+
+  app.get(api.tasks.listAll.path, async (req, res) => {
+    const tasks = await storage.getAllTasks();
+    res.json(tasks);
+  });
+
+  app.post(api.tasks.create.path, async (req, res) => {
+    try {
+      const input = api.tasks.create.input.parse(req.body);
+      const task = await storage.createTask(input);
+      res.status(201).json(task);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.put(api.tasks.update.path, async (req, res) => {
+    try {
+      const input = api.tasks.update.input.parse(req.body);
+      const updated = await storage.updateTask(Number(req.params.id), input);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Error updating task" });
+    }
+  });
+
+  app.delete(api.tasks.delete.path, async (req, res) => {
+    await storage.deleteTask(Number(req.params.id));
+    res.status(204).send();
+  });
+
   return httpServer;
 }
