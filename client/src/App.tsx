@@ -3,16 +3,29 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AppLayout } from "@/components/layout/AppLayout";
 import NotFound from "@/pages/not-found";
+
+// Pages
+import Dashboard from "@/pages/Dashboard";
+import Portfolios from "@/pages/Portfolios";
+import Projects from "@/pages/Projects";
+import ProjectDetails from "@/pages/ProjectDetails";
+import Calendar from "@/pages/Calendar";
 
 function Router() {
   return (
-    <Switch>
-      {/* Add pages below */}
-      {/* <Route path="/" component={Home}/> */}
-      {/* Fallback to 404 */}
-      <Route component={NotFound} />
-    </Switch>
+    <AppLayout>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/portfolios" component={Portfolios} />
+        <Route path="/portfolios/:id" component={(params) => <div>Portfolio Details {params.params.id} (Impl similar to Projects)</div>} />
+        <Route path="/projects" component={Projects} />
+        <Route path="/projects/:id" component={ProjectDetails} />
+        <Route path="/calendar" component={Calendar} />
+        <Route component={NotFound} />
+      </Switch>
+    </AppLayout>
   );
 }
 
