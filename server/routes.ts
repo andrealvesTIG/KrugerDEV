@@ -106,6 +106,37 @@ async function seedDatabase() {
       completed: false
     });
 
+    // Add Issues
+    await storage.createIssue({
+      projectId: prj1.id,
+      title: "Database connection timeout",
+      description: "Intermittent connection failures during peak hours.",
+      priority: "High",
+      status: "Open",
+      type: "Bug",
+      assignee: "John Smith"
+    });
+
+    await storage.createIssue({
+      projectId: prj1.id,
+      title: "Add audit logging feature",
+      description: "Need comprehensive audit trail for compliance.",
+      priority: "Medium",
+      status: "In Progress",
+      type: "Enhancement",
+      assignee: "Sarah Johnson"
+    });
+
+    await storage.createIssue({
+      projectId: prj3.id,
+      title: "Model training documentation",
+      description: "Create documentation for ML model training process.",
+      priority: "Low",
+      status: "Open",
+      type: "Task",
+      assignee: null
+    });
+
     console.log("Database seeded successfully.");
   }
 }
@@ -282,6 +313,44 @@ export async function registerRoutes(
 
   app.delete(api.milestones.delete.path, async (req, res) => {
     await storage.deleteMilestone(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // --- Issues ---
+  app.get(api.issues.list.path, async (req, res) => {
+    const issues = await storage.getIssues(Number(req.params.projectId));
+    res.json(issues);
+  });
+
+  app.get(api.issues.listAll.path, async (req, res) => {
+    const issues = await storage.getAllIssues();
+    res.json(issues);
+  });
+
+  app.post(api.issues.create.path, async (req, res) => {
+    try {
+      const input = api.issues.create.input.parse(req.body);
+      const issue = await storage.createIssue(input);
+      res.status(201).json(issue);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      throw err;
+    }
+  });
+
+  app.put(api.issues.update.path, async (req, res) => {
+    try {
+      const input = api.issues.update.input.parse(req.body);
+      const updated = await storage.updateIssue(Number(req.params.id), input);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Error updating issue" });
+    }
+  });
+
+  app.delete(api.issues.delete.path, async (req, res) => {
+    await storage.deleteIssue(Number(req.params.id));
     res.status(204).send();
   });
 

@@ -3,6 +3,7 @@ import { useRoute } from "wouter";
 import { useProject, useUpdateProject } from "@/hooks/use-projects";
 import { useRisks, useCreateRisk, useDeleteRisk } from "@/hooks/use-risks";
 import { useMilestones, useCreateMilestone, useUpdateMilestone, useDeleteMilestone } from "@/hooks/use-milestones";
+import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,11 +13,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2 } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertRiskSchema, insertMilestoneSchema } from "@shared/schema";
+import { insertRiskSchema, insertMilestoneSchema, insertIssueSchema } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -119,6 +120,7 @@ export default function ProjectDetails() {
         <TabsList className="bg-slate-100 p-1 rounded-xl">
           <TabsTrigger value="milestones" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Milestones</TabsTrigger>
           <TabsTrigger value="risks" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Risks Log</TabsTrigger>
+          <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Issues</TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="milestones">
@@ -126,6 +128,9 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="issues">
+            <IssuesTab projectId={project.id} />
           </TabsContent>
         </div>
       </Tabs>
@@ -318,6 +323,172 @@ function MilestonesTab({ projectId }: { projectId: number }) {
             </div>
           ))}
           {milestones?.length === 0 && <div className="text-center py-8 text-slate-500">No milestones set.</div>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const priorityColors = {
+  Low: "bg-slate-100 text-slate-700",
+  Medium: "bg-blue-100 text-blue-700",
+  High: "bg-amber-100 text-amber-700",
+  Critical: "bg-rose-100 text-rose-700",
+};
+
+const statusColors = {
+  Open: "bg-red-100 text-red-700",
+  "In Progress": "bg-blue-100 text-blue-700",
+  Resolved: "bg-emerald-100 text-emerald-700",
+  Closed: "bg-slate-100 text-slate-700",
+};
+
+const typeIcons = {
+  Bug: Bug,
+  Enhancement: Sparkles,
+  Task: ListTodo,
+  Question: HelpCircle,
+};
+
+function IssuesTab({ projectId }: { projectId: number }) {
+  const { data: issues, isLoading } = useIssues(projectId);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const createIssue = useCreateIssue();
+  const updateIssue = useUpdateIssue();
+  const deleteIssue = useDeleteIssue();
+  const { toast } = useToast();
+
+  const form = useForm({
+    resolver: zodResolver(insertIssueSchema),
+    defaultValues: {
+      projectId,
+      title: "",
+      description: "",
+      priority: "Medium",
+      status: "Open",
+      type: "Bug",
+      assignee: ""
+    }
+  });
+
+  const onSubmit = (data: any) => {
+    createIssue.mutate(data, {
+      onSuccess: () => {
+        toast({ title: "Success", description: "Issue created" });
+        setIsDialogOpen(false);
+        form.reset({ projectId, title: "", description: "", priority: "Medium", status: "Open", type: "Bug", assignee: "" });
+      }
+    });
+  };
+
+  if (isLoading) return <Loader2 className="animate-spin" />;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle>Project Issues</CardTitle>
+          <CardDescription>Track bugs, tasks, and enhancements.</CardDescription>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild><Button size="sm" data-testid="button-add-issue"><Plus className="mr-2 h-4 w-4" /> Add Issue</Button></DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader><DialogTitle>Add New Issue</DialogTitle></DialogHeader>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Title</Label>
+                <Input {...form.register("title")} data-testid="input-issue-title" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <Controller control={form.control} name="type" render={({field}) => (
+                    <Select onValueChange={field.onChange} value={field.value || "Bug"}>
+                       <SelectTrigger data-testid="select-issue-type"><SelectValue /></SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="Bug">Bug</SelectItem>
+                         <SelectItem value="Enhancement">Enhancement</SelectItem>
+                         <SelectItem value="Task">Task</SelectItem>
+                         <SelectItem value="Question">Question</SelectItem>
+                       </SelectContent>
+                    </Select>
+                  )} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                   <Controller control={form.control} name="priority" render={({field}) => (
+                    <Select onValueChange={field.onChange} value={field.value || "Medium"}>
+                       <SelectTrigger data-testid="select-issue-priority"><SelectValue /></SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="Low">Low</SelectItem>
+                         <SelectItem value="Medium">Medium</SelectItem>
+                         <SelectItem value="High">High</SelectItem>
+                         <SelectItem value="Critical">Critical</SelectItem>
+                       </SelectContent>
+                    </Select>
+                  )} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input {...form.register("description")} data-testid="input-issue-description" />
+              </div>
+              <div className="space-y-2">
+                <Label>Assignee</Label>
+                <Input {...form.register("assignee")} data-testid="input-issue-assignee" placeholder="Name of assignee" />
+              </div>
+              <DialogFooter><Button type="submit" data-testid="button-save-issue">Save Issue</Button></DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {issues?.map(issue => {
+            const TypeIcon = typeIcons[issue.type as keyof typeof typeIcons] || Bug;
+            return (
+              <div key={issue.id} className="flex items-start justify-between rounded-lg border p-4" data-testid={`card-issue-${issue.id}`}>
+                <div className="flex gap-3">
+                  <div className="mt-0.5">
+                    <TypeIcon className="h-5 w-5 text-slate-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold">{issue.title}</span>
+                      <Badge variant="outline" className={cn("text-xs", priorityColors[issue.priority as keyof typeof priorityColors])}>
+                        {issue.priority}
+                      </Badge>
+                      <Badge variant="outline" className={cn("text-xs", statusColors[issue.status as keyof typeof statusColors])}>
+                        {issue.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-slate-500">{issue.description}</p>
+                    {issue.assignee && <p className="text-xs text-slate-400">Assigned to: {issue.assignee}</p>}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Select 
+                    value={issue.status || "Open"} 
+                    onValueChange={(status) => updateIssue.mutate({ id: issue.id, projectId, status })}
+                  >
+                    <SelectTrigger className="w-[120px] h-8 text-xs" data-testid={`select-status-${issue.id}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Open">Open</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Resolved">Resolved</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="icon" onClick={() => deleteIssue.mutate({id: issue.id, projectId})} data-testid={`button-delete-issue-${issue.id}`}>
+                    <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+          {issues?.length === 0 && <div className="text-center py-8 text-slate-500">No issues recorded.</div>}
         </div>
       </CardContent>
     </Card>

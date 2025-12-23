@@ -4,10 +4,12 @@ import {
   insertProjectSchema, 
   insertRiskSchema, 
   insertMilestoneSchema,
+  insertIssueSchema,
   portfolios,
   projects,
   risks,
-  milestones
+  milestones,
+  issues
 } from './schema';
 
 // ============================================
@@ -190,6 +192,49 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/milestones/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+  issues: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/projects/:projectId/issues',
+      responses: {
+        200: z.array(z.custom<typeof issues.$inferSelect>()),
+      },
+    },
+    listAll: {
+      method: 'GET' as const,
+      path: '/api/issues',
+      responses: {
+        200: z.array(z.custom<typeof issues.$inferSelect>()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/issues',
+      input: insertIssueSchema,
+      responses: {
+        201: z.custom<typeof issues.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/issues/:id',
+      input: insertIssueSchema.partial(),
+      responses: {
+        200: z.custom<typeof issues.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/issues/:id',
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,

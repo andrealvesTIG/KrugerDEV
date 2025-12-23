@@ -12,6 +12,7 @@ import Portfolios from "@/pages/Portfolios";
 import Projects from "@/pages/Projects";
 import ProjectDetails from "@/pages/ProjectDetails";
 import Calendar from "@/pages/Calendar";
+import Issues from "@/pages/Issues";
 
 function Router() {
   return (
@@ -22,6 +23,7 @@ function Router() {
         <Route path="/portfolios/:id" component={(params) => <div>Portfolio Details {params.params.id} (Impl similar to Projects)</div>} />
         <Route path="/projects" component={Projects} />
         <Route path="/projects/:id" component={ProjectDetails} />
+        <Route path="/issues" component={Issues} />
         <Route path="/calendar" component={Calendar} />
         <Route component={NotFound} />
       </Switch>

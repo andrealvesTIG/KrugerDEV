@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, Settings, LogOut, Calendar } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, Settings, LogOut, Calendar, CircleDot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -7,6 +7,7 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Portfolios", href: "/portfolios", icon: Briefcase },
   { name: "Projects", href: "/projects", icon: FolderKanban },
+  { name: "Issues", href: "/issues", icon: CircleDot },
   { name: "Calendar", href: "/calendar", icon: Calendar },
 ];
 

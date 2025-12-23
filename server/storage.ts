@@ -1,11 +1,12 @@
 import { db } from "./db";
 import {
-  users, portfolios, projects, risks, milestones,
+  users, portfolios, projects, risks, milestones, issues,
   type User, type UpsertUser,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
-  type Milestone, type InsertMilestone, type UpdateMilestoneRequest
+  type Milestone, type InsertMilestone, type UpdateMilestoneRequest,
+  type Issue, type InsertIssue, type UpdateIssueRequest
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -40,6 +41,13 @@ export interface IStorage {
   createMilestone(milestone: InsertMilestone): Promise<Milestone>;
   updateMilestone(id: number, updates: UpdateMilestoneRequest): Promise<Milestone>;
   deleteMilestone(id: number): Promise<void>;
+
+  // Issues
+  getIssues(projectId: number): Promise<Issue[]>;
+  getAllIssues(): Promise<Issue[]>;
+  createIssue(issue: InsertIssue): Promise<Issue>;
+  updateIssue(id: number, updates: UpdateIssueRequest): Promise<Issue>;
+  deleteIssue(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -158,6 +166,32 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMilestone(id: number): Promise<void> {
     await db.delete(milestones).where(eq(milestones.id, id));
+  }
+
+  // Issues
+  async getIssues(projectId: number): Promise<Issue[]> {
+    return await db.select().from(issues).where(eq(issues.projectId, projectId));
+  }
+
+  async getAllIssues(): Promise<Issue[]> {
+    return await db.select().from(issues);
+  }
+
+  async createIssue(issue: InsertIssue): Promise<Issue> {
+    const [newIssue] = await db.insert(issues).values(issue).returning();
+    return newIssue;
+  }
+
+  async updateIssue(id: number, updates: UpdateIssueRequest): Promise<Issue> {
+    const [updated] = await db.update(issues)
+      .set(updates)
+      .where(eq(issues.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteIssue(id: number): Promise<void> {
+    await db.delete(issues).where(eq(issues.id, id));
   }
 }
 
