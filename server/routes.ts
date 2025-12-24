@@ -355,7 +355,12 @@ export async function registerRoutes(
   app.post(api.projects.create.path, async (req, res) => {
     try {
       const input = api.projects.create.input.parse(req.body);
-      const project = await storage.createProject(input);
+      const sanitizedInput = {
+        ...input,
+        startDate: input.startDate || null,
+        endDate: input.endDate || null,
+      };
+      const project = await storage.createProject(sanitizedInput);
       res.status(201).json(project);
     } catch (err) {
        if (err instanceof z.ZodError) {
@@ -368,7 +373,12 @@ export async function registerRoutes(
   app.put(api.projects.update.path, async (req, res) => {
     try {
       const input = api.projects.update.input.parse(req.body);
-      const updated = await storage.updateProject(Number(req.params.id), input);
+      const sanitizedInput = {
+        ...input,
+        startDate: input.startDate || null,
+        endDate: input.endDate || null,
+      };
+      const updated = await storage.updateProject(Number(req.params.id), sanitizedInput);
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
