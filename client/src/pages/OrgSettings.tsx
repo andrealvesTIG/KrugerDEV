@@ -42,6 +42,9 @@ export default function OrgSettings() {
     return organizations?.find(o => o.id === m.organizationId);
   }).filter(Boolean) as Organization[] || [];
 
+  // Super admins can see all organizations
+  const accessibleOrgs = user?.role === 'super_admin' ? (organizations || []) : userOrgs;
+
   if (authLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -62,7 +65,33 @@ export default function OrgSettings() {
     );
   }
 
-  const currentOrg = selectedOrgId ? organizations?.find(o => o.id === selectedOrgId) : userOrgs[0];
+  // If no organizations exist yet, show a message
+  if (accessibleOrgs.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Settings className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-display font-bold text-slate-900">Organization Settings</h1>
+            <p className="text-slate-500">Manage your organization and team members</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
+            <Users className="h-16 w-16 text-slate-300" />
+            <h2 className="text-xl font-semibold text-slate-700">No Organizations Yet</h2>
+            <p className="text-slate-500 text-center max-w-md">
+              {user?.role === 'super_admin' 
+                ? "Go to Super Admin to create your first organization, then come back here to manage its members."
+                : "You don't have access to any organizations yet. Contact your administrator."}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const currentOrg = selectedOrgId ? organizations?.find(o => o.id === selectedOrgId) : accessibleOrgs[0];
   const orgId = currentOrg?.id || selectedOrgId;
 
   return (
@@ -75,13 +104,13 @@ export default function OrgSettings() {
             <p className="text-slate-500">Manage your organization and team members</p>
           </div>
         </div>
-        {userOrgs.length > 1 && (
+        {accessibleOrgs.length > 1 && (
           <Select value={String(orgId)} onValueChange={(v) => setSelectedOrgId(Number(v))}>
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Select organization" />
             </SelectTrigger>
             <SelectContent>
-              {userOrgs.map(org => (
+              {accessibleOrgs.map(org => (
                 <SelectItem key={org.id} value={String(org.id)}>{org.name}</SelectItem>
               ))}
             </SelectContent>
