@@ -4,6 +4,9 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { db } from "./db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 // Seed data function
 async function seedDatabase() {
@@ -160,6 +163,19 @@ export async function registerRoutes(
       res.json(allUsers);
     } catch (err) {
       res.json([]);
+    }
+  });
+
+  app.put('/api/users/:userId/role', async (req, res) => {
+    try {
+      const { role } = req.body;
+      const [updated] = await db.update(users)
+        .set({ role })
+        .where(eq(users.id, req.params.userId))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to update user role' });
     }
   });
 

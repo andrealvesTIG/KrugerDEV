@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Shield } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Shield, Crown, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,7 +12,8 @@ const navigation = [
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Issues", href: "/issues", icon: CircleDot },
   { name: "Calendar", href: "/calendar", icon: Calendar },
-  { name: "Admin", href: "/admin", icon: Shield, adminOnly: true },
+  { name: "Org Settings", href: "/org-settings", icon: Settings },
+  { name: "Super Admin", href: "/super-admin", icon: Crown, superAdminOnly: true },
 ];
 
 export function Sidebar() {
@@ -52,7 +53,7 @@ export function Sidebar() {
           </p>
         )}
         {navigation.map((item) => {
-          if ((item as any).adminOnly && user?.role !== 'admin') {
+          if ((item as any).superAdminOnly && user?.role !== 'super_admin') {
             return null;
           }
           

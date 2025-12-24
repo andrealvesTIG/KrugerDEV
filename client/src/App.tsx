@@ -15,6 +15,8 @@ import Calendar from "@/pages/Calendar";
 import Issues from "@/pages/Issues";
 import Tasks from "@/pages/Tasks";
 import Admin from "@/pages/Admin";
+import SuperAdmin from "@/pages/SuperAdmin";
+import OrgSettings from "@/pages/OrgSettings";
 
 function Router() {
   return (
@@ -29,6 +31,8 @@ function Router() {
         <Route path="/issues" component={Issues} />
         <Route path="/calendar" component={Calendar} />
         <Route path="/admin" component={Admin} />
+        <Route path="/super-admin" component={SuperAdmin} />
+        <Route path="/org-settings" component={OrgSettings} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
