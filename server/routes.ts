@@ -153,6 +153,16 @@ export async function registerRoutes(
   // Seed DB on startup
   seedDatabase().catch(err => console.error("Error seeding database:", err));
 
+  // --- Users (Admin) ---
+  app.get('/api/users', async (req, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      res.json(allUsers);
+    } catch (err) {
+      res.json([]);
+    }
+  });
+
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
     const portfolios = await storage.getPortfolios();

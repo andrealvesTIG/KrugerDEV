@@ -143,6 +143,174 @@ export default function ProjectDetails() {
   );
 }
 
+function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any }) {
+  const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  
+  const form = useForm({
+    defaultValues: {
+      name: project.name || "",
+      description: project.description || "",
+      status: project.status || "Initiation",
+      priority: project.priority || "Medium",
+      startDate: project.startDate ? format(new Date(project.startDate), 'yyyy-MM-dd') : "",
+      endDate: project.endDate ? format(new Date(project.endDate), 'yyyy-MM-dd') : "",
+      budget: project.budget || "0",
+      health: project.health || "Green",
+      completionPercentage: project.completionPercentage || 0,
+    }
+  });
+
+  const onSubmit = (data: any) => {
+    onUpdate({ id: project.id, ...data }, {
+      onSuccess: () => {
+        toast({ title: "Success", description: "Project updated successfully" });
+        setIsEditing(false);
+      }
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle>Project Summary</CardTitle>
+          <CardDescription>View and edit project details</CardDescription>
+        </div>
+        <Button 
+          variant={isEditing ? "outline" : "default"} 
+          onClick={() => setIsEditing(!isEditing)}
+          data-testid="button-edit-project"
+        >
+          {isEditing ? "Cancel" : "Edit Project"}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isEditing ? (
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Project Name</Label>
+                <Input {...form.register("name")} data-testid="input-project-name" />
+              </div>
+              <div className="space-y-2">
+                <Label>Budget</Label>
+                <Input type="number" {...form.register("budget")} data-testid="input-project-budget" />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Controller control={form.control} name="status" render={({field}) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Initiation">Initiation</SelectItem>
+                      <SelectItem value="Planning">Planning</SelectItem>
+                      <SelectItem value="Execution">Execution</SelectItem>
+                      <SelectItem value="Monitoring">Monitoring</SelectItem>
+                      <SelectItem value="Closing">Closing</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )} />
+              </div>
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Controller control={form.control} name="priority" render={({field}) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Low">Low</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )} />
+              </div>
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input type="date" {...form.register("startDate")} />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input type="date" {...form.register("endDate")} />
+              </div>
+              <div className="space-y-2">
+                <Label>Health</Label>
+                <Controller control={form.control} name="health" render={({field}) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Green">Green</SelectItem>
+                      <SelectItem value="Yellow">Yellow</SelectItem>
+                      <SelectItem value="Red">Red</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )} />
+              </div>
+              <div className="space-y-2">
+                <Label>Completion (%)</Label>
+                <Input type="number" min="0" max="100" {...form.register("completionPercentage", { valueAsNumber: true })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea {...form.register("description")} className="min-h-[100px]" />
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" data-testid="button-save-project">Save Changes</Button>
+            </div>
+          </form>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div>
+                <Label className="text-xs text-slate-500">Project Name</Label>
+                <p className="font-medium">{project.name}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Status</Label>
+                <p className="font-medium">{project.status}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Priority</Label>
+                <p className="font-medium">{project.priority}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Budget</Label>
+                <p className="font-medium">${Number(project.budget).toLocaleString()}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Health</Label>
+                <Badge className={cn(
+                  project.health === 'Green' ? "bg-emerald-100 text-emerald-800" :
+                  project.health === 'Yellow' ? "bg-amber-100 text-amber-800" :
+                  "bg-rose-100 text-rose-800"
+                )}>{project.health}</Badge>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Completion</Label>
+                <p className="font-medium">{project.completionPercentage}%</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Start Date</Label>
+                <p className="font-medium">{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : 'Not set'}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">End Date</Label>
+                <p className="font-medium">{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'Not set'}</p>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-slate-500">Description</Label>
+              <p className="mt-1 text-slate-600">{project.description || 'No description provided.'}</p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function RisksTab({ projectId }: { projectId: number }) {
   const { data: risks, isLoading } = useRisks(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);

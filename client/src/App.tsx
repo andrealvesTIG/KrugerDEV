@@ -14,6 +14,7 @@ import ProjectDetails from "@/pages/ProjectDetails";
 import Calendar from "@/pages/Calendar";
 import Issues from "@/pages/Issues";
 import Tasks from "@/pages/Tasks";
+import Admin from "@/pages/Admin";
 
 function Router() {
   return (
@@ -27,6 +28,7 @@ function Router() {
         <Route path="/tasks" component={Tasks} />
         <Route path="/issues" component={Issues} />
         <Route path="/calendar" component={Calendar} />
+        <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

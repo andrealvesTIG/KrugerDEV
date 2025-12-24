@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,6 +12,7 @@ const navigation = [
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Issues", href: "/issues", icon: CircleDot },
   { name: "Calendar", href: "/calendar", icon: Calendar },
+  { name: "Admin", href: "/admin", icon: Shield, adminOnly: true },
 ];
 
 export function Sidebar() {
@@ -51,6 +52,10 @@ export function Sidebar() {
           </p>
         )}
         {navigation.map((item) => {
+          if ((item as any).adminOnly && user?.role !== 'admin') {
+            return null;
+          }
+          
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           
           const navItem = (

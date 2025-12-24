@@ -16,6 +16,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: UpsertUser): Promise<User>;
+  getAllUsers(): Promise<User[]>;
 
   // Portfolios
   getPortfolios(): Promise<Portfolio[]>;
@@ -73,6 +74,10 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: UpsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
   }
 
   // Portfolios
