@@ -34,7 +34,7 @@ export default function Portfolios() {
           <h1 className="text-3xl font-display font-bold text-slate-900">Portfolios</h1>
           <p className="mt-1 text-slate-500">Manage your strategic project groupings.</p>
         </div>
-        <CreatePortfolioDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} />
+        <CreatePortfolioDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} organizationId={currentOrganization?.id} />
       </div>
 
       {/* Search and Filters */}
@@ -97,17 +97,17 @@ export default function Portfolios() {
   );
 }
 
-function CreatePortfolioDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+function CreatePortfolioDialog({ open, onOpenChange, organizationId }: { open: boolean; onOpenChange: (o: boolean) => void; organizationId?: number }) {
   const { toast } = useToast();
   const createMutation = useCreatePortfolio();
   
   const form = useForm<InsertPortfolio>({
     resolver: zodResolver(insertPortfolioSchema),
-    defaultValues: { name: "", description: "", strategy: "" }
+    defaultValues: { name: "", description: "", strategy: "", organizationId: organizationId || undefined }
   });
 
   const onSubmit = (data: InsertPortfolio) => {
-    createMutation.mutate(data, {
+    createMutation.mutate({ ...data, organizationId: organizationId || null }, {
       onSuccess: () => {
         toast({ title: "Success", description: "Portfolio created successfully" });
         onOpenChange(false);

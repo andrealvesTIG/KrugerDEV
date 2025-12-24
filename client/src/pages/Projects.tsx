@@ -42,6 +42,7 @@ export default function Projects() {
           open={isDialogOpen} 
           onOpenChange={setIsDialogOpen} 
           portfolios={portfolios || []}
+          organizationId={currentOrganization?.id}
         />
       </div>
 
@@ -136,7 +137,7 @@ export default function Projects() {
   );
 }
 
-function CreateProjectDialog({ open, onOpenChange, portfolios }: { open: boolean, onOpenChange: (o: boolean) => void, portfolios: any[] }) {
+function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }: { open: boolean, onOpenChange: (o: boolean) => void, portfolios: any[], organizationId?: number }) {
   const { toast } = useToast();
   const createMutation = useCreateProject();
   
@@ -148,11 +149,12 @@ function CreateProjectDialog({ open, onOpenChange, portfolios }: { open: boolean
       priority: "Medium",
       status: "Initiation",
       budget: "0",
+      organizationId: organizationId || undefined,
     }
   });
 
   const onSubmit = (data: InsertProject) => {
-    createMutation.mutate(data, {
+    createMutation.mutate({ ...data, organizationId: organizationId || null }, {
       onSuccess: () => {
         toast({ title: "Success", description: "Project created successfully" });
         onOpenChange(false);
