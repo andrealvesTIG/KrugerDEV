@@ -163,6 +163,113 @@ export async function registerRoutes(
     }
   });
 
+  // --- Organizations ---
+  app.get('/api/organizations', async (req, res) => {
+    try {
+      const orgs = await storage.getOrganizations();
+      res.json(orgs);
+    } catch (err) {
+      res.json([]);
+    }
+  });
+
+  app.get('/api/organizations/:id', async (req, res) => {
+    const org = await storage.getOrganization(Number(req.params.id));
+    if (!org) return res.status(404).json({ message: 'Organization not found' });
+    res.json(org);
+  });
+
+  app.post('/api/organizations', async (req, res) => {
+    try {
+      const { name, slug, description, ownerId } = req.body;
+      const org = await storage.createOrganization({ name, slug, description, ownerId });
+      // Add creator as org_admin
+      if (ownerId) {
+        await storage.addOrganizationMember({ 
+          organizationId: org.id, 
+          userId: ownerId, 
+          role: 'org_admin' 
+        });
+      }
+      res.status(201).json(org);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to create organization' });
+    }
+  });
+
+  app.put('/api/organizations/:id', async (req, res) => {
+    try {
+      const { name, description } = req.body;
+      const updated = await storage.updateOrganization(Number(req.params.id), { name, description });
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to update organization' });
+    }
+  });
+
+  app.delete('/api/organizations/:id', async (req, res) => {
+    await storage.deleteOrganization(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // --- Organization Members ---
+  app.get('/api/organizations/:id/members', async (req, res) => {
+    try {
+      const members = await storage.getOrganizationMembers(Number(req.params.id));
+      // Enrich with user data
+      const allUsers = await storage.getAllUsers();
+      const enrichedMembers = members.map(m => ({
+        ...m,
+        user: allUsers.find(u => u.id === m.userId)
+      }));
+      res.json(enrichedMembers);
+    } catch (err) {
+      res.json([]);
+    }
+  });
+
+  app.get('/api/users/:userId/organizations', async (req, res) => {
+    try {
+      const memberships = await storage.getUserOrganizations(req.params.userId);
+      res.json(memberships);
+    } catch (err) {
+      res.json([]);
+    }
+  });
+
+  app.post('/api/organizations/:id/members', async (req, res) => {
+    try {
+      const { userId, role } = req.body;
+      const member = await storage.addOrganizationMember({
+        organizationId: Number(req.params.id),
+        userId,
+        role: role || 'member'
+      });
+      res.status(201).json(member);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to add member' });
+    }
+  });
+
+  app.put('/api/organizations/:id/members/:userId', async (req, res) => {
+    try {
+      const { role } = req.body;
+      const updated = await storage.updateOrganizationMemberRole(
+        Number(req.params.id),
+        req.params.userId,
+        role
+      );
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to update member role' });
+    }
+  });
+
+  app.delete('/api/organizations/:id/members/:userId', async (req, res) => {
+    await storage.removeOrganizationMember(Number(req.params.id), req.params.userId);
+    res.status(204).send();
+  });
+
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
     const portfolios = await storage.getPortfolios();

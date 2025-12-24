@@ -23,7 +23,7 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   
   // Custom fields added
-  role: varchar("role").default("user"), // 'admin', 'portfolio_manager', 'project_manager', 'team_member'
+  role: varchar("role").default("user"), // 'super_admin', 'user' (org-level roles are in organization_members)
   username: varchar("username").unique(),
   avatarUrl: varchar("avatar_url"), // keeping consistent with schema.ts usage, though profileImageUrl exists
 

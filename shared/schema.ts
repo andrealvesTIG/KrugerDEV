@@ -10,8 +10,28 @@ export * from "./models/auth";
 
 // Users (Imported from ./models/auth)
 
+// Organizations (Tenants)
+export const organizations = pgTable("organizations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(), // URL-friendly identifier
+  description: text("description"),
+  ownerId: varchar("owner_id").references(() => users.id), // Organization creator
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Organization Members (Join table for users <-> organizations)
+export const organizationMembers = pgTable("organization_members", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  role: text("role").notNull().default("member"), // 'org_admin', 'member', 'viewer'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Portfolios - High level grouping of projects
 export const portfolios = pgTable("portfolios", {
+  organizationId: integer("organization_id").references(() => organizations.id),
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
@@ -89,12 +109,38 @@ export const tasks = pgTable("tasks", {
 
 // === RELATIONS ===
 
+export const organizationsRelations = relations(organizations, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [organizations.ownerId],
+    references: [users.id],
+  }),
+  members: many(organizationMembers),
+  portfolios: many(portfolios),
+}));
+
+export const organizationMembersRelations = relations(organizationMembers, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationMembers.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [organizationMembers.userId],
+    references: [users.id],
+  }),
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   managedPortfolios: many(portfolios, { relationName: "portfolioManager" }),
   managedProjects: many(projects, { relationName: "projectManager" }),
+  organizationMemberships: many(organizationMembers),
+  ownedOrganizations: many(organizations),
 }));
 
 export const portfoliosRelations = relations(portfolios, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [portfolios.organizationId],
+    references: [organizations.id],
+  }),
   manager: one(users, {
     fields: [portfolios.managerId],
     references: [users.id],
@@ -155,6 +201,8 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
 // Let's define a schema for our app's user usage if needed, but mainly we use the auth one.
 // createInsertSchema(users) would work.
 
+export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true });
+export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({ id: true, createdAt: true });
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true });
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, completionPercentage: true, health: true });
 export const insertRiskSchema = createInsertSchema(risks).omit({ id: true, createdAt: true });
@@ -165,6 +213,12 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, creat
 // === TYPES ===
 
 // User types exported from models/auth
+
+export type Organization = typeof organizations.$inferSelect;
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+
+export type OrganizationMember = typeof organizationMembers.$inferSelect;
+export type InsertOrganizationMember = z.infer<typeof insertOrganizationMemberSchema>;
 
 export type Portfolio = typeof portfolios.$inferSelect;
 export type InsertPortfolio = z.infer<typeof insertPortfolioSchema>;

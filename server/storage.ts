@@ -1,7 +1,10 @@
 import { db } from "./db";
 import {
   users, portfolios, projects, risks, milestones, issues, tasks,
+  organizations, organizationMembers,
   type User, type UpsertUser,
+  type Organization, type InsertOrganization,
+  type OrganizationMember, type InsertOrganizationMember,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
@@ -9,7 +12,7 @@ import {
   type Issue, type InsertIssue, type UpdateIssueRequest,
   type Task, type InsertTask, type UpdateTaskRequest
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -17,6 +20,20 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: UpsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
+
+  // Organizations
+  getOrganizations(): Promise<Organization[]>;
+  getOrganization(id: number): Promise<Organization | undefined>;
+  createOrganization(org: InsertOrganization): Promise<Organization>;
+  updateOrganization(id: number, updates: Partial<InsertOrganization>): Promise<Organization>;
+  deleteOrganization(id: number): Promise<void>;
+  
+  // Organization Members
+  getOrganizationMembers(organizationId: number): Promise<OrganizationMember[]>;
+  getUserOrganizations(userId: string): Promise<OrganizationMember[]>;
+  addOrganizationMember(member: InsertOrganizationMember): Promise<OrganizationMember>;
+  updateOrganizationMemberRole(organizationId: number, userId: string, role: string): Promise<OrganizationMember>;
+  removeOrganizationMember(organizationId: number, userId: string): Promise<void>;
 
   // Portfolios
   getPortfolios(): Promise<Portfolio[]>;
@@ -78,6 +95,68 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  // Organizations
+  async getOrganizations(): Promise<Organization[]> {
+    return await db.select().from(organizations);
+  }
+
+  async getOrganization(id: number): Promise<Organization | undefined> {
+    const [org] = await db.select().from(organizations).where(eq(organizations.id, id));
+    return org;
+  }
+
+  async createOrganization(org: InsertOrganization): Promise<Organization> {
+    const [newOrg] = await db.insert(organizations).values(org).returning();
+    return newOrg;
+  }
+
+  async updateOrganization(id: number, updates: Partial<InsertOrganization>): Promise<Organization> {
+    const [updated] = await db.update(organizations)
+      .set(updates)
+      .where(eq(organizations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteOrganization(id: number): Promise<void> {
+    await db.delete(organizations).where(eq(organizations.id, id));
+  }
+
+  // Organization Members
+  async getOrganizationMembers(organizationId: number): Promise<OrganizationMember[]> {
+    return await db.select().from(organizationMembers)
+      .where(eq(organizationMembers.organizationId, organizationId));
+  }
+
+  async getUserOrganizations(userId: string): Promise<OrganizationMember[]> {
+    return await db.select().from(organizationMembers)
+      .where(eq(organizationMembers.userId, userId));
+  }
+
+  async addOrganizationMember(member: InsertOrganizationMember): Promise<OrganizationMember> {
+    const [newMember] = await db.insert(organizationMembers).values(member).returning();
+    return newMember;
+  }
+
+  async updateOrganizationMemberRole(organizationId: number, userId: string, role: string): Promise<OrganizationMember> {
+    const [updated] = await db.update(organizationMembers)
+      .set({ role })
+      .where(and(
+        eq(organizationMembers.organizationId, organizationId),
+        eq(organizationMembers.userId, userId)
+      ))
+      .returning();
+    return updated;
+  }
+
+  async removeOrganizationMember(organizationId: number, userId: string): Promise<void> {
+    await db.delete(organizationMembers)
+      .where(and(
+        eq(organizationMembers.organizationId, organizationId),
+        eq(organizationMembers.userId, userId)
+      ));
   }
 
   // Portfolios
