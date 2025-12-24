@@ -43,6 +43,7 @@ export const portfolios = pgTable("portfolios", {
 // Projects
 export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id),
   portfolioId: integer("portfolio_id").references(() => portfolios.id),
   name: text("name").notNull(),
   description: text("description"),
@@ -150,6 +151,10 @@ export const portfoliosRelations = relations(portfolios, ({ one, many }) => ({
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [projects.organizationId],
+    references: [organizations.id],
+  }),
   portfolio: one(portfolios, {
     fields: [projects.portfolioId],
     references: [portfolios.id],

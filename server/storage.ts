@@ -36,14 +36,14 @@ export interface IStorage {
   removeOrganizationMember(organizationId: number, userId: string): Promise<void>;
 
   // Portfolios
-  getPortfolios(): Promise<Portfolio[]>;
+  getPortfolios(organizationId?: number): Promise<Portfolio[]>;
   getPortfolio(id: number): Promise<Portfolio | undefined>;
   createPortfolio(portfolio: InsertPortfolio): Promise<Portfolio>;
   updatePortfolio(id: number, updates: UpdatePortfolioRequest): Promise<Portfolio>;
   deletePortfolio(id: number): Promise<void>;
 
   // Projects
-  getProjects(portfolioId?: number): Promise<Project[]>;
+  getProjects(organizationId?: number, portfolioId?: number): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: number, updates: UpdateProjectRequest): Promise<Project>;
@@ -160,7 +160,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Portfolios
-  async getPortfolios(): Promise<Portfolio[]> {
+  async getPortfolios(organizationId?: number): Promise<Portfolio[]> {
+    if (organizationId) {
+      return await db.select().from(portfolios).where(eq(portfolios.organizationId, organizationId));
+    }
     return await db.select().from(portfolios);
   }
 
@@ -187,7 +190,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Projects
-  async getProjects(portfolioId?: number): Promise<Project[]> {
+  async getProjects(organizationId?: number, portfolioId?: number): Promise<Project[]> {
+    if (organizationId && portfolioId) {
+      return await db.select().from(projects).where(
+        and(eq(projects.organizationId, organizationId), eq(projects.portfolioId, portfolioId))
+      );
+    }
+    if (organizationId) {
+      return await db.select().from(projects).where(eq(projects.organizationId, organizationId));
+    }
     if (portfolioId) {
       return await db.select().from(projects).where(eq(projects.portfolioId, portfolioId));
     }

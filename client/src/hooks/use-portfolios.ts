@@ -1,11 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type CreatePortfolioRequest, type UpdatePortfolioRequest } from "@shared/routes";
 
-export function usePortfolios() {
+export function usePortfolios(organizationId?: number | null) {
   return useQuery({
-    queryKey: [api.portfolios.list.path],
+    queryKey: [api.portfolios.list.path, organizationId],
     queryFn: async () => {
-      const res = await fetch(api.portfolios.list.path, { credentials: "include" });
+      let url = api.portfolios.list.path;
+      if (organizationId) {
+        url += `?organizationId=${organizationId}`;
+      }
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch portfolios");
       return api.portfolios.list.responses[200].parse(await res.json());
     },

@@ -288,7 +288,8 @@ export async function registerRoutes(
 
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
-    const portfolios = await storage.getPortfolios();
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
+    const portfolios = await storage.getPortfolios(organizationId);
     res.json(portfolios);
   });
 
@@ -339,8 +340,9 @@ export async function registerRoutes(
 
   // --- Projects ---
   app.get(api.projects.list.path, async (req, res) => {
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
     const portfolioId = req.query.portfolioId ? Number(req.query.portfolioId) : undefined;
-    const projects = await storage.getProjects(portfolioId);
+    const projects = await storage.getProjects(organizationId, portfolioId);
     res.json(projects);
   });
 

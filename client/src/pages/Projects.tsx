@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useProjects, useCreateProject } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
+import { useOrganization } from "@/hooks/use-organization";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,9 +20,10 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export default function Projects() {
+  const { currentOrganization } = useOrganization();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
-  const { data: projects, isLoading } = useProjects(selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
-  const { data: portfolios } = usePortfolios();
+  const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
+  const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
 

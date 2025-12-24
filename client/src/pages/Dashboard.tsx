@@ -1,5 +1,6 @@
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
+import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { Loader2, Briefcase, AlertTriangle, TrendingUp, CheckCircle2 } from "lucide-react";
@@ -12,8 +13,9 @@ const COLORS = {
 };
 
 export default function Dashboard() {
-  const { data: projects, isLoading: projectsLoading } = useProjects();
-  const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios();
+  const { currentOrganization } = useOrganization();
+  const { data: projects, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
+  const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
 
   if (projectsLoading || portfoliosLoading) {
     return (

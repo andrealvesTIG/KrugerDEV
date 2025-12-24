@@ -1,4 +1,5 @@
 import { useProjects } from "@/hooks/use-projects";
+import { useOrganization } from "@/hooks/use-organization";
 import { useMilestones } from "@/hooks/use-milestones"; // Note: this hook is by project, so we might need a custom one or just show placeholder
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from "date-fns";
@@ -7,7 +8,8 @@ import { cn } from "@/lib/utils";
 // Mocking calendar events for MVP since useMilestones is per-project
 // In a real app, I'd fetch all milestones across all projects
 export default function Calendar() {
-  const { data: projects } = useProjects();
+  const { currentOrganization } = useOrganization();
+  const { data: projects } = useProjects(currentOrganization?.id);
   const today = new Date();
   const days = eachDayOfInterval({
     start: startOfMonth(today),

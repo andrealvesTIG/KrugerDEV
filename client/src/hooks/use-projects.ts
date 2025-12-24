@@ -1,14 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type CreateProjectRequest, type UpdateProjectRequest } from "@shared/routes";
 
-export function useProjects(portfolioId?: number) {
+export function useProjects(organizationId?: number | null, portfolioId?: number) {
   return useQuery({
-    queryKey: [api.projects.list.path, portfolioId],
+    queryKey: [api.projects.list.path, organizationId, portfolioId],
     queryFn: async () => {
       let url = api.projects.list.path;
-      if (portfolioId) {
-        url += `?portfolioId=${portfolioId}`;
-      }
+      const params = new URLSearchParams();
+      if (organizationId) params.append('organizationId', String(organizationId));
+      if (portfolioId) params.append('portfolioId', String(portfolioId));
+      if (params.toString()) url += `?${params.toString()}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch projects");
       return api.projects.list.responses[200].parse(await res.json());

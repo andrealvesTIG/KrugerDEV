@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
+import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,8 @@ import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Portfolios() {
-  const { data: portfolios, isLoading } = usePortfolios();
+  const { currentOrganization } = useOrganization();
+  const { data: portfolios, isLoading } = usePortfolios(currentOrganization?.id);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
 

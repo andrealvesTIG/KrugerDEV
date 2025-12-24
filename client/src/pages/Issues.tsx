@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
 import { useProjects } from "@/hooks/use-projects";
+import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,8 +40,9 @@ const typeIcons = {
 };
 
 export default function Issues() {
+  const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useAllIssues();
-  const { data: projects } = useProjects();
+  const { data: projects } = useProjects(currentOrganization?.id);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");

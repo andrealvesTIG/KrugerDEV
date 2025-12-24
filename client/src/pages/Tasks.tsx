@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useAllTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
+import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,8 +26,9 @@ const statusColors = {
 };
 
 export default function Tasks() {
+  const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading } = useAllTasks();
-  const { data: projects } = useProjects();
+  const { data: projects } = useProjects(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
