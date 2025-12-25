@@ -4,6 +4,7 @@ import { useProject, useUpdateProject } from "@/hooks/use-projects";
 import { useRisks, useCreateRisk, useDeleteRisk } from "@/hooks/use-risks";
 import { useMilestones, useCreateMilestone, useUpdateMilestone, useDeleteMilestone } from "@/hooks/use-milestones";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,12 +14,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertRiskSchema, insertMilestoneSchema, insertIssueSchema } from "@shared/schema";
+import { insertRiskSchema, insertMilestoneSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
+import type { Milestone, Task } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -121,6 +123,7 @@ export default function ProjectDetails() {
         <TabsList className="bg-slate-100 p-1 rounded-xl">
           <TabsTrigger value="summary" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Project Summary</TabsTrigger>
           <TabsTrigger value="milestones" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Milestones</TabsTrigger>
+          <TabsTrigger value="tasks" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Tasks</TabsTrigger>
           <TabsTrigger value="risks" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Risks Log</TabsTrigger>
           <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Issues</TabsTrigger>
         </TabsList>
@@ -130,6 +133,9 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="milestones">
             <MilestonesTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="tasks">
+            <TasksTab projectId={project.id} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab projectId={project.id} />
@@ -421,81 +427,509 @@ function RisksTab({ projectId }: { projectId: number }) {
   );
 }
 
+function MilestoneRow({ milestone, projectId, onUpdate, onDelete }: { 
+  milestone: Milestone; 
+  projectId: number; 
+  onUpdate: any; 
+  onDelete: any;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(milestone.title);
+  const [dueDate, setDueDate] = useState(format(new Date(milestone.dueDate), 'yyyy-MM-dd'));
+
+  const handleSave = () => {
+    onUpdate.mutate({ 
+      id: milestone.id, 
+      projectId, 
+      title, 
+      dueDate: dueDate || null 
+    });
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setTitle(milestone.title);
+    setDueDate(format(new Date(milestone.dueDate), 'yyyy-MM-dd'));
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <tr className="border-b" data-testid={`row-milestone-edit-${milestone.id}`}>
+        <td className="p-2">
+          <div 
+            className={cn("h-5 w-5 rounded border cursor-pointer flex items-center justify-center transition-colors", milestone.completed ? "bg-primary border-primary text-white" : "border-slate-300")}
+            onClick={() => onUpdate.mutate({ id: milestone.id, projectId, completed: !milestone.completed })}
+          >
+            {milestone.completed && <Check className="h-3.5 w-3.5" />}
+          </div>
+        </td>
+        <td className="p-2">
+          <Input 
+            value={title} 
+            onChange={(e) => setTitle(e.target.value)} 
+            className="h-8"
+            data-testid="input-milestone-title-edit"
+          />
+        </td>
+        <td className="p-2">
+          <Input 
+            type="date" 
+            value={dueDate} 
+            onChange={(e) => setDueDate(e.target.value)} 
+            className="h-8 w-40"
+            data-testid="input-milestone-date-edit"
+          />
+        </td>
+        <td className="p-2">
+          <div className="flex gap-1">
+            <Button size="icon" variant="ghost" onClick={handleSave} data-testid="button-save-milestone-edit">
+              <Check className="h-4 w-4 text-emerald-600" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={handleCancel} data-testid="button-cancel-milestone-edit">
+              <X className="h-4 w-4 text-slate-400" />
+            </Button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" data-testid={`row-milestone-${milestone.id}`}>
+      <td className="p-2">
+        <div 
+          className={cn("h-5 w-5 rounded border cursor-pointer flex items-center justify-center transition-colors", milestone.completed ? "bg-primary border-primary text-white" : "border-slate-300")}
+          onClick={() => onUpdate.mutate({ id: milestone.id, projectId, completed: !milestone.completed })}
+          data-testid={`checkbox-milestone-${milestone.id}`}
+        >
+          {milestone.completed && <Check className="h-3.5 w-3.5" />}
+        </div>
+      </td>
+      <td className={cn("p-2 font-medium text-sm", milestone.completed && "line-through text-slate-400")}>
+        {milestone.title}
+      </td>
+      <td className="p-2 text-sm text-muted-foreground">
+        {format(new Date(milestone.dueDate), 'MMM d, yyyy')}
+      </td>
+      <td className="p-2">
+        <div className="flex gap-1">
+          <Button size="icon" variant="ghost" onClick={() => setIsEditing(true)} data-testid={`button-edit-milestone-${milestone.id}`}>
+            <Pencil className="h-4 w-4 text-slate-400" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={() => onDelete.mutate({ id: milestone.id, projectId })} data-testid={`button-delete-milestone-${milestone.id}`}>
+            <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function MilestonesTab({ projectId }: { projectId: number }) {
   const { data: milestones, isLoading } = useMilestones(projectId);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const createMilestone = useCreateMilestone();
   const updateMilestone = useUpdateMilestone();
   const deleteMilestone = useDeleteMilestone();
   const { toast } = useToast();
 
-  const form = useForm({
-    resolver: zodResolver(insertMilestoneSchema),
-    defaultValues: {
-      projectId,
-      title: "",
-      dueDate: format(new Date(), 'yyyy-MM-dd'),
-      completed: false
-    }
-  });
+  const [isAdding, setIsAdding] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDueDate, setNewDueDate] = useState(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
 
-  const onSubmit = (data: any) => {
-    createMilestone.mutate(data, {
+  const handleAddMilestone = () => {
+    if (!newTitle.trim()) return;
+    createMilestone.mutate({
+      projectId,
+      title: newTitle,
+      dueDate: newDueDate || format(new Date(), 'yyyy-MM-dd'),
+      completed: false
+    }, {
       onSuccess: () => {
         toast({ title: "Success", description: "Milestone added" });
-        setIsDialogOpen(false);
-        form.reset({ projectId, title: "", dueDate: format(new Date(), 'yyyy-MM-dd'), completed: false });
+        setNewTitle("");
+        setNewDueDate(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
+        setIsAdding(false);
       }
     });
   };
 
-  if (isLoading) return <Loader2 className="animate-spin" />;
+  if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div>
           <CardTitle>Milestones</CardTitle>
-          <CardDescription>Key deliverables and dates.</CardDescription>
+          <CardDescription>Key deliverables and dates. Click the pencil to edit inline.</CardDescription>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="mr-2 h-4 w-4" /> Add Milestone</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Add Milestone</DialogTitle></DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input {...form.register("title")} />
-              </div>
-              <div className="space-y-2">
-                <Label>Due Date</Label>
-                <Input type="date" {...form.register("dueDate")} />
-              </div>
-              <DialogFooter><Button type="submit">Save Milestone</Button></DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button size="sm" onClick={() => setIsAdding(true)} disabled={isAdding} data-testid="button-add-milestone">
+          <Plus className="mr-2 h-4 w-4" /> Add Milestone
+        </Button>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2">
-          {milestones?.map(ms => (
-            <div key={ms.id} className="flex items-center justify-between rounded-lg border p-3 hover:bg-slate-50 transition-colors">
-              <div className="flex items-center gap-3">
-                <div 
-                  className={cn("h-5 w-5 rounded border cursor-pointer flex items-center justify-center transition-colors", ms.completed ? "bg-primary border-primary text-white" : "border-slate-300")}
-                  onClick={() => updateMilestone.mutate({ id: ms.id, projectId, completed: !ms.completed })}
-                >
-                  {ms.completed && <CheckSquare className="h-3.5 w-3.5" />}
-                </div>
-                <div className={cn(ms.completed && "line-through text-slate-400")}>
-                  <p className="font-medium text-sm">{ms.title}</p>
-                  <p className="text-xs text-slate-500">Due: {format(new Date(ms.dueDate), 'MMM d, yyyy')}</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => deleteMilestone.mutate({id: ms.id, projectId})}><Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" /></Button>
+        <div className="rounded-md border">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr className="border-b">
+                <th className="p-2 w-10"></th>
+                <th className="p-2 text-left text-sm font-medium text-muted-foreground">Title</th>
+                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-40">Due Date</th>
+                <th className="p-2 w-24"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {isAdding && (
+                <tr className="border-b bg-muted/30" data-testid="row-milestone-new">
+                  <td className="p-2">
+                    <div className="h-5 w-5 rounded border border-slate-300" />
+                  </td>
+                  <td className="p-2">
+                    <Input 
+                      value={newTitle} 
+                      onChange={(e) => setNewTitle(e.target.value)} 
+                      placeholder="Milestone title..."
+                      className="h-8"
+                      autoFocus
+                      data-testid="input-milestone-title-new"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <Input 
+                      type="date" 
+                      value={newDueDate} 
+                      onChange={(e) => setNewDueDate(e.target.value)} 
+                      className="h-8 w-40"
+                      data-testid="input-milestone-date-new"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" onClick={handleAddMilestone} disabled={!newTitle.trim()} data-testid="button-save-milestone-new">
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => { setIsAdding(false); setNewTitle(""); }} data-testid="button-cancel-milestone-new">
+                        <X className="h-4 w-4 text-slate-400" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {milestones?.map(ms => (
+                <MilestoneRow 
+                  key={ms.id} 
+                  milestone={ms} 
+                  projectId={projectId} 
+                  onUpdate={updateMilestone} 
+                  onDelete={deleteMilestone} 
+                />
+              ))}
+            </tbody>
+          </table>
+          {!isAdding && milestones?.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              No milestones set. Click "Add Milestone" to create one.
             </div>
-          ))}
-          {milestones?.length === 0 && <div className="text-center py-8 text-slate-500">No milestones set.</div>}
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TaskRow({ task, projectId, onUpdate, onDelete }: { 
+  task: Task; 
+  projectId: number; 
+  onUpdate: any; 
+  onDelete: any;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(task.title);
+  const [status, setStatus] = useState(task.status || "To Do");
+  const [priority, setPriority] = useState(task.priority || "Medium");
+  const [assignee, setAssignee] = useState(task.assignee || "");
+  const [dueDate, setDueDate] = useState(task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : "");
+
+  const handleSave = () => {
+    onUpdate.mutate({ 
+      id: task.id, 
+      projectId, 
+      title, 
+      status, 
+      priority, 
+      assignee: assignee || null,
+      dueDate: dueDate || null 
+    });
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setTitle(task.title);
+    setStatus(task.status || "To Do");
+    setPriority(task.priority || "Medium");
+    setAssignee(task.assignee || "");
+    setDueDate(task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : "");
+    setIsEditing(false);
+  };
+
+  const statusColors: Record<string, string> = {
+    "To Do": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
+    "Done": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
+    "Blocked": "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
+  };
+
+  const priorityColors: Record<string, string> = {
+    Low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    Medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
+    High: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
+    Critical: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300",
+  };
+
+  if (isEditing) {
+    return (
+      <tr className="border-b" data-testid={`row-task-edit-${task.id}`}>
+        <td className="p-2">
+          <Input 
+            value={title} 
+            onChange={(e) => setTitle(e.target.value)} 
+            className="h-8"
+            data-testid="input-task-title-edit"
+          />
+        </td>
+        <td className="p-2">
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="h-8 w-28" data-testid="select-task-status-edit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="To Do">To Do</SelectItem>
+              <SelectItem value="In Progress">In Progress</SelectItem>
+              <SelectItem value="Done">Done</SelectItem>
+              <SelectItem value="Blocked">Blocked</SelectItem>
+            </SelectContent>
+          </Select>
+        </td>
+        <td className="p-2">
+          <Select value={priority} onValueChange={setPriority}>
+            <SelectTrigger className="h-8 w-24" data-testid="select-task-priority-edit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Low">Low</SelectItem>
+              <SelectItem value="Medium">Medium</SelectItem>
+              <SelectItem value="High">High</SelectItem>
+              <SelectItem value="Critical">Critical</SelectItem>
+            </SelectContent>
+          </Select>
+        </td>
+        <td className="p-2">
+          <Input 
+            value={assignee} 
+            onChange={(e) => setAssignee(e.target.value)} 
+            placeholder="Assignee"
+            className="h-8 w-28"
+            data-testid="input-task-assignee-edit"
+          />
+        </td>
+        <td className="p-2">
+          <Input 
+            type="date" 
+            value={dueDate} 
+            onChange={(e) => setDueDate(e.target.value)} 
+            className="h-8 w-36"
+            data-testid="input-task-date-edit"
+          />
+        </td>
+        <td className="p-2">
+          <div className="flex gap-1">
+            <Button size="icon" variant="ghost" onClick={handleSave} data-testid="button-save-task-edit">
+              <Check className="h-4 w-4 text-emerald-600" />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={handleCancel} data-testid="button-cancel-task-edit">
+              <X className="h-4 w-4 text-slate-400" />
+            </Button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" data-testid={`row-task-${task.id}`}>
+      <td className="p-2 font-medium text-sm">{task.title}</td>
+      <td className="p-2">
+        <Badge className={cn("text-xs", statusColors[task.status || "To Do"])}>{task.status}</Badge>
+      </td>
+      <td className="p-2">
+        <Badge className={cn("text-xs", priorityColors[task.priority || "Medium"])}>{task.priority}</Badge>
+      </td>
+      <td className="p-2 text-sm text-muted-foreground">{task.assignee || "-"}</td>
+      <td className="p-2 text-sm text-muted-foreground">
+        {task.dueDate ? format(new Date(task.dueDate), 'MMM d, yyyy') : "-"}
+      </td>
+      <td className="p-2">
+        <div className="flex gap-1">
+          <Button size="icon" variant="ghost" onClick={() => setIsEditing(true)} data-testid={`button-edit-task-${task.id}`}>
+            <Pencil className="h-4 w-4 text-slate-400" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={() => onDelete.mutate({ id: task.id, projectId })} data-testid={`button-delete-task-${task.id}`}>
+            <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function TasksTab({ projectId }: { projectId: number }) {
+  const { data: tasks, isLoading } = useTasks(projectId);
+  const createTask = useCreateTask();
+  const updateTask = useUpdateTask();
+  const deleteTask = useDeleteTask();
+  const { toast } = useToast();
+
+  const [isAdding, setIsAdding] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newStatus, setNewStatus] = useState("To Do");
+  const [newPriority, setNewPriority] = useState("Medium");
+  const [newAssignee, setNewAssignee] = useState("");
+  const [newDueDate, setNewDueDate] = useState("");
+
+  const handleAddTask = () => {
+    if (!newTitle.trim()) return;
+    createTask.mutate({
+      projectId,
+      title: newTitle,
+      status: newStatus,
+      priority: newPriority,
+      assignee: newAssignee || null,
+      dueDate: newDueDate || null,
+      description: ""
+    }, {
+      onSuccess: () => {
+        toast({ title: "Success", description: "Task added" });
+        setNewTitle("");
+        setNewStatus("To Do");
+        setNewPriority("Medium");
+        setNewAssignee("");
+        setNewDueDate("");
+        setIsAdding(false);
+      }
+    });
+  };
+
+  if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle>Tasks</CardTitle>
+          <CardDescription>Project tasks and assignments. Click the pencil to edit inline.</CardDescription>
+        </div>
+        <Button size="sm" onClick={() => setIsAdding(true)} disabled={isAdding} data-testid="button-add-task">
+          <Plus className="mr-2 h-4 w-4" /> Add Task
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-md border overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr className="border-b">
+                <th className="p-2 text-left text-sm font-medium text-muted-foreground">Title</th>
+                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-28">Status</th>
+                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-24">Priority</th>
+                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-28">Assignee</th>
+                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-36">Due Date</th>
+                <th className="p-2 w-24"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {isAdding && (
+                <tr className="border-b bg-muted/30" data-testid="row-task-new">
+                  <td className="p-2">
+                    <Input 
+                      value={newTitle} 
+                      onChange={(e) => setNewTitle(e.target.value)} 
+                      placeholder="Task title..."
+                      className="h-8"
+                      autoFocus
+                      data-testid="input-task-title-new"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <Select value={newStatus} onValueChange={setNewStatus}>
+                      <SelectTrigger className="h-8 w-28" data-testid="select-task-status-new">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="To Do">To Do</SelectItem>
+                        <SelectItem value="In Progress">In Progress</SelectItem>
+                        <SelectItem value="Done">Done</SelectItem>
+                        <SelectItem value="Blocked">Blocked</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="p-2">
+                    <Select value={newPriority} onValueChange={setNewPriority}>
+                      <SelectTrigger className="h-8 w-24" data-testid="select-task-priority-new">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="p-2">
+                    <Input 
+                      value={newAssignee} 
+                      onChange={(e) => setNewAssignee(e.target.value)} 
+                      placeholder="Assignee"
+                      className="h-8 w-28"
+                      data-testid="input-task-assignee-new"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <Input 
+                      type="date" 
+                      value={newDueDate} 
+                      onChange={(e) => setNewDueDate(e.target.value)} 
+                      className="h-8 w-36"
+                      data-testid="input-task-date-new"
+                    />
+                  </td>
+                  <td className="p-2">
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" onClick={handleAddTask} disabled={!newTitle.trim()} data-testid="button-save-task-new">
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => { setIsAdding(false); setNewTitle(""); }} data-testid="button-cancel-task-new">
+                        <X className="h-4 w-4 text-slate-400" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {tasks?.map(task => (
+                <TaskRow 
+                  key={task.id} 
+                  task={task} 
+                  projectId={projectId} 
+                  onUpdate={updateTask} 
+                  onDelete={deleteTask} 
+                />
+              ))}
+            </tbody>
+          </table>
+          {!isAdding && tasks?.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              No tasks created. Click "Add Task" to create one.
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
