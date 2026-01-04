@@ -338,6 +338,89 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // --- Portfolio Aggregations ---
+  app.get('/api/portfolios/:id/projects', async (req, res) => {
+    try {
+      const projects = await storage.getPortfolioProjects(Number(req.params.id));
+      res.json(projects);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to get portfolio projects' });
+    }
+  });
+
+  app.get('/api/portfolios/:id/risks', async (req, res) => {
+    try {
+      const risks = await storage.getPortfolioRisks(Number(req.params.id));
+      res.json(risks);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to get portfolio risks' });
+    }
+  });
+
+  app.get('/api/portfolios/:id/issues', async (req, res) => {
+    try {
+      const issues = await storage.getPortfolioIssues(Number(req.params.id));
+      res.json(issues);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to get portfolio issues' });
+    }
+  });
+
+  app.get('/api/portfolios/:id/milestones', async (req, res) => {
+    try {
+      const milestones = await storage.getPortfolioMilestones(Number(req.params.id));
+      res.json(milestones);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to get portfolio milestones' });
+    }
+  });
+
+  app.get('/api/portfolios/:id/overview', async (req, res) => {
+    try {
+      const portfolio = await storage.getPortfolio(Number(req.params.id));
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      
+      const projects = await storage.getPortfolioProjects(Number(req.params.id));
+      const risks = await storage.getPortfolioRisks(Number(req.params.id));
+      const issues = await storage.getPortfolioIssues(Number(req.params.id));
+      const milestones = await storage.getPortfolioMilestones(Number(req.params.id));
+      
+      // Calculate metrics
+      const totalBudget = projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
+      const avgCompletion = projects.length > 0 
+        ? Math.round(projects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / projects.length)
+        : 0;
+      const healthCounts = {
+        green: projects.filter(p => p.health === 'Green').length,
+        yellow: projects.filter(p => p.health === 'Yellow').length,
+        red: projects.filter(p => p.health === 'Red').length,
+      };
+      const openRisks = risks.filter(r => r.status === 'Open').length;
+      const highRisks = risks.filter(r => r.probability === 'High' || r.impact === 'High').length;
+      const openIssues = issues.filter(i => i.status === 'Open' || i.status === 'In Progress').length;
+      const upcomingMilestones = milestones.filter(m => !m.completed).length;
+      
+      res.json({
+        portfolio,
+        metrics: {
+          projectCount: projects.length,
+          totalBudget,
+          avgCompletion,
+          healthCounts,
+          riskCount: risks.length,
+          openRisks,
+          highRisks,
+          issueCount: issues.length,
+          openIssues,
+          milestoneCount: milestones.length,
+          upcomingMilestones,
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to get portfolio overview' });
+    }
+  });
+
   // --- Projects ---
   app.get(api.projects.list.path, async (req, res) => {
     const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;

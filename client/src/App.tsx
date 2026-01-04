@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 // Pages
 import Dashboard from "@/pages/Dashboard";
 import Portfolios from "@/pages/Portfolios";
+import PortfolioDetails from "@/pages/PortfolioDetails";
 import Projects from "@/pages/Projects";
 import ProjectDetails from "@/pages/ProjectDetails";
 import Calendar from "@/pages/Calendar";
@@ -25,7 +26,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/portfolios" component={Portfolios} />
-        <Route path="/portfolios/:id" component={(params) => <div>Portfolio Details {params.params.id} (Impl similar to Projects)</div>} />
+        <Route path="/portfolios/:id" component={PortfolioDetails} />
         <Route path="/projects" component={Projects} />
         <Route path="/projects/:id" component={ProjectDetails} />
         <Route path="/tasks" component={Tasks} />

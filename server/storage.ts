@@ -322,6 +322,48 @@ export class DatabaseStorage implements IStorage {
   async deleteTask(id: number): Promise<void> {
     await db.delete(tasks).where(eq(tasks.id, id));
   }
+
+  // Portfolio Aggregations
+  async getPortfolioProjects(portfolioId: number): Promise<Project[]> {
+    return await db.select().from(projects).where(eq(projects.portfolioId, portfolioId));
+  }
+
+  async getPortfolioRisks(portfolioId: number): Promise<(Risk & { projectName: string })[]> {
+    const portfolioProjects = await this.getPortfolioProjects(portfolioId);
+    const projectIds = portfolioProjects.map(p => p.id);
+    if (projectIds.length === 0) return [];
+    
+    const allRisks: (Risk & { projectName: string })[] = [];
+    for (const project of portfolioProjects) {
+      const projectRisks = await db.select().from(risks).where(eq(risks.projectId, project.id));
+      allRisks.push(...projectRisks.map(r => ({ ...r, projectName: project.name })));
+    }
+    return allRisks;
+  }
+
+  async getPortfolioIssues(portfolioId: number): Promise<(Issue & { projectName: string })[]> {
+    const portfolioProjects = await this.getPortfolioProjects(portfolioId);
+    if (portfolioProjects.length === 0) return [];
+    
+    const allIssues: (Issue & { projectName: string })[] = [];
+    for (const project of portfolioProjects) {
+      const projectIssues = await db.select().from(issues).where(eq(issues.projectId, project.id));
+      allIssues.push(...projectIssues.map(i => ({ ...i, projectName: project.name })));
+    }
+    return allIssues;
+  }
+
+  async getPortfolioMilestones(portfolioId: number): Promise<(Milestone & { projectName: string })[]> {
+    const portfolioProjects = await this.getPortfolioProjects(portfolioId);
+    if (portfolioProjects.length === 0) return [];
+    
+    const allMilestones: (Milestone & { projectName: string })[] = [];
+    for (const project of portfolioProjects) {
+      const projectMilestones = await db.select().from(milestones).where(eq(milestones.projectId, project.id));
+      allMilestones.push(...projectMilestones.map(m => ({ ...m, projectName: project.name })));
+    }
+    return allMilestones;
+  }
 }
 
 export const storage = new DatabaseStorage();
