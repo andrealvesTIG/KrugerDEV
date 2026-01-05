@@ -238,7 +238,7 @@ export async function registerRoutes(
 
   app.get('/api/organizations/:id', async (req, res) => {
     const orgId = Number(req.params.id);
-    const userId = (req.user as any)?.id;
+    const userId = (req.user as any)?.claims?.sub;
     
     // Check access
     if (!await userHasOrgAccess(userId, orgId)) {
@@ -271,7 +271,7 @@ export async function registerRoutes(
   app.put('/api/organizations/:id', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.id;
+      const userId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -287,7 +287,7 @@ export async function registerRoutes(
 
   app.delete('/api/organizations/:id', async (req, res) => {
     const orgId = Number(req.params.id);
-    const userId = (req.user as any)?.id;
+    const userId = (req.user as any)?.claims?.sub;
     
     if (!await userHasOrgAccess(userId, orgId)) {
       return res.status(403).json({ message: 'Access denied to this organization' });
@@ -301,7 +301,7 @@ export async function registerRoutes(
   app.get('/api/organizations/:id/members', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.id;
+      const userId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -332,7 +332,7 @@ export async function registerRoutes(
   app.post('/api/organizations/:id/members', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const currentUserId = (req.user as any)?.id;
+      const currentUserId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -353,7 +353,7 @@ export async function registerRoutes(
   app.put('/api/organizations/:id/members/:userId', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const currentUserId = (req.user as any)?.id;
+      const currentUserId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -373,7 +373,7 @@ export async function registerRoutes(
 
   app.delete('/api/organizations/:id/members/:userId', async (req, res) => {
     const orgId = Number(req.params.id);
-    const currentUserId = (req.user as any)?.id;
+    const currentUserId = (req.user as any)?.claims?.sub;
     
     if (!await userHasOrgAccess(currentUserId, orgId)) {
       return res.status(403).json({ message: 'Access denied to this organization' });
@@ -385,7 +385,7 @@ export async function registerRoutes(
 
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
-    const userId = (req.user as any)?.id;
+    const userId = (req.user as any)?.claims?.sub;
     const requestedOrgId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
     
     // Get user's accessible org IDs
@@ -536,7 +536,7 @@ export async function registerRoutes(
 
   // --- Projects ---
   app.get(api.projects.list.path, async (req, res) => {
-    const userId = (req.user as any)?.id;
+    const userId = (req.user as any)?.claims?.sub;
     const requestedOrgId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
     const portfolioId = req.query.portfolioId ? Number(req.query.portfolioId) : undefined;
     
