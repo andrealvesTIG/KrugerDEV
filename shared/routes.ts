@@ -6,12 +6,16 @@ import {
   insertMilestoneSchema,
   insertIssueSchema,
   insertTaskSchema,
+  insertTaskChangeLogSchema,
+  insertTaskDependencySchema,
   portfolios,
   projects,
   risks,
   milestones,
   issues,
-  tasks
+  tasks,
+  taskChangeLogs,
+  taskDependencies
 } from './schema';
 
 // ============================================
@@ -280,6 +284,40 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/tasks/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+    getHistory: {
+      method: 'GET' as const,
+      path: '/api/tasks/:id/history',
+      responses: {
+        200: z.array(z.custom<typeof taskChangeLogs.$inferSelect>()),
+        404: errorSchemas.notFound,
+      },
+    },
+    getDependencies: {
+      method: 'GET' as const,
+      path: '/api/tasks/:id/dependencies',
+      responses: {
+        200: z.array(z.custom<typeof taskDependencies.$inferSelect>()),
+        404: errorSchemas.notFound,
+      },
+    },
+    addDependency: {
+      method: 'POST' as const,
+      path: '/api/tasks/:id/dependencies',
+      input: z.object({ dependsOnTaskId: z.number() }),
+      responses: {
+        201: z.custom<typeof taskDependencies.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    removeDependency: {
+      method: 'DELETE' as const,
+      path: '/api/tasks/:id/dependencies/:dependsOnTaskId',
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,

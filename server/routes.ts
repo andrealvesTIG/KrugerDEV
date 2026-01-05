@@ -1236,7 +1236,30 @@ export async function registerRoutes(
   app.post(api.tasks.create.path, async (req, res) => {
     try {
       const input = api.tasks.create.input.parse(req.body);
+      
+      // Calculate endDate from duration if provided
+      if (input.durationDays && input.startDate) {
+        const startDate = new Date(input.startDate);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + input.durationDays - 1);
+        input.endDate = endDate.toISOString().split('T')[0];
+      }
+      
       const task = await storage.createTask(input);
+      
+      // Log the creation
+      const userId = (req.user as any)?.claims?.sub;
+      const user = userId ? await storage.getUser(userId) : null;
+      await storage.createTaskChangeLog({
+        taskId: task.id,
+        changedBy: userId || null,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'created',
+        changeSummary: `Task "${task.name}" created`,
+        previousValues: null,
+        newValues: JSON.stringify(task),
+      });
+      
       res.status(201).json(task);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -1246,8 +1269,57 @@ export async function registerRoutes(
 
   app.put(api.tasks.update.path, async (req, res) => {
     try {
+      const taskId = Number(req.params.id);
+      const previousTask = await storage.getTask(taskId);
+      if (!previousTask) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
       const input = api.tasks.update.input.parse(req.body);
-      const updated = await storage.updateTask(Number(req.params.id), input);
+      
+      // Calculate endDate from duration if provided and startDate is available
+      if (input.durationDays !== undefined) {
+        const startDate = input.startDate || previousTask.startDate;
+        if (startDate) {
+          const start = new Date(startDate);
+          const endDate = new Date(start);
+          endDate.setDate(endDate.getDate() + input.durationDays - 1);
+          input.endDate = endDate.toISOString().split('T')[0];
+        }
+      }
+      
+      const updated = await storage.updateTask(taskId, input);
+      
+      // Build change summary
+      const changes: string[] = [];
+      const prevValues: Record<string, any> = {};
+      const newValues: Record<string, any> = {};
+      
+      const fieldsToTrack = ['name', 'description', 'startDate', 'endDate', 'durationDays', 'progress', 'status', 'assignee'];
+      for (const field of fieldsToTrack) {
+        const prev = (previousTask as any)[field];
+        const curr = (updated as any)[field];
+        if (prev !== curr) {
+          changes.push(`${field}: "${prev || '(empty)'}" → "${curr || '(empty)'}"`);
+          prevValues[field] = prev;
+          newValues[field] = curr;
+        }
+      }
+      
+      if (changes.length > 0) {
+        const userId = (req.user as any)?.claims?.sub;
+        const user = userId ? await storage.getUser(userId) : null;
+        await storage.createTaskChangeLog({
+          taskId,
+          changedBy: userId || null,
+          changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+          changeType: 'updated',
+          changeSummary: changes.join('; '),
+          previousValues: JSON.stringify(prevValues),
+          newValues: JSON.stringify(newValues),
+        });
+      }
+      
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -1257,6 +1329,48 @@ export async function registerRoutes(
 
   app.delete(api.tasks.delete.path, async (req, res) => {
     await storage.deleteTask(Number(req.params.id));
+    res.status(204).send();
+  });
+
+  // Task History
+  app.get(api.tasks.getHistory.path, async (req, res) => {
+    const taskId = Number(req.params.id);
+    const history = await storage.getTaskChangeLogs(taskId);
+    res.json(history);
+  });
+
+  // Task Dependencies
+  app.get(api.tasks.getDependencies.path, async (req, res) => {
+    const taskId = Number(req.params.id);
+    const dependencies = await storage.getTaskDependencies(taskId);
+    res.json(dependencies);
+  });
+
+  app.post(api.tasks.addDependency.path, async (req, res) => {
+    try {
+      const taskId = Number(req.params.id);
+      const { dependsOnTaskId } = api.tasks.addDependency.input.parse(req.body);
+      
+      // Prevent self-dependency
+      if (taskId === dependsOnTaskId) {
+        return res.status(400).json({ message: "A task cannot depend on itself" });
+      }
+      
+      const dependency = await storage.createTaskDependency({
+        taskId,
+        dependsOnTaskId,
+      });
+      res.status(201).json(dependency);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Error adding dependency" });
+    }
+  });
+
+  app.delete(api.tasks.removeDependency.path, async (req, res) => {
+    const taskId = Number(req.params.id);
+    const dependsOnTaskId = Number(req.params.dependsOnTaskId);
+    await storage.deleteTaskDependency(taskId, dependsOnTaskId);
     res.status(204).send();
   });
 
