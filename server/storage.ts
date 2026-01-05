@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, portfolios, projects, risks, milestones, issues, tasks,
-  organizations, organizationMembers,
+  organizations, organizationMembers, taskChangeLogs, taskDependencies,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -10,9 +10,11 @@ import {
   type Risk, type InsertRisk, type UpdateRiskRequest,
   type Milestone, type InsertMilestone, type UpdateMilestoneRequest,
   type Issue, type InsertIssue, type UpdateIssueRequest,
-  type Task, type InsertTask, type UpdateTaskRequest
+  type Task, type InsertTask, type UpdateTaskRequest,
+  type TaskChangeLog, type InsertTaskChangeLog,
+  type TaskDependency, type InsertTaskDependency
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -71,9 +73,20 @@ export interface IStorage {
   // Tasks
   getTasks(projectId: number): Promise<Task[]>;
   getAllTasks(): Promise<Task[]>;
+  getTask(id: number): Promise<Task | undefined>;
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: number, updates: UpdateTaskRequest): Promise<Task>;
   deleteTask(id: number): Promise<void>;
+
+  // Task Change Logs
+  getTaskChangeLogs(taskId: number): Promise<TaskChangeLog[]>;
+  createTaskChangeLog(log: InsertTaskChangeLog): Promise<TaskChangeLog>;
+
+  // Task Dependencies
+  getTaskDependencies(taskId: number): Promise<TaskDependency[]>;
+  getTaskDependents(taskId: number): Promise<TaskDependency[]>;
+  createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency>;
+  deleteTaskDependency(taskId: number, dependsOnTaskId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -306,6 +319,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(tasks);
   }
 
+  async getTask(id: number): Promise<Task | undefined> {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    return task;
+  }
+
   async createTask(task: InsertTask): Promise<Task> {
     const [newTask] = await db.insert(tasks).values(task).returning();
     return newTask;
@@ -320,7 +338,46 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteTask(id: number): Promise<void> {
+    await db.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
+    await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));
+    await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, id));
     await db.delete(tasks).where(eq(tasks.id, id));
+  }
+
+  // Task Change Logs
+  async getTaskChangeLogs(taskId: number): Promise<TaskChangeLog[]> {
+    return await db.select().from(taskChangeLogs)
+      .where(eq(taskChangeLogs.taskId, taskId))
+      .orderBy(desc(taskChangeLogs.changedAt));
+  }
+
+  async createTaskChangeLog(log: InsertTaskChangeLog): Promise<TaskChangeLog> {
+    const [newLog] = await db.insert(taskChangeLogs).values(log).returning();
+    return newLog;
+  }
+
+  // Task Dependencies
+  async getTaskDependencies(taskId: number): Promise<TaskDependency[]> {
+    return await db.select().from(taskDependencies)
+      .where(eq(taskDependencies.taskId, taskId));
+  }
+
+  async getTaskDependents(taskId: number): Promise<TaskDependency[]> {
+    return await db.select().from(taskDependencies)
+      .where(eq(taskDependencies.dependsOnTaskId, taskId));
+  }
+
+  async createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency> {
+    const [newDep] = await db.insert(taskDependencies).values(dependency).returning();
+    return newDep;
+  }
+
+  async deleteTaskDependency(taskId: number, dependsOnTaskId: number): Promise<void> {
+    await db.delete(taskDependencies)
+      .where(and(
+        eq(taskDependencies.taskId, taskId),
+        eq(taskDependencies.dependsOnTaskId, dependsOnTaskId)
+      ));
   }
 
   // Portfolio Aggregations
