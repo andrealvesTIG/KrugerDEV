@@ -45,6 +45,7 @@ export default function Tasks() {
 
   const form = useForm({
     resolver: zodResolver(insertTaskSchema),
+    mode: "onChange",
     defaultValues: {
       projectId: undefined as any,
       name: "",
