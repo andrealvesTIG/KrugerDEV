@@ -486,7 +486,7 @@ export default function Tasks() {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteTaskData !== null} onOpenChange={() => setDeleteTaskData(null)}>
+      <Dialog open={deleteTaskData !== null} onOpenChange={(open) => !open && setDeleteTaskData(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Task</DialogTitle>

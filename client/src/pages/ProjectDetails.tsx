@@ -14,7 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { useTaskHistory } from "@/hooks/use-tasks";
 import { Textarea } from "@/components/ui/textarea";
@@ -328,6 +329,7 @@ function RisksTab({ projectId }: { projectId: number }) {
   const { data: risks, isLoading } = useRisks(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
+  const [deleteRiskData, setDeleteRiskData] = useState<Risk | null>(null);
   const createRisk = useCreateRisk();
   const updateRisk = useUpdateRisk();
   const deleteRisk = useDeleteRisk();
@@ -524,19 +526,62 @@ function RisksTab({ projectId }: { projectId: number }) {
                   </p>
                 )}
               </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={(e) => { e.stopPropagation(); deleteRisk.mutate({id: risk.id, projectId}); }}
-                data-testid={`button-delete-risk-${risk.id}`}
-              >
-                <Trash2 className="h-4 w-4 text-muted-foreground" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => e.stopPropagation()}
+                    data-testid={`button-menu-risk-${risk.id}`}
+                  >
+                    <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem 
+                    onClick={() => setDeleteRiskData(risk)}
+                    data-testid={`button-delete-risk-${risk.id}`}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2 text-destructive" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ))}
           {risks?.length === 0 && <div className="text-center py-8 text-muted-foreground">No risks recorded.</div>}
         </div>
       </CardContent>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteRiskData !== null} onOpenChange={(open) => !open && setDeleteRiskData(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Risk</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">Are you sure you want to delete this risk? It will be moved to the recycle bin.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteRiskData(null)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (deleteRiskData) {
+                  deleteRisk.mutate({ id: deleteRiskData.id, projectId }, {
+                    onSuccess: () => {
+                      toast({ title: "Success", description: "Risk moved to recycle bin" });
+                      setDeleteRiskData(null);
+                    }
+                  });
+                }
+              }}
+              disabled={deleteRisk.isPending}
+              data-testid="button-confirm-delete-risk"
+            >
+              {deleteRisk.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -1212,6 +1257,7 @@ function IssuesTab({ projectId }: { projectId: number }) {
   const { data: issues, isLoading } = useIssues(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
+  const [deleteIssueData, setDeleteIssueData] = useState<Issue | null>(null);
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
@@ -1411,20 +1457,63 @@ function IssuesTab({ projectId }: { projectId: number }) {
                     {issue.assignee && <p className="text-xs text-muted-foreground">Assigned to: {issue.assignee}</p>}
                   </div>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={(e) => { e.stopPropagation(); deleteIssue.mutate({id: issue.id, projectId}); }} 
-                  data-testid={`button-delete-issue-${issue.id}`}
-                >
-                  <Trash2 className="h-4 w-4 text-muted-foreground" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid={`button-menu-issue-${issue.id}`}
+                    >
+                      <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuItem 
+                      onClick={() => setDeleteIssueData(issue)}
+                      data-testid={`button-delete-issue-${issue.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2 text-destructive" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             );
           })}
           {issues?.length === 0 && <div className="text-center py-8 text-muted-foreground">No issues recorded.</div>}
         </div>
       </CardContent>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteIssueData !== null} onOpenChange={(open) => !open && setDeleteIssueData(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Issue</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">Are you sure you want to delete this issue? It will be moved to the recycle bin.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteIssueData(null)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (deleteIssueData) {
+                  deleteIssue.mutate({ id: deleteIssueData.id, projectId }, {
+                    onSuccess: () => {
+                      toast({ title: "Success", description: "Issue moved to recycle bin" });
+                      setDeleteIssueData(null);
+                    }
+                  });
+                }
+              }}
+              disabled={deleteIssue.isPending}
+              data-testid="button-confirm-delete-issue"
+            >
+              {deleteIssue.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
