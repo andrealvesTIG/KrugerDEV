@@ -327,7 +327,9 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
 function RisksTab({ projectId }: { projectId: number }) {
   const { data: risks, isLoading } = useRisks(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
   const createRisk = useCreateRisk();
+  const updateRisk = useUpdateRisk();
   const deleteRisk = useDeleteRisk();
   const { toast } = useToast();
 
@@ -339,47 +341,88 @@ function RisksTab({ projectId }: { projectId: number }) {
       description: "",
       probability: "Medium",
       impact: "Medium",
-      status: "Open"
+      status: "Open",
+      mitigationPlan: ""
     }
   });
 
-  const onSubmit = (data: any) => {
-    createRisk.mutate(data, {
-      onSuccess: () => {
-        toast({ title: "Success", description: "Risk added" });
-        setIsDialogOpen(false);
-        form.reset({ projectId, title: "", description: "", probability: "Medium", impact: "Medium", status: "Open" });
-      }
+  const openEditDialog = (risk: Risk) => {
+    setEditingRisk(risk);
+    form.reset({
+      projectId: risk.projectId,
+      title: risk.title,
+      description: risk.description || "",
+      probability: risk.probability || "Medium",
+      impact: risk.impact || "Medium",
+      status: risk.status || "Open",
+      mitigationPlan: risk.mitigationPlan || ""
     });
+    setIsDialogOpen(true);
+  };
+
+  const openCreateDialog = () => {
+    setEditingRisk(null);
+    form.reset({
+      projectId,
+      title: "",
+      description: "",
+      probability: "Medium",
+      impact: "Medium",
+      status: "Open",
+      mitigationPlan: ""
+    });
+    setIsDialogOpen(true);
+  };
+
+  const onSubmit = (data: any) => {
+    if (editingRisk) {
+      updateRisk.mutate({ id: editingRisk.id, projectId, ...data }, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Risk updated" });
+          setIsDialogOpen(false);
+          setEditingRisk(null);
+        },
+        onError: (error: any) => {
+          toast({ title: "Error", description: error?.message || "Failed to update risk", variant: "destructive" });
+        }
+      });
+    } else {
+      createRisk.mutate(data, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Risk added" });
+          setIsDialogOpen(false);
+        }
+      });
+    }
   };
 
   if (isLoading) return <Loader2 className="animate-spin" />;
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
         <div>
           <CardTitle>Project Risks</CardTitle>
           <CardDescription>Track and mitigate potential issues.</CardDescription>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
-          <DialogContent>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}>
+          <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Add New Risk</DialogTitle>
-              <DialogDescription>Identify and track potential project risks.</DialogDescription>
+              <DialogTitle>{editingRisk ? "Edit Risk" : "Add New Risk"}</DialogTitle>
+              <DialogDescription>{editingRisk ? "Modify the risk details below." : "Identify and track potential project risks."}</DialogDescription>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
               <div className="space-y-2">
                 <Label>Title</Label>
-                <Input {...form.register("title")} />
+                <Input {...form.register("title")} data-testid="input-risk-title" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Probability</Label>
                   <Controller control={form.control} name="probability" render={({field}) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                       <SelectTrigger><SelectValue /></SelectTrigger>
+                       <SelectTrigger data-testid="select-risk-probability"><SelectValue /></SelectTrigger>
                        <SelectContent>
                          <SelectItem value="Low">Low</SelectItem>
                          <SelectItem value="Medium">Medium</SelectItem>
@@ -392,7 +435,7 @@ function RisksTab({ projectId }: { projectId: number }) {
                   <Label>Impact</Label>
                    <Controller control={form.control} name="impact" render={({field}) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                       <SelectTrigger><SelectValue /></SelectTrigger>
+                       <SelectTrigger data-testid="select-risk-impact"><SelectValue /></SelectTrigger>
                        <SelectContent>
                          <SelectItem value="Low">Low</SelectItem>
                          <SelectItem value="Medium">Medium</SelectItem>
@@ -401,12 +444,51 @@ function RisksTab({ projectId }: { projectId: number }) {
                     </Select>
                   )} />
                 </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                   <Controller control={form.control} name="status" render={({field}) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                       <SelectTrigger data-testid="select-risk-status"><SelectValue /></SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="Open">Open</SelectItem>
+                         <SelectItem value="Mitigated">Mitigated</SelectItem>
+                         <SelectItem value="Closed">Closed</SelectItem>
+                       </SelectContent>
+                    </Select>
+                  )} />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>
-                <Input {...form.register("description")} />
+                <Textarea {...form.register("description")} data-testid="input-risk-description" />
               </div>
-              <DialogFooter><Button type="submit">Save Risk</Button></DialogFooter>
+              <div className="space-y-2">
+                <Label>Mitigation Plan</Label>
+                <Textarea {...form.register("mitigationPlan")} placeholder="How will this risk be mitigated?" data-testid="input-risk-mitigation" />
+              </div>
+              <DialogFooter className="gap-2">
+                {editingRisk && (
+                  <Button 
+                    type="button" 
+                    variant="destructive" 
+                    onClick={() => {
+                      deleteRisk.mutate({ id: editingRisk.id, projectId }, {
+                        onSuccess: () => {
+                          toast({ title: "Deleted", description: "Risk deleted" });
+                          setIsDialogOpen(false);
+                          setEditingRisk(null);
+                        }
+                      });
+                    }}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <Button type="submit" data-testid="button-save-risk" disabled={createRisk.isPending || updateRisk.isPending}>
+                  {(createRisk.isPending || updateRisk.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {editingRisk ? "Update Risk" : "Save Risk"}
+                </Button>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
@@ -414,23 +496,45 @@ function RisksTab({ projectId }: { projectId: number }) {
       <CardContent>
         <div className="space-y-4">
           {risks?.map(risk => (
-            <div key={risk.id} className="flex items-start justify-between rounded-lg border p-4">
+            <div 
+              key={risk.id} 
+              className="flex items-start justify-between rounded-lg border p-4 cursor-pointer hover-elevate transition-colors"
+              onClick={() => openEditDialog(risk)}
+              data-testid={`risk-card-${risk.id}`}
+            >
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                    <span className="font-semibold">{risk.title}</span>
                    <Badge variant="outline" className={cn(
-                     risk.probability === 'High' ? "bg-red-50 text-red-700" : "bg-slate-50"
+                     risk.probability === 'High' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
                    )}>{risk.probability} Prob</Badge>
                    <Badge variant="outline" className={cn(
-                     risk.impact === 'High' ? "bg-red-50 text-red-700" : "bg-slate-50"
+                     risk.impact === 'High' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
                    )}>{risk.impact} Impact</Badge>
+                   <Badge variant="outline" className={cn(
+                     risk.status === 'Open' ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                     risk.status === 'Mitigated' ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                     "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                   )}>{risk.status}</Badge>
                 </div>
-                <p className="text-sm text-slate-500">{risk.description}</p>
+                <p className="text-sm text-muted-foreground">{risk.description}</p>
+                {risk.mitigationPlan && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    <span className="font-medium">Mitigation:</span> {risk.mitigationPlan}
+                  </p>
+                )}
               </div>
-              <Button variant="ghost" size="icon" onClick={() => deleteRisk.mutate({id: risk.id, projectId})}><Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" /></Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={(e) => { e.stopPropagation(); deleteRisk.mutate({id: risk.id, projectId}); }}
+                data-testid={`button-delete-risk-${risk.id}`}
+              >
+                <Trash2 className="h-4 w-4 text-muted-foreground" />
+              </Button>
             </div>
           ))}
-          {risks?.length === 0 && <div className="text-center py-8 text-slate-500">No risks recorded.</div>}
+          {risks?.length === 0 && <div className="text-center py-8 text-muted-foreground">No risks recorded.</div>}
         </div>
       </CardContent>
     </Card>
