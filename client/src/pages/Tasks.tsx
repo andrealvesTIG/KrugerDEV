@@ -27,7 +27,7 @@ const statusColors = {
 
 export default function Tasks() {
   const { currentOrganization } = useOrganization();
-  const { data: tasks, isLoading } = useAllTasks();
+  const { data: allTasks, isLoading } = useAllTasks();
   const { data: projects } = useProjects(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -36,6 +36,12 @@ export default function Tasks() {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const { toast } = useToast();
+
+  const projectIds = useMemo(() => new Set(projects?.map(p => p.id) || []), [projects]);
+  const tasks = useMemo(() => 
+    allTasks?.filter(task => projectIds.has(task.projectId)) || [],
+    [allTasks, projectIds]
+  );
 
   const form = useForm({
     resolver: zodResolver(insertTaskSchema),
@@ -82,7 +88,6 @@ export default function Tasks() {
   };
 
   const onSubmit = (data: any) => {
-    // Ensure we have a valid projectId before mutating
     const projectId = Number(data.projectId);
     if (!projectId || isNaN(projectId)) {
       toast({ 
@@ -93,25 +98,38 @@ export default function Tasks() {
       return;
     }
 
+    const taskData = {
+      projectId,
+      name: data.name,
+      description: data.description || null,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      progress: data.progress || 0,
+      status: data.status || "Not Started",
+      assignee: data.assignee || null,
+    };
+
     if (editingTask) {
-      updateTask.mutate({ id: editingTask.id, projectId, ...data }, {
+      updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: () => {
           toast({ title: "Success", description: "Task updated" });
           setIsDialogOpen(false);
           setEditingTask(null);
         },
-        onError: (error) => {
-          toast({ title: "Error", description: "Failed to update task", variant: "destructive" });
+        onError: (error: any) => {
+          const msg = error?.message || "Failed to update task";
+          toast({ title: "Error", description: msg, variant: "destructive" });
         }
       });
     } else {
-      createTask.mutate({ ...data, projectId }, {
+      createTask.mutate(taskData, {
         onSuccess: () => {
           toast({ title: "Success", description: "Task created" });
           setIsDialogOpen(false);
         },
-        onError: (error) => {
-          toast({ title: "Error", description: "Failed to create task", variant: "destructive" });
+        onError: (error: any) => {
+          const msg = error?.message || "Failed to create task";
+          toast({ title: "Error", description: msg, variant: "destructive" });
         }
       });
     }
