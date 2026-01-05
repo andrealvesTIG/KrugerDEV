@@ -648,48 +648,56 @@ export class DatabaseStorage implements IStorage {
       financials: 0,
     };
 
-    // Get all projects for this organization (includes projects with and without portfolios)
-    const orgProjects = await db.select().from(projects)
-      .where(eq(projects.organizationId, organizationId));
+    // Get all DEMO projects for this organization (only isDemo=true)
+    const demoProjects = await db.select().from(projects)
+      .where(and(eq(projects.organizationId, organizationId), eq(projects.isDemo, true)));
     
-    const projectIds = orgProjects.map(p => p.id);
+    const demoProjectIds = demoProjects.map(p => p.id);
     
-    if (projectIds.length > 0) {
-      // Delete all tasks for these projects (and their dependencies/logs)
-      for (const projectId of projectIds) {
-        const projectTasks = await db.select().from(tasks).where(eq(tasks.projectId, projectId));
+    if (demoProjectIds.length > 0) {
+      // Delete DEMO tasks for these projects (and their dependencies/logs)
+      for (const projectId of demoProjectIds) {
+        const projectTasks = await db.select().from(tasks)
+          .where(and(eq(tasks.projectId, projectId), eq(tasks.isDemo, true)));
         for (const task of projectTasks) {
           await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
           await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
           await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
         }
-        const deletedTasks = await db.delete(tasks).where(eq(tasks.projectId, projectId)).returning();
+        const deletedTasks = await db.delete(tasks)
+          .where(and(eq(tasks.projectId, projectId), eq(tasks.isDemo, true))).returning();
         stats.tasks += deletedTasks.length;
         
-        // Delete risks
-        const deletedRisks = await db.delete(risks).where(eq(risks.projectId, projectId)).returning();
+        // Delete DEMO risks
+        const deletedRisks = await db.delete(risks)
+          .where(and(eq(risks.projectId, projectId), eq(risks.isDemo, true))).returning();
         stats.risks += deletedRisks.length;
         
-        // Delete milestones
-        const deletedMilestones = await db.delete(milestones).where(eq(milestones.projectId, projectId)).returning();
+        // Delete DEMO milestones
+        const deletedMilestones = await db.delete(milestones)
+          .where(and(eq(milestones.projectId, projectId), eq(milestones.isDemo, true))).returning();
         stats.milestones += deletedMilestones.length;
         
-        // Delete issues
-        const deletedIssues = await db.delete(issues).where(eq(issues.projectId, projectId)).returning();
+        // Delete DEMO issues
+        const deletedIssues = await db.delete(issues)
+          .where(and(eq(issues.projectId, projectId), eq(issues.isDemo, true))).returning();
         stats.issues += deletedIssues.length;
         
-        // Delete financials
-        const deletedFinancials = await db.delete(projectFinancials).where(eq(projectFinancials.projectId, projectId)).returning();
+        // Delete DEMO financials
+        const deletedFinancials = await db.delete(projectFinancials)
+          .where(and(eq(projectFinancials.projectId, projectId), eq(projectFinancials.isDemo, true))).returning();
         stats.financials += deletedFinancials.length;
       }
       
-      // Delete all projects
-      const deletedProjects = await db.delete(projects).where(eq(projects.organizationId, organizationId)).returning();
+      // Delete DEMO projects
+      const deletedProjects = await db.delete(projects)
+        .where(and(eq(projects.organizationId, organizationId), eq(projects.isDemo, true))).returning();
       stats.projects = deletedProjects.length;
     }
     
-    // Delete all portfolios
-    const deletedPortfolios = await db.delete(portfolios).where(eq(portfolios.organizationId, organizationId)).returning();
+    // Delete DEMO portfolios
+    const deletedPortfolios = await db.delete(portfolios)
+      .where(and(eq(portfolios.organizationId, organizationId), eq(portfolios.isDemo, true))).returning();
     stats.portfolios = deletedPortfolios.length;
     
     return stats;

@@ -448,19 +448,19 @@ function OrganizationsTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eraser className="h-5 w-5 text-red-500" />
-              Remove All Demo Data
+              Remove Demo Data
             </DialogTitle>
             <DialogDescription>
-              This will permanently delete all portfolios, projects, tasks, risks, milestones, issues, and financial records for <strong>{deleteDemoDataOrg?.name}</strong>.
+              This will permanently delete only <strong>demo-generated</strong> portfolios, projects, tasks, risks, milestones, issues, and financial records for <strong>{deleteDemoDataOrg?.name}</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 space-y-2">
-            <p className="text-sm font-medium text-destructive flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4" />
-              Warning: This action cannot be undone
+          <div className="rounded-lg bg-muted border p-4 space-y-2">
+            <p className="text-sm font-medium flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-amber-500" />
+              User-created data will be preserved
             </p>
             <p className="text-sm text-muted-foreground">
-              All data for this organization will be permanently removed from the database.
+              Only data that was created by the demo generator will be removed. Any data created manually by users will remain intact.
             </p>
           </div>
           <DialogFooter>
@@ -481,7 +481,7 @@ function OrganizationsTab() {
               ) : (
                 <>
                   <Eraser className="h-4 w-4 mr-2" />
-                  Remove All Data
+                  Remove Demo Data
                 </>
               )}
             </Button>

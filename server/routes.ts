@@ -1585,6 +1585,7 @@ export async function registerRoutes(
           organizationId,
           name: portfolioTemplate.name,
           description: portfolioTemplate.description,
+          isDemo: true,
         });
         stats.portfolios++;
         
@@ -1606,6 +1607,7 @@ export async function registerRoutes(
             budget: projectTemplate.budget,
             health: projectTemplate.health,
             completionPercentage: projectTemplate.completionPercentage,
+            isDemo: true,
           });
           stats.projects++;
           
@@ -1625,6 +1627,7 @@ export async function registerRoutes(
               progress: taskTemplate.progress,
               status: taskTemplate.status,
               assignee: taskTemplate.assignee,
+              isDemo: true,
             });
             stats.tasks++;
           }
@@ -1638,6 +1641,7 @@ export async function registerRoutes(
               impact: riskTemplate.impact,
               status: riskTemplate.status,
               mitigationPlan: riskTemplate.mitigationPlan,
+              isDemo: true,
             });
             stats.risks++;
           }
@@ -1658,6 +1662,7 @@ export async function registerRoutes(
               status: milestoneTemplate.status,
               priority: milestoneTemplate.priority,
               assignee: milestoneTemplate.assignee,
+              isDemo: true,
             });
             stats.milestones++;
           }
@@ -1671,6 +1676,7 @@ export async function registerRoutes(
               status: issueTemplate.status,
               type: issueTemplate.type,
               assignee: issueTemplate.assignee,
+              isDemo: true,
             });
             stats.issues++;
           }
@@ -1687,6 +1693,7 @@ export async function registerRoutes(
               plannedAmount: finTemplate.plannedAmount,
               actualAmount: finTemplate.actualAmount,
               notes: finTemplate.notes,
+              isDemo: true,
             });
             stats.financials++;
           }
