@@ -32,9 +32,9 @@ export default function Admin() {
   if (!isAdmin) {
     return (
       <div className="flex h-96 flex-col items-center justify-center gap-4">
-        <ShieldAlert className="h-16 w-16 text-slate-300" />
-        <h2 className="text-2xl font-bold text-slate-700">Access Denied</h2>
-        <p className="text-slate-500">You need administrator privileges to access this page.</p>
+        <ShieldAlert className="h-16 w-16 text-muted-foreground/50" />
+        <h2 className="text-2xl font-bold text-foreground">Access Denied</h2>
+        <p className="text-muted-foreground">You need administrator privileges to access this page.</p>
         <Badge variant="outline" className="text-sm">
           Current role: {user?.role || "user"}
         </Badge>
@@ -47,26 +47,26 @@ export default function Admin() {
       <div className="flex items-center gap-3">
         <Shield className="h-8 w-8 text-primary" />
         <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900">Admin Panel</h1>
-          <p className="text-slate-500">Manage projects, resources, risks, and issues</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">Admin Panel</h1>
+          <p className="text-muted-foreground">Manage projects, resources, risks, and issues</p>
         </div>
       </div>
 
       <Tabs defaultValue="projects" className="w-full">
-        <TabsList className="bg-slate-100 p-1 rounded-xl">
-          <TabsTrigger value="projects" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+        <TabsList className="bg-muted p-1 rounded-xl">
+          <TabsTrigger value="projects" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
             <FolderKanban className="h-4 w-4" />
             Projects
           </TabsTrigger>
-          <TabsTrigger value="resources" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+          <TabsTrigger value="resources" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
             <Users className="h-4 w-4" />
             Resources
           </TabsTrigger>
-          <TabsTrigger value="risks" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+          <TabsTrigger value="risks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
             <AlertTriangle className="h-4 w-4" />
             Risks
           </TabsTrigger>
-          <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+          <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
             <CircleDot className="h-4 w-4" />
             Issues
           </TabsTrigger>

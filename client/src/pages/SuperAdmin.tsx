@@ -34,9 +34,9 @@ export default function SuperAdmin() {
   if (!isSuperAdmin) {
     return (
       <div className="flex h-96 flex-col items-center justify-center gap-4">
-        <ShieldAlert className="h-16 w-16 text-slate-300" />
-        <h2 className="text-2xl font-bold text-slate-700">Access Denied</h2>
-        <p className="text-slate-500">You need Super Admin privileges to access this page.</p>
+        <ShieldAlert className="h-16 w-16 text-muted-foreground/50" />
+        <h2 className="text-2xl font-bold text-foreground">Access Denied</h2>
+        <p className="text-muted-foreground">You need Super Admin privileges to access this page.</p>
         <Badge variant="outline" className="text-sm">
           Current role: {user?.role || "user"}
         </Badge>
@@ -49,18 +49,18 @@ export default function SuperAdmin() {
       <div className="flex items-center gap-3">
         <Crown className="h-8 w-8 text-amber-500" />
         <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900">Super Admin Console</h1>
-          <p className="text-slate-500">Manage all organizations and system users</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">Super Admin Console</h1>
+          <p className="text-muted-foreground">Manage all organizations and system users</p>
         </div>
       </div>
 
       <Tabs defaultValue="organizations" className="w-full">
-        <TabsList className="bg-slate-100 p-1 rounded-xl">
-          <TabsTrigger value="organizations" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+        <TabsList className="bg-muted p-1 rounded-xl">
+          <TabsTrigger value="organizations" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
             <Building2 className="h-4 w-4" />
             Organizations
           </TabsTrigger>
-          <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2">
+          <TabsTrigger value="users" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
             <Users className="h-4 w-4" />
             All Users
           </TabsTrigger>

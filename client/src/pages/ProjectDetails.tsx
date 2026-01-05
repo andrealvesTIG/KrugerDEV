@@ -120,12 +120,12 @@ export default function ProjectDetails() {
       </div>
 
       <Tabs defaultValue="summary" className="w-full">
-        <TabsList className="bg-slate-100 p-1 rounded-xl">
-          <TabsTrigger value="summary" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Project Summary</TabsTrigger>
-          <TabsTrigger value="milestones" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Milestones</TabsTrigger>
-          <TabsTrigger value="tasks" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Tasks</TabsTrigger>
-          <TabsTrigger value="risks" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Risks Log</TabsTrigger>
-          <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Issues</TabsTrigger>
+        <TabsList className="bg-muted p-1 rounded-xl">
+          <TabsTrigger value="summary" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Project Summary</TabsTrigger>
+          <TabsTrigger value="milestones" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Milestones</TabsTrigger>
+          <TabsTrigger value="tasks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Tasks</TabsTrigger>
+          <TabsTrigger value="risks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Risks Log</TabsTrigger>
+          <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Issues</TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">

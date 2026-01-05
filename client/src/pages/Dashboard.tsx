@@ -70,8 +70,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-display font-bold text-slate-900">Executive Dashboard</h1>
-        <p className="mt-2 text-slate-500">Overview of your project portfolio performance and health.</p>
+        <h1 className="text-3xl font-display font-bold text-foreground">Executive Dashboard</h1>
+        <p className="mt-2 text-muted-foreground">Overview of your project portfolio performance and health.</p>
       </div>
 
       {/* KPI Cards */}

@@ -53,8 +53,8 @@ export default function Portfolios() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900">Portfolios</h1>
-          <p className="mt-1 text-slate-500">Manage your strategic project groupings.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">Portfolios</h1>
+          <p className="mt-1 text-muted-foreground">Manage your strategic project groupings.</p>
         </div>
         <CreatePortfolioDialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen} organizationId={currentOrganization?.id} />
       </div>
@@ -63,7 +63,7 @@ export default function Portfolios() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <Input 
-          className="pl-10 max-w-md bg-white border-slate-200" 
+          className="pl-10 max-w-md bg-card border-border" 
           placeholder="Search portfolios..." 
           value={search}
           onChange={(e) => setSearch(e.target.value)}

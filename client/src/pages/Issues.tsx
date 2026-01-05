@@ -108,8 +108,8 @@ export default function Issues() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900" data-testid="text-page-title">Issues</h1>
-          <p className="mt-1 text-slate-500">Track and resolve project issues across all initiatives.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-page-title">Issues</h1>
+          <p className="mt-1 text-muted-foreground">Track and resolve project issues across all initiatives.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -206,7 +206,7 @@ export default function Issues() {
         </Dialog>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row bg-card p-4 rounded-xl border border-border shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input

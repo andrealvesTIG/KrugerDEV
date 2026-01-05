@@ -599,26 +599,19 @@ export default function UserGuide() {
                   </p>
                   
                   <h4 className="font-semibold text-slate-900 dark:text-white mt-4">Available Themes:</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="flex items-center gap-3 p-4 rounded-lg bg-white border border-slate-200">
-                      <Sun className="h-5 w-5 text-yellow-500" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                      <Sun className="h-5 w-5 text-amber-500" />
                       <div>
-                        <h5 className="font-medium text-slate-900">Light</h5>
-                        <p className="text-sm text-slate-600">Bright, clean interface</p>
+                        <h5 className="font-medium text-foreground">Light</h5>
+                        <p className="text-sm text-muted-foreground">Bright, clean interface</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 p-4 rounded-lg bg-slate-900 border border-slate-700">
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-slate-800 dark:bg-slate-900 border border-slate-600 dark:border-slate-700">
                       <Moon className="h-5 w-5 text-blue-400" />
                       <div>
                         <h5 className="font-medium text-white">Dark</h5>
-                        <p className="text-sm text-slate-400">Easy on the eyes</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-r from-white to-slate-900 border border-slate-300">
-                      <Settings className="h-5 w-5 text-slate-600" />
-                      <div>
-                        <h5 className="font-medium text-slate-900">System</h5>
-                        <p className="text-sm text-slate-600">Match OS preference</p>
+                        <p className="text-sm text-slate-300">Easy on the eyes</p>
                       </div>
                     </div>
                   </div>

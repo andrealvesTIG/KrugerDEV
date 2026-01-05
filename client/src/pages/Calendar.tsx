@@ -19,8 +19,8 @@ export default function Calendar() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-display font-bold text-slate-900">Project Calendar</h1>
-        <p className="text-slate-500">{format(today, 'MMMM yyyy')}</p>
+        <h1 className="text-3xl font-display font-bold text-foreground">Project Calendar</h1>
+        <p className="text-muted-foreground">{format(today, 'MMMM yyyy')}</p>
       </div>
 
       <Card>
@@ -28,23 +28,23 @@ export default function Calendar() {
           <CardTitle>Milestones & Deadlines</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-px bg-slate-200 rounded-lg overflow-hidden border border-slate-200">
+          <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden border border-border">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="bg-slate-50 p-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              <div key={day} className="bg-muted p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 {day}
               </div>
             ))}
             
             {/* Blank start days */}
             {Array.from({ length: days[0].getDay() }).map((_, i) => (
-              <div key={`empty-${i}`} className="bg-white h-32" />
+              <div key={`empty-${i}`} className="bg-card h-32" />
             ))}
 
             {days.map(day => (
-              <div key={day.toString()} className={cn("bg-white p-2 h-32 relative group hover:bg-slate-50 transition-colors", isToday(day) && "bg-blue-50/30")}>
+              <div key={day.toString()} className={cn("bg-card p-2 h-32 relative group hover:bg-muted/50 transition-colors", isToday(day) && "bg-primary/5")}>
                 <span className={cn(
                   "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full", 
-                  isToday(day) ? "bg-primary text-white" : "text-slate-700"
+                  isToday(day) ? "bg-primary text-primary-foreground" : "text-foreground"
                 )}>
                   {format(day, 'd')}
                 </span>

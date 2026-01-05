@@ -111,8 +111,8 @@ export default function Tasks() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900">Tasks</h1>
-          <p className="text-slate-500">Manage tasks with Gantt Chart and Kanban views</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">Tasks</h1>
+          <p className="text-muted-foreground">Manage tasks with Gantt Chart and Kanban views</p>
         </div>
         <div className="flex gap-3">
           <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
