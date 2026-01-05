@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
@@ -16,6 +16,10 @@ const navigation = [
   { name: "Issues", href: "/issues", icon: CircleDot },
   { name: "Calendar", href: "/calendar", icon: Calendar },
   { name: "Super Admin", href: "/super-admin", icon: Crown, superAdminOnly: true },
+];
+
+const helpNavigation = [
+  { name: "User Guide", href: "/user-guide", icon: BookOpen },
 ];
 
 const userMenuItems = [
@@ -132,6 +136,56 @@ export function Sidebar() {
           }
           
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+          
+          const navItem = (
+            <Link key={item.name} href={item.href}>
+              <div
+                className={cn(
+                  "group flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
+                  isCollapsed ? "justify-center px-2" : "px-4",
+                  isActive
+                    ? "bg-primary text-white shadow-md shadow-primary/20"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                )}
+                data-testid={`link-nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <item.icon
+                  className={cn(
+                    "h-5 w-5 flex-shrink-0 transition-colors",
+                    !isCollapsed && "mr-3",
+                    isActive ? "text-white" : "text-slate-400 group-hover:text-white"
+                  )}
+                />
+                {!isCollapsed && item.name}
+              </div>
+            </Link>
+          );
+
+          if (isCollapsed) {
+            return (
+              <Tooltip key={item.name} delayDuration={0}>
+                <TooltipTrigger asChild>
+                  {navItem}
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-slate-800 text-white border-slate-700">
+                  {item.name}
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+
+          return navItem;
+        })}
+
+        {/* Help Section */}
+        {!isCollapsed && (
+          <p className="mt-6 mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Help
+          </p>
+        )}
+        {isCollapsed && <div className="mt-4" />}
+        {helpNavigation.map((item) => {
+          const isActive = location === item.href || location.startsWith(item.href);
           
           const navItem = (
             <Link key={item.name} href={item.href}>
