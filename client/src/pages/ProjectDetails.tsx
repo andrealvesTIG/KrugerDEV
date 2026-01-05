@@ -4,6 +4,7 @@ import { useProject, useUpdateProject } from "@/hooks/use-projects";
 import { useRisks, useCreateRisk, useDeleteRisk } from "@/hooks/use-risks";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
+import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOf
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
-import type { Task } from "@shared/schema";
+import type { Task, ProjectFinancial } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
@@ -131,6 +132,7 @@ export default function ProjectDetails() {
           <TabsTrigger value="tasks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Tasks</TabsTrigger>
           <TabsTrigger value="risks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Risks Log</TabsTrigger>
           <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Issues</TabsTrigger>
+          <TabsTrigger value="financials" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Financials</TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
@@ -144,6 +146,9 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="issues">
             <IssuesTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="financials">
+            <FinancialsTab projectId={project.id} />
           </TabsContent>
         </div>
       </Tabs>
@@ -1244,5 +1249,478 @@ function IssuesTab({ projectId }: { projectId: number }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function FinancialsTab({ projectId }: { projectId: number }) {
+  const { data: financials, isLoading } = useProjectFinancials(projectId);
+  const createFinancial = useCreateProjectFinancial(projectId);
+  const updateFinancial = useUpdateProjectFinancial(projectId);
+  const deleteFinancial = useDeleteProjectFinancial(projectId);
+  const { toast } = useToast();
+
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValues, setEditValues] = useState<Partial<ProjectFinancial>>({});
+
+  const currentYear = new Date().getFullYear();
+
+  const form = useForm({
+    defaultValues: {
+      category: "CapEx" as string,
+      lineItem: "",
+      description: "",
+      fiscalYear: currentYear,
+      fiscalPeriod: "Full Year",
+      budgetAmount: "0",
+      plannedAmount: "0",
+      actualAmount: "0",
+      notes: "",
+    }
+  });
+
+  const onSubmit = (data: any) => {
+    createFinancial.mutate(data, {
+      onSuccess: () => {
+        toast({ title: "Success", description: "Financial record added" });
+        setShowAddDialog(false);
+        form.reset();
+      }
+    });
+  };
+
+  const startEdit = (financial: ProjectFinancial) => {
+    setEditingId(financial.id);
+    setEditValues({
+      budgetAmount: financial.budgetAmount,
+      plannedAmount: financial.plannedAmount,
+      actualAmount: financial.actualAmount,
+      notes: financial.notes,
+    });
+  };
+
+  const saveEdit = (id: number) => {
+    updateFinancial.mutate({ id, ...editValues }, {
+      onSuccess: () => {
+        toast({ title: "Success", description: "Financial record updated" });
+        setEditingId(null);
+        setEditValues({});
+      }
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditValues({});
+  };
+
+  const capexItems = financials?.filter(f => f.category === "CapEx") || [];
+  const opexItems = financials?.filter(f => f.category === "OpEx") || [];
+
+  const calculateTotals = (items: ProjectFinancial[]) => {
+    return items.reduce((acc, item) => ({
+      budget: acc.budget + Number(item.budgetAmount || 0),
+      planned: acc.planned + Number(item.plannedAmount || 0),
+      actual: acc.actual + Number(item.actualAmount || 0),
+    }), { budget: 0, planned: 0, actual: 0 });
+  };
+
+  const capexTotals = calculateTotals(capexItems);
+  const opexTotals = calculateTotals(opexItems);
+  const grandTotals = {
+    budget: capexTotals.budget + opexTotals.budget,
+    planned: capexTotals.planned + opexTotals.planned,
+    actual: capexTotals.actual + opexTotals.actual,
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const getVariance = (budget: number, actual: number) => {
+    const variance = budget - actual;
+    const percent = budget > 0 ? (variance / budget) * 100 : 0;
+    return { variance, percent };
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Financial Tracking
+          </CardTitle>
+          <CardDescription>
+            Budget, Plan, and Actuals by Capital (CapEx) and Operational (OpEx) expenses
+          </CardDescription>
+        </div>
+        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-financial">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Line Item
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Add Financial Line Item</DialogTitle>
+              <DialogDescription>Add a new budget/expense line item for this project</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Controller control={form.control} name="category" render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger data-testid="select-financial-category"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CapEx">Capital (CapEx)</SelectItem>
+                        <SelectItem value="OpEx">Operational (OpEx)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fiscal Year</Label>
+                  <Controller control={form.control} name="fiscalYear" render={({ field }) => (
+                    <Select onValueChange={(v) => field.onChange(parseInt(v))} value={field.value.toString()}>
+                      <SelectTrigger data-testid="select-fiscal-year"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {[currentYear - 1, currentYear, currentYear + 1, currentYear + 2].map(year => (
+                          <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Line Item</Label>
+                  <Input {...form.register("lineItem")} placeholder="e.g., Software Licenses" data-testid="input-line-item" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Period</Label>
+                  <Controller control={form.control} name="fiscalPeriod" render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value || "Full Year"}>
+                      <SelectTrigger data-testid="select-fiscal-period"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Full Year">Full Year</SelectItem>
+                        <SelectItem value="Q1">Q1</SelectItem>
+                        <SelectItem value="Q2">Q2</SelectItem>
+                        <SelectItem value="Q3">Q3</SelectItem>
+                        <SelectItem value="Q4">Q4</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input {...form.register("description")} placeholder="Optional description" data-testid="input-financial-description" />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Budget</Label>
+                  <Input type="number" {...form.register("budgetAmount")} data-testid="input-budget-amount" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Planned</Label>
+                  <Input type="number" {...form.register("plannedAmount")} data-testid="input-planned-amount" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Actual</Label>
+                  <Input type="number" {...form.register("actualAmount")} data-testid="input-actual-amount" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Input {...form.register("notes")} placeholder="Optional notes" data-testid="input-financial-notes" />
+              </div>
+              <DialogFooter>
+                <Button type="submit" data-testid="button-save-financial" disabled={createFinancial.isPending}>
+                  {createFinancial.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Save
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-8">
+          <div className="grid grid-cols-4 gap-4">
+            <Card className="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Total Budget</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-emerald-800 dark:text-emerald-300">{formatCurrency(grandTotals.budget)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">Total Planned</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-800 dark:text-blue-300">{formatCurrency(grandTotals.planned)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-400">Total Actual</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-800 dark:text-amber-300">{formatCurrency(grandTotals.actual)}</div>
+              </CardContent>
+            </Card>
+            <Card className={cn(
+              "border",
+              grandTotals.budget - grandTotals.actual >= 0 
+                ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" 
+                : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
+            )}>
+              <CardHeader className="pb-2">
+                <CardTitle className={cn(
+                  "text-sm font-medium",
+                  grandTotals.budget - grandTotals.actual >= 0 
+                    ? "text-green-700 dark:text-green-400" 
+                    : "text-red-700 dark:text-red-400"
+                )}>Budget Variance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={cn(
+                  "text-2xl font-bold",
+                  grandTotals.budget - grandTotals.actual >= 0 
+                    ? "text-green-800 dark:text-green-300" 
+                    : "text-red-800 dark:text-red-300"
+                )}>
+                  {formatCurrency(grandTotals.budget - grandTotals.actual)}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Badge variant="outline" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700">
+                  CapEx
+                </Badge>
+                Capital Expenditures
+              </h3>
+              <FinancialTable
+                items={capexItems}
+                totals={capexTotals}
+                editingId={editingId}
+                editValues={editValues}
+                setEditValues={setEditValues}
+                startEdit={startEdit}
+                saveEdit={saveEdit}
+                cancelEdit={cancelEdit}
+                deleteFinancial={deleteFinancial}
+                formatCurrency={formatCurrency}
+                getVariance={getVariance}
+              />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 border-purple-300 dark:border-purple-700">
+                  OpEx
+                </Badge>
+                Operational Expenditures
+              </h3>
+              <FinancialTable
+                items={opexItems}
+                totals={opexTotals}
+                editingId={editingId}
+                editValues={editValues}
+                setEditValues={setEditValues}
+                startEdit={startEdit}
+                saveEdit={saveEdit}
+                cancelEdit={cancelEdit}
+                deleteFinancial={deleteFinancial}
+                formatCurrency={formatCurrency}
+                getVariance={getVariance}
+              />
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FinancialTable({
+  items,
+  totals,
+  editingId,
+  editValues,
+  setEditValues,
+  startEdit,
+  saveEdit,
+  cancelEdit,
+  deleteFinancial,
+  formatCurrency,
+  getVariance,
+}: {
+  items: ProjectFinancial[];
+  totals: { budget: number; planned: number; actual: number };
+  editingId: number | null;
+  editValues: Partial<ProjectFinancial>;
+  setEditValues: (values: Partial<ProjectFinancial>) => void;
+  startEdit: (financial: ProjectFinancial) => void;
+  saveEdit: (id: number) => void;
+  cancelEdit: () => void;
+  deleteFinancial: any;
+  formatCurrency: (value: number) => string;
+  getVariance: (budget: number, actual: number) => { variance: number; percent: number };
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="text-center py-8 text-slate-500 border rounded-lg bg-muted/30">
+        No items recorded. Add a line item to get started.
+      </div>
+    );
+  }
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <table className="w-full">
+        <thead className="bg-muted/50">
+          <tr>
+            <th className="text-left p-3 font-medium text-sm">Line Item</th>
+            <th className="text-left p-3 font-medium text-sm">Year</th>
+            <th className="text-left p-3 font-medium text-sm">Period</th>
+            <th className="text-right p-3 font-medium text-sm">Budget</th>
+            <th className="text-right p-3 font-medium text-sm">Planned</th>
+            <th className="text-right p-3 font-medium text-sm">Actual</th>
+            <th className="text-right p-3 font-medium text-sm">Variance</th>
+            <th className="w-24 p-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => {
+            const isEditing = editingId === item.id;
+            const variance = getVariance(Number(item.budgetAmount), Number(item.actualAmount));
+            
+            return (
+              <tr key={item.id} className="border-t hover-elevate" data-testid={`row-financial-${item.id}`}>
+                <td className="p-3">
+                  <div className="font-medium">{item.lineItem}</div>
+                  {item.description && <div className="text-xs text-muted-foreground">{item.description}</div>}
+                </td>
+                <td className="p-3 text-sm">{item.fiscalYear}</td>
+                <td className="p-3 text-sm">{item.fiscalPeriod}</td>
+                <td className="p-3 text-right">
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={editValues.budgetAmount || ""}
+                      onChange={(e) => setEditValues({ ...editValues, budgetAmount: e.target.value })}
+                      className="w-28 text-right"
+                      data-testid="input-edit-budget"
+                    />
+                  ) : (
+                    formatCurrency(Number(item.budgetAmount))
+                  )}
+                </td>
+                <td className="p-3 text-right">
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={editValues.plannedAmount || ""}
+                      onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
+                      className="w-28 text-right"
+                      data-testid="input-edit-planned"
+                    />
+                  ) : (
+                    formatCurrency(Number(item.plannedAmount))
+                  )}
+                </td>
+                <td className="p-3 text-right">
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={editValues.actualAmount || ""}
+                      onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
+                      className="w-28 text-right"
+                      data-testid="input-edit-actual"
+                    />
+                  ) : (
+                    formatCurrency(Number(item.actualAmount))
+                  )}
+                </td>
+                <td className={cn(
+                  "p-3 text-right font-medium",
+                  variance.variance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                )}>
+                  {formatCurrency(variance.variance)}
+                  <span className="text-xs ml-1">({variance.percent.toFixed(0)}%)</span>
+                </td>
+                <td className="p-3">
+                  <div className="flex justify-end gap-1">
+                    {isEditing ? (
+                      <>
+                        <Button variant="ghost" size="icon" onClick={() => saveEdit(item.id)} data-testid="button-save-edit">
+                          <Check className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={cancelEdit} data-testid="button-cancel-edit">
+                          <X className="h-4 w-4 text-slate-400" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button variant="ghost" size="icon" onClick={() => startEdit(item)} data-testid={`button-edit-financial-${item.id}`}>
+                          <Pencil className="h-4 w-4 text-slate-400" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => deleteFinancial.mutate(item.id)}
+                          data-testid={`button-delete-financial-${item.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+          <tr className="border-t bg-muted/30 font-semibold">
+            <td colSpan={3} className="p-3">Subtotal</td>
+            <td className="p-3 text-right">{formatCurrency(totals.budget)}</td>
+            <td className="p-3 text-right">{formatCurrency(totals.planned)}</td>
+            <td className="p-3 text-right">{formatCurrency(totals.actual)}</td>
+            <td className={cn(
+              "p-3 text-right",
+              totals.budget - totals.actual >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+            )}>
+              {formatCurrency(totals.budget - totals.actual)}
+            </td>
+            <td className="p-3"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }

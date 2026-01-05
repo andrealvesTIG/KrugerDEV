@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, portfolios, projects, risks, milestones, issues, tasks,
-  organizations, organizationMembers, taskChangeLogs, taskDependencies,
+  organizations, organizationMembers, taskChangeLogs, taskDependencies, projectFinancials,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -12,7 +12,8 @@ import {
   type Issue, type InsertIssue, type UpdateIssueRequest,
   type Task, type InsertTask, type UpdateTaskRequest,
   type TaskChangeLog, type InsertTaskChangeLog,
-  type TaskDependency, type InsertTaskDependency
+  type TaskDependency, type InsertTaskDependency,
+  type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
@@ -87,6 +88,13 @@ export interface IStorage {
   getTaskDependents(taskId: number): Promise<TaskDependency[]>;
   createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency>;
   deleteTaskDependency(taskId: number, dependsOnTaskId: number): Promise<void>;
+
+  // Project Financials
+  getProjectFinancials(projectId: number): Promise<ProjectFinancial[]>;
+  getProjectFinancial(id: number): Promise<ProjectFinancial | undefined>;
+  createProjectFinancial(financial: InsertProjectFinancial): Promise<ProjectFinancial>;
+  updateProjectFinancial(id: number, updates: UpdateProjectFinancialRequest): Promise<ProjectFinancial>;
+  deleteProjectFinancial(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -378,6 +386,35 @@ export class DatabaseStorage implements IStorage {
         eq(taskDependencies.taskId, taskId),
         eq(taskDependencies.dependsOnTaskId, dependsOnTaskId)
       ));
+  }
+
+  // Project Financials
+  async getProjectFinancials(projectId: number): Promise<ProjectFinancial[]> {
+    return await db.select().from(projectFinancials)
+      .where(eq(projectFinancials.projectId, projectId))
+      .orderBy(projectFinancials.fiscalYear, projectFinancials.category, projectFinancials.lineItem);
+  }
+
+  async getProjectFinancial(id: number): Promise<ProjectFinancial | undefined> {
+    const [financial] = await db.select().from(projectFinancials).where(eq(projectFinancials.id, id));
+    return financial;
+  }
+
+  async createProjectFinancial(financial: InsertProjectFinancial): Promise<ProjectFinancial> {
+    const [newFinancial] = await db.insert(projectFinancials).values(financial).returning();
+    return newFinancial;
+  }
+
+  async updateProjectFinancial(id: number, updates: UpdateProjectFinancialRequest): Promise<ProjectFinancial> {
+    const [updatedFinancial] = await db.update(projectFinancials)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(projectFinancials.id, id))
+      .returning();
+    return updatedFinancial;
+  }
+
+  async deleteProjectFinancial(id: number): Promise<void> {
+    await db.delete(projectFinancials).where(eq(projectFinancials.id, id));
   }
 
   // Portfolio Aggregations

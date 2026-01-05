@@ -136,6 +136,23 @@ export const taskDependencies = pgTable("task_dependencies", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Project Financials (Budget/Plan/Actuals with CapEx/OpEx breakdown)
+export const projectFinancials = pgTable("project_financials", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  category: text("category").notNull(), // "CapEx" or "OpEx"
+  lineItem: text("line_item").notNull(), // Name of the expense item (e.g., "Hardware", "Software Licenses", "Consulting")
+  description: text("description"),
+  fiscalYear: integer("fiscal_year").notNull(), // e.g., 2025, 2026
+  fiscalPeriod: text("fiscal_period"), // e.g., "Q1", "Q2", "Jan", "Full Year"
+  budgetAmount: numeric("budget_amount").default("0"), // Original budget/plan
+  plannedAmount: numeric("planned_amount").default("0"), // Current planned amount (may differ from original budget)
+  actualAmount: numeric("actual_amount").default("0"), // Actual spent
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // === RELATIONS ===
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
@@ -196,6 +213,14 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   milestones: many(milestones),
   issues: many(issues),
   tasks: many(tasks),
+  financials: many(projectFinancials),
+}));
+
+export const projectFinancialsRelations = relations(projectFinancials, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectFinancials.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const risksRelations = relations(risks, ({ one }) => ({
@@ -271,6 +296,7 @@ export const insertIssueSchema = createInsertSchema(issues).omit({ id: true, cre
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true });
 export const insertTaskChangeLogSchema = createInsertSchema(taskChangeLogs).omit({ id: true, changedAt: true });
 export const insertTaskDependencySchema = createInsertSchema(taskDependencies).omit({ id: true, createdAt: true });
+export const insertProjectFinancialSchema = createInsertSchema(projectFinancials).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -306,6 +332,9 @@ export type InsertTaskChangeLog = z.infer<typeof insertTaskChangeLogSchema>;
 export type TaskDependency = typeof taskDependencies.$inferSelect;
 export type InsertTaskDependency = z.infer<typeof insertTaskDependencySchema>;
 
+export type ProjectFinancial = typeof projectFinancials.$inferSelect;
+export type InsertProjectFinancial = z.infer<typeof insertProjectFinancialSchema>;
+
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
 export type UpdatePortfolioRequest = Partial<InsertPortfolio>;
@@ -327,3 +356,6 @@ export type UpdateIssueRequest = Partial<InsertIssue>;
 
 export type CreateTaskRequest = InsertTask;
 export type UpdateTaskRequest = Partial<InsertTask>;
+
+export type CreateProjectFinancialRequest = InsertProjectFinancial;
+export type UpdateProjectFinancialRequest = Partial<InsertProjectFinancial>;

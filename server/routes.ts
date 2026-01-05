@@ -1374,5 +1374,59 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Project Financials
+  app.get(api.projectFinancials.list.path, async (req, res) => {
+    const projectId = Number(req.params.projectId);
+    const project = await storage.getProject(projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    const financials = await storage.getProjectFinancials(projectId);
+    res.json(financials);
+  });
+
+  app.get(api.projectFinancials.get.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const financial = await storage.getProjectFinancial(id);
+    if (!financial) return res.status(404).json({ message: "Financial record not found" });
+    res.json(financial);
+  });
+
+  app.post(api.projectFinancials.create.path, async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      const input = api.projectFinancials.create.input.parse(req.body);
+      const financial = await storage.createProjectFinancial({ ...input, projectId });
+      res.status(201).json(financial);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Error creating financial record" });
+    }
+  });
+
+  app.put(api.projectFinancials.update.path, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getProjectFinancial(id);
+      if (!existing) return res.status(404).json({ message: "Financial record not found" });
+      
+      const updates = api.projectFinancials.update.input.parse(req.body);
+      const updated = await storage.updateProjectFinancial(id, updates);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      res.status(500).json({ message: "Error updating financial record" });
+    }
+  });
+
+  app.delete(api.projectFinancials.delete.path, async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getProjectFinancial(id);
+    if (!existing) return res.status(404).json({ message: "Financial record not found" });
+    await storage.deleteProjectFinancial(id);
+    res.status(204).send();
+  });
+
   return httpServer;
 }
