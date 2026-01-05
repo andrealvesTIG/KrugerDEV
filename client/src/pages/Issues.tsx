@@ -19,17 +19,17 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 
 const priorityColors = {
-  Low: "bg-slate-100 text-slate-700",
-  Medium: "bg-blue-100 text-blue-700",
-  High: "bg-amber-100 text-amber-700",
-  Critical: "bg-rose-100 text-rose-700",
+  Low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  Medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  High: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  Critical: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
 };
 
 const statusColors = {
-  Open: "bg-red-100 text-red-700",
-  "In Progress": "bg-blue-100 text-blue-700",
-  Resolved: "bg-emerald-100 text-emerald-700",
-  Closed: "bg-slate-100 text-slate-700",
+  Open: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  Resolved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  Closed: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
 
 const typeIcons = {
@@ -208,7 +208,7 @@ export default function Issues() {
 
       <div className="flex flex-col gap-4 sm:flex-row bg-card p-4 rounded-xl border border-border shadow-sm">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-10 border-slate-200"
             placeholder="Search issues..."
@@ -267,7 +267,7 @@ export default function Issues() {
                 >
                   <div className="flex gap-4">
                     <div className="mt-0.5">
-                      <TypeIcon className="h-5 w-5 text-slate-500" />
+                      <TypeIcon className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -279,8 +279,8 @@ export default function Issues() {
                           {issue.status}
                         </Badge>
                       </div>
-                      <p className="text-sm text-slate-500">{issue.description}</p>
-                      <div className="flex items-center gap-4 text-xs text-slate-400">
+                      <p className="text-sm text-muted-foreground">{issue.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <Link href={`/projects/${issue.projectId}`}>
                           <span className="hover:text-primary cursor-pointer">{getProjectName(issue.projectId)}</span>
                         </Link>
@@ -294,13 +294,13 @@ export default function Issues() {
                     onClick={() => deleteIssue.mutate({ id: issue.id, projectId: issue.projectId })}
                     data-testid={`button-delete-issue-${issue.id}`}
                   >
-                    <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
+                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-500" />
                   </Button>
                 </motion.div>
               );
             })}
             {filteredIssues?.length === 0 && (
-              <div className="text-center py-12 text-slate-500">
+              <div className="text-center py-12 text-muted-foreground">
                 No issues found. Create your first issue to get started.
               </div>
             )}

@@ -80,12 +80,12 @@ export default function Dashboard() {
           <Link href="/projects" data-testid="link-total-projects">
             <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Projects</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Projects</CardTitle>
                 <Briefcase className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalProjects}</div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Across {totalPortfolios} portfolios</p>
+                <div className="text-2xl font-bold text-foreground">{totalProjects}</div>
+                <p className="text-xs text-muted-foreground">Across {totalPortfolios} portfolios</p>
               </CardContent>
             </Card>
           </Link>
@@ -95,12 +95,12 @@ export default function Dashboard() {
           <Link href="/projects?health=Red" data-testid="link-critical-projects">
             <Card className="border-l-4 border-l-rose-500 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Critical Projects</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Critical Projects</CardTitle>
                 <AlertTriangle className="h-4 w-4 text-rose-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{criticalProjects}</div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Require immediate attention</p>
+                <div className="text-2xl font-bold text-foreground">{criticalProjects}</div>
+                <p className="text-xs text-muted-foreground">Require immediate attention</p>
               </CardContent>
             </Card>
           </Link>
@@ -110,12 +110,12 @@ export default function Dashboard() {
           <Link href="/projects?status=Closing" data-testid="link-completed-projects">
             <Card className="border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Completed</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{completedProjects}</div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Successfully closed</p>
+                <div className="text-2xl font-bold text-foreground">{completedProjects}</div>
+                <p className="text-xs text-muted-foreground">Successfully closed</p>
               </CardContent>
             </Card>
           </Link>
@@ -125,12 +125,12 @@ export default function Dashboard() {
           <Link href="/projects" data-testid="link-active-budget">
             <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Active Budget</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Active Budget</CardTitle>
                 <TrendingUp className="h-4 w-4 text-blue-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-slate-900 dark:text-slate-100" data-testid="text-total-budget">{formatBudget(totalBudget)}</div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Total budget allocation</p>
+                <div className="text-2xl font-bold text-foreground" data-testid="text-total-budget">{formatBudget(totalBudget)}</div>
+                <p className="text-xs text-muted-foreground">Total budget allocation</p>
               </CardContent>
             </Card>
           </Link>

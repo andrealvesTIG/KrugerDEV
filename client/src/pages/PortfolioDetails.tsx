@@ -253,11 +253,11 @@ function ProjectsTab({ portfolioId }: { portfolioId: number }) {
   };
 
   const statusColors: Record<string, string> = {
-    Initiation: "bg-slate-100 text-slate-700",
-    Planning: "bg-blue-100 text-blue-700",
-    Execution: "bg-purple-100 text-purple-700",
-    Monitoring: "bg-amber-100 text-amber-700",
-    Closing: "bg-emerald-100 text-emerald-700",
+    Initiation: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    Planning: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    Execution: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+    Monitoring: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    Closing: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
   };
 
   return (
@@ -289,7 +289,7 @@ function ProjectsTab({ portfolioId }: { portfolioId: number }) {
                     </div>
                   </td>
                   <td className="p-3">
-                    <Badge className={cn("text-xs", statusColors[project.status] || "bg-slate-100")}>{project.status}</Badge>
+                    <Badge className={cn("text-xs", statusColors[project.status] || "bg-muted")}>{project.status}</Badge>
                   </td>
                   <td className="p-3">
                     <Badge className={cn("text-xs", healthColors[project.health || "Green"])}>{project.health}</Badge>
@@ -335,9 +335,9 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
   };
 
   const impactColors: Record<string, string> = {
-    Low: "bg-slate-100 text-slate-700",
-    Medium: "bg-blue-100 text-blue-700",
-    High: "bg-rose-100 text-rose-700",
+    Low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    Medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    High: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
   };
 
   return (
@@ -405,17 +405,17 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
   const priorityColors: Record<string, string> = {
-    Low: "bg-slate-100 text-slate-700",
-    Medium: "bg-blue-100 text-blue-700",
-    High: "bg-amber-100 text-amber-700",
-    Critical: "bg-rose-100 text-rose-700",
+    Low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    Medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    High: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    Critical: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
   };
 
   const statusColors: Record<string, string> = {
-    Open: "bg-red-100 text-red-700",
-    "In Progress": "bg-blue-100 text-blue-700",
-    Resolved: "bg-emerald-100 text-emerald-700",
-    Closed: "bg-slate-100 text-slate-700",
+    Open: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+    "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    Resolved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    Closed: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   };
 
   return (

@@ -58,9 +58,9 @@ export default function OrgSettings() {
   if (!hasOrgAdminAccess) {
     return (
       <div className="flex h-96 flex-col items-center justify-center gap-4">
-        <ShieldAlert className="h-16 w-16 text-slate-300" />
-        <h2 className="text-2xl font-bold text-slate-700">No Organization Access</h2>
-        <p className="text-slate-500">You are not an admin of any organization.</p>
+        <ShieldAlert className="h-16 w-16 text-muted-foreground/50" />
+        <h2 className="text-2xl font-bold text-foreground">No Organization Access</h2>
+        <p className="text-muted-foreground">You are not an admin of any organization.</p>
       </div>
     );
   }
@@ -72,15 +72,15 @@ export default function OrgSettings() {
         <div className="flex items-center gap-3">
           <Settings className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-3xl font-display font-bold text-slate-900">Organization Settings</h1>
-            <p className="text-slate-500">Manage your organization and team members</p>
+            <h1 className="text-3xl font-display font-bold text-foreground">Organization Settings</h1>
+            <p className="text-muted-foreground">Manage your organization and team members</p>
           </div>
         </div>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
-            <Users className="h-16 w-16 text-slate-300" />
-            <h2 className="text-xl font-semibold text-slate-700">No Organizations Yet</h2>
-            <p className="text-slate-500 text-center max-w-md">
+            <Users className="h-16 w-16 text-muted-foreground/50" />
+            <h2 className="text-xl font-semibold text-foreground">No Organizations Yet</h2>
+            <p className="text-muted-foreground text-center max-w-md">
               {user?.role === 'super_admin' 
                 ? "Go to Super Admin to create your first organization, then come back here to manage its members."
                 : "You don't have access to any organizations yet. Contact your administrator."}
@@ -100,8 +100,8 @@ export default function OrgSettings() {
         <div className="flex items-center gap-3">
           <Settings className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-3xl font-display font-bold text-slate-900">Organization Settings</h1>
-            <p className="text-slate-500">Manage your organization and team members</p>
+            <h1 className="text-3xl font-display font-bold text-foreground">Organization Settings</h1>
+            <p className="text-muted-foreground">Manage your organization and team members</p>
           </div>
         </div>
         {accessibleOrgs.length > 1 && (

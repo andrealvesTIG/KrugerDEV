@@ -20,9 +20,9 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const statusColors = {
-  "Not Started": "bg-slate-100 text-slate-700",
-  "In Progress": "bg-blue-100 text-blue-700",
-  "Completed": "bg-emerald-100 text-emerald-700",
+  "Not Started": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
 export default function Tasks() {
@@ -258,7 +258,7 @@ function GanttView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects: 
   if (tasks.length === 0) {
     return (
       <Card>
-        <CardContent className="py-12 text-center text-slate-500">
+        <CardContent className="py-12 text-center text-muted-foreground">
           No tasks yet. Add your first task to see the Gantt chart.
         </CardContent>
       </Card>
@@ -270,11 +270,11 @@ function GanttView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects: 
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <div className="min-w-[800px]">
-            <div className="flex border-b bg-slate-50">
-              <div className="w-64 flex-shrink-0 border-r p-3 font-semibold text-sm text-slate-700">Task</div>
+            <div className="flex border-b bg-muted/50">
+              <div className="w-64 flex-shrink-0 border-r p-3 font-semibold text-sm text-foreground">Task</div>
               <div className="flex-1 flex">
                 {dateRange.filter((_, i) => i % 7 === 0).map((date, i) => (
-                  <div key={i} className="flex-1 min-w-[100px] p-2 text-center text-xs font-medium text-slate-500 border-l">
+                  <div key={i} className="flex-1 min-w-[100px] p-2 text-center text-xs font-medium text-muted-foreground border-l">
                     {format(date, 'MMM d')}
                   </div>
                 ))}
@@ -299,13 +299,13 @@ function GanttView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects: 
               return (
                 <div 
                   key={task.id} 
-                  className="flex border-b hover:bg-slate-50 cursor-pointer transition-colors"
+                  className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
                   onClick={() => onTaskClick(task)}
                   data-testid={`gantt-task-${task.id}`}
                 >
                   <div className="w-64 flex-shrink-0 border-r p-3">
                     <div className="font-medium text-sm truncate">{task.name}</div>
-                    <div className="text-xs text-slate-500 truncate">{getProjectName(task.projectId)}</div>
+                    <div className="text-xs text-muted-foreground truncate">{getProjectName(task.projectId)}</div>
                   </div>
                   <div className="flex-1 relative p-2">
                     {hasValidDates ? (
@@ -372,16 +372,16 @@ function KanbanView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects:
                 >
                   <CardContent className="p-4">
                     <div className="font-medium text-sm">{task.name}</div>
-                    <div className="text-xs text-slate-500 mt-1">{getProjectName(task.projectId)}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{getProjectName(task.projectId)}</div>
                     {task.assignee && (
-                      <div className="text-xs text-slate-400 mt-2">Assigned: {task.assignee}</div>
+                      <div className="text-xs text-muted-foreground mt-2">Assigned: {task.assignee}</div>
                     )}
                     <div className="flex items-center justify-between mt-3">
                       <Badge variant="outline" className="text-xs">
                         {task.progress || 0}%
                       </Badge>
                       {task.endDate && (
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-muted-foreground">
                           Due: {format(parseISO(task.endDate), 'MMM d')}
                         </span>
                       )}
@@ -390,7 +390,7 @@ function KanbanView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects:
                 </Card>
               ))}
               {columnTasks.length === 0 && (
-                <div className="text-center py-8 text-slate-400 text-sm">
+                <div className="text-center py-8 text-muted-foreground text-sm">
                   No tasks
                 </div>
               )}

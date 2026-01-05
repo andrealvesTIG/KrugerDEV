@@ -37,8 +37,8 @@ export default function UserSettings() {
       <div className="flex items-center gap-3">
         <Settings className="h-8 w-8 text-primary" />
         <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900" data-testid="text-settings-title">User Settings</h1>
-          <p className="text-slate-500">Manage your account preferences and settings</p>
+          <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-settings-title">User Settings</h1>
+          <p className="text-muted-foreground">Manage your account preferences and settings</p>
         </div>
       </div>
 
@@ -54,8 +54,8 @@ export default function UserSettings() {
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <label className="text-sm font-medium text-slate-900">Email Notifications</label>
-                <p className="text-sm text-slate-500">Receive notifications via email</p>
+                <label className="text-sm font-medium text-foreground">Email Notifications</label>
+                <p className="text-sm text-muted-foreground">Receive notifications via email</p>
               </div>
               <Switch
                 checked={emailNotifications}
@@ -66,8 +66,8 @@ export default function UserSettings() {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <label className="text-sm font-medium text-slate-900">Project Updates</label>
-                <p className="text-sm text-slate-500">Get notified when projects are updated</p>
+                <label className="text-sm font-medium text-foreground">Project Updates</label>
+                <p className="text-sm text-muted-foreground">Get notified when projects are updated</p>
               </div>
               <Switch
                 checked={projectUpdates}
@@ -78,8 +78,8 @@ export default function UserSettings() {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <label className="text-sm font-medium text-slate-900">Task Reminders</label>
-                <p className="text-sm text-slate-500">Receive reminders for upcoming tasks</p>
+                <label className="text-sm font-medium text-foreground">Task Reminders</label>
+                <p className="text-sm text-muted-foreground">Receive reminders for upcoming tasks</p>
               </div>
               <Switch
                 checked={taskReminders}
@@ -90,8 +90,8 @@ export default function UserSettings() {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <label className="text-sm font-medium text-slate-900">Weekly Digest</label>
-                <p className="text-sm text-slate-500">Get a weekly summary of activity</p>
+                <label className="text-sm font-medium text-foreground">Weekly Digest</label>
+                <p className="text-sm text-muted-foreground">Get a weekly summary of activity</p>
               </div>
               <Switch
                 checked={weeklyDigest}
@@ -115,7 +115,7 @@ export default function UserSettings() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-900">Theme</label>
+              <label className="text-sm font-medium text-foreground">Theme</label>
               <div className="grid grid-cols-3 gap-3">
                 <button
                   className="flex flex-col items-center gap-2 rounded-lg border border-primary bg-primary/5 p-3 transition-colors"
@@ -128,24 +128,24 @@ export default function UserSettings() {
                   className="flex flex-col items-center gap-2 rounded-lg border border-slate-200 p-3 hover-elevate transition-colors"
                   data-testid="button-theme-dark"
                 >
-                  <Monitor className="h-5 w-5 text-slate-500" />
-                  <span className="text-sm font-medium text-slate-500">Dark</span>
+                  <Monitor className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Dark</span>
                 </button>
                 <button
                   className="flex flex-col items-center gap-2 rounded-lg border border-slate-200 p-3 hover-elevate transition-colors"
                   data-testid="button-theme-system"
                 >
-                  <Monitor className="h-5 w-5 text-slate-500" />
-                  <span className="text-sm font-medium text-slate-500">System</span>
+                  <Monitor className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">System</span>
                 </button>
               </div>
             </div>
             <Separator />
             <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-900">Language</label>
+              <label className="text-sm font-medium text-foreground">Language</label>
               <div className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
-                <Globe className="h-5 w-5 text-slate-500" />
-                <span className="text-sm text-slate-900">English (US)</span>
+                <Globe className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm text-foreground">English (US)</span>
                 <Badge variant="outline" className="ml-auto">Default</Badge>
               </div>
             </div>
@@ -163,15 +163,15 @@ export default function UserSettings() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between rounded-lg border border-slate-200 p-4">
               <div className="space-y-0.5">
-                <p className="text-sm font-medium text-slate-900">Connected Account</p>
-                <p className="text-sm text-slate-500">Signed in via Replit</p>
+                <p className="text-sm font-medium text-foreground">Connected Account</p>
+                <p className="text-sm text-muted-foreground">Signed in via Replit</p>
               </div>
               <Badge variant="secondary">Active</Badge>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-slate-200 p-4">
               <div className="space-y-0.5">
-                <p className="text-sm font-medium text-slate-900">Two-Factor Authentication</p>
-                <p className="text-sm text-slate-500">Managed through Replit account</p>
+                <p className="text-sm font-medium text-foreground">Two-Factor Authentication</p>
+                <p className="text-sm text-muted-foreground">Managed through Replit account</p>
               </div>
               <Badge variant="outline">Via Replit</Badge>
             </div>

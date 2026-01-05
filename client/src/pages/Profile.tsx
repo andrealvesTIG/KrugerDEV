@@ -107,8 +107,8 @@ export default function Profile() {
         <div className="flex items-center gap-3">
           <User className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-3xl font-display font-bold text-slate-900" data-testid="text-profile-title">Profile</h1>
-            <p className="text-slate-500">View and manage your profile information</p>
+            <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-profile-title">Profile</h1>
+            <p className="text-muted-foreground">View and manage your profile information</p>
           </div>
         </div>
         {!isEditing && (
@@ -128,7 +128,7 @@ export default function Profile() {
                 {(isEditing ? editForm.firstName : user?.firstName)?.[0] || 'U'}
               </AvatarFallback>
             </Avatar>
-            <h2 className="text-xl font-semibold text-slate-900" data-testid="text-user-name">
+            <h2 className="text-xl font-semibold text-foreground" data-testid="text-user-name">
               {isEditing ? `${editForm.firstName} ${editForm.lastName}` : `${user?.firstName} ${user?.lastName}`}
             </h2>
             <Badge variant={getRoleBadgeVariant(user?.role || 'member')} className="mt-2" data-testid="badge-user-role">
@@ -180,7 +180,7 @@ export default function Profile() {
             {isEditing ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName" className="flex items-center gap-2 text-slate-500">
+                  <Label htmlFor="firstName" className="flex items-center gap-2 text-muted-foreground">
                     <User className="h-4 w-4" />
                     First Name
                   </Label>
@@ -193,7 +193,7 @@ export default function Profile() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName" className="flex items-center gap-2 text-slate-500">
+                  <Label htmlFor="lastName" className="flex items-center gap-2 text-muted-foreground">
                     <User className="h-4 w-4" />
                     Last Name
                   </Label>
@@ -206,7 +206,7 @@ export default function Profile() {
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="email" className="flex items-center gap-2 text-slate-500">
+                  <Label htmlFor="email" className="flex items-center gap-2 text-muted-foreground">
                     <Mail className="h-4 w-4" />
                     Email
                   </Label>
@@ -220,21 +220,21 @@ export default function Profile() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <Shield className="h-4 w-4" />
                     System Role
                   </label>
-                  <p className="text-slate-900 font-medium text-sm text-muted-foreground" data-testid="text-system-role">
+                  <p className="text-foreground font-medium text-sm text-muted-foreground" data-testid="text-system-role">
                     {formatRole(user?.role || 'member')}
-                    <span className="text-xs text-slate-400 ml-2">(Cannot be changed)</span>
+                    <span className="text-xs text-muted-foreground ml-2">(Cannot be changed)</span>
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
                     Member Since
                   </label>
-                  <p className="text-slate-900 font-medium" data-testid="text-member-since">
+                  <p className="text-foreground font-medium" data-testid="text-member-since">
                     {user?.createdAt ? format(new Date(user.createdAt), 'MMMM d, yyyy') : 'Unknown'}
                   </p>
                 </div>
@@ -242,39 +242,39 @@ export default function Profile() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <User className="h-4 w-4" />
                     First Name
                   </label>
-                  <p className="text-slate-900 font-medium" data-testid="text-first-name">{user?.firstName || 'Not set'}</p>
+                  <p className="text-foreground font-medium" data-testid="text-first-name">{user?.firstName || 'Not set'}</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <User className="h-4 w-4" />
                     Last Name
                   </label>
-                  <p className="text-slate-900 font-medium" data-testid="text-last-name">{user?.lastName || 'Not set'}</p>
+                  <p className="text-foreground font-medium" data-testid="text-last-name">{user?.lastName || 'Not set'}</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <Mail className="h-4 w-4" />
                     Email
                   </label>
-                  <p className="text-slate-900 font-medium" data-testid="text-email">{user?.email || 'Not set'}</p>
+                  <p className="text-foreground font-medium" data-testid="text-email">{user?.email || 'Not set'}</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <Shield className="h-4 w-4" />
                     System Role
                   </label>
-                  <p className="text-slate-900 font-medium" data-testid="text-system-role">{formatRole(user?.role || 'member')}</p>
+                  <p className="text-foreground font-medium" data-testid="text-system-role">{formatRole(user?.role || 'member')}</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-500 flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
                     Member Since
                   </label>
-                  <p className="text-slate-900 font-medium" data-testid="text-member-since">
+                  <p className="text-foreground font-medium" data-testid="text-member-since">
                     {user?.createdAt ? format(new Date(user.createdAt), 'MMMM d, yyyy') : 'Unknown'}
                   </p>
                 </div>
@@ -294,7 +294,7 @@ export default function Profile() {
         </CardHeader>
         <CardContent>
           {userOrgs.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">
+            <div className="text-center py-8 text-muted-foreground">
               You are not a member of any organizations yet.
             </div>
           ) : (
@@ -306,10 +306,10 @@ export default function Profile() {
                   data-testid={`org-membership-${membership.id}`}
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-                    <Building2 className="h-5 w-5 text-slate-600" />
+                    <Building2 className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-900 truncate">{membership.organization?.name}</p>
+                    <p className="font-medium text-foreground truncate">{membership.organization?.name}</p>
                     <Badge variant="outline">{formatRole(membership.role)}</Badge>
                   </div>
                 </div>

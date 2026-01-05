@@ -50,9 +50,9 @@ export default function Projects() {
       {/* Filters Bar */}
       <div className="flex flex-col gap-4 sm:flex-row bg-card p-4 rounded-xl border border-border shadow-sm">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input 
-            className="pl-10 border-slate-200" 
+            className="pl-10 border-border" 
             placeholder="Search projects..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -83,7 +83,7 @@ export default function Projects() {
             transition={{ duration: 0.3, delay: index * 0.05 }}
           >
             <Link href={`/projects/${project.id}`}>
-              <div className="group relative flex flex-col gap-5 rounded-2xl border border-slate-200/80 bg-white p-7 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer dark:bg-slate-900 dark:border-slate-700">
+              <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer">
                 
                 {/* Status Indicator Stripe */}
                 <div className={cn(
@@ -95,21 +95,21 @@ export default function Projects() {
 
                 <div className="flex-1 pl-5">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors duration-200">
+                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
                       {project.name}
                     </h3>
                     <Badge variant="outline" className="font-medium text-xs px-3 py-1 rounded-full border-slate-300 dark:border-slate-600">
                       {project.status}
                     </Badge>
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-slate-500 dark:text-slate-400">
+                  <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-slate-400" />
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span>Due {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'TBD'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-2">
-                        <div className="h-2 w-24 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                        <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
                           <div 
                             className={cn(
                               "h-full rounded-full transition-all duration-500",
@@ -128,11 +128,11 @@ export default function Projects() {
 
                 <div className="flex items-center gap-6 pl-5 sm:pl-0 mt-4 sm:mt-0">
                   <div className="text-right hidden sm:block">
-                    <div className="flex items-center gap-1.5 justify-end text-slate-400 mb-1">
+                    <div className="flex items-center gap-1.5 justify-end text-muted-foreground mb-1">
                       <TrendingUp className="h-3.5 w-3.5" />
                       <span className="text-xs font-medium uppercase tracking-wide">Budget</span>
                     </div>
-                    <p className="text-lg font-bold text-slate-900 dark:text-slate-100">${Number(project.budget).toLocaleString()}</p>
+                    <p className="text-lg font-bold text-foreground">${Number(project.budget).toLocaleString()}</p>
                   </div>
                   <Badge className={cn(
                     "ml-auto sm:ml-0 px-4 py-1.5 text-xs font-semibold rounded-full",
@@ -150,12 +150,12 @@ export default function Projects() {
         ))}
 
         {!isLoading && filteredProjects?.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-slate-200 rounded-xl">
-            <div className="rounded-full bg-slate-50 p-4 mb-4">
-              <AlertCircle className="h-8 w-8 text-slate-400" />
+          <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-border rounded-xl">
+            <div className="rounded-full bg-muted p-4 mb-4">
+              <AlertCircle className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium text-slate-900">No projects found</h3>
-            <p className="text-slate-500 mt-1 mb-4">Try adjusting your filters or create a new project.</p>
+            <h3 className="text-lg font-medium text-foreground">No projects found</h3>
+            <p className="text-muted-foreground mt-1 mb-4">Try adjusting your filters or create a new project.</p>
           </div>
         )}
       </div>
