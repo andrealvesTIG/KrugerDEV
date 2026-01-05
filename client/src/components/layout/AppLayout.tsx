@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link } from "wouter";
+import { SearchCommand } from "./SearchCommand";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -47,7 +48,10 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
               </Link>
             )}
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            <SearchCommand />
+            <ThemeToggle />
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="mx-auto max-w-7xl px-8 py-8">

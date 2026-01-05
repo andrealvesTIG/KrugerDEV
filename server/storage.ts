@@ -15,7 +15,7 @@ import {
   type TaskDependency, type InsertTaskDependency,
   type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, ilike, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -95,6 +95,16 @@ export interface IStorage {
   createProjectFinancial(financial: InsertProjectFinancial): Promise<ProjectFinancial>;
   updateProjectFinancial(id: number, updates: UpdateProjectFinancialRequest): Promise<ProjectFinancial>;
   deleteProjectFinancial(id: number): Promise<void>;
+
+  // Global Search
+  search(query: string, organizationIds?: number[]): Promise<{
+    portfolios: Portfolio[];
+    projects: Project[];
+    tasks: Task[];
+    issues: Issue[];
+    risks: Risk[];
+    milestones: Milestone[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -457,6 +467,128 @@ export class DatabaseStorage implements IStorage {
       allMilestones.push(...projectMilestones.map(m => ({ ...m, projectName: project.name })));
     }
     return allMilestones;
+  }
+
+  // Global Search
+  async search(query: string, organizationIds?: number[]): Promise<{
+    portfolios: Portfolio[];
+    projects: Project[];
+    tasks: Task[];
+    issues: Issue[];
+    risks: Risk[];
+    milestones: Milestone[];
+  }> {
+    const searchPattern = `%${query}%`;
+    const limit = 10;
+
+    // Filter portfolios by organization IDs
+    const portfolioResults = await db.select().from(portfolios)
+      .where(
+        and(
+          organizationIds && organizationIds.length > 0
+            ? sql`${portfolios.organizationId} IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`
+            : sql`1=1`,
+          or(
+            ilike(portfolios.name, searchPattern),
+            ilike(portfolios.description, searchPattern)
+          )
+        )
+      )
+      .limit(limit);
+
+    // Filter projects by organization IDs
+    const projectResults = await db.select().from(projects)
+      .where(
+        and(
+          organizationIds && organizationIds.length > 0
+            ? sql`${projects.organizationId} IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`
+            : sql`1=1`,
+          or(
+            ilike(projects.name, searchPattern),
+            ilike(projects.description, searchPattern)
+          )
+        )
+      )
+      .limit(limit);
+
+    // Get accessible project IDs for filtering tasks, issues, risks, milestones
+    const accessibleProjects = organizationIds && organizationIds.length > 0
+      ? await db.select({ id: projects.id }).from(projects)
+          .where(sql`${projects.organizationId} IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`)
+      : await db.select({ id: projects.id }).from(projects);
+    const projectIds = accessibleProjects.map(p => p.id);
+
+    if (projectIds.length === 0) {
+      return {
+        portfolios: portfolioResults,
+        projects: projectResults,
+        tasks: [],
+        issues: [],
+        risks: [],
+        milestones: [],
+      };
+    }
+
+    // Filter tasks by accessible projects
+    const taskResults = await db.select().from(tasks)
+      .where(
+        and(
+          sql`${tasks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          or(
+            ilike(tasks.name, searchPattern),
+            ilike(tasks.description, searchPattern)
+          )
+        )
+      )
+      .limit(limit);
+
+    // Filter issues by accessible projects
+    const issueResults = await db.select().from(issues)
+      .where(
+        and(
+          sql`${issues.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          or(
+            ilike(issues.title, searchPattern),
+            ilike(issues.description, searchPattern)
+          )
+        )
+      )
+      .limit(limit);
+
+    // Filter risks by accessible projects
+    const riskResults = await db.select().from(risks)
+      .where(
+        and(
+          sql`${risks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          or(
+            ilike(risks.title, searchPattern),
+            ilike(risks.description, searchPattern)
+          )
+        )
+      )
+      .limit(limit);
+
+    // Filter milestones by accessible projects
+    const milestoneResults = await db.select().from(milestones)
+      .where(
+        and(
+          sql`${milestones.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          or(
+            ilike(milestones.title, searchPattern),
+            ilike(milestones.description, searchPattern)
+          )
+        )
+      )
+      .limit(limit);
+
+    return {
+      portfolios: portfolioResults,
+      projects: projectResults,
+      tasks: taskResults,
+      issues: issueResults,
+      risks: riskResults,
+      milestones: milestoneResults,
+    };
   }
 }
 

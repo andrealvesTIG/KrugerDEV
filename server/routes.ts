@@ -844,6 +844,29 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // --- Global Search ---
+  app.get('/api/search', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const query = req.query.q as string;
+      if (!query || query.length < 2) {
+        return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
+      }
+      
+      // Get user's accessible organization IDs for security filtering
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (accessibleOrgIds.length === 0) {
+        return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
+      }
+      
+      const results = await storage.search(query, accessibleOrgIds);
+      res.json(results);
+    } catch (err) {
+      console.error('Search error:', err);
+      res.status(500).json({ message: 'Search failed' });
+    }
+  });
+
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
