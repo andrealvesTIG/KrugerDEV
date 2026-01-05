@@ -58,17 +58,15 @@ export function Sidebar() {
       >
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
       </button>
-
       {/* Logo Area */}
       <div className={cn("flex h-20 items-center", isCollapsed ? "justify-center px-2" : "px-6")}>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25 flex-shrink-0">
             <Briefcase className="h-6 w-6 text-white" />
           </div>
-          {!isCollapsed && <span className="text-xl font-display font-bold tracking-tight">PPM Suite</span>}
+          {!isCollapsed && <span className="text-xl font-display font-bold tracking-tight">Friday Report</span>}
         </div>
       </div>
-
       {/* Organization Switcher */}
       {organizations.length > 0 && (
         <div className={cn("border-b border-slate-800", isCollapsed ? "px-2 py-3" : "px-4 py-3")}>
@@ -122,7 +120,6 @@ export function Sidebar() {
           )}
         </div>
       )}
-
       {/* Navigation */}
       <nav className={cn("flex-1 space-y-1 py-6", isCollapsed ? "px-2" : "px-4")}>
         {!isCollapsed && (
@@ -227,7 +224,6 @@ export function Sidebar() {
           return navItem;
         })}
       </nav>
-
       {/* User Section with Dropdown */}
       <div className={cn("border-t border-slate-800", isCollapsed ? "p-2" : "p-4")}>
         <Popover open={isUserMenuOpen} onOpenChange={setIsUserMenuOpen}>
