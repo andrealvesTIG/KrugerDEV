@@ -106,10 +106,33 @@ export const tasks = pgTable("tasks", {
   description: text("description"),
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
+  durationDays: integer("duration_days"), // Duration in days - auto-calculates endDate if set
   progress: integer("progress").default(0), // 0-100 percentage
   status: text("status").default("Not Started"), // Not Started, In Progress, Completed
   assignee: text("assignee"),
   parentId: integer("parent_id"), // For subtasks/dependencies
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Task Change Logs (Audit Trail)
+export const taskChangeLogs = pgTable("task_change_logs", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id).notNull(),
+  changedBy: varchar("changed_by").references(() => users.id),
+  changedByName: text("changed_by_name"), // Store name for display even if user is deleted
+  changedAt: timestamp("changed_at").defaultNow(),
+  changeType: text("change_type").notNull(), // 'created', 'updated', 'deleted'
+  changeSummary: text("change_summary"), // Human-readable summary
+  previousValues: text("previous_values"), // JSON string of changed fields before
+  newValues: text("new_values"), // JSON string of changed fields after
+});
+
+// Task Dependencies
+export const taskDependencies = pgTable("task_dependencies", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id).notNull(),
+  dependsOnTaskId: integer("depends_on_task_id").references(() => tasks.id).notNull(),
+  dependencyType: text("dependency_type").default("finish-to-start"), // finish-to-start, start-to-start, finish-to-finish, start-to-finish
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -196,10 +219,37 @@ export const issuesRelations = relations(issues, ({ one }) => ({
   }),
 }));
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
   project: one(projects, {
     fields: [tasks.projectId],
     references: [projects.id],
+  }),
+  changeLogs: many(taskChangeLogs),
+  dependencies: many(taskDependencies, { relationName: "taskDependencies" }),
+  dependentOn: many(taskDependencies, { relationName: "taskDependentOn" }),
+}));
+
+export const taskChangeLogsRelations = relations(taskChangeLogs, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskChangeLogs.taskId],
+    references: [tasks.id],
+  }),
+  changedByUser: one(users, {
+    fields: [taskChangeLogs.changedBy],
+    references: [users.id],
+  }),
+}));
+
+export const taskDependenciesRelations = relations(taskDependencies, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskDependencies.taskId],
+    references: [tasks.id],
+    relationName: "taskDependencies",
+  }),
+  dependsOnTask: one(tasks, {
+    fields: [taskDependencies.dependsOnTaskId],
+    references: [tasks.id],
+    relationName: "taskDependentOn",
   }),
 }));
 
@@ -219,6 +269,8 @@ export const insertRiskSchema = createInsertSchema(risks).omit({ id: true, creat
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
 export const insertIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true });
+export const insertTaskChangeLogSchema = createInsertSchema(taskChangeLogs).omit({ id: true, changedAt: true });
+export const insertTaskDependencySchema = createInsertSchema(taskDependencies).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 
@@ -247,6 +299,12 @@ export type InsertIssue = z.infer<typeof insertIssueSchema>;
 
 export type Task = typeof tasks.$inferSelect;
 export type InsertTask = z.infer<typeof insertTaskSchema>;
+
+export type TaskChangeLog = typeof taskChangeLogs.$inferSelect;
+export type InsertTaskChangeLog = z.infer<typeof insertTaskChangeLogSchema>;
+
+export type TaskDependency = typeof taskDependencies.$inferSelect;
+export type InsertTaskDependency = z.infer<typeof insertTaskDependencySchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
