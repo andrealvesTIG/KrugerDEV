@@ -120,9 +120,9 @@ export interface IStorage {
 
   // Recycle Bin
   getDeletedItems(organizationId: number): Promise<RecycleBinItem[]>;
-  softDeleteItem(type: RecycleBinItemType, id: number, userId: string): Promise<void>;
-  restoreItem(type: RecycleBinItemType, id: number): Promise<void>;
-  permanentlyDeleteItem(type: RecycleBinItemType, id: number): Promise<void>;
+  softDeleteItem(type: RecycleBinItemType, id: number, userId: string, organizationId?: number): Promise<boolean>;
+  restoreItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean>;
+  permanentlyDeleteItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -817,59 +817,124 @@ export class DatabaseStorage implements IStorage {
     return items.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
   }
 
-  async softDeleteItem(type: RecycleBinItemType, id: number, userId: string): Promise<void> {
+  async softDeleteItem(type: RecycleBinItemType, id: number, userId: string, organizationId?: number): Promise<boolean> {
     const now = new Date();
     switch (type) {
       case 'portfolio':
+        if (organizationId) {
+          const [p] = await db.select().from(portfolios).where(and(eq(portfolios.id, id), eq(portfolios.organizationId, organizationId)));
+          if (!p) return false;
+        }
         await db.update(portfolios).set({ deletedAt: now, deletedBy: userId }).where(eq(portfolios.id, id));
         break;
       case 'project':
+        if (organizationId) {
+          const [p] = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.organizationId, organizationId)));
+          if (!p) return false;
+        }
         await db.update(projects).set({ deletedAt: now, deletedBy: userId }).where(eq(projects.id, id));
         break;
       case 'task':
+        if (organizationId) {
+          const [t] = await db.select().from(tasks).where(eq(tasks.id, id));
+          if (!t) return false;
+          const [p] = await db.select().from(projects).where(and(eq(projects.id, t.projectId), eq(projects.organizationId, organizationId)));
+          if (!p) return false;
+        }
         await db.update(tasks).set({ deletedAt: now, deletedBy: userId }).where(eq(tasks.id, id));
         break;
       case 'risk':
+        if (organizationId) {
+          const [r] = await db.select().from(risks).where(eq(risks.id, id));
+          if (!r) return false;
+          const [p] = await db.select().from(projects).where(and(eq(projects.id, r.projectId), eq(projects.organizationId, organizationId)));
+          if (!p) return false;
+        }
         await db.update(risks).set({ deletedAt: now, deletedBy: userId }).where(eq(risks.id, id));
         break;
       case 'milestone':
+        if (organizationId) {
+          const [m] = await db.select().from(milestones).where(eq(milestones.id, id));
+          if (!m) return false;
+          const [p] = await db.select().from(projects).where(and(eq(projects.id, m.projectId), eq(projects.organizationId, organizationId)));
+          if (!p) return false;
+        }
         await db.update(milestones).set({ deletedAt: now, deletedBy: userId }).where(eq(milestones.id, id));
         break;
       case 'issue':
+        if (organizationId) {
+          const [i] = await db.select().from(issues).where(eq(issues.id, id));
+          if (!i) return false;
+          const [p] = await db.select().from(projects).where(and(eq(projects.id, i.projectId), eq(projects.organizationId, organizationId)));
+          if (!p) return false;
+        }
         await db.update(issues).set({ deletedAt: now, deletedBy: userId }).where(eq(issues.id, id));
         break;
     }
+    return true;
   }
 
-  async restoreItem(type: RecycleBinItemType, id: number): Promise<void> {
+  async restoreItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean> {
     switch (type) {
-      case 'portfolio':
+      case 'portfolio': {
+        const [p] = await db.select().from(portfolios).where(and(eq(portfolios.id, id), eq(portfolios.organizationId, organizationId)));
+        if (!p) return false;
         await db.update(portfolios).set({ deletedAt: null, deletedBy: null }).where(eq(portfolios.id, id));
         break;
-      case 'project':
+      }
+      case 'project': {
+        const [p] = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
         await db.update(projects).set({ deletedAt: null, deletedBy: null }).where(eq(projects.id, id));
         break;
-      case 'task':
+      }
+      case 'task': {
+        const [t] = await db.select().from(tasks).where(eq(tasks.id, id));
+        if (!t) return false;
+        const [p] = await db.select().from(projects).where(and(eq(projects.id, t.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
         await db.update(tasks).set({ deletedAt: null, deletedBy: null }).where(eq(tasks.id, id));
         break;
-      case 'risk':
+      }
+      case 'risk': {
+        const [r] = await db.select().from(risks).where(eq(risks.id, id));
+        if (!r) return false;
+        const [p] = await db.select().from(projects).where(and(eq(projects.id, r.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
         await db.update(risks).set({ deletedAt: null, deletedBy: null }).where(eq(risks.id, id));
         break;
-      case 'milestone':
+      }
+      case 'milestone': {
+        const [m] = await db.select().from(milestones).where(eq(milestones.id, id));
+        if (!m) return false;
+        const [p] = await db.select().from(projects).where(and(eq(projects.id, m.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
         await db.update(milestones).set({ deletedAt: null, deletedBy: null }).where(eq(milestones.id, id));
         break;
-      case 'issue':
+      }
+      case 'issue': {
+        const [i] = await db.select().from(issues).where(eq(issues.id, id));
+        if (!i) return false;
+        const [p] = await db.select().from(projects).where(and(eq(projects.id, i.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
         await db.update(issues).set({ deletedAt: null, deletedBy: null }).where(eq(issues.id, id));
         break;
+      }
     }
+    return true;
   }
 
-  async permanentlyDeleteItem(type: RecycleBinItemType, id: number): Promise<void> {
+  async permanentlyDeleteItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean> {
     switch (type) {
-      case 'portfolio':
+      case 'portfolio': {
+        const [p] = await db.select().from(portfolios).where(and(eq(portfolios.id, id), eq(portfolios.organizationId, organizationId)));
+        if (!p) return false;
         await db.delete(portfolios).where(eq(portfolios.id, id));
         break;
-      case 'project':
+      }
+      case 'project': {
+        const [proj] = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.organizationId, organizationId)));
+        if (!proj) return false;
         // Delete related items first
         const projectTasks = await db.select().from(tasks).where(eq(tasks.projectId, id));
         for (const task of projectTasks) {
@@ -884,22 +949,44 @@ export class DatabaseStorage implements IStorage {
         await db.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
         await db.delete(projects).where(eq(projects.id, id));
         break;
-      case 'task':
+      }
+      case 'task': {
+        const [t] = await db.select().from(tasks).where(eq(tasks.id, id));
+        if (!t) return false;
+        const [p] = await db.select().from(projects).where(and(eq(projects.id, t.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
         await db.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
         await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));
         await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, id));
         await db.delete(tasks).where(eq(tasks.id, id));
         break;
-      case 'risk':
+      }
+      case 'risk': {
+        const [r] = await db.select().from(risks).where(eq(risks.id, id));
+        if (!r) return false;
+        const [p] = await db.select().from(projects).where(and(eq(projects.id, r.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
         await db.delete(risks).where(eq(risks.id, id));
         break;
-      case 'milestone':
+      }
+      case 'milestone': {
+        const [m] = await db.select().from(milestones).where(eq(milestones.id, id));
+        if (!m) return false;
+        const [p] = await db.select().from(projects).where(and(eq(projects.id, m.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
         await db.delete(milestones).where(eq(milestones.id, id));
         break;
-      case 'issue':
+      }
+      case 'issue': {
+        const [i] = await db.select().from(issues).where(eq(issues.id, id));
+        if (!i) return false;
+        const [p] = await db.select().from(projects).where(and(eq(projects.id, i.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
         await db.delete(issues).where(eq(issues.id, id));
         break;
+      }
     }
+    return true;
   }
 }
 

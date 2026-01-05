@@ -10,10 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import type { Organization, OrganizationMember, User } from "@shared/schema";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import type { Organization, OrganizationMember, User, RecycleBinItem, RecycleBinItemType } from "@shared/schema";
 
 interface EnrichedMember extends OrganizationMember {
   user?: User;
@@ -119,7 +120,174 @@ export default function OrgSettings() {
       </div>
 
       {orgId && <MembersSection organizationId={orgId} orgName={currentOrg?.name || ''} />}
+      {orgId && <RecycleBinSection organizationId={orgId} />}
     </div>
+  );
+}
+
+function RecycleBinSection({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [itemToDelete, setItemToDelete] = useState<RecycleBinItem | null>(null);
+
+  const { data: deletedItems, isLoading } = useQuery<RecycleBinItem[]>({
+    queryKey: ['/api/organizations', organizationId, 'recycle-bin'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${organizationId}/recycle-bin`);
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async ({ type, itemId }: { type: RecycleBinItemType; itemId: number }) => {
+      return apiRequest('POST', `/api/organizations/${organizationId}/recycle-bin/restore`, { type, itemId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'recycle-bin'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      toast({ title: "Restored", description: "Item has been restored successfully" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to restore item", variant: "destructive" });
+    }
+  });
+
+  const permanentDeleteMutation = useMutation({
+    mutationFn: async ({ type, itemId }: { type: RecycleBinItemType; itemId: number }) => {
+      return apiRequest('DELETE', `/api/organizations/${organizationId}/recycle-bin/${type}/${itemId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'recycle-bin'] });
+      toast({ title: "Deleted", description: "Item has been permanently deleted" });
+      setItemToDelete(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete item", variant: "destructive" });
+    }
+  });
+
+  const getTypeIcon = (type: RecycleBinItemType) => {
+    switch (type) {
+      case 'portfolio': return <Folder className="h-4 w-4" />;
+      case 'project': return <FileText className="h-4 w-4" />;
+      case 'task': return <CheckSquare className="h-4 w-4" />;
+      case 'risk': return <AlertCircle className="h-4 w-4" />;
+      case 'milestone': return <Target className="h-4 w-4" />;
+      case 'issue': return <Flag className="h-4 w-4" />;
+      default: return <FileText className="h-4 w-4" />;
+    }
+  };
+
+  const getTypeBadgeVariant = (type: RecycleBinItemType) => {
+    switch (type) {
+      case 'portfolio': return 'default';
+      case 'project': return 'secondary';
+      case 'task': return 'outline';
+      case 'risk': return 'destructive';
+      case 'milestone': return 'default';
+      case 'issue': return 'secondary';
+      default: return 'outline';
+    }
+  };
+
+  if (isLoading) return <Loader2 className="animate-spin" />;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Trash2 className="h-5 w-5" />
+          Recycle Bin
+        </CardTitle>
+        <CardDescription>
+          Recently deleted items can be restored or permanently removed
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {deletedItems && deletedItems.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Type</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Project</TableHead>
+                <TableHead>Deleted By</TableHead>
+                <TableHead>Deleted At</TableHead>
+                <TableHead className="w-[150px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {deletedItems.map((item) => (
+                <TableRow key={`${item.type}-${item.id}`} data-testid={`recycle-bin-row-${item.type}-${item.id}`}>
+                  <TableCell>
+                    <Badge variant={getTypeBadgeVariant(item.type) as any} className="flex items-center gap-1 w-fit">
+                      {getTypeIcon(item.type)}
+                      {item.type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{item.projectName || '-'}</TableCell>
+                  <TableCell className="text-muted-foreground">{item.deletedByName || 'Unknown'}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {format(new Date(item.deletedAt), 'MMM d, yyyy h:mm a')}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => restoreMutation.mutate({ type: item.type, itemId: item.id })}
+                        disabled={restoreMutation.isPending}
+                        title="Restore"
+                        data-testid={`button-restore-${item.type}-${item.id}`}
+                      >
+                        <RotateCcw className="h-4 w-4 text-green-600" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setItemToDelete(item)}
+                        disabled={permanentDeleteMutation.isPending}
+                        title="Delete permanently"
+                        data-testid={`button-delete-permanent-${item.type}-${item.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            No deleted items in the recycle bin.
+          </div>
+        )}
+      </CardContent>
+
+      <AlertDialog open={itemToDelete !== null} onOpenChange={() => setItemToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently Delete Item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{itemToDelete?.name}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => itemToDelete && permanentDeleteMutation.mutate({ type: itemToDelete.type, itemId: itemToDelete.id })}
+            >
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
   );
 }
 

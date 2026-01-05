@@ -876,7 +876,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'Type and itemId are required' });
       }
       
-      await storage.restoreItem(type, itemId);
+      const success = await storage.restoreItem(type, itemId, orgId);
+      if (!success) {
+        return res.status(404).json({ message: 'Item not found in this organization' });
+      }
       res.json({ message: 'Item restored successfully' });
     } catch (err) {
       console.error('Failed to restore item:', err);
@@ -894,7 +897,10 @@ export async function registerRoutes(
       }
       
       const { type, itemId } = req.params;
-      await storage.permanentlyDeleteItem(type as any, Number(itemId));
+      const success = await storage.permanentlyDeleteItem(type as any, Number(itemId), orgId);
+      if (!success) {
+        return res.status(404).json({ message: 'Item not found in this organization' });
+      }
       res.json({ message: 'Item permanently deleted' });
     } catch (err) {
       console.error('Failed to permanently delete item:', err);
