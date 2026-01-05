@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OrganizationProvider } from "@/hooks/use-organization";
+import { ThemeProvider } from "@/components/theme-provider";
 import NotFound from "@/pages/not-found";
 
 // Pages
@@ -47,14 +48,16 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <OrganizationProvider>
-          <Toaster />
-          <Router />
-        </OrganizationProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ThemeProvider defaultTheme="light" storageKey="ppm-ui-theme">
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <OrganizationProvider>
+            <Toaster />
+            <Router />
+          </OrganizationProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 
