@@ -29,29 +29,24 @@ import {
   Moon,
   Sun,
   Download,
-  Image
+  GanttChart,
+  ListTodo,
+  ArrowRight,
+  Zap,
+  PieChart,
+  Activity,
+  Flag,
+  CalendarDays,
+  UserCircle,
+  LogOut,
+  Milestone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { pdf, Document, Page, Text, View, StyleSheet, Image as PDFImage } from "@react-pdf/renderer";
-
-import dashboardScreenshot from "@assets/generated_images/ppm_dashboard_screenshot.png";
-import portfoliosScreenshot from "@assets/generated_images/portfolios_page_screenshot.png";
-import projectsScreenshot from "@assets/generated_images/projects_list_screenshot.png";
-import tasksScreenshot from "@assets/generated_images/tasks_gantt_view_screenshot.png";
-import issuesScreenshot from "@assets/generated_images/issues_page_screenshot.png";
-import calendarScreenshot from "@assets/generated_images/calendar_view_screenshot.png";
-import orgSettingsScreenshot from "@assets/generated_images/organization_settings_screenshot.png";
-import projectDetailsScreenshot from "@assets/generated_images/project_details_screenshot.png";
-import userProfileScreenshot from "@assets/generated_images/user_profile_screenshot.png";
-import themeToggleScreenshot from "@assets/generated_images/theme_toggle_comparison.png";
-import superAdminScreenshot from "@assets/generated_images/super_admin_console_screenshot.png";
-import createProjectScreenshot from "@assets/generated_images/create_project_dialog_screenshot.png";
-import risksScreenshot from "@assets/generated_images/risks_management_screenshot.png";
-import sidebarScreenshot from "@assets/generated_images/sidebar_navigation_screenshot.png";
+import { pdf, Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
 const sections = [
   { id: "overview", name: "Overview", icon: BookOpen },
@@ -627,28 +622,48 @@ const UserGuidePDF = () => (
   </Document>
 );
 
-function ScreenshotFigure({ src, alt, caption }: { src: string; alt: string; caption: string }) {
+function FeatureHighlight({ icon: Icon, title, description, color = "primary" }: { 
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  color?: string;
+}) {
+  const colorClasses: Record<string, string> = {
+    primary: "bg-primary/10 text-primary",
+    blue: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
+    green: "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400",
+    purple: "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400",
+    orange: "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
+    red: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400",
+    yellow: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400",
+  };
+
   return (
-    <figure className="my-6 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-      <div className="relative">
-        <img
-          src={src}
-          alt={alt}
-          className="w-full h-auto"
-          loading="lazy"
-          data-testid={`img-${alt.toLowerCase().replace(/\s+/g, '-')}`}
-        />
-        <div className="absolute top-2 right-2">
-          <Badge variant="secondary" className="text-xs gap-1">
-            <Image className="h-3 w-3" />
-            Screenshot
-          </Badge>
-        </div>
+    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", colorClasses[color])}>
+        <Icon className="h-5 w-5" />
       </div>
-      <figcaption className="px-4 py-3 text-sm text-muted-foreground bg-slate-100 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
-        {caption}
-      </figcaption>
-    </figure>
+      <div>
+        <h4 className="font-medium text-foreground">{title}</h4>
+        <p className="text-sm text-muted-foreground mt-1">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function ActionItem({ icon: Icon, title, description }: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+      <Icon className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+      <div>
+        <h5 className="font-medium text-foreground">{title}</h5>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+    </div>
   );
 }
 
@@ -761,41 +776,42 @@ export default function UserGuide() {
                     modern design principles inspired by tools like Linear and Asana.
                   </p>
                   
-                  <ScreenshotFigure 
-                    src={sidebarScreenshot}
-                    alt="Navigation Sidebar"
-                    caption="Figure 1: The main navigation sidebar provides quick access to all major sections of PPM Suite"
-                  />
-                  
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
-                      <Target className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-foreground">Portfolio Management</h4>
-                        <p className="text-sm text-muted-foreground">Organize projects into strategic portfolios</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
-                      <TrendingUp className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-foreground">Project Tracking</h4>
-                        <p className="text-sm text-muted-foreground">Monitor progress, health, and budgets</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
-                      <AlertTriangle className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-foreground">Risk Management</h4>
-                        <p className="text-sm text-muted-foreground">Identify and mitigate project risks</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
-                      <Clock className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-foreground">Timeline View</h4>
-                        <p className="text-sm text-muted-foreground">Visualize milestones on calendar</p>
-                      </div>
-                    </div>
+                    <FeatureHighlight 
+                      icon={Target}
+                      title="Portfolio Management"
+                      description="Organize projects into strategic portfolios for better visibility and alignment"
+                      color="purple"
+                    />
+                    <FeatureHighlight 
+                      icon={TrendingUp}
+                      title="Project Tracking"
+                      description="Monitor progress, health status, and budgets in real-time"
+                      color="green"
+                    />
+                    <FeatureHighlight 
+                      icon={AlertTriangle}
+                      title="Risk Management"
+                      description="Identify, assess, and mitigate project risks proactively"
+                      color="orange"
+                    />
+                    <FeatureHighlight 
+                      icon={Clock}
+                      title="Timeline Visualization"
+                      description="Calendar and Gantt views for milestones and project timelines"
+                      color="blue"
+                    />
+                  </div>
+
+                  <div className="mt-6 p-4 rounded-lg bg-primary/5 border border-primary/20">
+                    <h4 className="font-semibold text-foreground flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-primary" />
+                      Quick Navigation
+                    </h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Use the sidebar on the left to quickly jump between different areas of the application. 
+                      The main navigation provides access to Dashboard, Portfolios, Projects, Tasks, Issues, and Calendar.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -820,29 +836,42 @@ export default function UserGuide() {
                     It displays key metrics, recent activity, and quick access to important information.
                   </p>
                   
-                  <ScreenshotFigure 
-                    src={dashboardScreenshot}
-                    alt="Dashboard Overview"
-                    caption="Figure 2: The main dashboard displaying KPI cards, project health distribution, and status overview charts"
-                  />
-                  
-                  <h4 className="font-semibold text-foreground mt-4">Key Features:</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                    <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center">
+                      <FolderKanban className="h-6 w-6 mx-auto text-blue-600 dark:text-blue-400" />
+                      <p className="text-xs text-muted-foreground mt-2">Total Projects</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-center">
+                      <Briefcase className="h-6 w-6 mx-auto text-purple-600 dark:text-purple-400" />
+                      <p className="text-xs text-muted-foreground mt-2">Portfolios</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 text-center">
+                      <CheckSquare className="h-6 w-6 mx-auto text-green-600 dark:text-green-400" />
+                      <p className="text-xs text-muted-foreground mt-2">Active Tasks</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-center">
+                      <CircleDot className="h-6 w-6 mx-auto text-red-600 dark:text-red-400" />
+                      <p className="text-xs text-muted-foreground mt-2">Open Issues</p>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-6">Key Features:</h4>
                   <ul className="space-y-2 text-muted-foreground">
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <span><strong>Summary Cards:</strong> View total projects, portfolios, active tasks, and open issues at a glance</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <span><strong>Budget Overview:</strong> Track total allocated budget across all projects</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Health Indicators:</strong> Quickly identify projects needing attention</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Health Indicators:</strong> Quickly identify projects needing attention with color-coded status</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Clickable Cards:</strong> Click any metric card to navigate directly to the relevant page</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Interactive Charts:</strong> Visual representations of project status and health distribution</span>
                     </li>
                   </ul>
                 </CardContent>
@@ -868,35 +897,28 @@ export default function UserGuide() {
                     Each portfolio can have its own strategy, manager, and set of projects.
                   </p>
                   
-                  <ScreenshotFigure 
-                    src={portfoliosScreenshot}
-                    alt="Portfolios Page"
-                    caption="Figure 3: The Portfolios page showing portfolio cards with project counts, budget totals, and health indicators"
-                  />
-                  
                   <h4 className="font-semibold text-foreground mt-4">Managing Portfolios:</h4>
                   <div className="space-y-3">
-                    <div className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                      <Plus className="h-5 w-5 text-green-500 mt-0.5" />
-                      <div>
-                        <h5 className="font-medium text-foreground">Create Portfolio</h5>
-                        <p className="text-sm text-muted-foreground">Click the "New Portfolio" button and fill in name, description, and strategy</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                      <Eye className="h-5 w-5 text-blue-500 mt-0.5" />
-                      <div>
-                        <h5 className="font-medium text-foreground">View Details</h5>
-                        <p className="text-sm text-muted-foreground">Click on a portfolio card to see all associated projects and details</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                      <Edit className="h-5 w-5 text-yellow-500 mt-0.5" />
-                      <div>
-                        <h5 className="font-medium text-foreground">Edit Portfolio</h5>
-                        <p className="text-sm text-muted-foreground">Update portfolio information, strategy, or assigned manager</p>
-                      </div>
-                    </div>
+                    <ActionItem 
+                      icon={Plus}
+                      title="Create Portfolio"
+                      description="Click the 'New Portfolio' button and fill in name, description, and strategy"
+                    />
+                    <ActionItem 
+                      icon={Eye}
+                      title="View Details"
+                      description="Click on a portfolio card to see all associated projects and metrics"
+                    />
+                    <ActionItem 
+                      icon={Edit}
+                      title="Edit Portfolio"
+                      description="Update portfolio information, strategy, or assigned manager"
+                    />
+                    <ActionItem 
+                      icon={Trash2}
+                      title="Delete Portfolio"
+                      description="Remove portfolios that are no longer needed (requires admin permissions)"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -920,12 +942,6 @@ export default function UserGuide() {
                     Projects are the heart of PPM Suite. Track individual initiatives with detailed information 
                     including status, priority, health, budget, and completion percentage.
                   </p>
-                  
-                  <ScreenshotFigure 
-                    src={projectsScreenshot}
-                    alt="Projects List"
-                    caption="Figure 4: The Projects list view with health indicators, status badges, progress bars, and budget information"
-                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Project Attributes:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
@@ -955,47 +971,37 @@ export default function UserGuide() {
                     </div>
                   </div>
 
-                  <ScreenshotFigure 
-                    src={projectDetailsScreenshot}
-                    alt="Project Details"
-                    caption="Figure 5: Project details page showing summary, milestones, tasks, risks, and issues tabs"
-                  />
-                  
-                  <ScreenshotFigure 
-                    src={createProjectScreenshot}
-                    alt="Create Project Dialog"
-                    caption="Figure 6: The Create New Project dialog with fields for name, description, priority, status, budget, and dates"
-                  />
+                  <h4 className="font-semibold text-foreground mt-6">Project Details Tabs:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="outline" className="gap-1"><BarChart3 className="h-3 w-3" /> Overview</Badge>
+                    <Badge variant="outline" className="gap-1"><CheckSquare className="h-3 w-3" /> Tasks</Badge>
+                    <Badge variant="outline" className="gap-1"><AlertTriangle className="h-3 w-3" /> Risks</Badge>
+                    <Badge variant="outline" className="gap-1"><Milestone className="h-3 w-3" /> Milestones</Badge>
+                    <Badge variant="outline" className="gap-1"><CircleDot className="h-3 w-3" /> Issues</Badge>
+                  </div>
 
-                  <h4 className="font-semibold text-foreground mt-4">Project Details Page:</h4>
-                  <ul className="space-y-2 text-muted-foreground">
+                  <ul className="space-y-2 text-muted-foreground mt-4">
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Overview Tab:</strong> Project summary with key metrics and description</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Overview:</strong> Project summary with key metrics and description</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Tasks Tab:</strong> Manage project-specific tasks</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Tasks:</strong> Manage project-specific tasks with Gantt and Kanban views</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Risks Tab:</strong> Track and assess project risks</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Risks:</strong> Track and assess project risks with probability and impact</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Milestones Tab:</strong> Define key project milestones</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Milestones:</strong> Define key project milestones with Scrum board</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Issues Tab:</strong> Log and track project issues</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Issues:</strong> Log and track project issues and bugs</span>
                     </li>
                   </ul>
-                  
-                  <ScreenshotFigure 
-                    src={risksScreenshot}
-                    alt="Risks Management"
-                    caption="Figure 7: Risk management table showing probability, impact, status, and owner for each risk"
-                  />
                 </CardContent>
               </Card>
             </section>
@@ -1019,28 +1025,37 @@ export default function UserGuide() {
                     with specific projects and assigned to team members.
                   </p>
                   
-                  <ScreenshotFigure 
-                    src={tasksScreenshot}
-                    alt="Tasks Gantt View"
-                    caption="Figure 8: The Tasks page with Gantt chart timeline view and Kanban board for visual task management"
-                  />
-                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <FeatureHighlight 
+                      icon={GanttChart}
+                      title="Gantt Chart View"
+                      description="Visualize tasks on a timeline with start and end dates"
+                      color="blue"
+                    />
+                    <FeatureHighlight 
+                      icon={ListTodo}
+                      title="List View"
+                      description="Traditional list view with sorting and filtering"
+                      color="green"
+                    />
+                  </div>
+
                   <h4 className="font-semibold text-foreground mt-4">Task Management:</h4>
                   <ul className="space-y-2 text-muted-foreground">
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Status Tracking:</strong> Open, In Progress, Completed, Cancelled</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Status Tracking:</strong> Not Started, In Progress, Completed, On Hold</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Priority Levels:</strong> Set importance from Low to Critical</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Progress:</strong> Track percentage complete with visual progress bar</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Due Dates:</strong> Set deadlines for task completion</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Date Range:</strong> Set start and end dates for timeline planning</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <span><strong>Assignment:</strong> Assign tasks to specific team members</span>
                     </li>
                   </ul>
@@ -1067,12 +1082,6 @@ export default function UserGuide() {
                     Each issue is linked to a specific project for organized tracking.
                   </p>
                   
-                  <ScreenshotFigure 
-                    src={issuesScreenshot}
-                    alt="Issues Page"
-                    caption="Figure 9: The Issues page with type icons, priority badges, status indicators, and project associations"
-                  />
-                  
                   <h4 className="font-semibold text-foreground mt-4">Issue Types:</h4>
                   <div className="flex flex-wrap gap-2">
                     <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Bug</Badge>
@@ -1083,12 +1092,20 @@ export default function UserGuide() {
                   <h4 className="font-semibold text-foreground mt-4">Issue Workflow:</h4>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="outline">Open</Badge>
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
                     <Badge variant="outline">In Progress</Badge>
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
                     <Badge variant="outline">Resolved</Badge>
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
                     <Badge variant="outline">Closed</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Priority Levels:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="border-red-500 text-red-600">Critical</Badge>
+                    <Badge variant="outline" className="border-orange-500 text-orange-600">High</Badge>
+                    <Badge variant="outline" className="border-yellow-500 text-yellow-600">Medium</Badge>
+                    <Badge variant="outline" className="border-slate-400 text-slate-600">Low</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -1113,29 +1130,27 @@ export default function UserGuide() {
                     Navigate through months to see upcoming deadlines and important events.
                   </p>
                   
-                  <ScreenshotFigure 
-                    src={calendarScreenshot}
-                    alt="Calendar View"
-                    caption="Figure 10: The Calendar view displaying project milestones and events with color-coded project indicators"
-                  />
-                  
                   <h4 className="font-semibold text-foreground mt-4">Calendar Features:</h4>
                   <ul className="space-y-2 text-muted-foreground">
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Project Timelines:</strong> View project start and end dates</span>
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Project Timelines:</strong> View project start and end dates visually</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <span><strong>Milestone Markers:</strong> See key milestone dates on the calendar</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <span><strong>Task Deadlines:</strong> Track upcoming task due dates</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <span><strong>Month Navigation:</strong> Easily navigate between months</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Color-Coded Events:</strong> Different colors for different projects</span>
                     </li>
                   </ul>
                 </CardContent>
@@ -1161,35 +1176,23 @@ export default function UserGuide() {
                     projects, and team members. Switch between organizations using the sidebar selector.
                   </p>
                   
-                  <ScreenshotFigure 
-                    src={orgSettingsScreenshot}
-                    alt="Organization Settings"
-                    caption="Figure 11: Organization settings page with member management table and role assignments"
-                  />
-                  
                   <h4 className="font-semibold text-foreground mt-4">Access Control:</h4>
                   <div className="space-y-3">
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                      <Shield className="h-5 w-5 text-primary mt-0.5" />
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Shield className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                       <div>
                         <h5 className="font-medium text-foreground">Super Admin</h5>
                         <p className="text-sm text-muted-foreground">Can access all organizations and manage system-wide settings</p>
                       </div>
                     </div>
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                      <Users className="h-5 w-5 text-primary mt-0.5" />
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Users className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                       <div>
                         <h5 className="font-medium text-foreground">Organization Members</h5>
                         <p className="text-sm text-muted-foreground">Can only access organizations they are members of</p>
                       </div>
                     </div>
                   </div>
-                  
-                  <ScreenshotFigure 
-                    src={superAdminScreenshot}
-                    alt="Super Admin Console"
-                    caption="Figure 12: Super Admin console for managing organizations and users across the entire system"
-                  />
 
                   <h4 className="font-semibold text-foreground mt-4">Organization Switcher:</h4>
                   <p className="text-muted-foreground">
@@ -1219,31 +1222,29 @@ export default function UserGuide() {
                     Click on your avatar to access profile options.
                   </p>
                   
-                  <ScreenshotFigure 
-                    src={userProfileScreenshot}
-                    alt="User Profile"
-                    caption="Figure 13: User profile page displaying personal information, role, and organization memberships"
-                  />
-                  
                   <h4 className="font-semibold text-foreground mt-4">User Menu Options:</h4>
-                  <ul className="space-y-2 text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Profile:</strong> View and edit your personal information</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>User Settings:</strong> Configure your account preferences</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Org Settings:</strong> Manage organization settings (if authorized)</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 mt-1 text-primary" />
-                      <span><strong>Log Out:</strong> Sign out of the application</span>
-                    </li>
-                  </ul>
+                  <div className="space-y-3">
+                    <ActionItem 
+                      icon={UserCircle}
+                      title="Profile"
+                      description="View and edit your personal information"
+                    />
+                    <ActionItem 
+                      icon={Settings}
+                      title="User Settings"
+                      description="Configure your account preferences"
+                    />
+                    <ActionItem 
+                      icon={Building2}
+                      title="Org Settings"
+                      description="Manage organization settings (if authorized)"
+                    />
+                    <ActionItem 
+                      icon={LogOut}
+                      title="Log Out"
+                      description="Sign out of the application"
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </section>
@@ -1269,27 +1270,21 @@ export default function UserGuide() {
                   
                   <h4 className="font-semibold text-foreground mt-4">Settings Areas:</h4>
                   <div className="space-y-3">
-                    <div className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                      <Building2 className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h5 className="font-medium text-foreground">Organization Settings</h5>
-                        <p className="text-sm text-muted-foreground">Manage organization name, description, and member access</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                      <Users className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h5 className="font-medium text-foreground">User Settings</h5>
-                        <p className="text-sm text-muted-foreground">Personal preferences, notifications, and account settings</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                      <Shield className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h5 className="font-medium text-foreground">Super Admin Panel</h5>
-                        <p className="text-sm text-muted-foreground">System-wide settings (Super Admins only)</p>
-                      </div>
-                    </div>
+                    <ActionItem 
+                      icon={Building2}
+                      title="Organization Settings"
+                      description="Manage organization name, description, and member access"
+                    />
+                    <ActionItem 
+                      icon={Users}
+                      title="User Settings"
+                      description="Personal preferences, notifications, and account settings"
+                    />
+                    <ActionItem 
+                      icon={Shield}
+                      title="Super Admin Panel"
+                      description="System-wide settings (Super Admins only)"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -1314,32 +1309,27 @@ export default function UserGuide() {
                     Toggle between light and dark modes using the theme switcher in the top bar.
                   </p>
                   
-                  <ScreenshotFigure 
-                    src={themeToggleScreenshot}
-                    alt="Theme Toggle Comparison"
-                    caption="Figure 14: Side-by-side comparison of Light Mode and Dark Mode showing the theme toggle in action"
-                  />
-                  
                   <h4 className="font-semibold text-foreground mt-4">Available Themes:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                      <Sun className="h-5 w-5 text-amber-500" />
+                      <Sun className="h-6 w-6 text-amber-500" />
                       <div>
-                        <h5 className="font-medium text-foreground">Light</h5>
-                        <p className="text-sm text-muted-foreground">Bright, clean interface</p>
+                        <h5 className="font-medium text-foreground">Light Mode</h5>
+                        <p className="text-sm text-muted-foreground">Bright, clean interface for daytime use</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-4 rounded-lg bg-slate-800 dark:bg-slate-900 border border-slate-600 dark:border-slate-700">
-                      <Moon className="h-5 w-5 text-blue-400" />
+                      <Moon className="h-6 w-6 text-blue-400" />
                       <div>
-                        <h5 className="font-medium text-white">Dark</h5>
-                        <p className="text-sm text-slate-300">Easy on the eyes</p>
+                        <h5 className="font-medium text-white">Dark Mode</h5>
+                        <p className="text-sm text-slate-300">Easy on the eyes for extended use</p>
                       </div>
                     </div>
                   </div>
 
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-4">
-                    Your theme preference is saved and will persist across sessions.
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Your theme preference is saved automatically and will persist across sessions. 
+                    Simply click the sun or moon icon in the header to toggle between themes instantly.
                   </p>
                 </CardContent>
               </Card>
@@ -1347,11 +1337,11 @@ export default function UserGuide() {
 
             <Card className="mt-8 bg-primary/5 border-primary/20">
               <CardContent className="py-6">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 shrink-0">
                     <FileText className="h-6 w-6 text-primary" />
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-[200px]">
                     <h3 className="font-semibold text-foreground">Need More Help?</h3>
                     <p className="text-sm text-muted-foreground">
                       Contact your administrator or reach out to our support team for additional assistance.
