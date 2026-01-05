@@ -12,10 +12,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import type { Organization, User } from "@shared/schema";
+
+interface IndustryOption {
+  id: string;
+  label: string;
+  description: string;
+}
 
 export default function SuperAdmin() {
   const { user, isLoading: authLoading } = useAuth();
@@ -85,9 +91,16 @@ function OrganizationsTab() {
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [newOrg, setNewOrg] = useState({ name: "", slug: "", description: "" });
+  const [demoDataOrg, setDemoDataOrg] = useState<Organization | null>(null);
+  const [selectedIndustry, setSelectedIndustry] = useState<string>("");
 
   const { data: organizations, isLoading } = useQuery<Organization[]>({
     queryKey: ['/api/organizations']
+  });
+
+  const { data: industries } = useQuery<IndustryOption[]>({
+    queryKey: ['/api/demo-data/industries'],
+    enabled: user?.role === 'super_admin',
   });
 
   const createOrg = useMutation({
@@ -121,6 +134,30 @@ function OrganizationsTab() {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
       toast({ title: "Success", description: "Organization deleted" });
       setDeleteId(null);
+    }
+  });
+
+  const generateDemoData = useMutation({
+    mutationFn: async ({ organizationId, industry }: { organizationId: number; industry: string }) => {
+      return apiRequest('POST', '/api/demo-data/generate', { organizationId, industry });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/risks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/milestones'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/issues'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-financials'] });
+      toast({ 
+        title: "Demo Data Generated", 
+        description: `Created ${data.stats.portfolios} portfolios, ${data.stats.projects} projects, ${data.stats.tasks} tasks, ${data.stats.risks} risks, ${data.stats.milestones} milestones, ${data.stats.issues} issues` 
+      });
+      setDemoDataOrg(null);
+      setSelectedIndustry("");
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to generate demo data", variant: "destructive" });
     }
   });
 
@@ -162,6 +199,15 @@ function OrganizationsTab() {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => setDemoDataOrg(org)}
+                      data-testid={`button-demo-data-${org.id}`}
+                      title="Generate demo data"
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                    </Button>
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -282,6 +328,81 @@ function OrganizationsTab() {
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteOrg.mutate(deleteId)}>
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={demoDataOrg !== null} onOpenChange={() => { setDemoDataOrg(null); setSelectedIndustry(""); }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              Generate Demo Data
+            </DialogTitle>
+            <DialogDescription>
+              Generate sample portfolios, projects, tasks, risks, and more for <strong>{demoDataOrg?.name}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Industry</Label>
+              <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
+                <SelectTrigger data-testid="select-industry">
+                  <SelectValue placeholder="Choose an industry..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {industries?.map(ind => (
+                    <SelectItem key={ind.id} value={ind.id}>
+                      <div className="flex flex-col">
+                        <span>{ind.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedIndustry && industries && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  {industries.find(i => i.id === selectedIndustry)?.description}
+                </p>
+              )}
+            </div>
+            <div className="rounded-lg bg-muted p-4 space-y-2">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                This will create:
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1 ml-6 list-disc">
+                <li>2-3 Portfolios with strategic context</li>
+                <li>3-5 Projects with realistic timelines</li>
+                <li>Tasks, Risks, Milestones, and Issues</li>
+                <li>Financial records with CapEx/OpEx breakdown</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDemoDataOrg(null); setSelectedIndustry(""); }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => demoDataOrg && selectedIndustry && generateDemoData.mutate({ 
+                organizationId: demoDataOrg.id, 
+                industry: selectedIndustry 
+              })}
+              disabled={!selectedIndustry || generateDemoData.isPending}
+              data-testid="button-generate-demo-data"
+            >
+              {generateDemoData.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Generate Data
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

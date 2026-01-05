@@ -1451,5 +1451,188 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Demo Data Generation (Super Admin Only)
+  app.get('/api/demo-data/industries', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    const user = userId ? await storage.getUser(userId) : null;
+    
+    if (!user || user.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    
+    const { industryTemplates } = await import('./demo-data-templates');
+    const industries = Object.entries(industryTemplates).map(([key, template]) => ({
+      id: key,
+      label: template.label,
+      description: template.description,
+    }));
+    
+    res.json(industries);
+  });
+
+  app.post('/api/demo-data/generate', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    const user = userId ? await storage.getUser(userId) : null;
+    
+    if (!user || user.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    
+    const { organizationId, industry } = req.body;
+    
+    if (!organizationId || !industry) {
+      return res.status(400).json({ message: 'organizationId and industry are required' });
+    }
+    
+    const org = await storage.getOrganization(organizationId);
+    if (!org) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+    
+    try {
+      const { industryTemplates } = await import('./demo-data-templates');
+      type IndustryType = keyof typeof industryTemplates;
+      const template = industryTemplates[industry as IndustryType];
+      
+      if (!template) {
+        return res.status(400).json({ message: 'Invalid industry' });
+      }
+      
+      const stats = {
+        portfolios: 0,
+        projects: 0,
+        tasks: 0,
+        risks: 0,
+        milestones: 0,
+        issues: 0,
+        financials: 0,
+      };
+      
+      const today = new Date();
+      
+      for (const portfolioTemplate of template.portfolios) {
+        const portfolio = await storage.createPortfolio({
+          organizationId,
+          name: portfolioTemplate.name,
+          description: portfolioTemplate.description,
+        });
+        stats.portfolios++;
+        
+        for (const projectTemplate of portfolioTemplate.projects) {
+          const startDate = new Date(today);
+          startDate.setDate(startDate.getDate() - 60);
+          const endDate = new Date(today);
+          endDate.setDate(endDate.getDate() + 180);
+          
+          const project = await storage.createProject({
+            organizationId,
+            portfolioId: portfolio.id,
+            name: projectTemplate.name,
+            description: projectTemplate.description,
+            status: projectTemplate.status,
+            priority: projectTemplate.priority,
+            startDate: startDate.toISOString().split('T')[0],
+            endDate: endDate.toISOString().split('T')[0],
+            budget: projectTemplate.budget,
+            health: projectTemplate.health,
+            completionPercentage: projectTemplate.completionPercentage,
+          });
+          stats.projects++;
+          
+          for (const taskTemplate of projectTemplate.tasks) {
+            const taskStart = new Date(today);
+            taskStart.setDate(taskStart.getDate() - 30);
+            const taskEnd = new Date(today);
+            taskEnd.setDate(taskEnd.getDate() + 60);
+            
+            await storage.createTask({
+              projectId: project.id,
+              name: taskTemplate.name,
+              description: taskTemplate.description,
+              startDate: taskStart.toISOString().split('T')[0],
+              endDate: taskEnd.toISOString().split('T')[0],
+              durationDays: 90,
+              progress: taskTemplate.progress,
+              status: taskTemplate.status,
+              assignee: taskTemplate.assignee,
+            });
+            stats.tasks++;
+          }
+          
+          for (const riskTemplate of projectTemplate.risks) {
+            await storage.createRisk({
+              projectId: project.id,
+              title: riskTemplate.title,
+              description: riskTemplate.description,
+              probability: riskTemplate.probability,
+              impact: riskTemplate.impact,
+              status: riskTemplate.status,
+              mitigationPlan: riskTemplate.mitigationPlan,
+            });
+            stats.risks++;
+          }
+          
+          for (const milestoneTemplate of projectTemplate.milestones) {
+            const dueDate = new Date(today);
+            dueDate.setDate(dueDate.getDate() + milestoneTemplate.dueDaysFromNow);
+            const startDateMs = new Date(dueDate);
+            startDateMs.setDate(startDateMs.getDate() - 30);
+            
+            await storage.createMilestone({
+              projectId: project.id,
+              title: milestoneTemplate.title,
+              description: milestoneTemplate.description,
+              dueDate: dueDate.toISOString().split('T')[0],
+              startDate: startDateMs.toISOString().split('T')[0],
+              completed: milestoneTemplate.completed,
+              status: milestoneTemplate.status,
+              priority: milestoneTemplate.priority,
+              assignee: milestoneTemplate.assignee,
+            });
+            stats.milestones++;
+          }
+          
+          for (const issueTemplate of projectTemplate.issues) {
+            await storage.createIssue({
+              projectId: project.id,
+              title: issueTemplate.title,
+              description: issueTemplate.description,
+              priority: issueTemplate.priority,
+              status: issueTemplate.status,
+              type: issueTemplate.type,
+              assignee: issueTemplate.assignee,
+            });
+            stats.issues++;
+          }
+          
+          for (const finTemplate of projectTemplate.financials) {
+            await storage.createProjectFinancial({
+              projectId: project.id,
+              category: finTemplate.category,
+              lineItem: finTemplate.lineItem,
+              description: finTemplate.description,
+              fiscalYear: today.getFullYear(),
+              fiscalPeriod: 'Full Year',
+              budgetAmount: finTemplate.budgetAmount,
+              plannedAmount: finTemplate.plannedAmount,
+              actualAmount: finTemplate.actualAmount,
+              notes: finTemplate.notes,
+            });
+            stats.financials++;
+          }
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: `Demo data generated for ${org.name}`,
+        stats,
+      });
+    } catch (err) {
+      console.error('Error generating demo data:', err);
+      res.status(500).json({ message: 'Failed to generate demo data' });
+    }
+  });
+
   return httpServer;
 }
