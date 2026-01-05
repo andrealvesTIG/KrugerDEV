@@ -40,6 +40,7 @@ export const portfolios = pgTable("portfolios", {
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"), // Soft delete timestamp
   deletedBy: varchar("deleted_by").references(() => users.id), // Who deleted it
+  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
 // Projects
@@ -60,6 +61,7 @@ export const projects = pgTable("projects", {
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
 // Risks
@@ -75,6 +77,7 @@ export const risks = pgTable("risks", {
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
 // Milestones
@@ -91,6 +94,7 @@ export const milestones = pgTable("milestones", {
   assignee: text("assignee"),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
 // Issues
@@ -106,6 +110,7 @@ export const issues = pgTable("issues", {
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
 // Tasks (for Gantt Chart)
@@ -124,6 +129,7 @@ export const tasks = pgTable("tasks", {
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
 // Task Change Logs (Audit Trail)
@@ -163,6 +169,7 @@ export const projectFinancials = pgTable("project_financials", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
 // === RELATIONS ===
