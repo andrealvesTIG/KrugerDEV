@@ -76,8 +76,13 @@ export const milestones = pgTable("milestones", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
   title: text("title").notNull(),
+  description: text("description"),
   dueDate: date("due_date").notNull(),
+  startDate: date("start_date"),
   completed: boolean("completed").default(false),
+  status: text("status").default("Backlog"), // Backlog, To Do, In Progress, Done
+  priority: text("priority").default("Medium"), // Low, Medium, High, Critical
+  assignee: text("assignee"),
 });
 
 // Issues

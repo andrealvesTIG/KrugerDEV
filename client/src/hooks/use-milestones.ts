@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type CreateMilestoneRequest, type UpdateMilestoneRequest } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
+import type { CreateMilestoneRequest, UpdateMilestoneRequest } from "@shared/schema";
 
 export function useMilestones(projectId: number) {
   return useQuery({
