@@ -209,7 +209,7 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true });
 export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({ id: true, createdAt: true });
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true });
-export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, completionPercentage: true, health: true });
+export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
 export const insertRiskSchema = createInsertSchema(risks).omit({ id: true, createdAt: true });
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
 export const insertIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
