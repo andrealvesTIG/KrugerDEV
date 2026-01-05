@@ -1218,9 +1218,16 @@ export async function registerRoutes(
 
   // Project History
   app.get(api.projects.getHistory.path, async (req, res) => {
-    const projectId = Number(req.params.id);
-    const history = await storage.getProjectChangeLogs(projectId);
-    res.json(history);
+    try {
+      const projectId = Number(req.params.id);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      const history = await storage.getProjectChangeLogs(projectId);
+      res.json(history);
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching project history" });
+    }
   });
 
   // --- Risks ---
@@ -1310,9 +1317,16 @@ export async function registerRoutes(
 
   // Risk History
   app.get(api.risks.getHistory.path, async (req, res) => {
-    const riskId = Number(req.params.id);
-    const history = await storage.getRiskChangeLogs(riskId);
-    res.json(history);
+    try {
+      const riskId = Number(req.params.id);
+      const risk = await storage.getRisk(riskId);
+      if (!risk) return res.status(404).json({ message: "Risk not found" });
+      
+      const history = await storage.getRiskChangeLogs(riskId);
+      res.json(history);
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching risk history" });
+    }
   });
 
   // --- Milestones ---
@@ -1458,9 +1472,16 @@ export async function registerRoutes(
 
   // Issue History
   app.get(api.issues.getHistory.path, async (req, res) => {
-    const issueId = Number(req.params.id);
-    const history = await storage.getIssueChangeLogs(issueId);
-    res.json(history);
+    try {
+      const issueId = Number(req.params.id);
+      const issue = await storage.getIssue(issueId);
+      if (!issue) return res.status(404).json({ message: "Issue not found" });
+      
+      const history = await storage.getIssueChangeLogs(issueId);
+      res.json(history);
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching issue history" });
+    }
   });
 
   // --- Tasks ---

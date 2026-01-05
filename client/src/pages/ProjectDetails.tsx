@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRoute } from "wouter";
-import { useProject, useUpdateProject } from "@/hooks/use-projects";
-import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk } from "@/hooks/use-risks";
-import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
+import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
+import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory } from "@/hooks/use-risks";
+import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,6 +38,7 @@ export default function ProjectDetails() {
   const { data: project, isLoading } = useProject(id);
   const { mutate: updateProject } = useUpdateProject();
   const { toast } = useToast();
+  const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
 
   if (isLoading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!project) return <div>Project not found</div>;
@@ -96,6 +97,20 @@ export default function ProjectDetails() {
               <SelectItem value="Red">Red</SelectItem>
             </SelectContent>
           </Select>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => setIsProjectHistoryOpen(true)}
+                data-testid="button-project-history"
+              >
+                <History className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>View History</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
@@ -153,7 +168,71 @@ export default function ProjectDetails() {
           </TabsContent>
         </div>
       </Tabs>
+
+      <ProjectHistoryDialog 
+        projectId={project.id} 
+        open={isProjectHistoryOpen} 
+        onOpenChange={setIsProjectHistoryOpen} 
+      />
     </div>
+  );
+}
+
+function ProjectHistoryDialog({ projectId, open, onOpenChange }: { projectId: number; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { data: history, isLoading } = useProjectHistory(projectId);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Project Change History
+          </DialogTitle>
+          <DialogDescription>
+            View all changes made to this project over time.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : !history || history.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No changes recorded yet
+            </div>
+          ) : (
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-4">
+                {history.map((log) => (
+                  <div 
+                    key={log.id} 
+                    className="border-l-2 border-muted-foreground/30 pl-4 pb-4"
+                    data-testid={`project-history-entry-${log.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {log.changeType === 'created' ? 'Created' : 'Updated'}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {format(parseISO(String(log.changedAt)), 'MMM d, yyyy h:mm a')}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm">
+                      <span className="font-medium">{log.changedByName}</span>
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground break-words">
+                      {log.changeSummary}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -330,6 +409,7 @@ function RisksTab({ projectId }: { projectId: number }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
   const [deleteRiskData, setDeleteRiskData] = useState<Risk | null>(null);
+  const [historyRiskId, setHistoryRiskId] = useState<number | null>(null);
   const createRisk = useCreateRisk();
   const updateRisk = useUpdateRisk();
   const deleteRisk = useDeleteRisk();
@@ -539,6 +619,13 @@ function RisksTab({ projectId }: { projectId: number }) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenuItem 
+                    onClick={() => setHistoryRiskId(risk.id)}
+                    data-testid={`button-history-risk-${risk.id}`}
+                  >
+                    <History className="h-4 w-4 mr-2" />
+                    View History
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
                     onClick={() => setDeleteRiskData(risk)}
                     data-testid={`button-delete-risk-${risk.id}`}
                   >
@@ -582,10 +669,73 @@ function RisksTab({ projectId }: { projectId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RiskHistoryDialog 
+        riskId={historyRiskId || 0} 
+        open={historyRiskId !== null} 
+        onOpenChange={(open) => !open && setHistoryRiskId(null)} 
+      />
     </Card>
   );
 }
 
+function RiskHistoryDialog({ riskId, open, onOpenChange }: { riskId: number; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { data: history, isLoading } = useRiskHistory(riskId);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Risk Change History
+          </DialogTitle>
+          <DialogDescription>
+            View all changes made to this risk over time.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : !history || history.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No changes recorded yet
+            </div>
+          ) : (
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-4">
+                {history.map((log) => (
+                  <div 
+                    key={log.id} 
+                    className="border-l-2 border-muted-foreground/30 pl-4 pb-4"
+                    data-testid={`risk-history-entry-${log.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {log.changeType === 'created' ? 'Created' : 'Updated'}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {format(parseISO(String(log.changedAt)), 'MMM d, yyyy h:mm a')}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm">
+                      <span className="font-medium">{log.changedByName}</span>
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground break-words">
+                      {log.changeSummary}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const taskStatusColors = {
   "Not Started": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -1258,6 +1408,7 @@ function IssuesTab({ projectId }: { projectId: number }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
   const [deleteIssueData, setDeleteIssueData] = useState<Issue | null>(null);
+  const [historyIssueId, setHistoryIssueId] = useState<number | null>(null);
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
@@ -1470,6 +1621,13 @@ function IssuesTab({ projectId }: { projectId: number }) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenuItem 
+                      onClick={() => setHistoryIssueId(issue.id)}
+                      data-testid={`button-history-issue-${issue.id}`}
+                    >
+                      <History className="h-4 w-4 mr-2" />
+                      View History
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
                       onClick={() => setDeleteIssueData(issue)}
                       data-testid={`button-delete-issue-${issue.id}`}
                     >
@@ -1514,7 +1672,71 @@ function IssuesTab({ projectId }: { projectId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <IssueHistoryDialog 
+        issueId={historyIssueId || 0} 
+        open={historyIssueId !== null} 
+        onOpenChange={(open) => !open && setHistoryIssueId(null)} 
+      />
     </Card>
+  );
+}
+
+function IssueHistoryDialog({ issueId, open, onOpenChange }: { issueId: number; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { data: history, isLoading } = useIssueHistory(issueId);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Issue Change History
+          </DialogTitle>
+          <DialogDescription>
+            View all changes made to this issue over time.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : !history || history.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No changes recorded yet
+            </div>
+          ) : (
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-4">
+                {history.map((log) => (
+                  <div 
+                    key={log.id} 
+                    className="border-l-2 border-muted-foreground/30 pl-4 pb-4"
+                    data-testid={`issue-history-entry-${log.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {log.changeType === 'created' ? 'Created' : 'Updated'}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {format(parseISO(String(log.changedAt)), 'MMM d, yyyy h:mm a')}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm">
+                      <span className="font-medium">{log.changedByName}</span>
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground break-words">
+                      {log.changeSummary}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
