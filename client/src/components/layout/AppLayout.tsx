@@ -42,8 +42,8 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-3">
+        <header className="flex h-14 items-center gap-4 border-b border-slate-200 bg-white px-6 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3 flex-shrink-0">
             {isCollapsed && (
               <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                 <img src={logoIcon} alt="Friday Report" className="h-8 w-8" />
@@ -85,8 +85,10 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
               </>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex-1 flex justify-center">
             <SearchCommand />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
             <ThemeToggle />
           </div>
         </header>
