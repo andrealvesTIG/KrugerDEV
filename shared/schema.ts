@@ -145,6 +145,45 @@ export const taskChangeLogs = pgTable("task_change_logs", {
   newValues: text("new_values"), // JSON string of changed fields after
 });
 
+// Project Change Logs (Audit Trail)
+export const projectChangeLogs = pgTable("project_change_logs", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  changedBy: varchar("changed_by").references(() => users.id),
+  changedByName: text("changed_by_name"),
+  changedAt: timestamp("changed_at").defaultNow(),
+  changeType: text("change_type").notNull(),
+  changeSummary: text("change_summary"),
+  previousValues: text("previous_values"),
+  newValues: text("new_values"),
+});
+
+// Risk Change Logs (Audit Trail)
+export const riskChangeLogs = pgTable("risk_change_logs", {
+  id: serial("id").primaryKey(),
+  riskId: integer("risk_id").references(() => risks.id).notNull(),
+  changedBy: varchar("changed_by").references(() => users.id),
+  changedByName: text("changed_by_name"),
+  changedAt: timestamp("changed_at").defaultNow(),
+  changeType: text("change_type").notNull(),
+  changeSummary: text("change_summary"),
+  previousValues: text("previous_values"),
+  newValues: text("new_values"),
+});
+
+// Issue Change Logs (Audit Trail)
+export const issueChangeLogs = pgTable("issue_change_logs", {
+  id: serial("id").primaryKey(),
+  issueId: integer("issue_id").references(() => issues.id).notNull(),
+  changedBy: varchar("changed_by").references(() => users.id),
+  changedByName: text("changed_by_name"),
+  changedAt: timestamp("changed_at").defaultNow(),
+  changeType: text("change_type").notNull(),
+  changeSummary: text("change_summary"),
+  previousValues: text("previous_values"),
+  newValues: text("new_values"),
+});
+
 // Task Dependencies
 export const taskDependencies = pgTable("task_dependencies", {
   id: serial("id").primaryKey(),
@@ -314,6 +353,9 @@ export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: t
 export const insertIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true });
 export const insertTaskChangeLogSchema = createInsertSchema(taskChangeLogs).omit({ id: true, changedAt: true });
+export const insertProjectChangeLogSchema = createInsertSchema(projectChangeLogs).omit({ id: true, changedAt: true });
+export const insertRiskChangeLogSchema = createInsertSchema(riskChangeLogs).omit({ id: true, changedAt: true });
+export const insertIssueChangeLogSchema = createInsertSchema(issueChangeLogs).omit({ id: true, changedAt: true });
 export const insertTaskDependencySchema = createInsertSchema(taskDependencies).omit({ id: true, createdAt: true });
 export const insertProjectFinancialSchema = createInsertSchema(projectFinancials).omit({ id: true, createdAt: true, updatedAt: true });
 
@@ -347,6 +389,15 @@ export type InsertTask = z.infer<typeof insertTaskSchema>;
 
 export type TaskChangeLog = typeof taskChangeLogs.$inferSelect;
 export type InsertTaskChangeLog = z.infer<typeof insertTaskChangeLogSchema>;
+
+export type ProjectChangeLog = typeof projectChangeLogs.$inferSelect;
+export type InsertProjectChangeLog = z.infer<typeof insertProjectChangeLogSchema>;
+
+export type RiskChangeLog = typeof riskChangeLogs.$inferSelect;
+export type InsertRiskChangeLog = z.infer<typeof insertRiskChangeLogSchema>;
+
+export type IssueChangeLog = typeof issueChangeLogs.$inferSelect;
+export type InsertIssueChangeLog = z.infer<typeof insertIssueChangeLogSchema>;
 
 export type TaskDependency = typeof taskDependencies.$inferSelect;
 export type InsertTaskDependency = z.infer<typeof insertTaskDependencySchema>;
