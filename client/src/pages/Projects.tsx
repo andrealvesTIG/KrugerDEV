@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useProjects, useCreateProject } from "@/hooks/use-projects";
+import { useProjects, useCreateProject, useUpdateProject } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProjectSchema } from "@shared/schema";
-import type { InsertProject } from "@shared/schema";
+import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp} from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 export default function Projects() {
   const { currentOrganization } = useOrganization();
@@ -27,10 +31,27 @@ export default function Projects() {
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"list" | "kanban">("list");
+  const updateProject = useUpdateProject();
+  const { toast } = useToast();
 
   const filteredProjects = projects?.filter(p => 
     p.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleStatusChange = (projectId: number, newStatus: string) => {
+    updateProject.mutate(
+      { id: projectId, data: { status: newStatus } },
+      {
+        onSuccess: () => {
+          toast({ title: "Project updated", description: `Status changed to ${newStatus}` });
+        },
+        onError: (err) => {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+      }
+    );
+  };
 
   return (
     <div className="space-y-8">
@@ -56,11 +77,12 @@ export default function Projects() {
             placeholder="Search projects..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            data-testid="input-search-projects"
           />
         </div>
         <div className="w-full sm:w-[200px]">
           <Select value={selectedPortfolio} onValueChange={setSelectedPortfolio}>
-            <SelectTrigger>
+            <SelectTrigger data-testid="select-portfolio-filter">
               <SelectValue placeholder="Filter by Portfolio" />
             </SelectTrigger>
             <SelectContent>
@@ -71,94 +93,124 @@ export default function Projects() {
             </SelectContent>
           </Select>
         </div>
+        {/* View Toggle */}
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          <Button
+            variant={view === "list" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setView("list")}
+            className="rounded-none"
+            data-testid="button-view-list"
+          >
+            <List className="h-4 w-4 mr-2" />
+            List
+          </Button>
+          <Button
+            variant={view === "kanban" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setView("kanban")}
+            className="rounded-none"
+            data-testid="button-view-kanban"
+          >
+            <LayoutGrid className="h-4 w-4 mr-2" />
+            Kanban
+          </Button>
+        </div>
       </div>
 
-      {/* Projects List */}
-      <div className="space-y-6">
-        {filteredProjects?.map((project, index) => (
-          <motion.div
-            key={project.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}
-          >
-            <Link href={`/projects/${project.id}`}>
-              <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer">
-                
-                {/* Status Indicator Stripe */}
-                <div className={cn(
-                  "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-all duration-300 group-hover:w-2",
-                  project.health === 'Green' && "bg-gradient-to-b from-emerald-400 to-emerald-600",
-                  project.health === 'Yellow' && "bg-gradient-to-b from-amber-400 to-amber-600",
-                  project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
-                )} />
+      {/* Projects View */}
+      {view === "list" ? (
+        <div className="space-y-6">
+          {filteredProjects?.map((project, index) => (
+            <motion.div
+              key={project.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+            >
+              <Link href={`/projects/${project.id}`}>
+                <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer">
+                  
+                  {/* Status Indicator Stripe */}
+                  <div className={cn(
+                    "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-all duration-300 group-hover:w-2",
+                    project.health === 'Green' && "bg-gradient-to-b from-emerald-400 to-emerald-600",
+                    project.health === 'Yellow' && "bg-gradient-to-b from-amber-400 to-amber-600",
+                    project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
+                  )} />
 
-                <div className="flex-1 pl-5">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
-                      {project.name}
-                    </h3>
-                    <Badge variant="outline" className="font-medium text-xs px-3 py-1 rounded-full border-slate-300 dark:border-slate-600">
-                      {project.status}
-                    </Badge>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>Due {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'TBD'}</span>
+                  <div className="flex-1 pl-5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
+                        {project.name}
+                      </h3>
+                      <Badge variant="outline" className="font-medium text-xs px-3 py-1 rounded-full border-slate-300 dark:border-slate-600">
+                        {project.status}
+                      </Badge>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
-                        <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
-                          <div 
-                            className={cn(
-                              "h-full rounded-full transition-all duration-500",
-                              project.health === 'Green' && "bg-emerald-500",
-                              project.health === 'Yellow' && "bg-amber-500",
-                              project.health === 'Red' && "bg-rose-500",
-                            )}
-                            style={{ width: `${project.completionPercentage}%` }}
-                          />
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span>Due {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'TBD'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
+                            <div 
+                              className={cn(
+                                "h-full rounded-full transition-all duration-500",
+                                project.health === 'Green' && "bg-emerald-500",
+                                project.health === 'Yellow' && "bg-amber-500",
+                                project.health === 'Red' && "bg-rose-500",
+                              )}
+                              style={{ width: `${project.completionPercentage}%` }}
+                            />
+                          </div>
+                          <span className="font-medium">{project.completionPercentage}%</span>
                         </div>
-                        <span className="font-medium">{project.completionPercentage}%</span>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-6 pl-5 sm:pl-0 mt-4 sm:mt-0">
-                  <div className="text-right hidden sm:block">
-                    <div className="flex items-center gap-1.5 justify-end text-muted-foreground mb-1">
-                      <TrendingUp className="h-3.5 w-3.5" />
-                      <span className="text-xs font-medium uppercase tracking-wide">Budget</span>
+                  <div className="flex items-center gap-6 pl-5 sm:pl-0 mt-4 sm:mt-0">
+                    <div className="text-right hidden sm:block">
+                      <div className="flex items-center gap-1.5 justify-end text-muted-foreground mb-1">
+                        <TrendingUp className="h-3.5 w-3.5" />
+                        <span className="text-xs font-medium uppercase tracking-wide">Budget</span>
+                      </div>
+                      <p className="text-lg font-bold text-foreground">${Number(project.budget).toLocaleString()}</p>
                     </div>
-                    <p className="text-lg font-bold text-foreground">${Number(project.budget).toLocaleString()}</p>
+                    <Badge className={cn(
+                      "ml-auto sm:ml-0 px-4 py-1.5 text-xs font-semibold rounded-full",
+                      project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
+                      project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
+                      project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
+                      project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
+                    )}>
+                      {project.priority}
+                    </Badge>
                   </div>
-                  <Badge className={cn(
-                    "ml-auto sm:ml-0 px-4 py-1.5 text-xs font-semibold rounded-full",
-                    project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
-                    project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
-                    project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
-                    project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
-                  )}>
-                    {project.priority}
-                  </Badge>
                 </div>
-              </div>
-            </Link>
-          </motion.div>
-        ))}
+              </Link>
+            </motion.div>
+          ))}
 
-        {!isLoading && filteredProjects?.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-border rounded-xl">
-            <div className="rounded-full bg-muted p-4 mb-4">
-              <AlertCircle className="h-8 w-8 text-muted-foreground" />
+          {!isLoading && filteredProjects?.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-border rounded-xl">
+              <div className="rounded-full bg-muted p-4 mb-4">
+                <AlertCircle className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium text-foreground">No projects found</h3>
+              <p className="text-muted-foreground mt-1 mb-4">Try adjusting your filters or create a new project.</p>
             </div>
-            <h3 className="text-lg font-medium text-foreground">No projects found</h3>
-            <p className="text-muted-foreground mt-1 mb-4">Try adjusting your filters or create a new project.</p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      ) : (
+        <ProjectsKanbanView 
+          projects={filteredProjects || []} 
+          onStatusChange={handleStatusChange} 
+        />
+      )}
     </div>
   );
 }
@@ -281,5 +333,190 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Kanban View Components
+const PROJECT_STATUSES = [
+  { id: "Initiation", label: "Initiation", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
+  { id: "Planning", label: "Planning", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
+  { id: "Execution", label: "Execution", color: "bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200" },
+  { id: "Monitoring", label: "Monitoring", color: "bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-200" },
+  { id: "Closing", label: "Closing", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
+];
+
+function ProjectsKanbanView({ 
+  projects, 
+  onStatusChange 
+}: { 
+  projects: Project[]; 
+  onStatusChange: (projectId: number, newStatus: string) => void;
+}) {
+  const [activeProject, setActiveProject] = useState<Project | null>(null);
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const projectId = Number(event.active.id);
+    const project = projects.find(p => p.id === projectId);
+    if (project) setActiveProject(project);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveProject(null);
+    const { active, over } = event;
+    if (!over) return;
+    
+    const projectId = Number(active.id);
+    const newStatus = String(over.id);
+    const project = projects.find(p => p.id === projectId);
+    
+    if (project && project.status !== newStatus && PROJECT_STATUSES.some(s => s.id === newStatus)) {
+      onStatusChange(projectId, newStatus);
+    }
+  };
+
+  return (
+    <DndContext 
+      sensors={sensors} 
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        {PROJECT_STATUSES.map(status => (
+          <ProjectKanbanColumn
+            key={status.id}
+            column={status}
+            projects={projects.filter(p => p.status === status.id)}
+          />
+        ))}
+      </div>
+      <DragOverlay>
+        {activeProject && (
+          <div className="opacity-80">
+            <Card className="shadow-lg border-primary">
+              <CardContent className="p-4">
+                <div className="font-medium text-sm">{activeProject.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">{activeProject.completionPercentage}% complete</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function ProjectKanbanColumn({ 
+  column, 
+  projects 
+}: { 
+  column: { id: string; label: string; color: string }; 
+  projects: Project[];
+}) {
+  const { setNodeRef, isOver } = useSortable({
+    id: column.id,
+  });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={cn(
+        "space-y-3 min-h-[300px] rounded-lg transition-colors p-2",
+        isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
+      )}
+    >
+      <div className={cn("rounded-lg p-3 font-semibold text-center", column.color)}>
+        {column.label} ({projects.length})
+      </div>
+      <div className="space-y-3">
+        {projects.map(project => (
+          <DraggableProjectCard key={project.id} project={project} />
+        ))}
+        {projects.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+            Drop projects here
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DraggableProjectCard({ project }: { project: Project }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: project.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(isDragging && "opacity-50")}
+    >
+      <Link href={`/projects/${project.id}`}>
+        <Card 
+          className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing"
+          data-testid={`kanban-project-${project.id}`}
+        >
+          <CardContent className="p-4">
+            <div className="font-medium text-sm line-clamp-2">{project.name}</div>
+            
+            <div className="flex items-center gap-2 mt-2">
+              <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                <div 
+                  className={cn(
+                    "h-full rounded-full",
+                    project.health === 'Green' && "bg-emerald-500",
+                    project.health === 'Yellow' && "bg-amber-500",
+                    project.health === 'Red' && "bg-rose-500",
+                  )}
+                  style={{ width: `${project.completionPercentage}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground">{project.completionPercentage}%</span>
+            </div>
+
+            <div className="flex items-center justify-between mt-3 gap-2">
+              <Badge className={cn(
+                "text-xs",
+                project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
+                project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
+                project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
+                project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
+              )}>
+                {project.priority}
+              </Badge>
+              {project.endDate && (
+                <span className="text-xs text-muted-foreground">
+                  {format(new Date(project.endDate), 'MMM d')}
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+    </div>
   );
 }
