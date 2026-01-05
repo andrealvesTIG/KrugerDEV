@@ -172,6 +172,19 @@ async function getUserOrgIds(userId: string | undefined): Promise<number[]> {
   return membership.map(m => m.organizationId);
 }
 
+// Helper to check if user has any organization membership
+async function userHasAnyOrgAccess(userId: string | undefined): Promise<boolean> {
+  if (!userId) return false;
+  
+  // Super admins always have access
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (user?.role === 'super_admin') return true;
+  
+  // Check if user is a member of at least one organization
+  const membership = await storage.getUserOrganizations(userId);
+  return membership.length > 0;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -386,6 +399,12 @@ export async function registerRoutes(
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
+    
+    // Deny access if user is not a member of any organization
+    if (!await userHasAnyOrgAccess(userId)) {
+      return res.json([]);
+    }
+    
     const requestedOrgId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
     
     // Get user's accessible org IDs
@@ -537,6 +556,12 @@ export async function registerRoutes(
   // --- Projects ---
   app.get(api.projects.list.path, async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
+    
+    // Deny access if user is not a member of any organization
+    if (!await userHasAnyOrgAccess(userId)) {
+      return res.json([]);
+    }
+    
     const requestedOrgId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
     const portfolioId = req.query.portfolioId ? Number(req.query.portfolioId) : undefined;
     
@@ -680,6 +705,13 @@ export async function registerRoutes(
   });
 
   app.get(api.issues.listAll.path, async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    
+    // Deny access if user is not a member of any organization
+    if (!await userHasAnyOrgAccess(userId)) {
+      return res.json([]);
+    }
+    
     const issues = await storage.getAllIssues();
     res.json(issues);
   });
@@ -718,6 +750,13 @@ export async function registerRoutes(
   });
 
   app.get(api.tasks.listAll.path, async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    
+    // Deny access if user is not a member of any organization
+    if (!await userHasAnyOrgAccess(userId)) {
+      return res.json([]);
+    }
+    
     const tasks = await storage.getAllTasks();
     res.json(tasks);
   });
