@@ -844,6 +844,64 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // --- Recycle Bin ---
+  app.get('/api/organizations/:id/recycle-bin', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = (req.user as any)?.claims?.sub;
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const items = await storage.getDeletedItems(orgId);
+      res.json(items);
+    } catch (err) {
+      console.error('Failed to get recycle bin items:', err);
+      res.status(500).json({ message: 'Failed to get deleted items' });
+    }
+  });
+
+  app.post('/api/organizations/:id/recycle-bin/restore', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = (req.user as any)?.claims?.sub;
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const { type, itemId } = req.body;
+      if (!type || !itemId) {
+        return res.status(400).json({ message: 'Type and itemId are required' });
+      }
+      
+      await storage.restoreItem(type, itemId);
+      res.json({ message: 'Item restored successfully' });
+    } catch (err) {
+      console.error('Failed to restore item:', err);
+      res.status(500).json({ message: 'Failed to restore item' });
+    }
+  });
+
+  app.delete('/api/organizations/:id/recycle-bin/:type/:itemId', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = (req.user as any)?.claims?.sub;
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const { type, itemId } = req.params;
+      await storage.permanentlyDeleteItem(type as any, Number(itemId));
+      res.json({ message: 'Item permanently deleted' });
+    } catch (err) {
+      console.error('Failed to permanently delete item:', err);
+      res.status(500).json({ message: 'Failed to permanently delete item' });
+    }
+  });
+
   // --- Global Search ---
   app.get('/api/search', async (req, res) => {
     try {
@@ -937,7 +995,8 @@ export async function registerRoutes(
   });
 
   app.delete(api.portfolios.delete.path, async (req, res) => {
-    await storage.deletePortfolio(Number(req.params.id));
+    const userId = (req.user as any)?.claims?.sub;
+    await storage.softDeleteItem('portfolio', Number(req.params.id), userId);
     res.status(204).send();
   });
 
@@ -1097,7 +1156,8 @@ export async function registerRoutes(
   });
 
   app.delete(api.projects.delete.path, async (req, res) => {
-    await storage.deleteProject(Number(req.params.id));
+    const userId = (req.user as any)?.claims?.sub;
+    await storage.softDeleteItem('project', Number(req.params.id), userId);
     res.status(204).send();
   });
 
@@ -1132,7 +1192,8 @@ export async function registerRoutes(
   });
 
   app.delete(api.risks.delete.path, async (req, res) => {
-    await storage.deleteRisk(Number(req.params.id));
+    const userId = (req.user as any)?.claims?.sub;
+    await storage.softDeleteItem('risk', Number(req.params.id), userId);
     res.status(204).send();
   });
 
@@ -1165,7 +1226,8 @@ export async function registerRoutes(
   });
 
   app.delete(api.milestones.delete.path, async (req, res) => {
-    await storage.deleteMilestone(Number(req.params.id));
+    const userId = (req.user as any)?.claims?.sub;
+    await storage.softDeleteItem('milestone', Number(req.params.id), userId);
     res.status(204).send();
   });
 
@@ -1222,7 +1284,8 @@ export async function registerRoutes(
   });
 
   app.delete(api.issues.delete.path, async (req, res) => {
-    await storage.deleteIssue(Number(req.params.id));
+    const userId = (req.user as any)?.claims?.sub;
+    await storage.softDeleteItem('issue', Number(req.params.id), userId);
     res.status(204).send();
   });
 
@@ -1351,7 +1414,8 @@ export async function registerRoutes(
   });
 
   app.delete(api.tasks.delete.path, async (req, res) => {
-    await storage.deleteTask(Number(req.params.id));
+    const userId = (req.user as any)?.claims?.sub;
+    await storage.softDeleteItem('task', Number(req.params.id), userId);
     res.status(204).send();
   });
 
