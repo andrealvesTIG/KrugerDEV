@@ -22,6 +22,7 @@ import SuperAdmin from "@/pages/SuperAdmin";
 import OrgSettings from "@/pages/OrgSettings";
 import Profile from "@/pages/Profile";
 import UserSettings from "@/pages/UserSettings";
+import UserGuide from "@/pages/UserGuide";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
         <Route path="/org-settings" component={OrgSettings} />
         <Route path="/profile" component={Profile} />
         <Route path="/user-settings" component={UserSettings} />
+        <Route path="/user-guide" component={UserGuide} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
