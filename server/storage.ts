@@ -105,6 +105,17 @@ export interface IStorage {
     risks: Risk[];
     milestones: Milestone[];
   }>;
+
+  // Demo Data Management
+  deleteAllDemoDataForOrganization(organizationId: number): Promise<{
+    portfolios: number;
+    projects: number;
+    tasks: number;
+    risks: number;
+    milestones: number;
+    issues: number;
+    financials: number;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -589,6 +600,76 @@ export class DatabaseStorage implements IStorage {
       risks: riskResults,
       milestones: milestoneResults,
     };
+  }
+
+  async deleteAllDemoDataForOrganization(organizationId: number): Promise<{
+    portfolios: number;
+    projects: number;
+    tasks: number;
+    risks: number;
+    milestones: number;
+    issues: number;
+    financials: number;
+  }> {
+    const stats = {
+      portfolios: 0,
+      projects: 0,
+      tasks: 0,
+      risks: 0,
+      milestones: 0,
+      issues: 0,
+      financials: 0,
+    };
+
+    // Get all portfolios for this organization
+    const orgPortfolios = await db.select().from(portfolios)
+      .where(eq(portfolios.organizationId, organizationId));
+    
+    // Get all projects for this organization
+    const orgProjects = await db.select().from(projects)
+      .where(eq(projects.organizationId, organizationId));
+    
+    const projectIds = orgProjects.map(p => p.id);
+    
+    if (projectIds.length > 0) {
+      // Delete all tasks for these projects (and their dependencies/logs)
+      for (const projectId of projectIds) {
+        const projectTasks = await db.select().from(tasks).where(eq(tasks.projectId, projectId));
+        for (const task of projectTasks) {
+          await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+          await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
+          await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+        }
+        const deletedTasks = await db.delete(tasks).where(eq(tasks.projectId, projectId)).returning();
+        stats.tasks += deletedTasks.length;
+        
+        // Delete risks
+        const deletedRisks = await db.delete(risks).where(eq(risks.projectId, projectId)).returning();
+        stats.risks += deletedRisks.length;
+        
+        // Delete milestones
+        const deletedMilestones = await db.delete(milestones).where(eq(milestones.projectId, projectId)).returning();
+        stats.milestones += deletedMilestones.length;
+        
+        // Delete issues
+        const deletedIssues = await db.delete(issues).where(eq(issues.projectId, projectId)).returning();
+        stats.issues += deletedIssues.length;
+        
+        // Delete financials
+        const deletedFinancials = await db.delete(projectFinancials).where(eq(projectFinancials.projectId, projectId)).returning();
+        stats.financials += deletedFinancials.length;
+      }
+      
+      // Delete all projects
+      const deletedProjects = await db.delete(projects).where(eq(projects.organizationId, organizationId)).returning();
+      stats.projects = deletedProjects.length;
+    }
+    
+    // Delete all portfolios
+    const deletedPortfolios = await db.delete(portfolios).where(eq(portfolios.organizationId, organizationId)).returning();
+    stats.portfolios = deletedPortfolios.length;
+    
+    return stats;
   }
 }
 

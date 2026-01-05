@@ -1634,5 +1634,39 @@ export async function registerRoutes(
     }
   });
 
+  // Delete all demo data for an organization (SuperAdmin only)
+  app.delete('/api/demo-data/:organizationId', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    const user = userId ? await storage.getUser(userId) : null;
+    
+    if (!user || user.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    
+    const organizationId = parseInt(req.params.organizationId);
+    
+    if (isNaN(organizationId)) {
+      return res.status(400).json({ message: 'Invalid organization ID' });
+    }
+    
+    const org = await storage.getOrganization(organizationId);
+    if (!org) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+    
+    try {
+      const stats = await storage.deleteAllDemoDataForOrganization(organizationId);
+      
+      res.json({
+        success: true,
+        message: `All demo data removed from ${org.name}`,
+        stats,
+      });
+    } catch (err) {
+      console.error('Error deleting demo data:', err);
+      res.status(500).json({ message: 'Failed to delete demo data' });
+    }
+  });
+
   return httpServer;
 }
