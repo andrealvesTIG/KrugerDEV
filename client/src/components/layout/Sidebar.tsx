@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, createContext, useContext, ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,33 @@ import { useOrganization } from "@/hooks/use-organization";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+// Context for sidebar collapsed state
+interface SidebarContextType {
+  isCollapsed: boolean;
+  setIsCollapsed: (collapsed: boolean) => void;
+}
+
+const SidebarContext = createContext<SidebarContextType | null>(null);
+
+export function useSidebarState() {
+  const context = useContext(SidebarContext);
+  if (!context) {
+    return { isCollapsed: false, setIsCollapsed: () => {} };
+  }
+  return context;
+}
+
+export function SidebarProvider({ children }: { children: ReactNode }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  return (
+    <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
+      {children}
+    </SidebarContext.Provider>
+  );
+}
+
+export { logoIcon };
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -33,7 +60,7 @@ export function Sidebar() {
   const [location, setLocation] = useLocation();
   const { logout, user } = useAuth();
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { isCollapsed, setIsCollapsed } = useSidebarState();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const handleMenuItemClick = (href: string) => {
