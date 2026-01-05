@@ -8,139 +8,587 @@ import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-// Seed data function
+// Seed data function with software development focused demo data
 async function seedDatabase() {
   const portfolios = await storage.getPortfolios();
   if (portfolios.length === 0) {
-    console.log("Seeding database...");
+    console.log("Seeding database with software development demo data...");
     
-    // Create Portfolios
-    const p1 = await storage.createPortfolio({
-      name: "Digital Transformation",
-      description: "Modernizing core business infrastructure and customer facing channels.",
-      strategy: "Cloud-first approach to improve agility and reduce costs.",
+    // ==================== PORTFOLIOS ====================
+    const mobilePortfolio = await storage.createPortfolio({
+      name: "Mobile Applications",
+      description: "Native and cross-platform mobile app development initiatives.",
+      strategy: "React Native first with native modules for performance-critical features.",
       managerId: null
     });
 
-    const p2 = await storage.createPortfolio({
-      name: "New Product Development",
-      description: "R&D initiatives for Q4 2024 and 2025.",
-      strategy: "Innovation and market expansion.",
+    const webPlatformPortfolio = await storage.createPortfolio({
+      name: "Web Platform",
+      description: "Enterprise web applications and customer-facing portals.",
+      strategy: "Modern React/TypeScript stack with microservices backend.",
       managerId: null
     });
 
-    // Create Projects for P1
-    const prj1 = await storage.createProject({
-      portfolioId: p1.id,
-      name: "Cloud Migration Alpha",
-      description: "Migrating legacy ERP to cloud infrastructure.",
+    const infraPortfolio = await storage.createPortfolio({
+      name: "Infrastructure & DevOps",
+      description: "Cloud infrastructure, CI/CD pipelines, and developer tooling.",
+      strategy: "AWS-first with Kubernetes orchestration and GitOps practices.",
+      managerId: null
+    });
+
+    // ==================== PROJECTS ====================
+    
+    // Mobile Portfolio Projects
+    const ecommerceApp = await storage.createProject({
+      portfolioId: mobilePortfolio.id,
+      name: "E-Commerce Mobile App",
+      description: "Full-featured shopping app with payment integration, push notifications, and AR product preview.",
       status: "Execution",
       priority: "High",
-      startDate: new Date("2024-01-15").toISOString(),
-      endDate: new Date("2024-08-30").toISOString(),
-      budget: "500000",
+      startDate: "2025-01-01",
+      endDate: "2025-06-30",
+      budget: "450000",
       managerId: null,
       health: "Green",
-      completionPercentage: 65
+      completionPercentage: 45
     });
 
-    await storage.createProject({
-      portfolioId: p1.id,
-      name: "Customer Portal Revamp",
-      description: "Redesigning the customer portal with new UI/UX.",
+    const bankingApp = await storage.createProject({
+      portfolioId: mobilePortfolio.id,
+      name: "Mobile Banking App v2.0",
+      description: "Redesign of the banking app with biometric auth, real-time notifications, and investment tracking.",
       status: "Planning",
-      priority: "Medium",
-      startDate: new Date("2024-06-01").toISOString(),
-      endDate: new Date("2024-12-20").toISOString(),
-      budget: "150000",
+      priority: "Critical",
+      startDate: "2025-02-15",
+      endDate: "2025-09-15",
+      budget: "800000",
       managerId: null,
       health: "Yellow",
-      completionPercentage: 20
+      completionPercentage: 15
     });
 
-    // Create Projects for P2
-    const prj3 = await storage.createProject({
-      portfolioId: p2.id,
-      name: "AI-Driven Analytics",
-      description: "Implementing predictive analytics for sales forecasting.",
+    // Web Platform Projects
+    const saasApp = await storage.createProject({
+      portfolioId: webPlatformPortfolio.id,
+      name: "SaaS Analytics Dashboard",
+      description: "Real-time analytics platform with customizable dashboards, reports, and data visualizations.",
+      status: "Execution",
+      priority: "High",
+      startDate: "2024-11-01",
+      endDate: "2025-05-31",
+      budget: "350000",
+      managerId: null,
+      health: "Green",
+      completionPercentage: 60
+    });
+
+    const crmApp = await storage.createProject({
+      portfolioId: webPlatformPortfolio.id,
+      name: "CRM Platform Modernization",
+      description: "Migrating legacy CRM to modern React frontend with GraphQL API.",
+      status: "Execution",
+      priority: "Medium",
+      startDate: "2024-10-15",
+      endDate: "2025-04-30",
+      budget: "280000",
+      managerId: null,
+      health: "Red",
+      completionPercentage: 35
+    });
+
+    const apiGateway = await storage.createProject({
+      portfolioId: webPlatformPortfolio.id,
+      name: "API Gateway Implementation",
+      description: "Centralized API gateway with rate limiting, authentication, and request routing.",
       status: "Initiation",
-      priority: "Critical",
-      startDate: new Date("2024-09-01").toISOString(),
-      endDate: new Date("2025-03-31").toISOString(),
-      budget: "300000",
+      priority: "High",
+      startDate: "2025-03-01",
+      endDate: "2025-07-31",
+      budget: "180000",
       managerId: null,
       health: "Green",
       completionPercentage: 5
     });
 
-    // Add Risks
+    // Infrastructure Projects
+    const k8sMigration = await storage.createProject({
+      portfolioId: infraPortfolio.id,
+      name: "Kubernetes Migration",
+      description: "Migrating microservices from EC2 to EKS with Helm charts and ArgoCD.",
+      status: "Execution",
+      priority: "Critical",
+      startDate: "2024-12-01",
+      endDate: "2025-06-30",
+      budget: "400000",
+      managerId: null,
+      health: "Yellow",
+      completionPercentage: 40
+    });
+
+    const cicdPipeline = await storage.createProject({
+      portfolioId: infraPortfolio.id,
+      name: "CI/CD Pipeline Overhaul",
+      description: "Implementing GitHub Actions workflows with automated testing, security scanning, and deployments.",
+      status: "Closing",
+      priority: "Medium",
+      startDate: "2024-09-01",
+      endDate: "2025-01-31",
+      budget: "120000",
+      managerId: null,
+      health: "Green",
+      completionPercentage: 90
+    });
+
+    // ==================== TASKS ====================
+    
+    // E-Commerce App Tasks
+    await storage.createTask({
+      projectId: ecommerceApp.id,
+      name: "Implement product search with filters",
+      description: "Add search functionality with category, price range, and brand filters using Algolia.",
+      startDate: "2025-01-15",
+      endDate: "2025-02-01",
+      progress: 100,
+      status: "Completed",
+      assignee: "Alex Chen"
+    });
+
+    await storage.createTask({
+      projectId: ecommerceApp.id,
+      name: "Integrate Stripe payment gateway",
+      description: "Setup Stripe SDK for iOS/Android with Apple Pay and Google Pay support.",
+      startDate: "2025-02-01",
+      endDate: "2025-02-28",
+      progress: 75,
+      status: "In Progress",
+      assignee: "Maria Garcia"
+    });
+
+    await storage.createTask({
+      projectId: ecommerceApp.id,
+      name: "Build shopping cart with persistence",
+      description: "Implement cart state management with Redux and AsyncStorage for offline support.",
+      startDate: "2025-02-15",
+      endDate: "2025-03-15",
+      progress: 40,
+      status: "In Progress",
+      assignee: "James Wilson"
+    });
+
+    await storage.createTask({
+      projectId: ecommerceApp.id,
+      name: "Push notification system",
+      description: "Integrate Firebase Cloud Messaging for order updates and promotional notifications.",
+      startDate: "2025-03-01",
+      endDate: "2025-03-31",
+      progress: 0,
+      status: "Not Started",
+      assignee: "Sarah Kim"
+    });
+
+    // SaaS Dashboard Tasks
+    await storage.createTask({
+      projectId: saasApp.id,
+      name: "Build chart component library",
+      description: "Create reusable D3.js chart components for line, bar, pie, and scatter plots.",
+      startDate: "2024-11-15",
+      endDate: "2024-12-31",
+      progress: 100,
+      status: "Completed",
+      assignee: "David Park"
+    });
+
+    await storage.createTask({
+      projectId: saasApp.id,
+      name: "Implement real-time data streaming",
+      description: "Set up WebSocket connections for live dashboard updates using Socket.io.",
+      startDate: "2025-01-01",
+      endDate: "2025-01-31",
+      progress: 85,
+      status: "In Progress",
+      assignee: "Emma Thompson"
+    });
+
+    await storage.createTask({
+      projectId: saasApp.id,
+      name: "Create PDF export functionality",
+      description: "Allow users to export dashboards and reports to PDF with custom branding.",
+      startDate: "2025-02-01",
+      endDate: "2025-02-28",
+      progress: 20,
+      status: "In Progress",
+      assignee: "Michael Brown"
+    });
+
+    // Kubernetes Migration Tasks
+    await storage.createTask({
+      projectId: k8sMigration.id,
+      name: "Create Helm charts for services",
+      description: "Write Helm templates for all 12 microservices with configurable values.",
+      startDate: "2024-12-15",
+      endDate: "2025-01-31",
+      progress: 100,
+      status: "Completed",
+      assignee: "Chris Lee"
+    });
+
+    await storage.createTask({
+      projectId: k8sMigration.id,
+      name: "Setup ArgoCD for GitOps",
+      description: "Configure ArgoCD to sync deployments from GitHub repositories automatically.",
+      startDate: "2025-01-15",
+      endDate: "2025-02-15",
+      progress: 60,
+      status: "In Progress",
+      assignee: "Jennifer Wu"
+    });
+
+    await storage.createTask({
+      projectId: k8sMigration.id,
+      name: "Configure horizontal pod autoscaling",
+      description: "Set up HPA for all services based on CPU and memory metrics.",
+      startDate: "2025-02-01",
+      endDate: "2025-03-15",
+      progress: 10,
+      status: "In Progress",
+      assignee: "Robert Taylor"
+    });
+
+    // ==================== MILESTONES ====================
+    
+    // E-Commerce App Milestones
+    await storage.createMilestone({
+      projectId: ecommerceApp.id,
+      title: "MVP Release - Core Shopping Features",
+      description: "Product browsing, cart, and basic checkout functionality",
+      dueDate: "2025-02-28",
+      startDate: "2025-01-01",
+      completed: true,
+      status: "Done",
+      priority: "Critical",
+      assignee: "Alex Chen"
+    });
+
+    await storage.createMilestone({
+      projectId: ecommerceApp.id,
+      title: "Payment Integration Complete",
+      description: "Stripe, Apple Pay, and Google Pay fully tested and deployed",
+      dueDate: "2025-03-31",
+      startDate: "2025-02-01",
+      completed: false,
+      status: "In Progress",
+      priority: "High",
+      assignee: "Maria Garcia"
+    });
+
+    await storage.createMilestone({
+      projectId: ecommerceApp.id,
+      title: "Beta Launch - App Store Submission",
+      description: "Submit to iOS App Store and Google Play for beta testing",
+      dueDate: "2025-05-15",
+      startDate: "2025-04-01",
+      completed: false,
+      status: "To Do",
+      priority: "High",
+      assignee: "Product Team"
+    });
+
+    await storage.createMilestone({
+      projectId: ecommerceApp.id,
+      title: "Production Launch",
+      description: "Full public release with marketing campaign",
+      dueDate: "2025-06-30",
+      startDate: "2025-05-15",
+      completed: false,
+      status: "Backlog",
+      priority: "Critical",
+      assignee: null
+    });
+
+    // SaaS Dashboard Milestones
+    await storage.createMilestone({
+      projectId: saasApp.id,
+      title: "Dashboard Builder v1.0",
+      description: "Drag-and-drop dashboard creation with widget library",
+      dueDate: "2025-01-31",
+      startDate: "2024-11-01",
+      completed: true,
+      status: "Done",
+      priority: "Critical",
+      assignee: "David Park"
+    });
+
+    await storage.createMilestone({
+      projectId: saasApp.id,
+      title: "Real-time Analytics Engine",
+      description: "Live data streaming with sub-second latency",
+      dueDate: "2025-02-28",
+      startDate: "2025-01-15",
+      completed: false,
+      status: "In Progress",
+      priority: "High",
+      assignee: "Emma Thompson"
+    });
+
+    await storage.createMilestone({
+      projectId: saasApp.id,
+      title: "Enterprise SSO Integration",
+      description: "SAML and OAuth2 support for enterprise customers",
+      dueDate: "2025-04-30",
+      startDate: "2025-03-01",
+      completed: false,
+      status: "Backlog",
+      priority: "Medium",
+      assignee: null
+    });
+
+    // Kubernetes Migration Milestones
+    await storage.createMilestone({
+      projectId: k8sMigration.id,
+      title: "Dev Environment on EKS",
+      description: "All services running in development Kubernetes cluster",
+      dueDate: "2025-01-31",
+      startDate: "2024-12-01",
+      completed: true,
+      status: "Done",
+      priority: "High",
+      assignee: "Chris Lee"
+    });
+
+    await storage.createMilestone({
+      projectId: k8sMigration.id,
+      title: "Staging Environment Migration",
+      description: "Full staging environment with production-like configuration",
+      dueDate: "2025-03-31",
+      startDate: "2025-02-01",
+      completed: false,
+      status: "In Progress",
+      priority: "High",
+      assignee: "Jennifer Wu"
+    });
+
+    await storage.createMilestone({
+      projectId: k8sMigration.id,
+      title: "Production Cutover",
+      description: "Zero-downtime migration of production workloads to EKS",
+      dueDate: "2025-06-30",
+      startDate: "2025-04-01",
+      completed: false,
+      status: "Backlog",
+      priority: "Critical",
+      assignee: null
+    });
+
+    // ==================== RISKS ====================
+    
     await storage.createRisk({
-      projectId: prj1.id,
-      title: "Data Corruption during Migration",
-      description: "Risk of data loss or corruption when moving from on-prem to cloud.",
+      projectId: ecommerceApp.id,
+      title: "App Store Rejection",
+      description: "Apple may reject the app due to payment guideline violations or privacy concerns.",
       probability: "Medium",
       impact: "High",
       status: "Open",
-      mitigationPlan: "Perform 3 rounds of dry-run migrations and full backup verification."
+      mitigationPlan: "Early review of App Store guidelines, implement in-app purchase where required, thorough privacy policy review."
     });
 
     await storage.createRisk({
-      projectId: prj3.id,
-      title: "Model Accuracy",
-      description: "AI models might not achieve the target accuracy of 95%.",
+      projectId: ecommerceApp.id,
+      title: "Payment Processing Downtime",
+      description: "Stripe API outages could prevent customers from completing purchases.",
+      probability: "Low",
+      impact: "High",
+      status: "Mitigated",
+      mitigationPlan: "Implement fallback payment processor (PayPal), add offline cart persistence, display helpful error messages."
+    });
+
+    await storage.createRisk({
+      projectId: saasApp.id,
+      title: "Real-time Performance Degradation",
+      description: "High user concurrency may cause WebSocket connection drops and delayed updates.",
       probability: "High",
       impact: "Medium",
       status: "Open",
-      mitigationPlan: "Engage external data science consultants for validation."
+      mitigationPlan: "Implement connection pooling, add Redis pub/sub for horizontal scaling, load testing at 10x expected traffic."
     });
 
-    // Add Milestones
-    await storage.createMilestone({
-      projectId: prj1.id,
-      title: "Phase 1 Migration Complete",
-      dueDate: new Date("2024-04-01").toISOString(),
-      completed: true
+    await storage.createRisk({
+      projectId: crmApp.id,
+      title: "Data Migration Errors",
+      description: "Legacy CRM data may have inconsistencies causing migration failures.",
+      probability: "High",
+      impact: "High",
+      status: "Open",
+      mitigationPlan: "Extensive data validation scripts, parallel run of old and new systems, rollback plan within 24 hours."
     });
 
-    await storage.createMilestone({
-      projectId: prj1.id,
-      title: "UAT Sign-off",
-      dueDate: new Date("2024-08-15").toISOString(),
-      completed: false
+    await storage.createRisk({
+      projectId: k8sMigration.id,
+      title: "Service Mesh Complexity",
+      description: "Istio configuration may cause networking issues between services.",
+      probability: "Medium",
+      impact: "High",
+      status: "Open",
+      mitigationPlan: "Start with basic Kubernetes networking, gradually introduce Istio features, extensive monitoring with Prometheus/Grafana."
     });
 
-    // Add Issues
+    await storage.createRisk({
+      projectId: k8sMigration.id,
+      title: "Cost Overrun",
+      description: "EKS cluster costs may exceed budget due to resource over-provisioning.",
+      probability: "Medium",
+      impact: "Medium",
+      status: "Open",
+      mitigationPlan: "Implement Kubecost for cost monitoring, use spot instances for non-critical workloads, regular right-sizing reviews."
+    });
+
+    await storage.createRisk({
+      projectId: bankingApp.id,
+      title: "Security Audit Failure",
+      description: "Third-party security audit may identify critical vulnerabilities delaying release.",
+      probability: "Medium",
+      impact: "Critical",
+      status: "Open",
+      mitigationPlan: "Continuous security scanning with Snyk, internal penetration testing before audit, dedicated security sprint buffer."
+    });
+
+    // ==================== ISSUES ====================
+    
+    // E-Commerce App Issues
     await storage.createIssue({
-      projectId: prj1.id,
-      title: "Database connection timeout",
-      description: "Intermittent connection failures during peak hours.",
+      projectId: ecommerceApp.id,
+      title: "Image loading slow on 3G networks",
+      description: "Product images take too long to load on slower mobile networks, causing poor UX.",
+      priority: "High",
+      status: "In Progress",
+      type: "Bug",
+      assignee: "James Wilson"
+    });
+
+    await storage.createIssue({
+      projectId: ecommerceApp.id,
+      title: "Add wishlist functionality",
+      description: "Users want to save products for later without adding to cart.",
+      priority: "Medium",
+      status: "Open",
+      type: "Enhancement",
+      assignee: null
+    });
+
+    await storage.createIssue({
+      projectId: ecommerceApp.id,
+      title: "Checkout crashes on Android 12",
+      description: "App crashes when completing checkout on certain Android 12 devices.",
+      priority: "Critical",
+      status: "Open",
+      type: "Bug",
+      assignee: "Maria Garcia"
+    });
+
+    // SaaS Dashboard Issues
+    await storage.createIssue({
+      projectId: saasApp.id,
+      title: "Dashboard widgets not responsive on mobile",
+      description: "Charts overlap and become unreadable on screens smaller than 768px.",
+      priority: "Medium",
+      status: "In Progress",
+      type: "Bug",
+      assignee: "David Park"
+    });
+
+    await storage.createIssue({
+      projectId: saasApp.id,
+      title: "Add data refresh interval setting",
+      description: "Users want to customize how often the dashboard auto-refreshes (currently fixed at 30s).",
+      priority: "Low",
+      status: "Open",
+      type: "Enhancement",
+      assignee: null
+    });
+
+    await storage.createIssue({
+      projectId: saasApp.id,
+      title: "Memory leak in chart component",
+      description: "Long-running dashboard sessions show increasing memory usage, eventually causing browser crash.",
       priority: "High",
       status: "Open",
       type: "Bug",
-      assignee: "John Smith"
+      assignee: "Emma Thompson"
     });
 
+    // CRM Issues
     await storage.createIssue({
-      projectId: prj1.id,
-      title: "Add audit logging feature",
-      description: "Need comprehensive audit trail for compliance.",
-      priority: "Medium",
+      projectId: crmApp.id,
+      title: "GraphQL query N+1 problem",
+      description: "Contact list query makes separate database call for each contact's organization.",
+      priority: "High",
       status: "In Progress",
-      type: "Enhancement",
-      assignee: "Sarah Johnson"
+      type: "Bug",
+      assignee: "Backend Team"
     });
 
     await storage.createIssue({
-      projectId: prj3.id,
-      title: "Model training documentation",
-      description: "Create documentation for ML model training process.",
-      priority: "Low",
+      projectId: crmApp.id,
+      title: "Implement contact import from CSV",
+      description: "Bulk import functionality for migrating from spreadsheets or other CRMs.",
+      priority: "Medium",
       status: "Open",
       type: "Task",
       assignee: null
     });
 
-    console.log("Database seeded successfully.");
+    // Kubernetes Issues
+    await storage.createIssue({
+      projectId: k8sMigration.id,
+      title: "Persistent volume claims failing in us-west-2",
+      description: "EBS volumes not attaching correctly to pods in us-west-2c availability zone.",
+      priority: "Critical",
+      status: "In Progress",
+      type: "Bug",
+      assignee: "Chris Lee"
+    });
+
+    await storage.createIssue({
+      projectId: k8sMigration.id,
+      title: "Document disaster recovery procedures",
+      description: "Create runbook for cluster recovery, database restores, and failover procedures.",
+      priority: "Medium",
+      status: "Open",
+      type: "Task",
+      assignee: "Jennifer Wu"
+    });
+
+    await storage.createIssue({
+      projectId: k8sMigration.id,
+      title: "Add Prometheus alerting rules",
+      description: "Configure alerts for pod crashes, high latency, and resource exhaustion.",
+      priority: "High",
+      status: "Open",
+      type: "Enhancement",
+      assignee: "Robert Taylor"
+    });
+
+    // CI/CD Issues
+    await storage.createIssue({
+      projectId: cicdPipeline.id,
+      title: "Flaky integration tests blocking deployments",
+      description: "Some integration tests randomly fail causing unnecessary deployment blocks.",
+      priority: "High",
+      status: "Resolved",
+      type: "Bug",
+      assignee: "DevOps Team"
+    });
+
+    await storage.createIssue({
+      projectId: cicdPipeline.id,
+      title: "Add code coverage reporting",
+      description: "Integrate code coverage reports into PR comments and fail builds below 80%.",
+      priority: "Medium",
+      status: "Closed",
+      type: "Enhancement",
+      assignee: "DevOps Team"
+    });
+
+    console.log("Database seeded with software development demo data successfully.");
   }
 }
 
