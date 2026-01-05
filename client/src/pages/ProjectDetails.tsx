@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRoute } from "wouter";
 import { useProject, useUpdateProject } from "@/hooks/use-projects";
 import { useRisks, useCreateRisk, useDeleteRisk } from "@/hooks/use-risks";
@@ -14,9 +14,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { useTaskHistory } from "@/hooks/use-tasks";
 import { Textarea } from "@/components/ui/textarea";
-import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay } from "date-fns";
+import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRiskSchema, insertMilestoneSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
@@ -1325,150 +1327,11 @@ function MilestonesTab({ projectId }: { projectId: number }) {
   );
 }
 
-function TaskRow({ task, projectId, onUpdate, onDelete }: { 
-  task: Task; 
-  projectId: number; 
-  onUpdate: any; 
-  onDelete: any;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState(task.title);
-  const [status, setStatus] = useState(task.status || "To Do");
-  const [priority, setPriority] = useState(task.priority || "Medium");
-  const [assignee, setAssignee] = useState(task.assignee || "");
-  const [dueDate, setDueDate] = useState(task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : "");
-
-  const handleSave = () => {
-    onUpdate.mutate({ 
-      id: task.id, 
-      projectId, 
-      title, 
-      status, 
-      priority, 
-      assignee: assignee || null,
-      dueDate: dueDate || null 
-    });
-    setIsEditing(false);
-  };
-
-  const handleCancel = () => {
-    setTitle(task.title);
-    setStatus(task.status || "To Do");
-    setPriority(task.priority || "Medium");
-    setAssignee(task.assignee || "");
-    setDueDate(task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : "");
-    setIsEditing(false);
-  };
-
-  const statusColors: Record<string, string> = {
-    "To Do": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-    "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
-    "Done": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
-    "Blocked": "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
-  };
-
-  const priorityColors: Record<string, string> = {
-    Low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
-    Medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
-    High: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
-    Critical: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300",
-  };
-
-  if (isEditing) {
-    return (
-      <tr className="border-b" data-testid={`row-task-edit-${task.id}`}>
-        <td className="p-2">
-          <Input 
-            value={title} 
-            onChange={(e) => setTitle(e.target.value)} 
-            className="h-8"
-            data-testid="input-task-title-edit"
-          />
-        </td>
-        <td className="p-2">
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="h-8 w-28" data-testid="select-task-status-edit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="To Do">To Do</SelectItem>
-              <SelectItem value="In Progress">In Progress</SelectItem>
-              <SelectItem value="Done">Done</SelectItem>
-              <SelectItem value="Blocked">Blocked</SelectItem>
-            </SelectContent>
-          </Select>
-        </td>
-        <td className="p-2">
-          <Select value={priority} onValueChange={setPriority}>
-            <SelectTrigger className="h-8 w-24" data-testid="select-task-priority-edit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Low">Low</SelectItem>
-              <SelectItem value="Medium">Medium</SelectItem>
-              <SelectItem value="High">High</SelectItem>
-              <SelectItem value="Critical">Critical</SelectItem>
-            </SelectContent>
-          </Select>
-        </td>
-        <td className="p-2">
-          <Input 
-            value={assignee} 
-            onChange={(e) => setAssignee(e.target.value)} 
-            placeholder="Assignee"
-            className="h-8 w-28"
-            data-testid="input-task-assignee-edit"
-          />
-        </td>
-        <td className="p-2">
-          <Input 
-            type="date" 
-            value={dueDate} 
-            onChange={(e) => setDueDate(e.target.value)} 
-            className="h-8 w-36"
-            data-testid="input-task-date-edit"
-          />
-        </td>
-        <td className="p-2">
-          <div className="flex gap-1">
-            <Button size="icon" variant="ghost" onClick={handleSave} data-testid="button-save-task-edit">
-              <Check className="h-4 w-4 text-emerald-600" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={handleCancel} data-testid="button-cancel-task-edit">
-              <X className="h-4 w-4 text-slate-400" />
-            </Button>
-          </div>
-        </td>
-      </tr>
-    );
-  }
-
-  return (
-    <tr className="border-b hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors" data-testid={`row-task-${task.id}`}>
-      <td className="p-2 font-medium text-sm">{task.title}</td>
-      <td className="p-2">
-        <Badge className={cn("text-xs", statusColors[task.status || "To Do"])}>{task.status}</Badge>
-      </td>
-      <td className="p-2">
-        <Badge className={cn("text-xs", priorityColors[task.priority || "Medium"])}>{task.priority}</Badge>
-      </td>
-      <td className="p-2 text-sm text-muted-foreground">{task.assignee || "-"}</td>
-      <td className="p-2 text-sm text-muted-foreground">
-        {task.dueDate ? format(new Date(task.dueDate), 'MMM d, yyyy') : "-"}
-      </td>
-      <td className="p-2">
-        <div className="flex gap-1">
-          <Button size="icon" variant="ghost" onClick={() => setIsEditing(true)} data-testid={`button-edit-task-${task.id}`}>
-            <Pencil className="h-4 w-4 text-slate-400" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={() => onDelete.mutate({ id: task.id, projectId })} data-testid={`button-delete-task-${task.id}`}>
-            <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
-          </Button>
-        </div>
-      </td>
-    </tr>
-  );
-}
+const taskStatusColors = {
+  "Not Started": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+};
 
 function TasksTab({ projectId }: { projectId: number }) {
   const { data: tasks, isLoading } = useTasks(projectId);
@@ -1476,151 +1339,636 @@ function TasksTab({ projectId }: { projectId: number }) {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const { toast } = useToast();
+  
+  const [view, setView] = useState<"gantt" | "kanban">("gantt");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [durationDays, setDurationDays] = useState(7);
 
-  const [isAdding, setIsAdding] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newStatus, setNewStatus] = useState("To Do");
-  const [newPriority, setNewPriority] = useState("Medium");
-  const [newAssignee, setNewAssignee] = useState("");
-  const [newDueDate, setNewDueDate] = useState("");
+  const form = useForm({
+    resolver: zodResolver(insertTaskSchema),
+    mode: "onChange",
+    defaultValues: {
+      projectId: projectId,
+      name: "",
+      description: "",
+      startDate: format(new Date(), 'yyyy-MM-dd'),
+      endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+      durationDays: 7,
+      progress: 0,
+      status: "Not Started",
+      assignee: "",
+    }
+  });
 
-  const handleAddTask = () => {
-    if (!newTitle.trim()) return;
-    createTask.mutate({
-      projectId,
-      title: newTitle,
-      status: newStatus,
-      priority: newPriority,
-      assignee: newAssignee || null,
-      dueDate: newDueDate || null,
-      description: ""
-    }, {
-      onSuccess: () => {
-        toast({ title: "Success", description: "Task added" });
-        setNewTitle("");
-        setNewStatus("To Do");
-        setNewPriority("Medium");
-        setNewAssignee("");
-        setNewDueDate("");
-        setIsAdding(false);
-      }
+  const startDate = form.watch("startDate");
+  
+  // Sync endDate when startDate or durationDays changes (match global Tasks behavior)
+  useEffect(() => {
+    if (startDate && durationDays > 0) {
+      const start = parseISO(startDate);
+      const end = addDays(start, durationDays - 1);
+      form.setValue("endDate", format(end, 'yyyy-MM-dd'));
+      form.setValue("durationDays", durationDays);
+    }
+  }, [startDate, durationDays, form]);
+  
+  const handleDurationChange = (days: number) => {
+    setDurationDays(Math.max(1, days));
+  };
+
+  const openEditDialog = (task: Task) => {
+    setEditingTask(task);
+    const taskDuration = task.durationDays || (task.startDate && task.endDate 
+      ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
+      : 7);
+    setDurationDays(taskDuration);
+    form.reset({
+      projectId: task.projectId,
+      name: task.name,
+      description: task.description || "",
+      startDate: task.startDate,
+      endDate: task.endDate,
+      durationDays: taskDuration,
+      progress: task.progress || 0,
+      status: task.status || "Not Started",
+      assignee: task.assignee || "",
     });
+    setIsDialogOpen(true);
+  };
+
+  const openCreateDialog = () => {
+    setEditingTask(null);
+    setDurationDays(7);
+    form.reset({
+      projectId: projectId,
+      name: "",
+      description: "",
+      startDate: format(new Date(), 'yyyy-MM-dd'),
+      endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+      durationDays: 7,
+      progress: 0,
+      status: "Not Started",
+      assignee: "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const onSubmit = (data: any) => {
+    const taskData = {
+      projectId,
+      name: data.name,
+      description: data.description || null,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      durationDays: durationDays,
+      progress: data.progress || 0,
+      status: data.status || "Not Started",
+      assignee: data.assignee || null,
+    };
+
+    if (editingTask) {
+      updateTask.mutate({ id: editingTask.id, ...taskData }, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Task updated" });
+          setIsDialogOpen(false);
+          setEditingTask(null);
+        },
+        onError: (error: any) => {
+          toast({ title: "Error", description: error?.message || "Failed to update task", variant: "destructive" });
+        }
+      });
+    } else {
+      createTask.mutate(taskData, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Task created" });
+          setIsDialogOpen(false);
+        },
+        onError: (error: any) => {
+          toast({ title: "Error", description: error?.message || "Failed to create task", variant: "destructive" });
+        }
+      });
+    }
   };
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <div>
-          <CardTitle>Tasks</CardTitle>
-          <CardDescription>Project tasks and assignments. Click the pencil to edit inline.</CardDescription>
-        </div>
-        <Button size="sm" onClick={() => setIsAdding(true)} disabled={isAdding} data-testid="button-add-task">
-          <Plus className="mr-2 h-4 w-4" /> Add Task
-        </Button>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-md border overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr className="border-b">
-                <th className="p-2 text-left text-sm font-medium text-muted-foreground">Title</th>
-                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-28">Status</th>
-                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-24">Priority</th>
-                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-28">Assignee</th>
-                <th className="p-2 text-left text-sm font-medium text-muted-foreground w-36">Due Date</th>
-                <th className="p-2 w-24"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {isAdding && (
-                <tr className="border-b bg-muted/30" data-testid="row-task-new">
-                  <td className="p-2">
-                    <Input 
-                      value={newTitle} 
-                      onChange={(e) => setNewTitle(e.target.value)} 
-                      placeholder="Task title..."
-                      className="h-8"
-                      autoFocus
-                      data-testid="input-task-title-new"
-                    />
-                  </td>
-                  <td className="p-2">
-                    <Select value={newStatus} onValueChange={setNewStatus}>
-                      <SelectTrigger className="h-8 w-28" data-testid="select-task-status-new">
-                        <SelectValue />
-                      </SelectTrigger>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
+          <TabsList>
+            <TabsTrigger value="gantt" className="gap-2">
+              <GanttChart className="h-4 w-4" />
+              Gantt
+            </TabsTrigger>
+            <TabsTrigger value="kanban" className="gap-2">
+              <Columns3 className="h-4 w-4" />
+              Kanban
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
+          <DialogTrigger asChild>
+            <Button onClick={openCreateDialog} data-testid="button-add-task">
+              <Plus className="mr-2 h-4 w-4" /> Add Task
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
+              <DialogDescription>
+                {editingTask ? "Modify the task details below." : "Fill in the details to create a new task."}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Task Name</Label>
+                <Input {...form.register("name")} data-testid="input-task-name" className={cn(form.formState.errors.name && "border-destructive")} />
+                {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input type="date" {...form.register("startDate")} data-testid="input-task-start" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Duration (days)
+                  </Label>
+                  <Input 
+                    type="number" 
+                    min="1" 
+                    max="365" 
+                    value={durationDays}
+                    onChange={(e) => handleDurationChange(Math.max(1, Number(e.target.value) || 1))}
+                    data-testid="input-task-duration" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Input type="date" {...form.register("endDate")} data-testid="input-task-end" disabled className="bg-muted" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Controller control={form.control} name="status" render={({field}) => (
+                    <Select onValueChange={field.onChange} value={field.value || "Not Started"}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="To Do">To Do</SelectItem>
+                        <SelectItem value="Not Started">Not Started</SelectItem>
                         <SelectItem value="In Progress">In Progress</SelectItem>
-                        <SelectItem value="Done">Done</SelectItem>
-                        <SelectItem value="Blocked">Blocked</SelectItem>
+                        <SelectItem value="Completed">Completed</SelectItem>
                       </SelectContent>
                     </Select>
-                  </td>
-                  <td className="p-2">
-                    <Select value={newPriority} onValueChange={setNewPriority}>
-                      <SelectTrigger className="h-8 w-24" data-testid="select-task-priority-new">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                        <SelectItem value="Critical">Critical</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td className="p-2">
-                    <Input 
-                      value={newAssignee} 
-                      onChange={(e) => setNewAssignee(e.target.value)} 
-                      placeholder="Assignee"
-                      className="h-8 w-28"
-                      data-testid="input-task-assignee-new"
+                  )} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center justify-between">
+                    Progress
+                    <span className="text-muted-foreground text-xs font-normal">{form.watch("progress") || 0}%</span>
+                  </Label>
+                  <Controller control={form.control} name="progress" render={({field}) => (
+                    <Slider
+                      value={[field.value || 0]}
+                      onValueChange={(v) => field.onChange(v[0])}
+                      min={0}
+                      max={100}
+                      step={5}
+                      className="py-2"
+                      data-testid="slider-task-progress"
                     />
-                  </td>
-                  <td className="p-2">
-                    <Input 
-                      type="date" 
-                      value={newDueDate} 
-                      onChange={(e) => setNewDueDate(e.target.value)} 
-                      className="h-8 w-36"
-                      data-testid="input-task-date-new"
-                    />
-                  </td>
-                  <td className="p-2">
-                    <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={handleAddTask} disabled={!newTitle.trim()} data-testid="button-save-task-new">
-                        <Check className="h-4 w-4 text-emerald-600" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => { setIsAdding(false); setNewTitle(""); }} data-testid="button-cancel-task-new">
-                        <X className="h-4 w-4 text-slate-400" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {tasks?.map(task => (
-                <TaskRow 
-                  key={task.id} 
-                  task={task} 
-                  projectId={projectId} 
-                  onUpdate={updateTask} 
-                  onDelete={deleteTask} 
-                />
-              ))}
-            </tbody>
-          </table>
-          {!isAdding && tasks?.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No tasks created. Click "Add Task" to create one.
+                  )} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea {...form.register("description")} />
+              </div>
+              <div className="space-y-2">
+                <Label>Assignee</Label>
+                <Input {...form.register("assignee")} placeholder="Name of assignee" />
+              </div>
+              <DialogFooter className="flex items-center gap-2">
+                {editingTask && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setIsHistoryOpen(true)}
+                    data-testid="button-view-history"
+                  >
+                    <History className="mr-2 h-4 w-4" />
+                    History
+                  </Button>
+                )}
+                <div className="flex-1" />
+                {editingTask && (
+                  <Button 
+                    type="button" 
+                    variant="destructive" 
+                    onClick={() => {
+                      deleteTask.mutate({ id: editingTask.id, projectId: editingTask.projectId }, {
+                        onSuccess: () => {
+                          toast({ title: "Deleted", description: "Task deleted" });
+                          setIsDialogOpen(false);
+                          setEditingTask(null);
+                        }
+                      });
+                    }}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <Button 
+                  type="submit" 
+                  data-testid="button-save-task" 
+                  disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
+                >
+                  {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {editingTask ? "Update Task" : "Save Task"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+        
+        <ProjectTaskHistoryDialog 
+          taskId={editingTask?.id || 0} 
+          open={isHistoryOpen} 
+          onOpenChange={setIsHistoryOpen} 
+        />
+      </div>
+
+      {view === "gantt" ? (
+        <ProjectGanttView tasks={tasks || []} onTaskClick={openEditDialog} />
+      ) : (
+        <ProjectKanbanView 
+          tasks={tasks || []} 
+          onTaskClick={openEditDialog}
+          onStatusChange={(taskId, newStatus) => {
+            const task = tasks?.find(t => t.id === taskId);
+            if (task) {
+              updateTask.mutate({ 
+                id: taskId, 
+                projectId: task.projectId, 
+                status: newStatus 
+              });
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (task: Task) => void }) {
+  const today = new Date();
+  
+  const { minDate, maxDate, dateRange } = useMemo(() => {
+    const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
+    
+    let minDate: Date;
+    let maxDate: Date;
+    
+    if (tasksWithDates.length > 0) {
+      const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]);
+      minDate = startOfMonth(new Date(Math.min(...dates.map(d => d.getTime()))));
+      maxDate = endOfMonth(new Date(Math.max(...dates.map(d => d.getTime()))));
+    } else {
+      minDate = startOfMonth(today);
+      maxDate = endOfMonth(addDays(today, 60));
+    }
+    
+    const dateRange = eachDayOfInterval({ start: minDate, end: maxDate });
+    return { minDate, maxDate, dateRange };
+  }, [tasks, today]);
+
+  if (tasks.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground">
+          No tasks yet. Add your first task to see the Gantt chart.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <div className="min-w-[800px]">
+            <div className="flex border-b bg-muted/50">
+              <div className="w-64 flex-shrink-0 border-r p-3 font-semibold text-sm text-foreground">Task</div>
+              <div className="flex-1 flex">
+                {dateRange.filter((_, i) => i % 7 === 0).map((date, i) => (
+                  <div key={i} className="flex-1 min-w-[100px] p-2 text-center text-xs font-medium text-muted-foreground border-l">
+                    {format(date, 'MMM d')}
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
+            {tasks.map(task => {
+              const hasValidDates = task.startDate && task.endDate;
+              const start = hasValidDates ? parseISO(task.startDate) : null;
+              const end = hasValidDates ? parseISO(task.endDate) : null;
+              
+              let leftPercent = 0;
+              let widthPercent = 0;
+              
+              if (start && end) {
+                const totalDays = differenceInDays(maxDate, minDate) || 1;
+                const startOffset = differenceInDays(start, minDate);
+                const duration = differenceInDays(end, start) + 1;
+                leftPercent = (startOffset / totalDays) * 100;
+                widthPercent = (duration / totalDays) * 100;
+              }
+
+              return (
+                <div 
+                  key={task.id} 
+                  className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
+                  onClick={() => onTaskClick(task)}
+                  data-testid={`gantt-task-${task.id}`}
+                >
+                  <div className="w-64 flex-shrink-0 border-r p-3">
+                    <div className="font-medium text-sm truncate">{task.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{task.assignee || "Unassigned"}</div>
+                  </div>
+                  <div className="flex-1 relative p-2">
+                    {hasValidDates ? (
+                      <div
+                        className={cn(
+                          "absolute top-2 bottom-2 rounded-md flex items-center px-2 text-xs text-white font-medium",
+                          task.status === "Completed" ? "bg-emerald-500" :
+                          task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+                        )}
+                        style={{
+                          left: `${Math.max(0, leftPercent)}%`,
+                          width: `${Math.min(100 - leftPercent, widthPercent)}%`,
+                          minWidth: '60px'
+                        }}
+                      >
+                        <span className="truncate">{task.progress || 0}%</span>
+                      </div>
+                    ) : (
+                      <div className="h-full flex items-center">
+                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                          <CalendarIcon className="h-3 w-3 mr-1" />
+                          No dates set
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function ProjectKanbanView({ 
+  tasks, 
+  onTaskClick, 
+  onStatusChange 
+}: { 
+  tasks: Task[]; 
+  onTaskClick: (task: Task) => void;
+  onStatusChange: (taskId: number, newStatus: string) => void;
+}) {
+  const columns = [
+    { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
+    { id: "In Progress", label: "In Progress", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
+    { id: "Completed", label: "Completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
+  ];
+
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const taskId = Number(event.active.id);
+    const task = tasks.find(t => t.id === taskId);
+    if (task) setActiveTask(task);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveTask(null);
+    const { active, over } = event;
+    if (!over) return;
+    
+    const taskId = Number(active.id);
+    const newStatus = String(over.id);
+    const task = tasks.find(t => t.id === taskId);
+    
+    if (task && task.status !== newStatus && columns.some(c => c.id === newStatus)) {
+      onStatusChange(taskId, newStatus);
+    }
+  };
+
+  return (
+    <DndContext 
+      sensors={sensors} 
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {columns.map(column => (
+          <ProjectKanbanColumn
+            key={column.id}
+            column={column}
+            tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
+            onTaskClick={onTaskClick}
+          />
+        ))}
+      </div>
+      <DragOverlay>
+        {activeTask && (
+          <div className="opacity-80">
+            <Card className="shadow-lg border-primary">
+              <CardContent className="p-4">
+                <div className="font-medium text-sm">{activeTask.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">{activeTask.assignee || "Unassigned"}</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function ProjectKanbanColumn({ 
+  column, 
+  tasks, 
+  onTaskClick 
+}: { 
+  column: { id: string; label: string; color: string }; 
+  tasks: Task[]; 
+  onTaskClick: (task: Task) => void;
+}) {
+  const { setNodeRef, isOver } = useSortable({
+    id: column.id,
+  });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={cn(
+        "space-y-4 min-h-[200px] rounded-lg transition-colors",
+        isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
+      )}
+    >
+      <div className={cn("rounded-lg p-3 font-semibold", column.color)}>
+        {column.label} ({tasks.length})
+      </div>
+      <div className="space-y-3">
+        {tasks.map(task => (
+          <ProjectDraggableTaskCard
+            key={task.id}
+            task={task}
+            onTaskClick={onTaskClick}
+          />
+        ))}
+        {tasks.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+            Drop tasks here
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProjectDraggableTaskCard({ 
+  task, 
+  onTaskClick 
+}: { 
+  task: Task; 
+  onTaskClick: (task: Task) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(isDragging && "opacity-50")}
+    >
+      <Card 
+        className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing"
+        onClick={() => onTaskClick(task)}
+        data-testid={`kanban-task-${task.id}`}
+      >
+        <CardContent className="p-4">
+          <div className="font-medium text-sm">{task.name}</div>
+          <div className="text-xs text-muted-foreground mt-1">{task.assignee || "Unassigned"}</div>
+          <div className="flex items-center justify-between mt-3">
+            <Badge variant="outline" className="text-xs">
+              {task.progress || 0}%
+            </Badge>
+            {task.endDate && (
+              <span className="text-xs text-muted-foreground">
+                Due: {format(parseISO(task.endDate), 'MMM d')}
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ProjectTaskHistoryDialog({ taskId, open, onOpenChange }: { taskId: number; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { data: history, isLoading } = useTaskHistory(taskId);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Task Change History
+          </DialogTitle>
+          <DialogDescription>
+            View all changes made to this task over time.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : !history || history.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No changes recorded yet
+            </div>
+          ) : (
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-4">
+                {history.map((log) => (
+                  <div 
+                    key={log.id} 
+                    className="border-l-2 border-muted-foreground/30 pl-4 pb-4"
+                    data-testid={`history-entry-${log.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant="outline" className="text-xs capitalize">{log.changeType}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {log.changedAt ? format(new Date(log.changedAt), 'MMM d, yyyy h:mm a') : ''}
+                      </span>
+                    </div>
+                    {log.changeSummary && (
+                      <div className="text-sm mt-1">{log.changeSummary}</div>
+                    )}
+                    {log.previousValues && log.newValues && (
+                      <div className="text-sm mt-1">
+                        <span className="text-muted-foreground line-through">{log.previousValues}</span>
+                        {' → '}
+                        <span className="text-foreground">{log.newValues}</span>
+                      </div>
+                    )}
+                    {log.changedByName && (
+                      <div className="text-xs text-muted-foreground mt-1">by {log.changedByName}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
