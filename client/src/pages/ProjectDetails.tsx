@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { useTaskHistory } from "@/hooks/use-tasks";
@@ -1035,8 +1035,11 @@ function TasksTab({ projectId }: { projectId: number }) {
   );
 }
 
+type ZoomLevel = 'day' | 'week' | 'month';
+
 function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (task: Task) => void }) {
   const today = new Date();
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('week');
   
   const { minDate, maxDate, dateRange } = useMemo(() => {
     const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
@@ -1057,6 +1060,39 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
     return { minDate, maxDate, dateRange };
   }, [tasks, today]);
 
+  const { filteredDates, dateFormat, columnWidth } = useMemo(() => {
+    switch (zoomLevel) {
+      case 'day':
+        return {
+          filteredDates: dateRange,
+          dateFormat: 'd',
+          columnWidth: 'min-w-[40px]'
+        };
+      case 'week':
+        return {
+          filteredDates: dateRange.filter((_, i) => i % 7 === 0),
+          dateFormat: 'MMM d',
+          columnWidth: 'min-w-[100px]'
+        };
+      case 'month':
+        return {
+          filteredDates: dateRange.filter((date) => date.getDate() === 1),
+          dateFormat: 'MMM yyyy',
+          columnWidth: 'min-w-[120px]'
+        };
+    }
+  }, [dateRange, zoomLevel]);
+
+  const handleZoomIn = () => {
+    if (zoomLevel === 'month') setZoomLevel('week');
+    else if (zoomLevel === 'week') setZoomLevel('day');
+  };
+
+  const handleZoomOut = () => {
+    if (zoomLevel === 'day') setZoomLevel('week');
+    else if (zoomLevel === 'week') setZoomLevel('month');
+  };
+
   if (tasks.length === 0) {
     return (
       <Card>
@@ -1070,14 +1106,39 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-0">
+        <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30">
+          <span className="text-sm font-medium text-muted-foreground">
+            View: {zoomLevel === 'day' ? 'Daily' : zoomLevel === 'week' ? 'Weekly' : 'Monthly'}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleZoomIn}
+              disabled={zoomLevel === 'day'}
+              data-testid="button-gantt-zoom-in"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleZoomOut}
+              disabled={zoomLevel === 'month'}
+              data-testid="button-gantt-zoom-out"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <div className="min-w-[800px]">
             <div className="flex border-b bg-muted/50">
               <div className="w-64 flex-shrink-0 border-r p-3 font-semibold text-sm text-foreground">Task</div>
               <div className="flex-1 flex">
-                {dateRange.filter((_, i) => i % 7 === 0).map((date, i) => (
-                  <div key={i} className="flex-1 min-w-[100px] p-2 text-center text-xs font-medium text-muted-foreground border-l">
-                    {format(date, 'MMM d')}
+                {filteredDates.map((date, i) => (
+                  <div key={i} className={cn("flex-1 p-2 text-center text-xs font-medium text-muted-foreground border-l", columnWidth)}>
+                    {format(date, dateFormat)}
                   </div>
                 ))}
               </div>
