@@ -2,6 +2,7 @@ import { db } from "./db";
 import {
   users, portfolios, projects, risks, milestones, issues, tasks,
   organizations, organizationMembers, taskChangeLogs, taskDependencies, projectFinancials,
+  projectChangeLogs, riskChangeLogs, issueChangeLogs,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -12,6 +13,9 @@ import {
   type Issue, type InsertIssue, type UpdateIssueRequest,
   type Task, type InsertTask, type UpdateTaskRequest,
   type TaskChangeLog, type InsertTaskChangeLog,
+  type ProjectChangeLog, type InsertProjectChangeLog,
+  type RiskChangeLog, type InsertRiskChangeLog,
+  type IssueChangeLog, type InsertIssueChangeLog,
   type TaskDependency, type InsertTaskDependency,
   type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest,
   type RecycleBinItem, type RecycleBinItemType
@@ -83,6 +87,18 @@ export interface IStorage {
   // Task Change Logs
   getTaskChangeLogs(taskId: number): Promise<TaskChangeLog[]>;
   createTaskChangeLog(log: InsertTaskChangeLog): Promise<TaskChangeLog>;
+
+  // Project Change Logs
+  getProjectChangeLogs(projectId: number): Promise<ProjectChangeLog[]>;
+  createProjectChangeLog(log: InsertProjectChangeLog): Promise<ProjectChangeLog>;
+
+  // Risk Change Logs
+  getRiskChangeLogs(riskId: number): Promise<RiskChangeLog[]>;
+  createRiskChangeLog(log: InsertRiskChangeLog): Promise<RiskChangeLog>;
+
+  // Issue Change Logs
+  getIssueChangeLogs(issueId: number): Promise<IssueChangeLog[]>;
+  createIssueChangeLog(log: InsertIssueChangeLog): Promise<IssueChangeLog>;
 
   // Task Dependencies
   getTaskDependencies(taskId: number): Promise<TaskDependency[]>;
@@ -409,6 +425,42 @@ export class DatabaseStorage implements IStorage {
 
   async createTaskChangeLog(log: InsertTaskChangeLog): Promise<TaskChangeLog> {
     const [newLog] = await db.insert(taskChangeLogs).values(log).returning();
+    return newLog;
+  }
+
+  // Project Change Logs
+  async getProjectChangeLogs(projectId: number): Promise<ProjectChangeLog[]> {
+    return await db.select().from(projectChangeLogs)
+      .where(eq(projectChangeLogs.projectId, projectId))
+      .orderBy(desc(projectChangeLogs.changedAt));
+  }
+
+  async createProjectChangeLog(log: InsertProjectChangeLog): Promise<ProjectChangeLog> {
+    const [newLog] = await db.insert(projectChangeLogs).values(log).returning();
+    return newLog;
+  }
+
+  // Risk Change Logs
+  async getRiskChangeLogs(riskId: number): Promise<RiskChangeLog[]> {
+    return await db.select().from(riskChangeLogs)
+      .where(eq(riskChangeLogs.riskId, riskId))
+      .orderBy(desc(riskChangeLogs.changedAt));
+  }
+
+  async createRiskChangeLog(log: InsertRiskChangeLog): Promise<RiskChangeLog> {
+    const [newLog] = await db.insert(riskChangeLogs).values(log).returning();
+    return newLog;
+  }
+
+  // Issue Change Logs
+  async getIssueChangeLogs(issueId: number): Promise<IssueChangeLog[]> {
+    return await db.select().from(issueChangeLogs)
+      .where(eq(issueChangeLogs.issueId, issueId))
+      .orderBy(desc(issueChangeLogs.changedAt));
+  }
+
+  async createIssueChangeLog(log: InsertIssueChangeLog): Promise<IssueChangeLog> {
+    const [newLog] = await db.insert(issueChangeLogs).values(log).returning();
     return newLog;
   }
 
