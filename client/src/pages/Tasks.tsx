@@ -6,7 +6,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -214,6 +214,9 @@ export default function Tasks() {
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
+                <DialogDescription>
+                  {editingTask ? "Modify the task details below." : "Fill in the details to create a new task."}
+                </DialogDescription>
               </DialogHeader>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
                 <div className="space-y-2">
@@ -711,6 +714,9 @@ function TaskHistoryDialog({ taskId, open, onOpenChange }: { taskId: number; ope
             <History className="h-5 w-5" />
             Task Change History
           </DialogTitle>
+          <DialogDescription>
+            View all changes made to this task over time.
+          </DialogDescription>
         </DialogHeader>
         <div className="py-4">
           {isLoading ? (
@@ -735,7 +741,7 @@ function TaskHistoryDialog({ taskId, open, onOpenChange }: { taskId: number; ope
                         {log.changeType === 'created' ? 'Created' : 'Updated'}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {format(parseISO(log.changedAt), 'MMM d, yyyy h:mm a')}
+                        {format(parseISO(String(log.changedAt)), 'MMM d, yyyy h:mm a')}
                       </span>
                     </div>
                     <div className="mt-2 text-sm">
