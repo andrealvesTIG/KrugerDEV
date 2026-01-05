@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRoute } from "wouter";
 import { useProject, useUpdateProject } from "@/hooks/use-projects";
-import { useRisks, useCreateRisk, useDeleteRisk } from "@/hooks/use-risks";
+import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk } from "@/hooks/use-risks";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
@@ -22,7 +22,7 @@ import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOf
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
-import type { Task, ProjectFinancial } from "@shared/schema";
+import type { Task, ProjectFinancial, Risk, Issue } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
@@ -1211,6 +1211,7 @@ const typeIcons = {
 function IssuesTab({ projectId }: { projectId: number }) {
   const { data: issues, isLoading } = useIssues(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
@@ -1229,14 +1230,54 @@ function IssuesTab({ projectId }: { projectId: number }) {
     }
   });
 
-  const onSubmit = (data: any) => {
-    createIssue.mutate(data, {
-      onSuccess: () => {
-        toast({ title: "Success", description: "Issue created" });
-        setIsDialogOpen(false);
-        form.reset({ projectId, title: "", description: "", priority: "Medium", status: "Open", type: "Bug", assignee: "" });
-      }
+  const openEditDialog = (issue: Issue) => {
+    setEditingIssue(issue);
+    form.reset({
+      projectId: issue.projectId,
+      title: issue.title,
+      description: issue.description || "",
+      priority: issue.priority || "Medium",
+      status: issue.status || "Open",
+      type: issue.type || "Bug",
+      assignee: issue.assignee || ""
     });
+    setIsDialogOpen(true);
+  };
+
+  const openCreateDialog = () => {
+    setEditingIssue(null);
+    form.reset({
+      projectId,
+      title: "",
+      description: "",
+      priority: "Medium",
+      status: "Open",
+      type: "Bug",
+      assignee: ""
+    });
+    setIsDialogOpen(true);
+  };
+
+  const onSubmit = (data: any) => {
+    if (editingIssue) {
+      updateIssue.mutate({ id: editingIssue.id, projectId, ...data }, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Issue updated" });
+          setIsDialogOpen(false);
+          setEditingIssue(null);
+        },
+        onError: (error: any) => {
+          toast({ title: "Error", description: error?.message || "Failed to update issue", variant: "destructive" });
+        }
+      });
+    } else {
+      createIssue.mutate(data, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Issue created" });
+          setIsDialogOpen(false);
+        }
+      });
+    }
   };
 
   if (isLoading) return <Loader2 className="animate-spin" />;
@@ -1248,12 +1289,12 @@ function IssuesTab({ projectId }: { projectId: number }) {
           <CardTitle>Project Issues</CardTitle>
           <CardDescription>Track bugs, tasks, and enhancements.</CardDescription>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild><Button size="sm" data-testid="button-add-issue"><Plus className="mr-2 h-4 w-4" /> Add Issue</Button></DialogTrigger>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingIssue(null); }}>
+          <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} data-testid="button-add-issue"><Plus className="mr-2 h-4 w-4" /> Add Issue</Button></DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Add New Issue</DialogTitle>
-              <DialogDescription>Create a new bug, task, or enhancement.</DialogDescription>
+              <DialogTitle>{editingIssue ? "Edit Issue" : "Add New Issue"}</DialogTitle>
+              <DialogDescription>{editingIssue ? "Modify the issue details below." : "Create a new bug, task, or enhancement."}</DialogDescription>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
               <div className="space-y-2">
@@ -1290,15 +1331,53 @@ function IssuesTab({ projectId }: { projectId: number }) {
                   )} />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                   <Controller control={form.control} name="status" render={({field}) => (
+                    <Select onValueChange={field.onChange} value={field.value || "Open"}>
+                       <SelectTrigger data-testid="select-issue-status"><SelectValue /></SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="Open">Open</SelectItem>
+                         <SelectItem value="In Progress">In Progress</SelectItem>
+                         <SelectItem value="Resolved">Resolved</SelectItem>
+                         <SelectItem value="Closed">Closed</SelectItem>
+                       </SelectContent>
+                    </Select>
+                  )} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Assignee</Label>
+                  <Input {...form.register("assignee")} data-testid="input-issue-assignee" placeholder="Name of assignee" />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label>Description</Label>
-                <Input {...form.register("description")} data-testid="input-issue-description" />
+                <Textarea {...form.register("description")} data-testid="input-issue-description" />
               </div>
-              <div className="space-y-2">
-                <Label>Assignee</Label>
-                <Input {...form.register("assignee")} data-testid="input-issue-assignee" placeholder="Name of assignee" />
-              </div>
-              <DialogFooter><Button type="submit" data-testid="button-save-issue">Save Issue</Button></DialogFooter>
+              <DialogFooter className="gap-2">
+                {editingIssue && (
+                  <Button 
+                    type="button" 
+                    variant="destructive" 
+                    onClick={() => {
+                      deleteIssue.mutate({ id: editingIssue.id, projectId }, {
+                        onSuccess: () => {
+                          toast({ title: "Deleted", description: "Issue deleted" });
+                          setIsDialogOpen(false);
+                          setEditingIssue(null);
+                        }
+                      });
+                    }}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <Button type="submit" data-testid="button-save-issue" disabled={createIssue.isPending || updateIssue.isPending}>
+                  {(createIssue.isPending || updateIssue.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {editingIssue ? "Update Issue" : "Save Issue"}
+                </Button>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
@@ -1308,10 +1387,15 @@ function IssuesTab({ projectId }: { projectId: number }) {
           {issues?.map(issue => {
             const TypeIcon = typeIcons[issue.type as keyof typeof typeIcons] || Bug;
             return (
-              <div key={issue.id} className="flex items-start justify-between rounded-lg border p-4" data-testid={`card-issue-${issue.id}`}>
+              <div 
+                key={issue.id} 
+                className="flex items-start justify-between rounded-lg border p-4 cursor-pointer hover-elevate transition-colors" 
+                onClick={() => openEditDialog(issue)}
+                data-testid={`card-issue-${issue.id}`}
+              >
                 <div className="flex gap-3">
                   <div className="mt-0.5">
-                    <TypeIcon className="h-5 w-5 text-slate-500" />
+                    <TypeIcon className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1323,33 +1407,22 @@ function IssuesTab({ projectId }: { projectId: number }) {
                         {issue.status}
                       </Badge>
                     </div>
-                    <p className="text-sm text-slate-500">{issue.description}</p>
-                    {issue.assignee && <p className="text-xs text-slate-400">Assigned to: {issue.assignee}</p>}
+                    <p className="text-sm text-muted-foreground">{issue.description}</p>
+                    {issue.assignee && <p className="text-xs text-muted-foreground">Assigned to: {issue.assignee}</p>}
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <Select 
-                    value={issue.status || "Open"} 
-                    onValueChange={(status) => updateIssue.mutate({ id: issue.id, projectId, status })}
-                  >
-                    <SelectTrigger className="w-[120px] h-8 text-xs" data-testid={`select-status-${issue.id}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Open">Open</SelectItem>
-                      <SelectItem value="In Progress">In Progress</SelectItem>
-                      <SelectItem value="Resolved">Resolved</SelectItem>
-                      <SelectItem value="Closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="ghost" size="icon" onClick={() => deleteIssue.mutate({id: issue.id, projectId})} data-testid={`button-delete-issue-${issue.id}`}>
-                    <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
-                  </Button>
-                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={(e) => { e.stopPropagation(); deleteIssue.mutate({id: issue.id, projectId}); }} 
+                  data-testid={`button-delete-issue-${issue.id}`}
+                >
+                  <Trash2 className="h-4 w-4 text-muted-foreground" />
+                </Button>
               </div>
             );
           })}
-          {issues?.length === 0 && <div className="text-center py-8 text-slate-500">No issues recorded.</div>}
+          {issues?.length === 0 && <div className="text-center py-8 text-muted-foreground">No issues recorded.</div>}
         </div>
       </CardContent>
     </Card>
