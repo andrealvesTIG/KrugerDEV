@@ -17,9 +17,9 @@ import { Progress } from "@/components/ui/progress";
 import { 
   Loader2, DollarSign, Target, AlertTriangle, Bug, 
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
-  Calendar, Users, Briefcase, AlertCircle, ChevronLeft
+  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, List, GanttChart
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { Project } from "@shared/schema";
 import {
@@ -241,8 +241,12 @@ function SummaryTab({ metrics, portfolio, onNavigate }: {
   );
 }
 
+type PortfolioZoomLevel = 30 | 60 | 90 | 180 | 365;
+type PortfolioRangePreset = "month" | "quarter" | "year" | "custom";
+
 function ProjectsTab({ portfolioId }: { portfolioId: number }) {
   const { data: projects, isLoading } = usePortfolioProjects(portfolioId);
+  const [view, setView] = useState<"list" | "gantt">("list");
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
@@ -262,64 +266,335 @@ function ProjectsTab({ portfolioId }: { portfolioId: number }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Included Projects</CardTitle>
-        <CardDescription>All projects within this portfolio</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle>Included Projects</CardTitle>
+          <CardDescription>All projects within this portfolio</CardDescription>
+        </div>
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          <Button
+            variant={view === "list" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setView("list")}
+            className="rounded-none"
+            data-testid="button-portfolio-view-list"
+          >
+            <List className="h-4 w-4 mr-2" />
+            List
+          </Button>
+          <Button
+            variant={view === "gantt" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setView("gantt")}
+            className="rounded-none"
+            data-testid="button-portfolio-view-gantt"
+          >
+            <GanttChart className="h-4 w-4 mr-2" />
+            Gantt
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr className="border-b">
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Health</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Progress</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Budget</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects?.map((project: Project) => (
-                <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-project-${project.id}`}>
-                  <td className="p-3">
-                    <div>
-                      <p className="font-medium">{project.name}</p>
-                      <p className="text-sm text-muted-foreground line-clamp-1">{project.description}</p>
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <Badge className={cn("text-xs", statusColors[project.status] || "bg-muted")}>{project.status}</Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge className={cn("text-xs", healthColors[project.health || "Green"])}>{project.health}</Badge>
-                  </td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      <Progress value={project.completionPercentage || 0} className="w-20 h-2" />
-                      <span className="text-sm">{project.completionPercentage || 0}%</span>
-                    </div>
-                  </td>
-                  <td className="p-3 text-sm">${Number(project.budget).toLocaleString()}</td>
-                  <td className="p-3">
-                    <Link href={`/projects/${project.id}`}>
-                      <Button variant="ghost" size="sm" data-testid={`button-view-project-${project.id}`}>
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </td>
+        {view === "list" ? (
+          <div className="rounded-md border">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr className="border-b">
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Health</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Progress</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Budget</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground"></th>
                 </tr>
+              </thead>
+              <tbody>
+                {projects?.map((project: Project) => (
+                  <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-project-${project.id}`}>
+                    <td className="p-3">
+                      <div>
+                        <p className="font-medium">{project.name}</p>
+                        <p className="text-sm text-muted-foreground line-clamp-1">{project.description}</p>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <Badge className={cn("text-xs", statusColors[project.status] || "bg-muted")}>{project.status}</Badge>
+                    </td>
+                    <td className="p-3">
+                      <Badge className={cn("text-xs", healthColors[project.health || "Green"])}>{project.health}</Badge>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <Progress value={project.completionPercentage || 0} className="w-20 h-2" />
+                        <span className="text-sm">{project.completionPercentage || 0}%</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-sm">${Number(project.budget).toLocaleString()}</td>
+                    <td className="p-3">
+                      <Link href={`/projects/${project.id}`}>
+                        <Button variant="ghost" size="sm" data-testid={`button-view-project-${project.id}`}>
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {projects?.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No projects in this portfolio.
+              </div>
+            )}
+          </div>
+        ) : (
+          <PortfolioProjectsGanttView projects={projects || []} />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PortfolioProjectsGanttView({ projects }: { projects: Project[] }) {
+  const [zoomDays, setZoomDays] = useState<PortfolioZoomLevel>(90);
+  const [rangePreset, setRangePreset] = useState<PortfolioRangePreset>("custom");
+  const [timelineStart, setTimelineStart] = useState(() => {
+    const projectsWithDates = projects.filter(p => p.startDate);
+    if (projectsWithDates.length > 0) {
+      const earliestStart = projectsWithDates.reduce((earliest, p) => {
+        const start = parseISO(p.startDate!);
+        return start < earliest ? start : earliest;
+      }, parseISO(projectsWithDates[0].startDate!));
+      return startOfMonth(earliestStart);
+    }
+    return startOfMonth(new Date());
+  });
+
+  const timelineEnd = addDays(timelineStart, zoomDays - 1);
+  const days = eachDayOfInterval({ start: timelineStart, end: timelineEnd });
+  const totalDays = days.length;
+
+  const getBarPosition = (startDate: string | null, endDate: string | null) => {
+    if (!startDate || !endDate) return null;
+    
+    const start = parseISO(startDate);
+    const end = parseISO(endDate);
+    
+    const startOffset = Math.max(0, differenceInDays(start, timelineStart));
+    const duration = differenceInDays(end, start) + 1;
+    const endOffset = startOffset + duration;
+    
+    if (endOffset <= 0 || startOffset >= totalDays) return null;
+    
+    const clampedStart = Math.max(0, startOffset);
+    const clampedEnd = Math.min(totalDays, endOffset);
+    
+    return {
+      left: `${(clampedStart / totalDays) * 100}%`,
+      width: `${((clampedEnd - clampedStart) / totalDays) * 100}%`,
+    };
+  };
+
+  const getTimeMarkers = () => {
+    return days.reduce((acc, day, index) => {
+      if (zoomDays <= 60) {
+        if (day.getDate() === 1 || day.getDate() === 15 || index === 0) {
+          acc.push({ index, label: format(day, 'MMM d') });
+        }
+      } else if (zoomDays <= 180) {
+        if (day.getDate() === 1 || index === 0) {
+          acc.push({ index, label: format(day, 'MMM yyyy') });
+        }
+      } else {
+        if (day.getDate() === 1 && (day.getMonth() % 3 === 0 || index === 0)) {
+          acc.push({ index, label: format(day, 'MMM yyyy') });
+        }
+      }
+      return acc;
+    }, [] as { index: number; label: string }[]);
+  };
+
+  const handleZoomIn = () => {
+    setRangePreset("custom");
+    if (zoomDays === 365) setZoomDays(180);
+    else if (zoomDays === 180) setZoomDays(90);
+    else if (zoomDays === 90) setZoomDays(60);
+    else if (zoomDays === 60) setZoomDays(30);
+  };
+
+  const handleZoomOut = () => {
+    setRangePreset("custom");
+    if (zoomDays === 30) setZoomDays(60);
+    else if (zoomDays === 60) setZoomDays(90);
+    else if (zoomDays === 90) setZoomDays(180);
+    else if (zoomDays === 180) setZoomDays(365);
+  };
+
+  const handleRangePreset = (preset: PortfolioRangePreset) => {
+    setRangePreset(preset);
+    const today = new Date();
+    if (preset === "month") {
+      setTimelineStart(startOfMonth(today));
+      setZoomDays(30);
+    } else if (preset === "quarter") {
+      const quarterStart = startOfMonth(new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1));
+      setTimelineStart(quarterStart);
+      setZoomDays(90);
+    } else if (preset === "year") {
+      setTimelineStart(new Date(today.getFullYear(), 0, 1));
+      setZoomDays(365);
+    }
+  };
+
+  const navigateTimeline = (direction: 'prev' | 'next') => {
+    setRangePreset("custom");
+    const step = zoomDays <= 60 ? 30 : zoomDays <= 180 ? 30 : 90;
+    setTimelineStart(prev => addDays(prev, direction === 'next' ? step : -step));
+  };
+
+  const goToToday = () => {
+    setRangePreset("custom");
+    setTimelineStart(startOfMonth(new Date()));
+  };
+
+  const timeMarkers = getTimeMarkers();
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigateTimeline('prev')} data-testid="button-portfolio-gantt-prev">
+            Previous
+          </Button>
+          <Button variant="outline" size="sm" onClick={goToToday} data-testid="button-portfolio-gantt-today">
+            Today
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigateTimeline('next')} data-testid="button-portfolio-gantt-next">
+            Next
+          </Button>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground mr-2">Range:</span>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <Button
+              variant={rangePreset === "month" ? "secondary" : "ghost"}
+              size="sm"
+              className="rounded-none text-xs px-3"
+              onClick={() => handleRangePreset("month")}
+              data-testid="button-portfolio-range-month"
+            >
+              Month
+            </Button>
+            <Button
+              variant={rangePreset === "quarter" ? "secondary" : "ghost"}
+              size="sm"
+              className="rounded-none text-xs px-3"
+              onClick={() => handleRangePreset("quarter")}
+              data-testid="button-portfolio-range-quarter"
+            >
+              Quarter
+            </Button>
+            <Button
+              variant={rangePreset === "year" ? "secondary" : "ghost"}
+              size="sm"
+              className="rounded-none text-xs px-3"
+              onClick={() => handleRangePreset("year")}
+              data-testid="button-portfolio-range-year"
+            >
+              Year
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground mr-2">Zoom:</span>
+          <Button variant="outline" size="sm" onClick={handleZoomIn} disabled={zoomDays === 30} data-testid="button-portfolio-zoom-in">
+            +
+          </Button>
+          <span className="text-xs text-muted-foreground min-w-[60px] text-center">{zoomDays} days</span>
+          <Button variant="outline" size="sm" onClick={handleZoomOut} disabled={zoomDays === 365} data-testid="button-portfolio-zoom-out">
+            -
+          </Button>
+        </div>
+
+        <span className="text-sm text-muted-foreground">
+          {format(timelineStart, 'MMM d, yyyy')} - {format(timelineEnd, 'MMM d, yyyy')}
+        </span>
+      </div>
+
+      <div className="relative overflow-x-auto">
+        <div className="min-w-[800px]">
+          <div className="flex border-b border-border mb-2">
+            <div className="w-64 flex-shrink-0 p-2 font-semibold text-sm">Project</div>
+            <div className="flex-1 relative h-8">
+              {timeMarkers.map((marker, i) => (
+                <div 
+                  key={i}
+                  className="absolute text-xs text-muted-foreground"
+                  style={{ left: `${(marker.index / totalDays) * 100}%` }}
+                >
+                  {marker.label}
+                </div>
               ))}
-            </tbody>
-          </table>
-          {projects?.length === 0 && (
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {projects.map(project => {
+              const barPosition = getBarPosition(project.startDate, project.endDate);
+              
+              return (
+                <div key={project.id} className="flex items-center">
+                  <div className="w-64 flex-shrink-0 p-2">
+                    <Link href={`/projects/${project.id}`}>
+                      <div className="hover:text-primary cursor-pointer">
+                        <div className="font-medium text-sm truncate">{project.name}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">{project.status}</Badge>
+                          <span className="text-xs text-muted-foreground">{project.completionPercentage}%</span>
+                        </div>
+                      </div>
+                    </Link>
+                  </div>
+                  <div className="flex-1 relative h-10 bg-muted/30 rounded">
+                    {barPosition ? (
+                      <div
+                        className={cn(
+                          "absolute top-1 bottom-1 rounded-md flex items-center justify-center text-xs font-medium text-white",
+                          project.health === 'Green' && "bg-emerald-500",
+                          project.health === 'Yellow' && "bg-amber-500",
+                          project.health === 'Red' && "bg-rose-500",
+                          !project.health && "bg-primary"
+                        )}
+                        style={barPosition}
+                        data-testid={`portfolio-gantt-bar-${project.id}`}
+                      >
+                        <div className="truncate px-2">
+                          {project.startDate && project.endDate && (
+                            <span>{differenceInDays(parseISO(project.endDate), parseISO(project.startDate)) + 1}d</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                        No dates set
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {projects.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              No projects in this portfolio.
+              No projects to display
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 

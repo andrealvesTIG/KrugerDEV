@@ -534,7 +534,12 @@ function DraggableProjectCard({ project }: { project: Project }) {
 }
 
 // Gantt View Component
+type ZoomLevel = 30 | 60 | 90 | 180 | 365;
+type RangePreset = "month" | "quarter" | "year" | "custom";
+
 function ProjectsGanttView({ projects }: { projects: Project[] }) {
+  const [zoomDays, setZoomDays] = useState<ZoomLevel>(90);
+  const [rangePreset, setRangePreset] = useState<RangePreset>("custom");
   const [timelineStart, setTimelineStart] = useState(() => {
     const projectsWithDates = projects.filter(p => p.startDate);
     if (projectsWithDates.length > 0) {
@@ -547,7 +552,7 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
     return startOfMonth(new Date());
   });
 
-  const timelineEnd = addDays(timelineStart, 90);
+  const timelineEnd = addDays(timelineStart, zoomDays - 1);
   const days = eachDayOfInterval({ start: timelineStart, end: timelineEnd });
   const totalDays = days.length;
 
@@ -572,29 +577,130 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
     };
   };
 
-  const monthMarkers = days.reduce((acc, day, index) => {
-    if (day.getDate() === 1 || index === 0) {
-      acc.push({ index, label: format(day, 'MMM yyyy') });
+  const getTimeMarkers = () => {
+    return days.reduce((acc, day, index) => {
+      if (zoomDays <= 60) {
+        if (day.getDate() === 1 || day.getDate() === 15 || index === 0) {
+          acc.push({ index, label: format(day, 'MMM d') });
+        }
+      } else if (zoomDays <= 180) {
+        if (day.getDate() === 1 || index === 0) {
+          acc.push({ index, label: format(day, 'MMM yyyy') });
+        }
+      } else {
+        if (day.getDate() === 1 && (day.getMonth() % 3 === 0 || index === 0)) {
+          acc.push({ index, label: format(day, 'MMM yyyy') });
+        }
+      }
+      return acc;
+    }, [] as { index: number; label: string }[]);
+  };
+
+  const handleZoomIn = () => {
+    setRangePreset("custom");
+    if (zoomDays === 365) setZoomDays(180);
+    else if (zoomDays === 180) setZoomDays(90);
+    else if (zoomDays === 90) setZoomDays(60);
+    else if (zoomDays === 60) setZoomDays(30);
+  };
+
+  const handleZoomOut = () => {
+    setRangePreset("custom");
+    if (zoomDays === 30) setZoomDays(60);
+    else if (zoomDays === 60) setZoomDays(90);
+    else if (zoomDays === 90) setZoomDays(180);
+    else if (zoomDays === 180) setZoomDays(365);
+  };
+
+  const handleRangePreset = (preset: RangePreset) => {
+    setRangePreset(preset);
+    const today = new Date();
+    if (preset === "month") {
+      setTimelineStart(startOfMonth(today));
+      setZoomDays(30);
+    } else if (preset === "quarter") {
+      const quarterStart = startOfMonth(new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1));
+      setTimelineStart(quarterStart);
+      setZoomDays(90);
+    } else if (preset === "year") {
+      setTimelineStart(new Date(today.getFullYear(), 0, 1));
+      setZoomDays(365);
     }
-    return acc;
-  }, [] as { index: number; label: string }[]);
+  };
 
   const navigateTimeline = (direction: 'prev' | 'next') => {
-    setTimelineStart(prev => addDays(prev, direction === 'next' ? 30 : -30));
+    setRangePreset("custom");
+    const step = zoomDays <= 60 ? 30 : zoomDays <= 180 ? 30 : 90;
+    setTimelineStart(prev => addDays(prev, direction === 'next' ? step : -step));
   };
+
+  const goToToday = () => {
+    setRangePreset("custom");
+    setTimelineStart(startOfMonth(new Date()));
+  };
+
+  const timeMarkers = getTimeMarkers();
 
   return (
     <Card>
       <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigateTimeline('prev')}>
+            <Button variant="outline" size="sm" onClick={() => navigateTimeline('prev')} data-testid="button-gantt-prev">
               Previous
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigateTimeline('next')}>
+            <Button variant="outline" size="sm" onClick={goToToday} data-testid="button-gantt-today">
+              Today
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigateTimeline('next')} data-testid="button-gantt-next">
               Next
             </Button>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground mr-2">Range:</span>
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <Button
+                variant={rangePreset === "month" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-none text-xs px-3"
+                onClick={() => handleRangePreset("month")}
+                data-testid="button-range-month"
+              >
+                Month
+              </Button>
+              <Button
+                variant={rangePreset === "quarter" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-none text-xs px-3"
+                onClick={() => handleRangePreset("quarter")}
+                data-testid="button-range-quarter"
+              >
+                Quarter
+              </Button>
+              <Button
+                variant={rangePreset === "year" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-none text-xs px-3"
+                onClick={() => handleRangePreset("year")}
+                data-testid="button-range-year"
+              >
+                Year
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground mr-2">Zoom:</span>
+            <Button variant="outline" size="sm" onClick={handleZoomIn} disabled={zoomDays === 30} data-testid="button-zoom-in">
+              +
+            </Button>
+            <span className="text-xs text-muted-foreground min-w-[60px] text-center">{zoomDays} days</span>
+            <Button variant="outline" size="sm" onClick={handleZoomOut} disabled={zoomDays === 365} data-testid="button-zoom-out">
+              -
+            </Button>
+          </div>
+
           <span className="text-sm text-muted-foreground">
             {format(timelineStart, 'MMM d, yyyy')} - {format(timelineEnd, 'MMM d, yyyy')}
           </span>
@@ -605,7 +711,7 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
             <div className="flex border-b border-border mb-2">
               <div className="w-64 flex-shrink-0 p-2 font-semibold text-sm">Project</div>
               <div className="flex-1 relative h-8">
-                {monthMarkers.map((marker, i) => (
+                {timeMarkers.map((marker, i) => (
                   <div 
                     key={i}
                     className="absolute text-xs text-muted-foreground"
