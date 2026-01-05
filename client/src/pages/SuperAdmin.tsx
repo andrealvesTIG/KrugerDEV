@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import type { Organization, User } from "@shared/schema";
@@ -92,6 +92,7 @@ function OrganizationsTab() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [newOrg, setNewOrg] = useState({ name: "", slug: "", description: "" });
   const [demoDataOrg, setDemoDataOrg] = useState<Organization | null>(null);
+  const [deleteDemoDataOrg, setDeleteDemoDataOrg] = useState<Organization | null>(null);
   const [selectedIndustry, setSelectedIndustry] = useState<string>("");
 
   const { data: organizations, isLoading } = useQuery<Organization[]>({
@@ -162,6 +163,30 @@ function OrganizationsTab() {
     }
   });
 
+  const deleteDemoData = useMutation({
+    mutationFn: async (organizationId: number) => {
+      const response = await apiRequest('DELETE', `/api/demo-data/${organizationId}`);
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/risks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/milestones'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/issues'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-financials'] });
+      toast({ 
+        title: "Demo Data Removed", 
+        description: `Deleted ${data.stats.portfolios} portfolios, ${data.stats.projects} projects, ${data.stats.tasks} tasks, ${data.stats.risks} risks, ${data.stats.milestones} milestones, ${data.stats.issues} issues, ${data.stats.financials} financial records` 
+      });
+      setDeleteDemoDataOrg(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to remove demo data", variant: "destructive" });
+    }
+  });
+
   if (isLoading) return <Loader2 className="animate-spin" />;
 
   return (
@@ -208,6 +233,15 @@ function OrganizationsTab() {
                       title="Generate demo data"
                     >
                       <Sparkles className="h-4 w-4 text-amber-500" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => setDeleteDemoDataOrg(org)}
+                      data-testid={`button-remove-demo-data-${org.id}`}
+                      title="Remove all demo data"
+                    >
+                      <Eraser className="h-4 w-4 text-red-400" />
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -402,6 +436,52 @@ function OrganizationsTab() {
                 <>
                   <Sparkles className="h-4 w-4 mr-2" />
                   Generate Data
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDemoDataOrg !== null} onOpenChange={() => setDeleteDemoDataOrg(null)}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eraser className="h-5 w-5 text-red-500" />
+              Remove All Demo Data
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete all portfolios, projects, tasks, risks, milestones, issues, and financial records for <strong>{deleteDemoDataOrg?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 space-y-2">
+            <p className="text-sm font-medium text-destructive flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4" />
+              Warning: This action cannot be undone
+            </p>
+            <p className="text-sm text-muted-foreground">
+              All data for this organization will be permanently removed from the database.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDemoDataOrg(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => deleteDemoDataOrg && deleteDemoData.mutate(deleteDemoDataOrg.id)}
+              disabled={deleteDemoData.isPending}
+              data-testid="button-confirm-remove-demo-data"
+            >
+              {deleteDemoData.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                <>
+                  <Eraser className="h-4 w-4 mr-2" />
+                  Remove All Data
                 </>
               )}
             </Button>

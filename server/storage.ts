@@ -621,11 +621,7 @@ export class DatabaseStorage implements IStorage {
       financials: 0,
     };
 
-    // Get all portfolios for this organization
-    const orgPortfolios = await db.select().from(portfolios)
-      .where(eq(portfolios.organizationId, organizationId));
-    
-    // Get all projects for this organization
+    // Get all projects for this organization (includes projects with and without portfolios)
     const orgProjects = await db.select().from(projects)
       .where(eq(projects.organizationId, organizationId));
     
