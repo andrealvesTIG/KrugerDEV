@@ -573,7 +573,12 @@ function KanbanView({
             <Card className="shadow-lg border-primary">
               <CardContent className="p-4">
                 <div className="font-medium text-sm">{activeTask.name}</div>
-                <div className="text-xs text-muted-foreground mt-1">{getProjectName(activeTask.projectId)}</div>
+                <Link 
+                  href={`/projects/${activeTask.projectId}`}
+                  className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block"
+                >
+                  {getProjectName(activeTask.projectId)}
+                </Link>
               </CardContent>
             </Card>
           </div>
