@@ -156,7 +156,7 @@ export default function Profile() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-slate-900 truncate">{membership.organization?.name}</p>
-                    <Badge variant="outline" size="sm">{formatRole(membership.role)}</Badge>
+                    <Badge variant="outline">{formatRole(membership.role)}</Badge>
                   </div>
                 </div>
               ))}

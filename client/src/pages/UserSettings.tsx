@@ -146,7 +146,7 @@ export default function UserSettings() {
               <div className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
                 <Globe className="h-5 w-5 text-slate-500" />
                 <span className="text-sm text-slate-900">English (US)</span>
-                <Badge variant="outline" size="sm" className="ml-auto">Default</Badge>
+                <Badge variant="outline" className="ml-auto">Default</Badge>
               </div>
             </div>
           </CardContent>
