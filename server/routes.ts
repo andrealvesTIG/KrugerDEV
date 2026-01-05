@@ -144,6 +144,34 @@ async function seedDatabase() {
   }
 }
 
+// Helper to check if user has access to an organization
+async function userHasOrgAccess(userId: string | undefined, orgId: number): Promise<boolean> {
+  if (!userId) return false;
+  
+  // Check if user is super_admin (has access to all orgs)
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (user?.role === 'super_admin') return true;
+  
+  // Check if user is a member of this organization
+  const membership = await storage.getUserOrganizations(userId);
+  return membership.some(m => m.organizationId === orgId);
+}
+
+// Helper to get user's accessible organization IDs
+async function getUserOrgIds(userId: string | undefined): Promise<number[]> {
+  if (!userId) return [];
+  
+  // Check if user is super_admin
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (user?.role === 'super_admin') {
+    const allOrgs = await storage.getOrganizations();
+    return allOrgs.map(o => o.id);
+  }
+  
+  const membership = await storage.getUserOrganizations(userId);
+  return membership.map(m => m.organizationId);
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -209,7 +237,15 @@ export async function registerRoutes(
   });
 
   app.get('/api/organizations/:id', async (req, res) => {
-    const org = await storage.getOrganization(Number(req.params.id));
+    const orgId = Number(req.params.id);
+    const userId = (req.user as any)?.id;
+    
+    // Check access
+    if (!await userHasOrgAccess(userId, orgId)) {
+      return res.status(403).json({ message: 'Access denied to this organization' });
+    }
+    
+    const org = await storage.getOrganization(orgId);
     if (!org) return res.status(404).json({ message: 'Organization not found' });
     res.json(org);
   });
@@ -234,8 +270,15 @@ export async function registerRoutes(
 
   app.put('/api/organizations/:id', async (req, res) => {
     try {
+      const orgId = Number(req.params.id);
+      const userId = (req.user as any)?.id;
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
       const { name, description } = req.body;
-      const updated = await storage.updateOrganization(Number(req.params.id), { name, description });
+      const updated = await storage.updateOrganization(orgId, { name, description });
       res.json(updated);
     } catch (err) {
       res.status(500).json({ message: 'Failed to update organization' });
@@ -243,14 +286,28 @@ export async function registerRoutes(
   });
 
   app.delete('/api/organizations/:id', async (req, res) => {
-    await storage.deleteOrganization(Number(req.params.id));
+    const orgId = Number(req.params.id);
+    const userId = (req.user as any)?.id;
+    
+    if (!await userHasOrgAccess(userId, orgId)) {
+      return res.status(403).json({ message: 'Access denied to this organization' });
+    }
+    
+    await storage.deleteOrganization(orgId);
     res.status(204).send();
   });
 
   // --- Organization Members ---
   app.get('/api/organizations/:id/members', async (req, res) => {
     try {
-      const members = await storage.getOrganizationMembers(Number(req.params.id));
+      const orgId = Number(req.params.id);
+      const userId = (req.user as any)?.id;
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const members = await storage.getOrganizationMembers(orgId);
       // Enrich with user data
       const allUsers = await storage.getAllUsers();
       const enrichedMembers = members.map(m => ({
@@ -274,9 +331,16 @@ export async function registerRoutes(
 
   app.post('/api/organizations/:id/members', async (req, res) => {
     try {
+      const orgId = Number(req.params.id);
+      const currentUserId = (req.user as any)?.id;
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
       const { userId, role } = req.body;
       const member = await storage.addOrganizationMember({
-        organizationId: Number(req.params.id),
+        organizationId: orgId,
         userId,
         role: role || 'member'
       });
@@ -288,9 +352,16 @@ export async function registerRoutes(
 
   app.put('/api/organizations/:id/members/:userId', async (req, res) => {
     try {
+      const orgId = Number(req.params.id);
+      const currentUserId = (req.user as any)?.id;
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
       const { role } = req.body;
       const updated = await storage.updateOrganizationMemberRole(
-        Number(req.params.id),
+        orgId,
         req.params.userId,
         role
       );
@@ -301,15 +372,38 @@ export async function registerRoutes(
   });
 
   app.delete('/api/organizations/:id/members/:userId', async (req, res) => {
-    await storage.removeOrganizationMember(Number(req.params.id), req.params.userId);
+    const orgId = Number(req.params.id);
+    const currentUserId = (req.user as any)?.id;
+    
+    if (!await userHasOrgAccess(currentUserId, orgId)) {
+      return res.status(403).json({ message: 'Access denied to this organization' });
+    }
+    
+    await storage.removeOrganizationMember(orgId, req.params.userId);
     res.status(204).send();
   });
 
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
-    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
-    const portfolios = await storage.getPortfolios(organizationId);
-    res.json(portfolios);
+    const userId = (req.user as any)?.id;
+    const requestedOrgId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
+    
+    // Get user's accessible org IDs
+    const accessibleOrgIds = await getUserOrgIds(userId);
+    
+    // If requesting a specific org, check access
+    if (requestedOrgId && !accessibleOrgIds.includes(requestedOrgId)) {
+      return res.json([]); // Return empty if no access
+    }
+    
+    const portfolios = await storage.getPortfolios(requestedOrgId);
+    
+    // Filter portfolios to only those in accessible orgs
+    const filteredPortfolios = portfolios.filter(p => 
+      p.organizationId === null || accessibleOrgIds.includes(p.organizationId)
+    );
+    
+    res.json(filteredPortfolios);
   });
 
   app.get(api.portfolios.get.path, async (req, res) => {
@@ -442,10 +536,26 @@ export async function registerRoutes(
 
   // --- Projects ---
   app.get(api.projects.list.path, async (req, res) => {
-    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
+    const userId = (req.user as any)?.id;
+    const requestedOrgId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
     const portfolioId = req.query.portfolioId ? Number(req.query.portfolioId) : undefined;
-    const projects = await storage.getProjects(organizationId, portfolioId);
-    res.json(projects);
+    
+    // Get user's accessible org IDs
+    const accessibleOrgIds = await getUserOrgIds(userId);
+    
+    // If requesting a specific org, check access
+    if (requestedOrgId && !accessibleOrgIds.includes(requestedOrgId)) {
+      return res.json([]); // Return empty if no access
+    }
+    
+    const projects = await storage.getProjects(requestedOrgId, portfolioId);
+    
+    // Filter projects to only those in accessible orgs
+    const filteredProjects = projects.filter(p => 
+      p.organizationId === null || accessibleOrgIds.includes(p.organizationId)
+    );
+    
+    res.json(filteredProjects);
   });
 
   app.get(api.projects.get.path, async (req, res) => {
