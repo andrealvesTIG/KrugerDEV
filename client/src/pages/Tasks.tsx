@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
 import { useAllTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase } from "lucide-react";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -31,16 +32,20 @@ const statusColors = {
   "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
+type GroupBy = "none" | "project" | "portfolio";
+
 export default function Tasks() {
   const { currentOrganization } = useOrganization();
   const { data: allTasks, isLoading } = useAllTasks();
   const { data: projects } = useProjects(currentOrganization?.id);
+  const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [durationDays, setDurationDays] = useState(7);
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
+  const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
@@ -54,6 +59,57 @@ export default function Tasks() {
     }
     return orgTasks;
   }, [allTasks, projectIds, filterProjectId]);
+
+  const projectMap = useMemo(() => {
+    const map = new Map<number, { name: string; portfolioId: number | null }>();
+    projects?.forEach(p => map.set(p.id, { name: p.name, portfolioId: p.portfolioId }));
+    return map;
+  }, [projects]);
+
+  const portfolioMap = useMemo(() => {
+    const map = new Map<number, string>();
+    portfolios?.forEach(p => map.set(p.id, p.name));
+    return map;
+  }, [portfolios]);
+
+  type TaskGroup = { id: string; name: string; icon: "project" | "portfolio"; tasks: Task[] };
+
+  const groupedTasks = useMemo((): TaskGroup[] => {
+    if (groupBy === "none") {
+      return [{ id: "all", name: "All Tasks", icon: "project", tasks }];
+    }
+    
+    if (groupBy === "project") {
+      const groups = new Map<number, Task[]>();
+      tasks.forEach(task => {
+        if (!groups.has(task.projectId)) groups.set(task.projectId, []);
+        groups.get(task.projectId)!.push(task);
+      });
+      return Array.from(groups.entries()).map(([projectId, projectTasks]) => ({
+        id: `project-${projectId}`,
+        name: projectMap.get(projectId)?.name || "Unknown Project",
+        icon: "project" as const,
+        tasks: projectTasks,
+      }));
+    }
+    
+    if (groupBy === "portfolio") {
+      const groups = new Map<number | null, Task[]>();
+      tasks.forEach(task => {
+        const portfolioId = projectMap.get(task.projectId)?.portfolioId || null;
+        if (!groups.has(portfolioId)) groups.set(portfolioId, []);
+        groups.get(portfolioId)!.push(task);
+      });
+      return Array.from(groups.entries()).map(([portfolioId, portfolioTasks]) => ({
+        id: portfolioId ? `portfolio-${portfolioId}` : "no-portfolio",
+        name: portfolioId ? (portfolioMap.get(portfolioId) || "Unknown Portfolio") : "Unassigned",
+        icon: "portfolio" as const,
+        tasks: portfolioTasks,
+      }));
+    }
+    
+    return [{ id: "all", name: "All Tasks", icon: "project", tasks }];
+  }, [tasks, groupBy, projectMap, portfolioMap]);
 
   const form = useForm({
     resolver: zodResolver(insertTaskSchema),
@@ -203,6 +259,30 @@ export default function Tasks() {
               {projects?.map(p => (
                 <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select 
+            value={groupBy} 
+            onValueChange={(v) => setGroupBy(v as GroupBy)}
+          >
+            <SelectTrigger className="w-[180px]" data-testid="select-group-by">
+              <Layers className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Group by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No Grouping</SelectItem>
+              <SelectItem value="project">
+                <span className="flex items-center gap-2">
+                  <FolderKanban className="h-4 w-4" />
+                  By Project
+                </span>
+              </SelectItem>
+              <SelectItem value="portfolio">
+                <span className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  By Portfolio
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
@@ -358,12 +438,31 @@ export default function Tasks() {
         </div>
       </div>
 
-      {view === "gantt" ? (
-        <GanttView tasks={tasks || []} projects={projects || []} onTaskClick={openEditDialog} />
+      {groupBy === "none" ? (
+        view === "gantt" ? (
+          <GanttView tasks={tasks || []} projects={projects || []} onTaskClick={openEditDialog} />
+        ) : (
+          <KanbanView 
+            tasks={tasks || []} 
+            projects={projects || []} 
+            onTaskClick={openEditDialog}
+            onStatusChange={(taskId, newStatus) => {
+              const task = tasks.find(t => t.id === taskId);
+              if (task) {
+                updateTask.mutate({ 
+                  id: taskId, 
+                  projectId: task.projectId, 
+                  status: newStatus 
+                });
+              }
+            }}
+          />
+        )
       ) : (
-        <KanbanView 
-          tasks={tasks || []} 
-          projects={projects || []} 
+        <GroupedTasksView
+          groupedTasks={groupedTasks}
+          view={view}
+          projects={projects || []}
           onTaskClick={openEditDialog}
           onStatusChange={(taskId, newStatus) => {
             const task = tasks.find(t => t.id === taskId);
@@ -381,7 +480,85 @@ export default function Tasks() {
   );
 }
 
-function GanttView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void }) {
+type TaskGroup = { id: string; name: string; icon: "project" | "portfolio"; tasks: Task[] };
+
+function GroupedTasksView({
+  groupedTasks,
+  view,
+  projects,
+  onTaskClick,
+  onStatusChange,
+}: {
+  groupedTasks: TaskGroup[];
+  view: "gantt" | "kanban";
+  projects: any[];
+  onTaskClick: (task: Task) => void;
+  onStatusChange: (taskId: number, newStatus: string) => void;
+}) {
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(groupedTasks.map(g => g.id)));
+
+  useEffect(() => {
+    setExpandedGroups(new Set(groupedTasks.map(g => g.id)));
+  }, [groupedTasks]);
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {groupedTasks.map(group => (
+        <Card key={group.id}>
+          <CardHeader 
+            className="cursor-pointer py-3 hover-elevate"
+            onClick={() => toggleGroup(group.id)}
+          >
+            <div className="flex items-center gap-3">
+              {expandedGroups.has(group.id) ? (
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              )}
+              {group.icon === "portfolio" ? (
+                <Briefcase className="h-5 w-5 text-primary" />
+              ) : (
+                <FolderKanban className="h-5 w-5 text-primary" />
+              )}
+              <CardTitle className="text-lg">{group.name}</CardTitle>
+              <Badge variant="secondary" className="ml-auto">
+                {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
+              </Badge>
+            </div>
+          </CardHeader>
+          {expandedGroups.has(group.id) && (
+            <CardContent className="pt-0">
+              {view === "gantt" ? (
+                <GanttView tasks={group.tasks} projects={projects} onTaskClick={onTaskClick} embedded />
+              ) : (
+                <KanbanView 
+                  tasks={group.tasks} 
+                  projects={projects} 
+                  onTaskClick={onTaskClick}
+                  onStatusChange={onStatusChange}
+                />
+              )}
+            </CardContent>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void; embedded?: boolean }) {
   const today = new Date();
   
   const { minDate, maxDate, dateRange } = useMemo(() => {
@@ -408,6 +585,13 @@ function GanttView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects: 
   };
 
   if (tasks.length === 0) {
+    if (embedded) {
+      return (
+        <div className="py-8 text-center text-muted-foreground">
+          No tasks in this group.
+        </div>
+      );
+    }
     return (
       <Card>
         <CardContent className="py-12 text-center text-muted-foreground">
@@ -417,85 +601,93 @@ function GanttView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects: 
     );
   }
 
+  const ganttContent = (
+    <div className="overflow-x-auto">
+      <div className="min-w-[800px]">
+        <div className="flex border-b bg-muted/50">
+          <div className="w-64 flex-shrink-0 border-r p-3 font-semibold text-sm text-foreground">Task</div>
+          <div className="flex-1 flex">
+            {dateRange.filter((_, i) => i % 7 === 0).map((date, i) => (
+              <div key={i} className="flex-1 min-w-[100px] p-2 text-center text-xs font-medium text-muted-foreground border-l">
+                {format(date, 'MMM d')}
+              </div>
+            ))}
+          </div>
+        </div>
+        {tasks.map(task => {
+          const hasValidDates = task.startDate && task.endDate;
+          const start = hasValidDates ? parseISO(task.startDate) : null;
+          const end = hasValidDates ? parseISO(task.endDate) : null;
+          
+          let leftPercent = 0;
+          let widthPercent = 0;
+          
+          if (start && end) {
+            const totalDays = differenceInDays(maxDate, minDate) || 1;
+            const startOffset = differenceInDays(start, minDate);
+            const duration = differenceInDays(end, start) + 1;
+            leftPercent = (startOffset / totalDays) * 100;
+            widthPercent = (duration / totalDays) * 100;
+          }
+
+          return (
+            <div 
+              key={task.id} 
+              className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
+              onClick={() => onTaskClick(task)}
+              data-testid={`gantt-task-${task.id}`}
+            >
+              <div className="w-64 flex-shrink-0 border-r p-3">
+                <div className="font-medium text-sm truncate">{task.name}</div>
+                <Link 
+                  href={`/projects/${task.projectId}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-muted-foreground truncate hover:text-primary hover:underline block"
+                  data-testid={`link-project-${task.projectId}`}
+                >
+                  {getProjectName(task.projectId)}
+                </Link>
+              </div>
+              <div className="flex-1 relative p-2">
+                {hasValidDates ? (
+                  <div
+                    className={cn(
+                      "absolute top-2 bottom-2 rounded-md flex items-center px-2 text-xs text-white font-medium",
+                      task.status === "Completed" ? "bg-emerald-500" :
+                      task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+                    )}
+                    style={{
+                      left: `${Math.max(0, leftPercent)}%`,
+                      width: `${Math.min(100 - leftPercent, widthPercent)}%`,
+                      minWidth: '60px'
+                    }}
+                  >
+                    <span className="truncate">{task.progress || 0}%</span>
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center">
+                    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      No dates set
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return <div className="border rounded-md">{ganttContent}</div>;
+  }
+
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <div className="min-w-[800px]">
-            <div className="flex border-b bg-muted/50">
-              <div className="w-64 flex-shrink-0 border-r p-3 font-semibold text-sm text-foreground">Task</div>
-              <div className="flex-1 flex">
-                {dateRange.filter((_, i) => i % 7 === 0).map((date, i) => (
-                  <div key={i} className="flex-1 min-w-[100px] p-2 text-center text-xs font-medium text-muted-foreground border-l">
-                    {format(date, 'MMM d')}
-                  </div>
-                ))}
-              </div>
-            </div>
-            {tasks.map(task => {
-              const hasValidDates = task.startDate && task.endDate;
-              const start = hasValidDates ? parseISO(task.startDate) : null;
-              const end = hasValidDates ? parseISO(task.endDate) : null;
-              
-              let leftPercent = 0;
-              let widthPercent = 0;
-              
-              if (start && end) {
-                const totalDays = differenceInDays(maxDate, minDate) || 1;
-                const startOffset = differenceInDays(start, minDate);
-                const duration = differenceInDays(end, start) + 1;
-                leftPercent = (startOffset / totalDays) * 100;
-                widthPercent = (duration / totalDays) * 100;
-              }
-
-              return (
-                <div 
-                  key={task.id} 
-                  className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
-                  onClick={() => onTaskClick(task)}
-                  data-testid={`gantt-task-${task.id}`}
-                >
-                  <div className="w-64 flex-shrink-0 border-r p-3">
-                    <div className="font-medium text-sm truncate">{task.name}</div>
-                    <Link 
-                      href={`/projects/${task.projectId}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-xs text-muted-foreground truncate hover:text-primary hover:underline block"
-                      data-testid={`link-project-${task.projectId}`}
-                    >
-                      {getProjectName(task.projectId)}
-                    </Link>
-                  </div>
-                  <div className="flex-1 relative p-2">
-                    {hasValidDates ? (
-                      <div
-                        className={cn(
-                          "absolute top-2 bottom-2 rounded-md flex items-center px-2 text-xs text-white font-medium",
-                          task.status === "Completed" ? "bg-emerald-500" :
-                          task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
-                        )}
-                        style={{
-                          left: `${Math.max(0, leftPercent)}%`,
-                          width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-                          minWidth: '60px'
-                        }}
-                      >
-                        <span className="truncate">{task.progress || 0}%</span>
-                      </div>
-                    ) : (
-                      <div className="h-full flex items-center">
-                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                          <CalendarIcon className="h-3 w-3 mr-1" />
-                          No dates set
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {ganttContent}
       </CardContent>
     </Card>
   );
