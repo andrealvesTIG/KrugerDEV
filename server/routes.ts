@@ -179,6 +179,25 @@ export async function registerRoutes(
     }
   });
 
+  // Update user profile
+  app.patch('/api/users/:userId/profile', async (req, res) => {
+    try {
+      const { firstName, lastName, email } = req.body;
+      const [updated] = await db.update(users)
+        .set({ 
+          firstName, 
+          lastName, 
+          email,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, req.params.userId))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to update user profile' });
+    }
+  });
+
   // --- Organizations ---
   app.get('/api/organizations', async (req, res) => {
     try {
