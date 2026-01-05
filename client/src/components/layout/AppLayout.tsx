@@ -1,10 +1,12 @@
 import { ReactNode } from "react";
 import { Sidebar, SidebarProvider, useSidebarState, logoIcon } from "./Sidebar";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2 } from "lucide-react";
+import { useOrganization } from "@/hooks/use-organization";
+import { Loader2, Building2, ChevronDown } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link } from "wouter";
 import { SearchCommand } from "./SearchCommand";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -34,6 +36,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
 function AppLayoutContent({ children }: { children: ReactNode }) {
   const { isCollapsed } = useSidebarState();
+  const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -46,6 +49,40 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                 <img src={logoIcon} alt="Friday Report" className="h-8 w-8" />
                 <span className="font-display font-bold text-lg text-foreground">Friday Report</span>
               </Link>
+            )}
+            {organizations.length > 0 && (
+              <>
+                {isCollapsed && <div className="h-5 w-px bg-border" />}
+                {organizations.length === 1 ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-organization-name">
+                    <Building2 className="h-4 w-4" />
+                    <span>{currentOrganization?.name}</span>
+                  </div>
+                ) : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger 
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                      data-testid="dropdown-organization"
+                    >
+                      <Building2 className="h-4 w-4" />
+                      <span>{currentOrganization?.name || 'Select organization'}</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {organizations.map(org => (
+                        <DropdownMenuItem
+                          key={org.id}
+                          onClick={() => setCurrentOrganization(org)}
+                          className={currentOrganization?.id === org.id ? 'bg-accent' : ''}
+                          data-testid={`dropdown-item-org-${org.id}`}
+                        >
+                          {org.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </>
             )}
           </div>
           <div className="flex items-center gap-3">

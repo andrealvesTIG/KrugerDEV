@@ -93,59 +93,6 @@ export function Sidebar() {
           {!isCollapsed && <span className="text-xl font-display font-bold tracking-tight">Friday Report</span>}
         </div>
       </div>
-      {/* Organization Switcher */}
-      {organizations.length > 0 && (
-        <div className={cn("border-b border-slate-800", isCollapsed ? "px-2 py-3" : "px-4 py-3")}>
-          {isCollapsed ? (
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <div className="flex items-center justify-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 text-slate-300">
-                    <Building2 className="h-5 w-5" />
-                  </div>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="bg-slate-800 text-white border-slate-700">
-                {currentOrganization?.name || 'No organization'}
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <div className="space-y-1">
-              <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Organization
-              </p>
-              <Select 
-                value={currentOrganization?.id ? String(currentOrganization.id) : undefined}
-                onValueChange={(v) => {
-                  const org = organizations.find(o => o.id === Number(v));
-                  if (org) setCurrentOrganization(org);
-                }}
-              >
-                <SelectTrigger 
-                  className="w-full bg-slate-800 border-slate-700 text-white hover:bg-slate-700"
-                  data-testid="select-organization"
-                >
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-slate-400" />
-                    <SelectValue placeholder="Select organization" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
-                  {organizations.map(org => (
-                    <SelectItem 
-                      key={org.id} 
-                      value={String(org.id)}
-                      className="text-white hover:bg-slate-700 focus:bg-slate-700"
-                    >
-                      {org.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-      )}
       {/* Navigation */}
       <nav className={cn("flex-1 space-y-1 py-6", isCollapsed ? "px-2" : "px-4")}>
         {!isCollapsed && (
