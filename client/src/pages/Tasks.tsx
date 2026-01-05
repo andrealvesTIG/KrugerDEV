@@ -510,9 +510,9 @@ function KanbanView({
   onStatusChange: (taskId: number, newStatus: string) => void;
 }) {
   const columns = [
-    { id: "Not Started", label: "Not Started", color: "bg-slate-100 dark:bg-slate-800" },
-    { id: "In Progress", label: "In Progress", color: "bg-blue-100 dark:bg-blue-900/40" },
-    { id: "Completed", label: "Completed", color: "bg-emerald-100 dark:bg-emerald-900/40" },
+    { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
+    { id: "In Progress", label: "In Progress", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
+    { id: "Completed", label: "Completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
   ];
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
