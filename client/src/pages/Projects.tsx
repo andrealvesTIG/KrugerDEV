@@ -13,8 +13,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid } from "lucide-react";
-import { format } from "date-fns";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart } from "lucide-react";
+import { format, differenceInDays, parseISO, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isWithinInterval } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,7 +31,7 @@ export default function Projects() {
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"list" | "kanban">("list");
+  const [view, setView] = useState<"list" | "kanban" | "gantt">("list");
   const updateProject = useUpdateProject();
   const { toast } = useToast();
 
@@ -114,6 +114,16 @@ export default function Projects() {
           >
             <LayoutGrid className="h-4 w-4 mr-2" />
             Kanban
+          </Button>
+          <Button
+            variant={view === "gantt" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setView("gantt")}
+            className="rounded-none"
+            data-testid="button-view-gantt"
+          >
+            <GanttChart className="h-4 w-4 mr-2" />
+            Gantt
           </Button>
         </div>
       </div>
@@ -205,11 +215,13 @@ export default function Projects() {
             </div>
           )}
         </div>
-      ) : (
+      ) : view === "kanban" ? (
         <ProjectsKanbanView 
           projects={filteredProjects || []} 
           onStatusChange={handleStatusChange} 
         />
+      ) : (
+        <ProjectsGanttView projects={filteredProjects || []} />
       )}
     </div>
   );
@@ -518,5 +530,148 @@ function DraggableProjectCard({ project }: { project: Project }) {
         </Card>
       </Link>
     </div>
+  );
+}
+
+// Gantt View Component
+function ProjectsGanttView({ projects }: { projects: Project[] }) {
+  const [timelineStart, setTimelineStart] = useState(() => {
+    const projectsWithDates = projects.filter(p => p.startDate);
+    if (projectsWithDates.length > 0) {
+      const earliestStart = projectsWithDates.reduce((earliest, p) => {
+        const start = parseISO(p.startDate!);
+        return start < earliest ? start : earliest;
+      }, parseISO(projectsWithDates[0].startDate!));
+      return startOfMonth(earliestStart);
+    }
+    return startOfMonth(new Date());
+  });
+
+  const timelineEnd = addDays(timelineStart, 90);
+  const days = eachDayOfInterval({ start: timelineStart, end: timelineEnd });
+  const totalDays = days.length;
+
+  const getBarPosition = (startDate: string | null, endDate: string | null) => {
+    if (!startDate || !endDate) return null;
+    
+    const start = parseISO(startDate);
+    const end = parseISO(endDate);
+    
+    const startOffset = Math.max(0, differenceInDays(start, timelineStart));
+    const duration = differenceInDays(end, start) + 1;
+    const endOffset = startOffset + duration;
+    
+    if (endOffset <= 0 || startOffset >= totalDays) return null;
+    
+    const clampedStart = Math.max(0, startOffset);
+    const clampedEnd = Math.min(totalDays, endOffset);
+    
+    return {
+      left: `${(clampedStart / totalDays) * 100}%`,
+      width: `${((clampedEnd - clampedStart) / totalDays) * 100}%`,
+    };
+  };
+
+  const monthMarkers = days.reduce((acc, day, index) => {
+    if (day.getDate() === 1 || index === 0) {
+      acc.push({ index, label: format(day, 'MMM yyyy') });
+    }
+    return acc;
+  }, [] as { index: number; label: string }[]);
+
+  const navigateTimeline = (direction: 'prev' | 'next') => {
+    setTimelineStart(prev => addDays(prev, direction === 'next' ? 30 : -30));
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigateTimeline('prev')}>
+              Previous
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigateTimeline('next')}>
+              Next
+            </Button>
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {format(timelineStart, 'MMM d, yyyy')} - {format(timelineEnd, 'MMM d, yyyy')}
+          </span>
+        </div>
+
+        <div className="relative overflow-x-auto">
+          <div className="min-w-[800px]">
+            <div className="flex border-b border-border mb-2">
+              <div className="w-64 flex-shrink-0 p-2 font-semibold text-sm">Project</div>
+              <div className="flex-1 relative h-8">
+                {monthMarkers.map((marker, i) => (
+                  <div 
+                    key={i}
+                    className="absolute text-xs text-muted-foreground"
+                    style={{ left: `${(marker.index / totalDays) * 100}%` }}
+                  >
+                    {marker.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {projects.map(project => {
+                const barPosition = getBarPosition(project.startDate, project.endDate);
+                
+                return (
+                  <div key={project.id} className="flex items-center">
+                    <div className="w-64 flex-shrink-0 p-2">
+                      <Link href={`/projects/${project.id}`}>
+                        <div className="hover:text-primary cursor-pointer">
+                          <div className="font-medium text-sm truncate">{project.name}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">{project.status}</Badge>
+                            <span className="text-xs text-muted-foreground">{project.completionPercentage}%</span>
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
+                    <div className="flex-1 relative h-10 bg-muted/30 rounded">
+                      {barPosition ? (
+                        <div
+                          className={cn(
+                            "absolute top-1 bottom-1 rounded-md flex items-center justify-center text-xs font-medium text-white",
+                            project.health === 'Green' && "bg-emerald-500",
+                            project.health === 'Yellow' && "bg-amber-500",
+                            project.health === 'Red' && "bg-rose-500",
+                            !project.health && "bg-primary"
+                          )}
+                          style={barPosition}
+                          data-testid={`gantt-bar-${project.id}`}
+                        >
+                          <div className="truncate px-2">
+                            {project.startDate && project.endDate && (
+                              <span>{differenceInDays(parseISO(project.endDate), parseISO(project.startDate)) + 1}d</span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                          No dates set
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {projects.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No projects to display
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
