@@ -134,7 +134,9 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     queryKey: ['/api/organizations', organizationId, 'members'],
     queryFn: async () => {
       const res = await fetch(`/api/organizations/${organizationId}/members`);
-      return res.json();
+      if (!res.ok) return []; // Return empty array on error (e.g., 403 access denied)
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     }
   });
 
