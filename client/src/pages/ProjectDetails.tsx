@@ -2012,115 +2012,120 @@ function FinancialsTab({ projectId }: { projectId: number }) {
           </DialogContent>
         </Dialog>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-8">
-          <div className="grid grid-cols-4 gap-4">
-            <Card className="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Total Budget</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-emerald-800 dark:text-emerald-300">{formatCurrency(grandTotals.budget)}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">Total Planned</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-800 dark:text-blue-300">{formatCurrency(grandTotals.planned)}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-400">Total Actual</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-amber-800 dark:text-amber-300">{formatCurrency(grandTotals.actual)}</div>
-              </CardContent>
-            </Card>
-            <Card className={cn(
-              "border",
-              grandTotals.budget - grandTotals.actual >= 0 
-                ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" 
-                : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
-            )}>
-              <CardHeader className="pb-2">
-                <CardTitle className={cn(
-                  "text-sm font-medium",
-                  grandTotals.budget - grandTotals.actual >= 0 
-                    ? "text-green-700 dark:text-green-400" 
-                    : "text-red-700 dark:text-red-400"
-                )}>Budget Variance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={cn(
-                  "text-2xl font-bold",
-                  grandTotals.budget - grandTotals.actual >= 0 
-                    ? "text-green-800 dark:text-green-300" 
-                    : "text-red-800 dark:text-red-300"
-                )}>
+      <CardContent className="p-0">
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-100 dark:bg-slate-800 border-b">
+              <tr>
+                <th className="text-left px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300">Line Item</th>
+                <th className="text-center px-2 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-16">Year</th>
+                <th className="text-center px-2 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-20">Period</th>
+                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28">Budget</th>
+                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28">Planned</th>
+                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28">Actual</th>
+                <th className="text-right px-3 py-2 font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 w-28">Variance</th>
+                <th className="w-16 px-2 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {capexItems.length > 0 && (
+                <>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b">
+                    <td colSpan={8} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      CapEx - Capital Expenditures
+                    </td>
+                  </tr>
+                  {capexItems.map((item) => (
+                    <FinancialTableRow
+                      key={item.id}
+                      item={item}
+                      isEditing={editingId === item.id}
+                      editValues={editValues}
+                      setEditValues={setEditValues}
+                      startEdit={startEdit}
+                      saveEdit={saveEdit}
+                      cancelEdit={cancelEdit}
+                      deleteFinancial={deleteFinancial}
+                      formatCurrency={formatCurrency}
+                      getVariance={getVariance}
+                    />
+                  ))}
+                  <tr className="border-b bg-slate-50/50 dark:bg-slate-800/30">
+                    <td colSpan={3} className="px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 text-right">CapEx Subtotal</td>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(capexTotals.budget)}</td>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(capexTotals.planned)}</td>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(capexTotals.actual)}</td>
+                    <td className={cn("px-3 py-1.5 text-right text-xs font-medium tabular-nums", capexTotals.budget - capexTotals.actual >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400")}>
+                      {formatCurrency(capexTotals.budget - capexTotals.actual)}
+                    </td>
+                    <td className="px-2 py-1.5"></td>
+                  </tr>
+                </>
+              )}
+              {opexItems.length > 0 && (
+                <>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b">
+                    <td colSpan={8} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      OpEx - Operational Expenditures
+                    </td>
+                  </tr>
+                  {opexItems.map((item) => (
+                    <FinancialTableRow
+                      key={item.id}
+                      item={item}
+                      isEditing={editingId === item.id}
+                      editValues={editValues}
+                      setEditValues={setEditValues}
+                      startEdit={startEdit}
+                      saveEdit={saveEdit}
+                      cancelEdit={cancelEdit}
+                      deleteFinancial={deleteFinancial}
+                      formatCurrency={formatCurrency}
+                      getVariance={getVariance}
+                    />
+                  ))}
+                  <tr className="border-b bg-slate-50/50 dark:bg-slate-800/30">
+                    <td colSpan={3} className="px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 text-right">OpEx Subtotal</td>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(opexTotals.budget)}</td>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(opexTotals.planned)}</td>
+                    <td className="px-3 py-1.5 text-right text-xs font-medium tabular-nums">{formatCurrency(opexTotals.actual)}</td>
+                    <td className={cn("px-3 py-1.5 text-right text-xs font-medium tabular-nums", opexTotals.budget - opexTotals.actual >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400")}>
+                      {formatCurrency(opexTotals.budget - opexTotals.actual)}
+                    </td>
+                    <td className="px-2 py-1.5"></td>
+                  </tr>
+                </>
+              )}
+              {capexItems.length === 0 && opexItems.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    No financial items recorded. Add a line item to get started.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="bg-slate-200 dark:bg-slate-700 border-t-2 border-slate-300 dark:border-slate-600">
+                <td colSpan={3} className="px-3 py-2 text-sm font-bold text-slate-800 dark:text-slate-100 text-right">Grand Total</td>
+                <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(grandTotals.budget)}</td>
+                <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(grandTotals.planned)}</td>
+                <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(grandTotals.actual)}</td>
+                <td className={cn("px-3 py-2 text-right text-sm font-bold tabular-nums", grandTotals.budget - grandTotals.actual >= 0 ? "text-slate-800 dark:text-slate-100" : "text-red-700 dark:text-red-400")}>
                   {formatCurrency(grandTotals.budget - grandTotals.actual)}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Badge variant="outline" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700">
-                  CapEx
-                </Badge>
-                Capital Expenditures
-              </h3>
-              <FinancialTable
-                items={capexItems}
-                totals={capexTotals}
-                editingId={editingId}
-                editValues={editValues}
-                setEditValues={setEditValues}
-                startEdit={startEdit}
-                saveEdit={saveEdit}
-                cancelEdit={cancelEdit}
-                deleteFinancial={deleteFinancial}
-                formatCurrency={formatCurrency}
-                getVariance={getVariance}
-              />
-            </div>
-
-            <div>
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 border-purple-300 dark:border-purple-700">
-                  OpEx
-                </Badge>
-                Operational Expenditures
-              </h3>
-              <FinancialTable
-                items={opexItems}
-                totals={opexTotals}
-                editingId={editingId}
-                editValues={editValues}
-                setEditValues={setEditValues}
-                startEdit={startEdit}
-                saveEdit={saveEdit}
-                cancelEdit={cancelEdit}
-                deleteFinancial={deleteFinancial}
-                formatCurrency={formatCurrency}
-                getVariance={getVariance}
-              />
-            </div>
-          </div>
+                </td>
+                <td className="px-2 py-2"></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function FinancialTable({
-  items,
-  totals,
-  editingId,
+function FinancialTableRow({
+  item,
+  isEditing,
   editValues,
   setEditValues,
   startEdit,
@@ -2130,9 +2135,8 @@ function FinancialTable({
   formatCurrency,
   getVariance,
 }: {
-  items: ProjectFinancial[];
-  totals: { budget: number; planned: number; actual: number };
-  editingId: number | null;
+  item: ProjectFinancial;
+  isEditing: boolean;
   editValues: Partial<ProjectFinancial>;
   setEditValues: (values: Partial<ProjectFinancial>) => void;
   startEdit: (financial: ProjectFinancial) => void;
@@ -2142,134 +2146,91 @@ function FinancialTable({
   formatCurrency: (value: number) => string;
   getVariance: (budget: number, actual: number) => { variance: number; percent: number };
 }) {
-  if (items.length === 0) {
-    return (
-      <div className="text-center py-8 text-slate-500 border rounded-lg bg-muted/30">
-        No items recorded. Add a line item to get started.
-      </div>
-    );
-  }
-
+  const variance = getVariance(Number(item.budgetAmount), Number(item.actualAmount));
+  
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <table className="w-full">
-        <thead className="bg-muted/50">
-          <tr>
-            <th className="text-left p-3 font-medium text-sm">Line Item</th>
-            <th className="text-left p-3 font-medium text-sm">Year</th>
-            <th className="text-left p-3 font-medium text-sm">Period</th>
-            <th className="text-right p-3 font-medium text-sm">Budget</th>
-            <th className="text-right p-3 font-medium text-sm">Planned</th>
-            <th className="text-right p-3 font-medium text-sm">Actual</th>
-            <th className="text-right p-3 font-medium text-sm">Variance</th>
-            <th className="w-24 p-3"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => {
-            const isEditing = editingId === item.id;
-            const variance = getVariance(Number(item.budgetAmount), Number(item.actualAmount));
-            
-            return (
-              <tr key={item.id} className="border-t hover-elevate" data-testid={`row-financial-${item.id}`}>
-                <td className="p-3">
-                  <div className="font-medium">{item.lineItem}</div>
-                  {item.description && <div className="text-xs text-muted-foreground">{item.description}</div>}
-                </td>
-                <td className="p-3 text-sm">{item.fiscalYear}</td>
-                <td className="p-3 text-sm">{item.fiscalPeriod}</td>
-                <td className="p-3 text-right">
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={editValues.budgetAmount || ""}
-                      onChange={(e) => setEditValues({ ...editValues, budgetAmount: e.target.value })}
-                      className="w-28 text-right"
-                      data-testid="input-edit-budget"
-                    />
-                  ) : (
-                    formatCurrency(Number(item.budgetAmount))
-                  )}
-                </td>
-                <td className="p-3 text-right">
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={editValues.plannedAmount || ""}
-                      onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
-                      className="w-28 text-right"
-                      data-testid="input-edit-planned"
-                    />
-                  ) : (
-                    formatCurrency(Number(item.plannedAmount))
-                  )}
-                </td>
-                <td className="p-3 text-right">
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={editValues.actualAmount || ""}
-                      onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
-                      className="w-28 text-right"
-                      data-testid="input-edit-actual"
-                    />
-                  ) : (
-                    formatCurrency(Number(item.actualAmount))
-                  )}
-                </td>
-                <td className={cn(
-                  "p-3 text-right font-medium",
-                  variance.variance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                )}>
-                  {formatCurrency(variance.variance)}
-                  <span className="text-xs ml-1">({variance.percent.toFixed(0)}%)</span>
-                </td>
-                <td className="p-3">
-                  <div className="flex justify-end gap-1">
-                    {isEditing ? (
-                      <>
-                        <Button variant="ghost" size="icon" onClick={() => saveEdit(item.id)} data-testid="button-save-edit">
-                          <Check className="h-4 w-4 text-green-600" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={cancelEdit} data-testid="button-cancel-edit">
-                          <X className="h-4 w-4 text-slate-400" />
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button variant="ghost" size="icon" onClick={() => startEdit(item)} data-testid={`button-edit-financial-${item.id}`}>
-                          <Pencil className="h-4 w-4 text-slate-400" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => deleteFinancial.mutate(item.id)}
-                          data-testid={`button-delete-financial-${item.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-          <tr className="border-t bg-muted/30 font-semibold">
-            <td colSpan={3} className="p-3">Subtotal</td>
-            <td className="p-3 text-right">{formatCurrency(totals.budget)}</td>
-            <td className="p-3 text-right">{formatCurrency(totals.planned)}</td>
-            <td className="p-3 text-right">{formatCurrency(totals.actual)}</td>
-            <td className={cn(
-              "p-3 text-right",
-              totals.budget - totals.actual >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-            )}>
-              {formatCurrency(totals.budget - totals.actual)}
-            </td>
-            <td className="p-3"></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <tr className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-financial-${item.id}`}>
+      <td className="px-3 py-2">
+        <div className="text-sm font-medium">{item.lineItem}</div>
+        {item.description && <div className="text-xs text-muted-foreground truncate max-w-[200px]">{item.description}</div>}
+      </td>
+      <td className="px-2 py-2 text-center text-xs tabular-nums">{item.fiscalYear}</td>
+      <td className="px-2 py-2 text-center text-xs">{item.fiscalPeriod}</td>
+      <td className="px-3 py-2 text-right">
+        {isEditing ? (
+          <Input
+            type="number"
+            value={editValues.budgetAmount || ""}
+            onChange={(e) => setEditValues({ ...editValues, budgetAmount: e.target.value })}
+            className="w-24 h-7 text-xs text-right"
+            data-testid="input-edit-budget"
+          />
+        ) : (
+          <span className="text-xs tabular-nums">{formatCurrency(Number(item.budgetAmount))}</span>
+        )}
+      </td>
+      <td className="px-3 py-2 text-right">
+        {isEditing ? (
+          <Input
+            type="number"
+            value={editValues.plannedAmount || ""}
+            onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
+            className="w-24 h-7 text-xs text-right"
+            data-testid="input-edit-planned"
+          />
+        ) : (
+          <span className="text-xs tabular-nums">{formatCurrency(Number(item.plannedAmount))}</span>
+        )}
+      </td>
+      <td className="px-3 py-2 text-right">
+        {isEditing ? (
+          <Input
+            type="number"
+            value={editValues.actualAmount || ""}
+            onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
+            className="w-24 h-7 text-xs text-right"
+            data-testid="input-edit-actual"
+          />
+        ) : (
+          <span className="text-xs tabular-nums">{formatCurrency(Number(item.actualAmount))}</span>
+        )}
+      </td>
+      <td className={cn(
+        "px-3 py-2 text-right text-xs tabular-nums",
+        variance.variance >= 0 ? "text-slate-700 dark:text-slate-300" : "text-red-600 dark:text-red-400"
+      )}>
+        {formatCurrency(variance.variance)}
+        <span className="text-[10px] ml-0.5 text-muted-foreground">({variance.percent.toFixed(0)}%)</span>
+      </td>
+      <td className="px-2 py-2">
+        <div className="flex justify-end gap-0.5">
+          {isEditing ? (
+            <>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveEdit(item.id)} data-testid="button-save-edit">
+                <Check className="h-3 w-3 text-green-600" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={cancelEdit} data-testid="button-cancel-edit">
+                <X className="h-3 w-3 text-slate-400" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(item)} data-testid={`button-edit-financial-${item.id}`}>
+                <Pencil className="h-3 w-3 text-slate-400" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => deleteFinancial.mutate(item.id)}
+                data-testid={`button-delete-financial-${item.id}`}
+              >
+                <Trash2 className="h-3 w-3 text-slate-400" />
+              </Button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
   );
 }
