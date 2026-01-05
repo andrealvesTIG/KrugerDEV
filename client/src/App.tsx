@@ -19,6 +19,8 @@ import Tasks from "@/pages/Tasks";
 import Admin from "@/pages/Admin";
 import SuperAdmin from "@/pages/SuperAdmin";
 import OrgSettings from "@/pages/OrgSettings";
+import Profile from "@/pages/Profile";
+import UserSettings from "@/pages/UserSettings";
 
 function Router() {
   return (
@@ -35,6 +37,8 @@ function Router() {
         <Route path="/admin" component={Admin} />
         <Route path="/super-admin" component={SuperAdmin} />
         <Route path="/org-settings" component={OrgSettings} />
+        <Route path="/profile" component={Profile} />
+        <Route path="/user-settings" component={UserSettings} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
