@@ -712,8 +712,20 @@ export async function registerRoutes(
       return res.json([]);
     }
     
-    const issues = await storage.getAllIssues();
-    res.json(issues);
+    // Get user's accessible org IDs and filter issues by project's organization
+    const accessibleOrgIds = await getUserOrgIds(userId);
+    const allIssues = await storage.getAllIssues();
+    
+    // Get all projects to determine which issues belong to accessible orgs
+    const allProjects = await storage.getProjects();
+    const accessibleProjectIds = new Set(
+      allProjects
+        .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
+        .map(p => p.id)
+    );
+    
+    const filteredIssues = allIssues.filter(issue => accessibleProjectIds.has(issue.projectId));
+    res.json(filteredIssues);
   });
 
   app.post(api.issues.create.path, async (req, res) => {
@@ -757,8 +769,20 @@ export async function registerRoutes(
       return res.json([]);
     }
     
-    const tasks = await storage.getAllTasks();
-    res.json(tasks);
+    // Get user's accessible org IDs and filter tasks by project's organization
+    const accessibleOrgIds = await getUserOrgIds(userId);
+    const allTasks = await storage.getAllTasks();
+    
+    // Get all projects to determine which tasks belong to accessible orgs
+    const allProjects = await storage.getProjects();
+    const accessibleProjectIds = new Set(
+      allProjects
+        .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
+        .map(p => p.id)
+    );
+    
+    const filteredTasks = allTasks.filter(task => accessibleProjectIds.has(task.projectId));
+    res.json(filteredTasks);
   });
 
   app.post(api.tasks.create.path, async (req, res) => {
