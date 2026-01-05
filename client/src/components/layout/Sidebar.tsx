@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -61,9 +62,7 @@ export function Sidebar() {
       {/* Logo Area */}
       <div className={cn("flex h-20 items-center", isCollapsed ? "justify-center px-2" : "px-6")}>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25 flex-shrink-0">
-            <Briefcase className="h-6 w-6 text-white" />
-          </div>
+          <img src={logoIcon} alt="Friday Report" className="h-10 w-10 flex-shrink-0" />
           {!isCollapsed && <span className="text-xl font-display font-bold tracking-tight">Friday Report</span>}
         </div>
       </div>
