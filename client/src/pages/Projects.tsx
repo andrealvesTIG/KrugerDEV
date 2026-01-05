@@ -13,7 +13,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format, differenceInDays, parseISO, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isWithinInterval } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +37,21 @@ export default function Projects() {
   const [view, setView] = useState<"list" | "kanban" | "gantt">("list");
   const updateProject = useUpdateProject();
   const { toast } = useToast();
+  const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
+
+  const deleteProject = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest('DELETE', `/api/projects/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      toast({ title: "Success", description: "Project moved to recycle bin" });
+      setDeleteProjectId(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
 
   const filteredProjects = projects?.filter(p => 
     p.name.toLowerCase().includes(search.toLowerCase())
@@ -199,6 +217,35 @@ export default function Projects() {
                     )}>
                       {project.priority}
                     </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          size="icon" 
+                          variant="ghost"
+                          onClick={(e) => e.preventDefault()}
+                          data-testid={`button-menu-project-${project.id}`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/projects/${project.id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} 
+                          className="text-red-600 focus:text-red-600"
+                          data-testid={`menu-delete-project-${project.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </Link>
@@ -223,6 +270,27 @@ export default function Projects() {
       ) : (
         <ProjectsGanttView projects={filteredProjects || []} />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteProjectId !== null} onOpenChange={() => setDeleteProjectId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">Are you sure you want to delete this project? It will be moved to the recycle bin.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteProjectId(null)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => deleteProjectId && deleteProject.mutate(deleteProjectId)}
+              disabled={deleteProject.isPending}
+              data-testid="button-confirm-delete-project"
+            >
+              {deleteProject.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

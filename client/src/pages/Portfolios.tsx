@@ -9,7 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase } from "lucide-react";
+import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertPortfolioSchema } from "@shared/schema";
@@ -24,7 +27,23 @@ export default function Portfolios() {
   const { data: projects } = useProjects(currentOrganization?.id);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
+  const [deletePortfolioId, setDeletePortfolioId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const { toast } = useToast();
+
+  const deletePortfolio = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest('DELETE', `/api/portfolios/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
+      toast({ title: "Success", description: "Portfolio moved to recycle bin" });
+      setDeletePortfolioId(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
 
   const filteredPortfolios = portfolios?.filter(p => 
     p.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -89,15 +108,33 @@ export default function Portfolios() {
                       <div className="rounded-lg bg-primary/10 p-2 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                         <FolderOpen className="h-6 w-6" />
                       </div>
-                      <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => handleEditClick(e, portfolio)}
-                        data-testid={`button-edit-portfolio-${portfolio.id}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            data-testid={`button-menu-portfolio-${portfolio.id}`}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" onClick={(e) => e.preventDefault()}>
+                          <DropdownMenuItem onClick={(e) => { e.preventDefault(); handleEditClick(e as any, portfolio); }} data-testid={`menu-edit-portfolio-${portfolio.id}`}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={(e) => { e.preventDefault(); setDeletePortfolioId(portfolio.id); }} 
+                            className="text-red-600 focus:text-red-600"
+                            data-testid={`menu-delete-portfolio-${portfolio.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     <CardTitle className="mt-4 text-xl">{portfolio.name}</CardTitle>
                     <CardDescription className="line-clamp-2 mt-2">{portfolio.description}</CardDescription>
@@ -161,6 +198,27 @@ export default function Portfolios() {
         open={!!editingPortfolio} 
         onOpenChange={(open) => !open && setEditingPortfolio(null)} 
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deletePortfolioId !== null} onOpenChange={() => setDeletePortfolioId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Portfolio</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">Are you sure you want to delete this portfolio? It will be moved to the recycle bin.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletePortfolioId(null)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => deletePortfolioId && deletePortfolio.mutate(deletePortfolioId)}
+              disabled={deletePortfolio.isPending}
+              data-testid="button-confirm-delete-portfolio"
+            >
+              {deletePortfolio.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

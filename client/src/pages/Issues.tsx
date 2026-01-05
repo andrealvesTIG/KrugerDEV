@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle } from "lucide-react";
+import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertIssueSchema } from "@shared/schema";
@@ -50,6 +51,7 @@ export default function Issues() {
   const createIssue = useCreateIssue();
   const deleteIssue = useDeleteIssue();
   const { toast } = useToast();
+  const [deleteIssueData, setDeleteIssueData] = useState<{ id: number; projectId: number } | null>(null);
 
   const form = useForm({
     resolver: zodResolver(insertIssueSchema.extend({
@@ -288,14 +290,27 @@ export default function Issues() {
                       </div>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteIssue.mutate({ id: issue.id, projectId: issue.projectId })}
-                    data-testid={`button-delete-issue-${issue.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-500" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        data-testid={`button-menu-issue-${issue.id}`}
+                      >
+                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem 
+                        onClick={() => setDeleteIssueData({ id: issue.id, projectId: issue.projectId })}
+                        className="text-red-600 focus:text-red-600"
+                        data-testid={`menu-delete-issue-${issue.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </motion.div>
               );
             })}
@@ -307,6 +322,33 @@ export default function Issues() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteIssueData !== null} onOpenChange={() => setDeleteIssueData(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Issue</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">Are you sure you want to delete this issue? It will be moved to the recycle bin.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteIssueData(null)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (deleteIssueData) {
+                  deleteIssue.mutate(deleteIssueData, {
+                    onSuccess: () => setDeleteIssueData(null)
+                  });
+                }
+              }}
+              disabled={deleteIssue.isPending}
+              data-testid="button-confirm-delete-issue"
+            >
+              {deleteIssue.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
