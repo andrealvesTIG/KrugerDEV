@@ -36,9 +36,19 @@ export default function ProjectDetails() {
   const [, params] = useRoute("/projects/:id");
   const id = parseInt(params?.id || "0");
   const { data: project, isLoading } = useProject(id);
+  const { data: financials } = useProjectFinancials(id);
   const { mutate: updateProject } = useUpdateProject();
   const { toast } = useToast();
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
+
+  // Calculate financial budget total if financials exist
+  const financialBudgetTotal = useMemo(() => {
+    if (!financials || financials.length === 0) return 0;
+    return financials.reduce((sum: number, item: ProjectFinancial) => sum + Number(item.budgetAmount || 0), 0);
+  }, [financials]);
+
+  // Use financial budget total if available, otherwise use project budget
+  const displayBudget = financialBudgetTotal > 0 ? financialBudgetTotal : Number(project?.budget || 0);
 
   if (isLoading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!project) return <div>Project not found</div>;
@@ -116,9 +126,16 @@ export default function ProjectDetails() {
 
       <div className="grid gap-6 md:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-500">Budget</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
+              Budget
+              {financialBudgetTotal > 0 && (
+                <Badge variant="outline" className="text-[10px] font-normal">From Financials</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold flex items-center"><DollarSign className="h-5 w-5 mr-1 text-slate-400" />{Number(project.budget).toLocaleString()}</div>
+            <div className="text-2xl font-bold flex items-center"><DollarSign className="h-5 w-5 mr-1 text-slate-400" />{displayBudget.toLocaleString()}</div>
           </CardContent>
         </Card>
         <Card>
@@ -1035,11 +1052,20 @@ function TasksTab({ projectId }: { projectId: number }) {
   );
 }
 
-type ZoomLevel = 'day' | 'week' | 'month';
+type ZoomLevel = 'day' | 'week' | 'month' | 'quarter' | 'year' | '5year';
+const zoomLevels: ZoomLevel[] = ['day', 'week', 'month', 'quarter', 'year', '5year'];
+const zoomLabels: Record<ZoomLevel, string> = {
+  'day': 'Daily',
+  'week': 'Weekly',
+  'month': 'Monthly',
+  'quarter': 'Quarterly',
+  'year': 'Yearly',
+  '5year': '5 Years'
+};
 
 function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (task: Task) => void }) {
   const today = new Date();
-  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('week');
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
   
   const { minDate, maxDate, dateRange } = useMemo(() => {
     const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
@@ -1056,9 +1082,22 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
       maxDate = endOfMonth(addDays(today, 60));
     }
     
+    // Extend range based on zoom level
+    if (zoomLevel === 'quarter') {
+      minDate = new Date(minDate.getFullYear(), Math.floor(minDate.getMonth() / 3) * 3, 1);
+      maxDate = new Date(maxDate.getFullYear(), Math.ceil((maxDate.getMonth() + 1) / 3) * 3, 0);
+    } else if (zoomLevel === 'year') {
+      minDate = new Date(minDate.getFullYear(), 0, 1);
+      maxDate = new Date(maxDate.getFullYear(), 11, 31);
+    } else if (zoomLevel === '5year') {
+      const startYear = minDate.getFullYear();
+      minDate = new Date(startYear, 0, 1);
+      maxDate = new Date(startYear + 4, 11, 31);
+    }
+    
     const dateRange = eachDayOfInterval({ start: minDate, end: maxDate });
     return { minDate, maxDate, dateRange };
-  }, [tasks, today]);
+  }, [tasks, today, zoomLevel]);
 
   const { filteredDates, dateFormat, columnWidth } = useMemo(() => {
     switch (zoomLevel) {
@@ -1078,19 +1117,37 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
         return {
           filteredDates: dateRange.filter((date) => date.getDate() === 1),
           dateFormat: 'MMM yyyy',
-          columnWidth: 'min-w-[120px]'
+          columnWidth: 'min-w-[100px]'
+        };
+      case 'quarter':
+        return {
+          filteredDates: dateRange.filter((date) => date.getDate() === 1 && date.getMonth() % 3 === 0),
+          dateFormat: 'QQQ yyyy',
+          columnWidth: 'min-w-[80px]'
+        };
+      case 'year':
+        return {
+          filteredDates: dateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0),
+          dateFormat: 'yyyy',
+          columnWidth: 'min-w-[80px]'
+        };
+      case '5year':
+        return {
+          filteredDates: dateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0),
+          dateFormat: 'yyyy',
+          columnWidth: 'min-w-[60px]'
         };
     }
   }, [dateRange, zoomLevel]);
 
   const handleZoomIn = () => {
-    if (zoomLevel === 'month') setZoomLevel('week');
-    else if (zoomLevel === 'week') setZoomLevel('day');
+    const idx = zoomLevels.indexOf(zoomLevel);
+    if (idx > 0) setZoomLevel(zoomLevels[idx - 1]);
   };
 
   const handleZoomOut = () => {
-    if (zoomLevel === 'day') setZoomLevel('week');
-    else if (zoomLevel === 'week') setZoomLevel('month');
+    const idx = zoomLevels.indexOf(zoomLevel);
+    if (idx < zoomLevels.length - 1) setZoomLevel(zoomLevels[idx + 1]);
   };
 
   if (tasks.length === 0) {
@@ -1108,14 +1165,14 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
       <CardContent className="p-0">
         <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30">
           <span className="text-sm font-medium text-muted-foreground">
-            View: {zoomLevel === 'day' ? 'Daily' : zoomLevel === 'week' ? 'Weekly' : 'Monthly'}
+            View: {zoomLabels[zoomLevel]}
           </span>
           <div className="flex items-center gap-1">
             <Button
               variant="outline"
               size="icon"
               onClick={handleZoomIn}
-              disabled={zoomLevel === 'day'}
+              disabled={zoomLevels.indexOf(zoomLevel) === 0}
               data-testid="button-gantt-zoom-in"
             >
               <ZoomIn className="h-4 w-4" />
@@ -1124,7 +1181,7 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
               variant="outline"
               size="icon"
               onClick={handleZoomOut}
-              disabled={zoomLevel === 'month'}
+              disabled={zoomLevels.indexOf(zoomLevel) === zoomLevels.length - 1}
               data-testid="button-gantt-zoom-out"
             >
               <ZoomOut className="h-4 w-4" />

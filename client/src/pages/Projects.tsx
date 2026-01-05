@@ -602,8 +602,19 @@ function DraggableProjectCard({ project }: { project: Project }) {
 }
 
 // Gantt View Component
-type ZoomLevel = 30 | 60 | 90 | 180 | 365;
-type RangePreset = "month" | "quarter" | "year" | "custom";
+type ZoomLevel = 30 | 60 | 90 | 180 | 365 | 730 | 1095 | 1825;
+type RangePreset = "month" | "quarter" | "year" | "2year" | "3year" | "5year" | "custom";
+const zoomDaysArray: ZoomLevel[] = [30, 60, 90, 180, 365, 730, 1095, 1825];
+const zoomDaysLabels: Record<ZoomLevel, string> = {
+  30: '1 Month',
+  60: '2 Months',
+  90: '3 Months',
+  180: '6 Months',
+  365: '1 Year',
+  730: '2 Years',
+  1095: '3 Years',
+  1825: '5 Years'
+};
 
 function ProjectsGanttView({ projects }: { projects: Project[] }) {
   const [zoomDays, setZoomDays] = useState<ZoomLevel>(90);
@@ -655,9 +666,19 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
         if (day.getDate() === 1 || index === 0) {
           acc.push({ index, label: format(day, 'MMM yyyy') });
         }
-      } else {
+      } else if (zoomDays <= 365) {
         if (day.getDate() === 1 && (day.getMonth() % 3 === 0 || index === 0)) {
           acc.push({ index, label: format(day, 'MMM yyyy') });
+        }
+      } else if (zoomDays <= 1095) {
+        // 2-3 years: show every 6 months
+        if (day.getDate() === 1 && (day.getMonth() % 6 === 0 || index === 0)) {
+          acc.push({ index, label: format(day, 'MMM yyyy') });
+        }
+      } else {
+        // 5 years: show yearly
+        if (day.getDate() === 1 && day.getMonth() === 0) {
+          acc.push({ index, label: format(day, 'yyyy') });
         }
       }
       return acc;
@@ -666,18 +687,14 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
 
   const handleZoomIn = () => {
     setRangePreset("custom");
-    if (zoomDays === 365) setZoomDays(180);
-    else if (zoomDays === 180) setZoomDays(90);
-    else if (zoomDays === 90) setZoomDays(60);
-    else if (zoomDays === 60) setZoomDays(30);
+    const idx = zoomDaysArray.indexOf(zoomDays);
+    if (idx > 0) setZoomDays(zoomDaysArray[idx - 1]);
   };
 
   const handleZoomOut = () => {
     setRangePreset("custom");
-    if (zoomDays === 30) setZoomDays(60);
-    else if (zoomDays === 60) setZoomDays(90);
-    else if (zoomDays === 90) setZoomDays(180);
-    else if (zoomDays === 180) setZoomDays(365);
+    const idx = zoomDaysArray.indexOf(zoomDays);
+    if (idx < zoomDaysArray.length - 1) setZoomDays(zoomDaysArray[idx + 1]);
   };
 
   const handleRangePreset = (preset: RangePreset) => {
@@ -693,6 +710,15 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
     } else if (preset === "year") {
       setTimelineStart(new Date(today.getFullYear(), 0, 1));
       setZoomDays(365);
+    } else if (preset === "2year") {
+      setTimelineStart(new Date(today.getFullYear(), 0, 1));
+      setZoomDays(730);
+    } else if (preset === "3year") {
+      setTimelineStart(new Date(today.getFullYear(), 0, 1));
+      setZoomDays(1095);
+    } else if (preset === "5year") {
+      setTimelineStart(new Date(today.getFullYear(), 0, 1));
+      setZoomDays(1825);
     }
   };
 
@@ -760,11 +786,11 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground mr-2">Zoom:</span>
-            <Button variant="outline" size="sm" onClick={handleZoomIn} disabled={zoomDays === 30} data-testid="button-zoom-in">
+            <Button variant="outline" size="sm" onClick={handleZoomIn} disabled={zoomDaysArray.indexOf(zoomDays) === 0} data-testid="button-zoom-in">
               +
             </Button>
-            <span className="text-xs text-muted-foreground min-w-[60px] text-center">{zoomDays} days</span>
-            <Button variant="outline" size="sm" onClick={handleZoomOut} disabled={zoomDays === 365} data-testid="button-zoom-out">
+            <span className="text-xs text-muted-foreground min-w-[60px] text-center">{zoomDaysLabels[zoomDays]}</span>
+            <Button variant="outline" size="sm" onClick={handleZoomOut} disabled={zoomDaysArray.indexOf(zoomDays) === zoomDaysArray.length - 1} data-testid="button-zoom-out">
               -
             </Button>
           </div>
