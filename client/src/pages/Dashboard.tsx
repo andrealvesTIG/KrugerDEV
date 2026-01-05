@@ -30,6 +30,17 @@ export default function Dashboard() {
   const totalPortfolios = portfolios?.length || 0;
   const criticalProjects = projects?.filter(p => p.health === "Red").length || 0;
   const completedProjects = projects?.filter(p => p.status === "Closing").length || 0;
+  const totalBudget = projects?.reduce((sum, p) => sum + Number(p.budget || 0), 0) || 0;
+  
+  // Format budget for display
+  const formatBudget = (amount: number) => {
+    if (amount >= 1000000) {
+      return `$${(amount / 1000000).toFixed(1)}M`;
+    } else if (amount >= 1000) {
+      return `$${(amount / 1000).toFixed(0)}K`;
+    }
+    return `$${amount.toLocaleString()}`;
+  };
 
   // Prepare Chart Data
   const healthData = [
@@ -110,7 +121,7 @@ export default function Dashboard() {
               <TrendingUp className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">$2.4M</div>
+              <div className="text-2xl font-bold text-slate-900" data-testid="text-total-budget">{formatBudget(totalBudget)}</div>
               <p className="text-xs text-slate-500">Total budget allocation</p>
             </CardContent>
           </Card>
