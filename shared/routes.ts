@@ -16,6 +16,9 @@ import {
   issues,
   tasks,
   taskChangeLogs,
+  projectChangeLogs,
+  riskChangeLogs,
+  issueChangeLogs,
   taskDependencies,
   projectFinancials
 } from './schema';
@@ -133,6 +136,14 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    getHistory: {
+      method: 'GET' as const,
+      path: '/api/projects/:id/history',
+      responses: {
+        200: z.array(z.custom<typeof projectChangeLogs.$inferSelect>()),
+        404: errorSchemas.notFound,
+      },
+    },
   },
   risks: {
     list: {
@@ -166,6 +177,14 @@ export const api = {
       path: '/api/risks/:id',
       responses: {
         204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+    getHistory: {
+      method: 'GET' as const,
+      path: '/api/risks/:id/history',
+      responses: {
+        200: z.array(z.custom<typeof riskChangeLogs.$inferSelect>()),
         404: errorSchemas.notFound,
       },
     },
@@ -245,6 +264,14 @@ export const api = {
       path: '/api/issues/:id',
       responses: {
         204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+    getHistory: {
+      method: 'GET' as const,
+      path: '/api/issues/:id/history',
+      responses: {
+        200: z.array(z.custom<typeof issueChangeLogs.$inferSelect>()),
         404: errorSchemas.notFound,
       },
     },

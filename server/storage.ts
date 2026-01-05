@@ -59,6 +59,7 @@ export interface IStorage {
 
   // Risks
   getRisks(projectId: number): Promise<Risk[]>;
+  getRisk(id: number): Promise<Risk | undefined>;
   createRisk(risk: InsertRisk): Promise<Risk>;
   updateRisk(id: number, updates: UpdateRiskRequest): Promise<Risk>;
   deleteRisk(id: number): Promise<void>;
@@ -72,6 +73,7 @@ export interface IStorage {
   // Issues
   getIssues(projectId: number): Promise<Issue[]>;
   getAllIssues(): Promise<Issue[]>;
+  getIssue(id: number): Promise<Issue | undefined>;
   createIssue(issue: InsertIssue): Promise<Issue>;
   updateIssue(id: number, updates: UpdateIssueRequest): Promise<Issue>;
   deleteIssue(id: number): Promise<void>;
@@ -309,6 +311,11 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
+  async getRisk(id: number): Promise<Risk | undefined> {
+    const [risk] = await db.select().from(risks).where(eq(risks.id, id));
+    return risk;
+  }
+
   async createRisk(risk: InsertRisk): Promise<Risk> {
     const [newRisk] = await db.insert(risks).values(risk).returning();
     return newRisk;
@@ -355,6 +362,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(issues).where(
       and(eq(issues.projectId, projectId), isNull(issues.deletedAt))
     );
+  }
+
+  async getIssue(id: number): Promise<Issue | undefined> {
+    const [issue] = await db.select().from(issues).where(eq(issues.id, id));
+    return issue;
   }
 
   async getAllIssues(): Promise<Issue[]> {

@@ -1134,6 +1134,20 @@ export async function registerRoutes(
         endDate: input.endDate || null,
       };
       const project = await storage.createProject(sanitizedInput);
+      
+      // Log change
+      const userId = (req.user as any)?.claims?.sub;
+      const user = userId ? await storage.getUser(userId) : null;
+      await storage.createProjectChangeLog({
+        projectId: project.id,
+        changedBy: userId || null,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'created',
+        changeSummary: `Project "${project.name}" created`,
+        previousValues: null,
+        newValues: JSON.stringify(project),
+      });
+      
       res.status(201).json(project);
     } catch (err) {
        if (err instanceof z.ZodError) {
@@ -1145,13 +1159,48 @@ export async function registerRoutes(
 
   app.put(api.projects.update.path, async (req, res) => {
     try {
+      const projectId = Number(req.params.id);
+      const existing = await storage.getProject(projectId);
+      if (!existing) return res.status(404).json({ message: "Project not found" });
+      
       const input = api.projects.update.input.parse(req.body);
       const sanitizedInput = {
         ...input,
         startDate: input.startDate || null,
         endDate: input.endDate || null,
       };
-      const updated = await storage.updateProject(Number(req.params.id), sanitizedInput);
+      const updated = await storage.updateProject(projectId, sanitizedInput);
+      
+      // Track changes
+      const trackedFields = ['name', 'description', 'status', 'priority', 'health', 'budget', 'startDate', 'endDate', 'completionPercentage', 'portfolioId'];
+      const changes: string[] = [];
+      const prevValues: Record<string, any> = {};
+      const newValues: Record<string, any> = {};
+      
+      for (const field of trackedFields) {
+        const prev = (existing as any)[field];
+        const curr = (updated as any)[field];
+        if (String(prev ?? '') !== String(curr ?? '')) {
+          changes.push(`${field}: "${prev || '(empty)'}" → "${curr || '(empty)'}"`);
+          prevValues[field] = prev;
+          newValues[field] = curr;
+        }
+      }
+      
+      if (changes.length > 0) {
+        const userId = (req.user as any)?.claims?.sub;
+        const user = userId ? await storage.getUser(userId) : null;
+        await storage.createProjectChangeLog({
+          projectId,
+          changedBy: userId || null,
+          changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+          changeType: 'updated',
+          changeSummary: changes.join('; '),
+          previousValues: JSON.stringify(prevValues),
+          newValues: JSON.stringify(newValues),
+        });
+      }
+      
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1167,6 +1216,13 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Project History
+  app.get(api.projects.getHistory.path, async (req, res) => {
+    const projectId = Number(req.params.id);
+    const history = await storage.getProjectChangeLogs(projectId);
+    res.json(history);
+  });
+
   // --- Risks ---
   app.get(api.risks.list.path, async (req, res) => {
     const risks = await storage.getRisks(Number(req.params.projectId));
@@ -1177,6 +1233,20 @@ export async function registerRoutes(
     try {
       const input = api.risks.create.input.parse(req.body);
       const risk = await storage.createRisk(input);
+      
+      // Log change
+      const userId = (req.user as any)?.claims?.sub;
+      const user = userId ? await storage.getUser(userId) : null;
+      await storage.createRiskChangeLog({
+        riskId: risk.id,
+        changedBy: userId || null,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'created',
+        changeSummary: `Risk "${risk.title}" created`,
+        previousValues: null,
+        newValues: JSON.stringify(risk),
+      });
+      
       res.status(201).json(risk);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -1188,8 +1258,43 @@ export async function registerRoutes(
 
   app.put(api.risks.update.path, async (req, res) => {
     try {
+      const riskId = Number(req.params.id);
+      const existing = await storage.getRisk(riskId);
+      if (!existing) return res.status(404).json({ message: "Risk not found" });
+      
       const input = api.risks.update.input.parse(req.body);
-      const updated = await storage.updateRisk(Number(req.params.id), input);
+      const updated = await storage.updateRisk(riskId, input);
+      
+      // Track changes
+      const trackedFields = ['title', 'description', 'probability', 'impact', 'status', 'mitigation', 'owner'];
+      const changes: string[] = [];
+      const prevValues: Record<string, any> = {};
+      const newValues: Record<string, any> = {};
+      
+      for (const field of trackedFields) {
+        const prev = (existing as any)[field];
+        const curr = (updated as any)[field];
+        if (String(prev ?? '') !== String(curr ?? '')) {
+          changes.push(`${field}: "${prev || '(empty)'}" → "${curr || '(empty)'}"`);
+          prevValues[field] = prev;
+          newValues[field] = curr;
+        }
+      }
+      
+      if (changes.length > 0) {
+        const userId = (req.user as any)?.claims?.sub;
+        const user = userId ? await storage.getUser(userId) : null;
+        await storage.createRiskChangeLog({
+          riskId,
+          changedBy: userId || null,
+          changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+          changeType: 'updated',
+          changeSummary: changes.join('; '),
+          previousValues: JSON.stringify(prevValues),
+          newValues: JSON.stringify(newValues),
+        });
+      }
+      
       res.json(updated);
     } catch (err) {
        if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -1201,6 +1306,13 @@ export async function registerRoutes(
     const userId = (req.user as any)?.claims?.sub;
     await storage.softDeleteItem('risk', Number(req.params.id), userId);
     res.status(204).send();
+  });
+
+  // Risk History
+  app.get(api.risks.getHistory.path, async (req, res) => {
+    const riskId = Number(req.params.id);
+    const history = await storage.getRiskChangeLogs(riskId);
+    res.json(history);
   });
 
   // --- Milestones ---
@@ -1271,6 +1383,20 @@ export async function registerRoutes(
     try {
       const input = api.issues.create.input.parse(req.body);
       const issue = await storage.createIssue(input);
+      
+      // Log change
+      const userId = (req.user as any)?.claims?.sub;
+      const user = userId ? await storage.getUser(userId) : null;
+      await storage.createIssueChangeLog({
+        issueId: issue.id,
+        changedBy: userId || null,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'created',
+        changeSummary: `Issue "${issue.title}" created`,
+        previousValues: null,
+        newValues: JSON.stringify(issue),
+      });
+      
       res.status(201).json(issue);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -1280,8 +1406,43 @@ export async function registerRoutes(
 
   app.put(api.issues.update.path, async (req, res) => {
     try {
+      const issueId = Number(req.params.id);
+      const existing = await storage.getIssue(issueId);
+      if (!existing) return res.status(404).json({ message: "Issue not found" });
+      
       const input = api.issues.update.input.parse(req.body);
-      const updated = await storage.updateIssue(Number(req.params.id), input);
+      const updated = await storage.updateIssue(issueId, input);
+      
+      // Track changes
+      const trackedFields = ['title', 'description', 'priority', 'status', 'type', 'assignee'];
+      const changes: string[] = [];
+      const prevValues: Record<string, any> = {};
+      const newValues: Record<string, any> = {};
+      
+      for (const field of trackedFields) {
+        const prev = (existing as any)[field];
+        const curr = (updated as any)[field];
+        if (String(prev ?? '') !== String(curr ?? '')) {
+          changes.push(`${field}: "${prev || '(empty)'}" → "${curr || '(empty)'}"`);
+          prevValues[field] = prev;
+          newValues[field] = curr;
+        }
+      }
+      
+      if (changes.length > 0) {
+        const userId = (req.user as any)?.claims?.sub;
+        const user = userId ? await storage.getUser(userId) : null;
+        await storage.createIssueChangeLog({
+          issueId,
+          changedBy: userId || null,
+          changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+          changeType: 'updated',
+          changeSummary: changes.join('; '),
+          previousValues: JSON.stringify(prevValues),
+          newValues: JSON.stringify(newValues),
+        });
+      }
+      
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -1293,6 +1454,13 @@ export async function registerRoutes(
     const userId = (req.user as any)?.claims?.sub;
     await storage.softDeleteItem('issue', Number(req.params.id), userId);
     res.status(204).send();
+  });
+
+  // Issue History
+  app.get(api.issues.getHistory.path, async (req, res) => {
+    const issueId = Number(req.params.id);
+    const history = await storage.getIssueChangeLogs(issueId);
+    res.json(history);
   });
 
   // --- Tasks ---
