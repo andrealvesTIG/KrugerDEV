@@ -13,11 +13,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp} from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 export default function Projects() {
   const { currentOrganization } = useOrganization();
@@ -73,54 +74,79 @@ export default function Projects() {
       </div>
 
       {/* Projects List */}
-      <div className="space-y-4">
-        {filteredProjects?.map((project) => (
-          <Link key={project.id} href={`/projects/${project.id}`}>
-            <div className="group relative flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:border-primary/50 hover:shadow-md transition-all duration-200 sm:flex-row sm:items-center cursor-pointer">
-              
-              {/* Status Indicator Stripe */}
-              <div className={cn(
-                "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl",
-                project.health === 'Green' && "bg-emerald-500",
-                project.health === 'Yellow' && "bg-amber-500",
-                project.health === 'Red' && "bg-rose-500",
-              )} />
+      <div className="space-y-6">
+        {filteredProjects?.map((project, index) => (
+          <motion.div
+            key={project.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: index * 0.05 }}
+          >
+            <Link href={`/projects/${project.id}`}>
+              <div className="group relative flex flex-col gap-5 rounded-2xl border border-slate-200/80 bg-white p-7 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer dark:bg-slate-900 dark:border-slate-700">
+                
+                {/* Status Indicator Stripe */}
+                <div className={cn(
+                  "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-all duration-300 group-hover:w-2",
+                  project.health === 'Green' && "bg-gradient-to-b from-emerald-400 to-emerald-600",
+                  project.health === 'Yellow' && "bg-gradient-to-b from-amber-400 to-amber-600",
+                  project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
+                )} />
 
-              <div className="flex-1 pl-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-slate-900 group-hover:text-primary transition-colors">
-                    {project.name}
-                  </h3>
-                  <Badge variant="outline" className="font-normal text-slate-500">
-                    {project.status}
+                <div className="flex-1 pl-5">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors duration-200">
+                      {project.name}
+                    </h3>
+                    <Badge variant="outline" className="font-medium text-xs px-3 py-1 rounded-full border-slate-300 dark:border-slate-600">
+                      {project.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-slate-400" />
+                      <span>Due {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'TBD'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-24 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                          <div 
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500",
+                              project.health === 'Green' && "bg-emerald-500",
+                              project.health === 'Yellow' && "bg-amber-500",
+                              project.health === 'Red' && "bg-rose-500",
+                            )}
+                            style={{ width: `${project.completionPercentage}%` }}
+                          />
+                        </div>
+                        <span className="font-medium">{project.completionPercentage}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6 pl-5 sm:pl-0 mt-4 sm:mt-0">
+                  <div className="text-right hidden sm:block">
+                    <div className="flex items-center gap-1.5 justify-end text-slate-400 mb-1">
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      <span className="text-xs font-medium uppercase tracking-wide">Budget</span>
+                    </div>
+                    <p className="text-lg font-bold text-slate-900 dark:text-slate-100">${Number(project.budget).toLocaleString()}</p>
+                  </div>
+                  <Badge className={cn(
+                    "ml-auto sm:ml-0 px-4 py-1.5 text-xs font-semibold rounded-full",
+                    project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
+                    project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
+                    project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
+                    project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
+                  )}>
+                    {project.priority}
                   </Badge>
                 </div>
-                <div className="mt-2 flex items-center gap-6 text-sm text-slate-500">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4" />
-                    <span>Due {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'TBD'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Target className="h-4 w-4" />
-                    <span>{project.completionPercentage}% Complete</span>
-                  </div>
-                </div>
               </div>
-
-              <div className="flex items-center gap-4 pl-4 sm:pl-0">
-                <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-slate-900">Budget</p>
-                  <p className="text-sm text-slate-500">${Number(project.budget).toLocaleString()}</p>
-                </div>
-                <Badge className={cn(
-                  "ml-auto sm:ml-0",
-                  project.priority === 'High' || project.priority === 'Critical' ? "bg-rose-100 text-rose-700 hover:bg-rose-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"
-                )}>
-                  {project.priority} Priority
-                </Badge>
-              </div>
-            </div>
-          </Link>
+            </Link>
+          </motion.div>
         ))}
 
         {!isLoading && filteredProjects?.length === 0 && (
