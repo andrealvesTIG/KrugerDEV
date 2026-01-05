@@ -13,9 +13,10 @@ import {
   type Task, type InsertTask, type UpdateTaskRequest,
   type TaskChangeLog, type InsertTaskChangeLog,
   type TaskDependency, type InsertTaskDependency,
-  type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest
+  type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest,
+  type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
-import { eq, and, desc, or, ilike, sql } from "drizzle-orm";
+import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -116,6 +117,12 @@ export interface IStorage {
     issues: number;
     financials: number;
   }>;
+
+  // Recycle Bin
+  getDeletedItems(organizationId: number): Promise<RecycleBinItem[]>;
+  softDeleteItem(type: RecycleBinItemType, id: number, userId: string): Promise<void>;
+  restoreItem(type: RecycleBinItemType, id: number): Promise<void>;
+  permanentlyDeleteItem(type: RecycleBinItemType, id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -204,13 +211,17 @@ export class DatabaseStorage implements IStorage {
   // Portfolios
   async getPortfolios(organizationId?: number): Promise<Portfolio[]> {
     if (organizationId) {
-      return await db.select().from(portfolios).where(eq(portfolios.organizationId, organizationId));
+      return await db.select().from(portfolios).where(
+        and(eq(portfolios.organizationId, organizationId), isNull(portfolios.deletedAt))
+      );
     }
-    return await db.select().from(portfolios);
+    return await db.select().from(portfolios).where(isNull(portfolios.deletedAt));
   }
 
   async getPortfolio(id: number): Promise<Portfolio | undefined> {
-    const [portfolio] = await db.select().from(portfolios).where(eq(portfolios.id, id));
+    const [portfolio] = await db.select().from(portfolios).where(
+      and(eq(portfolios.id, id), isNull(portfolios.deletedAt))
+    );
     return portfolio;
   }
 
@@ -235,20 +246,26 @@ export class DatabaseStorage implements IStorage {
   async getProjects(organizationId?: number, portfolioId?: number): Promise<Project[]> {
     if (organizationId && portfolioId) {
       return await db.select().from(projects).where(
-        and(eq(projects.organizationId, organizationId), eq(projects.portfolioId, portfolioId))
+        and(eq(projects.organizationId, organizationId), eq(projects.portfolioId, portfolioId), isNull(projects.deletedAt))
       );
     }
     if (organizationId) {
-      return await db.select().from(projects).where(eq(projects.organizationId, organizationId));
+      return await db.select().from(projects).where(
+        and(eq(projects.organizationId, organizationId), isNull(projects.deletedAt))
+      );
     }
     if (portfolioId) {
-      return await db.select().from(projects).where(eq(projects.portfolioId, portfolioId));
+      return await db.select().from(projects).where(
+        and(eq(projects.portfolioId, portfolioId), isNull(projects.deletedAt))
+      );
     }
-    return await db.select().from(projects);
+    return await db.select().from(projects).where(isNull(projects.deletedAt));
   }
 
   async getProject(id: number): Promise<Project | undefined> {
-    const [project] = await db.select().from(projects).where(eq(projects.id, id));
+    const [project] = await db.select().from(projects).where(
+      and(eq(projects.id, id), isNull(projects.deletedAt))
+    );
     return project;
   }
 
@@ -271,7 +288,9 @@ export class DatabaseStorage implements IStorage {
 
   // Risks
   async getRisks(projectId: number): Promise<Risk[]> {
-    return await db.select().from(risks).where(eq(risks.projectId, projectId));
+    return await db.select().from(risks).where(
+      and(eq(risks.projectId, projectId), isNull(risks.deletedAt))
+    );
   }
 
   async createRisk(risk: InsertRisk): Promise<Risk> {
@@ -293,7 +312,9 @@ export class DatabaseStorage implements IStorage {
 
   // Milestones
   async getMilestones(projectId: number): Promise<Milestone[]> {
-    return await db.select().from(milestones).where(eq(milestones.projectId, projectId));
+    return await db.select().from(milestones).where(
+      and(eq(milestones.projectId, projectId), isNull(milestones.deletedAt))
+    );
   }
 
   async createMilestone(milestone: InsertMilestone): Promise<Milestone> {
@@ -315,11 +336,13 @@ export class DatabaseStorage implements IStorage {
 
   // Issues
   async getIssues(projectId: number): Promise<Issue[]> {
-    return await db.select().from(issues).where(eq(issues.projectId, projectId));
+    return await db.select().from(issues).where(
+      and(eq(issues.projectId, projectId), isNull(issues.deletedAt))
+    );
   }
 
   async getAllIssues(): Promise<Issue[]> {
-    return await db.select().from(issues);
+    return await db.select().from(issues).where(isNull(issues.deletedAt));
   }
 
   async createIssue(issue: InsertIssue): Promise<Issue> {
@@ -341,15 +364,19 @@ export class DatabaseStorage implements IStorage {
 
   // Tasks
   async getTasks(projectId: number): Promise<Task[]> {
-    return await db.select().from(tasks).where(eq(tasks.projectId, projectId));
+    return await db.select().from(tasks).where(
+      and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt))
+    );
   }
 
   async getAllTasks(): Promise<Task[]> {
-    return await db.select().from(tasks);
+    return await db.select().from(tasks).where(isNull(tasks.deletedAt));
   }
 
   async getTask(id: number): Promise<Task | undefined> {
-    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    const [task] = await db.select().from(tasks).where(
+      and(eq(tasks.id, id), isNull(tasks.deletedAt))
+    );
     return task;
   }
 
@@ -666,6 +693,213 @@ export class DatabaseStorage implements IStorage {
     stats.portfolios = deletedPortfolios.length;
     
     return stats;
+  }
+
+  // Recycle Bin Methods
+  async getDeletedItems(organizationId: number): Promise<RecycleBinItem[]> {
+    const items: RecycleBinItem[] = [];
+
+    // Get deleted portfolios
+    const deletedPortfolios = await db.select().from(portfolios)
+      .where(and(eq(portfolios.organizationId, organizationId), isNotNull(portfolios.deletedAt)));
+    for (const p of deletedPortfolios) {
+      const deleter = p.deletedBy ? await this.getUser(p.deletedBy) : null;
+      items.push({
+        id: p.id,
+        type: 'portfolio',
+        name: p.name,
+        deletedAt: p.deletedAt!,
+        deletedBy: p.deletedBy,
+        deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+      });
+    }
+
+    // Get deleted projects
+    const deletedProjects = await db.select().from(projects)
+      .where(and(eq(projects.organizationId, organizationId), isNotNull(projects.deletedAt)));
+    for (const p of deletedProjects) {
+      const deleter = p.deletedBy ? await this.getUser(p.deletedBy) : null;
+      items.push({
+        id: p.id,
+        type: 'project',
+        name: p.name,
+        deletedAt: p.deletedAt!,
+        deletedBy: p.deletedBy,
+        deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+      });
+    }
+
+    // Get project IDs for this organization to filter related items
+    const orgProjects = await db.select({ id: projects.id, name: projects.name }).from(projects)
+      .where(eq(projects.organizationId, organizationId));
+    const projectMap = new Map(orgProjects.map(p => [p.id, p.name]));
+    const projectIds = orgProjects.map(p => p.id);
+
+    if (projectIds.length > 0) {
+      // Get deleted tasks
+      const deletedTasks = await db.select().from(tasks)
+        .where(and(
+          sql`${tasks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          isNotNull(tasks.deletedAt)
+        ));
+      for (const t of deletedTasks) {
+        const deleter = t.deletedBy ? await this.getUser(t.deletedBy) : null;
+        items.push({
+          id: t.id,
+          type: 'task',
+          name: t.name,
+          projectName: projectMap.get(t.projectId),
+          deletedAt: t.deletedAt!,
+          deletedBy: t.deletedBy,
+          deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+        });
+      }
+
+      // Get deleted risks
+      const deletedRisks = await db.select().from(risks)
+        .where(and(
+          sql`${risks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          isNotNull(risks.deletedAt)
+        ));
+      for (const r of deletedRisks) {
+        const deleter = r.deletedBy ? await this.getUser(r.deletedBy) : null;
+        items.push({
+          id: r.id,
+          type: 'risk',
+          name: r.title,
+          projectName: projectMap.get(r.projectId),
+          deletedAt: r.deletedAt!,
+          deletedBy: r.deletedBy,
+          deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+        });
+      }
+
+      // Get deleted milestones
+      const deletedMilestones = await db.select().from(milestones)
+        .where(and(
+          sql`${milestones.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          isNotNull(milestones.deletedAt)
+        ));
+      for (const m of deletedMilestones) {
+        const deleter = m.deletedBy ? await this.getUser(m.deletedBy) : null;
+        items.push({
+          id: m.id,
+          type: 'milestone',
+          name: m.title,
+          projectName: projectMap.get(m.projectId),
+          deletedAt: m.deletedAt!,
+          deletedBy: m.deletedBy,
+          deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+        });
+      }
+
+      // Get deleted issues
+      const deletedIssues = await db.select().from(issues)
+        .where(and(
+          sql`${issues.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          isNotNull(issues.deletedAt)
+        ));
+      for (const i of deletedIssues) {
+        const deleter = i.deletedBy ? await this.getUser(i.deletedBy) : null;
+        items.push({
+          id: i.id,
+          type: 'issue',
+          name: i.title,
+          projectName: projectMap.get(i.projectId),
+          deletedAt: i.deletedAt!,
+          deletedBy: i.deletedBy,
+          deletedByName: deleter ? `${deleter.firstName || ''} ${deleter.lastName || ''}`.trim() || deleter.email || 'Unknown' : undefined
+        });
+      }
+    }
+
+    // Sort by deletedAt descending (most recent first)
+    return items.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
+  }
+
+  async softDeleteItem(type: RecycleBinItemType, id: number, userId: string): Promise<void> {
+    const now = new Date();
+    switch (type) {
+      case 'portfolio':
+        await db.update(portfolios).set({ deletedAt: now, deletedBy: userId }).where(eq(portfolios.id, id));
+        break;
+      case 'project':
+        await db.update(projects).set({ deletedAt: now, deletedBy: userId }).where(eq(projects.id, id));
+        break;
+      case 'task':
+        await db.update(tasks).set({ deletedAt: now, deletedBy: userId }).where(eq(tasks.id, id));
+        break;
+      case 'risk':
+        await db.update(risks).set({ deletedAt: now, deletedBy: userId }).where(eq(risks.id, id));
+        break;
+      case 'milestone':
+        await db.update(milestones).set({ deletedAt: now, deletedBy: userId }).where(eq(milestones.id, id));
+        break;
+      case 'issue':
+        await db.update(issues).set({ deletedAt: now, deletedBy: userId }).where(eq(issues.id, id));
+        break;
+    }
+  }
+
+  async restoreItem(type: RecycleBinItemType, id: number): Promise<void> {
+    switch (type) {
+      case 'portfolio':
+        await db.update(portfolios).set({ deletedAt: null, deletedBy: null }).where(eq(portfolios.id, id));
+        break;
+      case 'project':
+        await db.update(projects).set({ deletedAt: null, deletedBy: null }).where(eq(projects.id, id));
+        break;
+      case 'task':
+        await db.update(tasks).set({ deletedAt: null, deletedBy: null }).where(eq(tasks.id, id));
+        break;
+      case 'risk':
+        await db.update(risks).set({ deletedAt: null, deletedBy: null }).where(eq(risks.id, id));
+        break;
+      case 'milestone':
+        await db.update(milestones).set({ deletedAt: null, deletedBy: null }).where(eq(milestones.id, id));
+        break;
+      case 'issue':
+        await db.update(issues).set({ deletedAt: null, deletedBy: null }).where(eq(issues.id, id));
+        break;
+    }
+  }
+
+  async permanentlyDeleteItem(type: RecycleBinItemType, id: number): Promise<void> {
+    switch (type) {
+      case 'portfolio':
+        await db.delete(portfolios).where(eq(portfolios.id, id));
+        break;
+      case 'project':
+        // Delete related items first
+        const projectTasks = await db.select().from(tasks).where(eq(tasks.projectId, id));
+        for (const task of projectTasks) {
+          await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+          await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
+          await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+        }
+        await db.delete(tasks).where(eq(tasks.projectId, id));
+        await db.delete(risks).where(eq(risks.projectId, id));
+        await db.delete(milestones).where(eq(milestones.projectId, id));
+        await db.delete(issues).where(eq(issues.projectId, id));
+        await db.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
+        await db.delete(projects).where(eq(projects.id, id));
+        break;
+      case 'task':
+        await db.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
+        await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));
+        await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, id));
+        await db.delete(tasks).where(eq(tasks.id, id));
+        break;
+      case 'risk':
+        await db.delete(risks).where(eq(risks.id, id));
+        break;
+      case 'milestone':
+        await db.delete(milestones).where(eq(milestones.id, id));
+        break;
+      case 'issue':
+        await db.delete(issues).where(eq(issues.id, id));
+        break;
+    }
   }
 }
 

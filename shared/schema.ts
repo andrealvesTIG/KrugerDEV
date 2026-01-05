@@ -371,3 +371,16 @@ export type UpdateTaskRequest = Partial<InsertTask>;
 
 export type CreateProjectFinancialRequest = InsertProjectFinancial;
 export type UpdateProjectFinancialRequest = Partial<InsertProjectFinancial>;
+
+// Recycle Bin Types
+export type RecycleBinItemType = 'portfolio' | 'project' | 'task' | 'risk' | 'milestone' | 'issue';
+
+export interface RecycleBinItem {
+  id: number;
+  type: RecycleBinItemType;
+  name: string;
+  projectName?: string; // For items belonging to a project
+  deletedAt: Date;
+  deletedBy: string | null;
+  deletedByName?: string;
+}
