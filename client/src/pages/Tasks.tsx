@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useAllTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
+import { useState, useMemo, useEffect } from "react";
+import { useAllTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock } from "lucide-react";
 import { format, addDays, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from "date-fns";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,7 +33,9 @@ export default function Tasks() {
   const { data: projects } = useProjects(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [durationDays, setDurationDays] = useState(7);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
@@ -52,20 +56,37 @@ export default function Tasks() {
       description: "",
       startDate: format(new Date(), 'yyyy-MM-dd'),
       endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+      durationDays: 7,
       progress: 0,
       status: "Not Started",
       assignee: "",
     }
   });
 
+  const startDate = form.watch("startDate");
+  
+  useEffect(() => {
+    if (startDate && durationDays > 0) {
+      const start = parseISO(startDate);
+      const end = addDays(start, durationDays - 1);
+      form.setValue("endDate", format(end, 'yyyy-MM-dd'));
+      form.setValue("durationDays", durationDays);
+    }
+  }, [startDate, durationDays, form]);
+
   const openEditDialog = (task: Task) => {
     setEditingTask(task);
+    const taskDuration = task.durationDays || (task.startDate && task.endDate 
+      ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
+      : 7);
+    setDurationDays(taskDuration);
     form.reset({
       projectId: task.projectId,
       name: task.name,
       description: task.description || "",
       startDate: task.startDate,
       endDate: task.endDate,
+      durationDays: taskDuration,
       progress: task.progress || 0,
       status: task.status || "Not Started",
       assignee: task.assignee || "",
@@ -75,12 +96,14 @@ export default function Tasks() {
 
   const openCreateDialog = () => {
     setEditingTask(null);
+    setDurationDays(7);
     form.reset({
       projectId: projects && projects.length > 0 ? projects[0].id : undefined as any,
       name: "",
       description: "",
       startDate: format(new Date(), 'yyyy-MM-dd'),
       endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+      durationDays: 7,
       progress: 0,
       status: "Not Started",
       assignee: "",
@@ -105,6 +128,7 @@ export default function Tasks() {
       description: data.description || null,
       startDate: data.startDate,
       endDate: data.endDate,
+      durationDays: durationDays,
       progress: data.progress || 0,
       status: data.status || "Not Started",
       assignee: data.assignee || null,
@@ -192,14 +216,28 @@ export default function Tasks() {
                   <Input {...form.register("name")} data-testid="input-task-name" className={cn(form.formState.errors.name && "border-destructive")} />
                   {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Start Date</Label>
                     <Input type="date" {...form.register("startDate")} data-testid="input-task-start" />
                   </div>
                   <div className="space-y-2">
+                    <Label className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Duration (days)
+                    </Label>
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      max="365" 
+                      value={durationDays}
+                      onChange={(e) => setDurationDays(Math.max(1, Number(e.target.value) || 1))}
+                      data-testid="input-task-duration" 
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label>End Date</Label>
-                    <Input type="date" {...form.register("endDate")} data-testid="input-task-end" />
+                    <Input type="date" {...form.register("endDate")} data-testid="input-task-end" disabled className="bg-muted" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -217,8 +255,21 @@ export default function Tasks() {
                     )} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Progress (%)</Label>
-                    <Input type="number" min="0" max="100" {...form.register("progress", { valueAsNumber: true })} />
+                    <Label className="flex items-center justify-between">
+                      Progress
+                      <span className="text-muted-foreground text-xs font-normal">{form.watch("progress") || 0}%</span>
+                    </Label>
+                    <Controller control={form.control} name="progress" render={({field}) => (
+                      <Slider
+                        value={[field.value || 0]}
+                        onValueChange={(v) => field.onChange(v[0])}
+                        min={0}
+                        max={100}
+                        step={5}
+                        className="py-2"
+                        data-testid="slider-task-progress"
+                      />
+                    )} />
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -229,7 +280,20 @@ export default function Tasks() {
                   <Label>Assignee</Label>
                   <Input {...form.register("assignee")} placeholder="Name of assignee" />
                 </div>
-                <DialogFooter>
+                <DialogFooter className="flex items-center gap-2">
+                  {editingTask && (
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIsHistoryOpen(true)}
+                      data-testid="button-view-history"
+                    >
+                      <History className="mr-2 h-4 w-4" />
+                      History
+                    </Button>
+                  )}
+                  <div className="flex-1" />
                   {editingTask && (
                     <Button 
                       type="button" 
@@ -259,6 +323,12 @@ export default function Tasks() {
               </form>
             </DialogContent>
           </Dialog>
+          
+          <TaskHistoryDialog 
+            taskId={editingTask?.id || 0} 
+            open={isHistoryOpen} 
+            onOpenChange={setIsHistoryOpen} 
+          />
         </div>
       </div>
 
@@ -441,5 +511,60 @@ function KanbanView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects:
         );
       })}
     </div>
+  );
+}
+
+function TaskHistoryDialog({ taskId, open, onOpenChange }: { taskId: number; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { data: history, isLoading } = useTaskHistory(taskId);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Task Change History
+          </DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : !history || history.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No changes recorded yet
+            </div>
+          ) : (
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-4">
+                {history.map((log) => (
+                  <div 
+                    key={log.id} 
+                    className="border-l-2 border-muted-foreground/30 pl-4 pb-4"
+                    data-testid={`history-entry-${log.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {log.changeType === 'created' ? 'Created' : 'Updated'}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {format(parseISO(log.changedAt), 'MMM d, yyyy h:mm a')}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm">
+                      <span className="font-medium">{log.changedByName}</span>
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground break-words">
+                      {log.changeSummary}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
