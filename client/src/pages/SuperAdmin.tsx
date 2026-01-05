@@ -139,7 +139,8 @@ function OrganizationsTab() {
 
   const generateDemoData = useMutation({
     mutationFn: async ({ organizationId, industry }: { organizationId: number; industry: string }) => {
-      return apiRequest('POST', '/api/demo-data/generate', { organizationId, industry });
+      const response = await apiRequest('POST', '/api/demo-data/generate', { organizationId, industry });
+      return response.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
