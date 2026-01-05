@@ -38,6 +38,8 @@ export const portfolios = pgTable("portfolios", {
   strategy: text("strategy"), // Strategic alignment description
   managerId: varchar("manager_id").references(() => users.id), // Changed to varchar to match users.id
   createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"), // Soft delete timestamp
+  deletedBy: varchar("deleted_by").references(() => users.id), // Who deleted it
 });
 
 // Projects
@@ -56,6 +58,8 @@ export const projects = pgTable("projects", {
   completionPercentage: integer("completion_percentage").default(0),
   health: text("health").default("Green"), // Green, Yellow, Red
   createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
 });
 
 // Risks
@@ -69,6 +73,8 @@ export const risks = pgTable("risks", {
   status: text("status").default("Open"), // Open, Mitigated, Closed
   mitigationPlan: text("mitigation_plan"),
   createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
 });
 
 // Milestones
@@ -83,6 +89,8 @@ export const milestones = pgTable("milestones", {
   status: text("status").default("Backlog"), // Backlog, To Do, In Progress, Done
   priority: text("priority").default("Medium"), // Low, Medium, High, Critical
   assignee: text("assignee"),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
 });
 
 // Issues
@@ -96,6 +104,8 @@ export const issues = pgTable("issues", {
   type: text("type").default("Bug"), // Bug, Enhancement, Task, Question
   assignee: text("assignee"),
   createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
 });
 
 // Tasks (for Gantt Chart)
@@ -112,6 +122,8 @@ export const tasks = pgTable("tasks", {
   assignee: text("assignee"),
   parentId: integer("parent_id"), // For subtasks/dependencies
   createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
 });
 
 // Task Change Logs (Audit Trail)
