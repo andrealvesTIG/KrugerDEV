@@ -14,7 +14,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter } from "lucide-react";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from "date-fns";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,16 +40,20 @@ export default function Tasks() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [durationDays, setDurationDays] = useState(7);
+  const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const { toast } = useToast();
 
   const projectIds = useMemo(() => new Set(projects?.map(p => p.id) || []), [projects]);
-  const tasks = useMemo(() => 
-    allTasks?.filter(task => projectIds.has(task.projectId)) || [],
-    [allTasks, projectIds]
-  );
+  const tasks = useMemo(() => {
+    const orgTasks = allTasks?.filter(task => projectIds.has(task.projectId)) || [];
+    if (filterProjectId) {
+      return orgTasks.filter(task => task.projectId === filterProjectId);
+    }
+    return orgTasks;
+  }, [allTasks, projectIds, filterProjectId]);
 
   const form = useForm({
     resolver: zodResolver(insertTaskSchema),
@@ -170,7 +177,7 @@ export default function Tasks() {
           <h1 className="text-3xl font-display font-bold text-foreground">Tasks</h1>
           <p className="text-muted-foreground">Manage tasks with Gantt Chart and Kanban views</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 items-center">
           <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
             <TabsList>
               <TabsTrigger value="gantt" className="gap-2">
@@ -183,6 +190,21 @@ export default function Tasks() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+          <Select 
+            value={filterProjectId ? String(filterProjectId) : "all"} 
+            onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}
+          >
+            <SelectTrigger className="w-[180px]" data-testid="select-filter-project">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Filter by project" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {projects?.map(p => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
             <DialogTrigger asChild>
               <Button onClick={openCreateDialog} data-testid="button-add-task">
@@ -336,7 +358,21 @@ export default function Tasks() {
       {view === "gantt" ? (
         <GanttView tasks={tasks || []} projects={projects || []} onTaskClick={openEditDialog} />
       ) : (
-        <KanbanView tasks={tasks || []} projects={projects || []} onTaskClick={openEditDialog} />
+        <KanbanView 
+          tasks={tasks || []} 
+          projects={projects || []} 
+          onTaskClick={openEditDialog}
+          onStatusChange={(taskId, newStatus) => {
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+              updateTask.mutate({ 
+                id: taskId, 
+                projectId: task.projectId, 
+                status: newStatus 
+              });
+            }
+          }}
+        />
       )}
     </div>
   );
@@ -462,69 +498,199 @@ function GanttView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects: 
   );
 }
 
-function KanbanView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void }) {
+function KanbanView({ 
+  tasks, 
+  projects, 
+  onTaskClick, 
+  onStatusChange 
+}: { 
+  tasks: Task[]; 
+  projects: any[]; 
+  onTaskClick: (task: Task) => void;
+  onStatusChange: (taskId: number, newStatus: string) => void;
+}) {
   const columns = [
-    { id: "Not Started", label: "Not Started", color: "bg-slate-100" },
-    { id: "In Progress", label: "In Progress", color: "bg-blue-100" },
-    { id: "Completed", label: "Completed", color: "bg-emerald-100" },
+    { id: "Not Started", label: "Not Started", color: "bg-slate-100 dark:bg-slate-800" },
+    { id: "In Progress", label: "In Progress", color: "bg-blue-100 dark:bg-blue-900/40" },
+    { id: "Completed", label: "Completed", color: "bg-emerald-100 dark:bg-emerald-900/40" },
   ];
+
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const getProjectName = (projectId: number) => {
     return projects.find(p => p.id === projectId)?.name || "Unknown";
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    const taskId = Number(event.active.id);
+    const task = tasks.find(t => t.id === taskId);
+    if (task) setActiveTask(task);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveTask(null);
+    const { active, over } = event;
+    if (!over) return;
+    
+    const taskId = Number(active.id);
+    const newStatus = String(over.id);
+    const task = tasks.find(t => t.id === taskId);
+    
+    if (task && task.status !== newStatus && columns.some(c => c.id === newStatus)) {
+      onStatusChange(taskId, newStatus);
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {columns.map(column => {
-        const columnTasks = tasks.filter(t => (t.status || "Not Started") === column.id);
-        return (
-          <div key={column.id} className="space-y-4">
-            <div className={cn("rounded-lg p-3 font-semibold", column.color)}>
-              {column.label} ({columnTasks.length})
-            </div>
-            <div className="space-y-3">
-              {columnTasks.map(task => (
-                <Card 
-                  key={task.id} 
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => onTaskClick(task)}
-                  data-testid={`kanban-task-${task.id}`}
-                >
-                  <CardContent className="p-4">
-                    <div className="font-medium text-sm">{task.name}</div>
-                    <Link 
-                      href={`/projects/${task.projectId}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block"
-                      data-testid={`kanban-link-project-${task.projectId}`}
-                    >
-                      {getProjectName(task.projectId)}
-                    </Link>
-                    {task.assignee && (
-                      <div className="text-xs text-muted-foreground mt-2">Assigned: {task.assignee}</div>
-                    )}
-                    <div className="flex items-center justify-between mt-3">
-                      <Badge variant="outline" className="text-xs">
-                        {task.progress || 0}%
-                      </Badge>
-                      {task.endDate && (
-                        <span className="text-xs text-muted-foreground">
-                          Due: {format(parseISO(task.endDate), 'MMM d')}
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {columnTasks.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  No tasks
-                </div>
-              )}
-            </div>
+    <DndContext 
+      sensors={sensors} 
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {columns.map(column => (
+          <KanbanColumn
+            key={column.id}
+            column={column}
+            tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
+            getProjectName={getProjectName}
+            onTaskClick={onTaskClick}
+          />
+        ))}
+      </div>
+      <DragOverlay>
+        {activeTask && (
+          <div className="opacity-80">
+            <Card className="shadow-lg border-primary">
+              <CardContent className="p-4">
+                <div className="font-medium text-sm">{activeTask.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">{getProjectName(activeTask.projectId)}</div>
+              </CardContent>
+            </Card>
           </div>
-        );
-      })}
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function KanbanColumn({ 
+  column, 
+  tasks, 
+  getProjectName, 
+  onTaskClick 
+}: { 
+  column: { id: string; label: string; color: string }; 
+  tasks: Task[]; 
+  getProjectName: (id: number) => string;
+  onTaskClick: (task: Task) => void;
+}) {
+  const { setNodeRef, isOver } = useSortable({
+    id: column.id,
+  });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={cn(
+        "space-y-4 min-h-[200px] rounded-lg transition-colors",
+        isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
+      )}
+    >
+      <div className={cn("rounded-lg p-3 font-semibold", column.color)}>
+        {column.label} ({tasks.length})
+      </div>
+      <div className="space-y-3">
+        {tasks.map(task => (
+          <DraggableTaskCard
+            key={task.id}
+            task={task}
+            getProjectName={getProjectName}
+            onTaskClick={onTaskClick}
+          />
+        ))}
+        {tasks.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+            Drop tasks here
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DraggableTaskCard({ 
+  task, 
+  getProjectName, 
+  onTaskClick 
+}: { 
+  task: Task; 
+  getProjectName: (id: number) => string;
+  onTaskClick: (task: Task) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: task.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(isDragging && "opacity-50")}
+    >
+      <Card 
+        className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing"
+        onClick={() => onTaskClick(task)}
+        data-testid={`kanban-task-${task.id}`}
+      >
+        <CardContent className="p-4">
+          <div className="font-medium text-sm">{task.name}</div>
+          <Link 
+            href={`/projects/${task.projectId}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block"
+            data-testid={`kanban-link-project-${task.projectId}`}
+          >
+            {getProjectName(task.projectId)}
+          </Link>
+          {task.assignee && (
+            <div className="text-xs text-muted-foreground mt-2">Assigned: {task.assignee}</div>
+          )}
+          <div className="flex items-center justify-between mt-3">
+            <Badge variant="outline" className="text-xs">
+              {task.progress || 0}%
+            </Badge>
+            {task.endDate && (
+              <span className="text-xs text-muted-foreground">
+                Due: {format(parseISO(task.endDate), 'MMM d')}
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
