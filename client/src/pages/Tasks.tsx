@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { Link } from "wouter";
 import { useAllTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
@@ -417,7 +418,14 @@ function GanttView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects: 
                 >
                   <div className="w-64 flex-shrink-0 border-r p-3">
                     <div className="font-medium text-sm truncate">{task.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{getProjectName(task.projectId)}</div>
+                    <Link 
+                      href={`/projects/${task.projectId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xs text-muted-foreground truncate hover:text-primary hover:underline block"
+                      data-testid={`link-project-${task.projectId}`}
+                    >
+                      {getProjectName(task.projectId)}
+                    </Link>
                   </div>
                   <div className="flex-1 relative p-2">
                     {hasValidDates ? (
@@ -484,7 +492,14 @@ function KanbanView({ tasks, projects, onTaskClick }: { tasks: Task[]; projects:
                 >
                   <CardContent className="p-4">
                     <div className="font-medium text-sm">{task.name}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{getProjectName(task.projectId)}</div>
+                    <Link 
+                      href={`/projects/${task.projectId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block"
+                      data-testid={`kanban-link-project-${task.projectId}`}
+                    >
+                      {getProjectName(task.projectId)}
+                    </Link>
                     {task.assignee && (
                       <div className="text-xs text-muted-foreground mt-2">Assigned: {task.assignee}</div>
                     )}
