@@ -18,7 +18,7 @@ export function useAllTasks() {
 
 export function useCreateTask() {
   return useMutation({
-    mutationFn: (data: InsertTask) => apiRequest('/api/tasks', 'POST', data),
+    mutationFn: (data: InsertTask) => apiRequest('POST', '/api/tasks', data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
@@ -29,7 +29,7 @@ export function useCreateTask() {
 export function useUpdateTask() {
   return useMutation({
     mutationFn: ({ id, projectId, ...data }: { id: number; projectId: number } & UpdateTaskRequest) =>
-      apiRequest(`/api/tasks/${id}`, 'PUT', data),
+      apiRequest('PUT', `/api/tasks/${id}`, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
@@ -40,7 +40,7 @@ export function useUpdateTask() {
 export function useDeleteTask() {
   return useMutation({
     mutationFn: ({ id }: { id: number; projectId: number }) =>
-      apiRequest(`/api/tasks/${id}`, 'DELETE'),
+      apiRequest('DELETE', `/api/tasks/${id}`),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
@@ -67,7 +67,7 @@ export function useTaskDependencies(taskId: number) {
 export function useAddTaskDependency() {
   return useMutation({
     mutationFn: ({ taskId, dependsOnTaskId }: { taskId: number; dependsOnTaskId: number }) =>
-      apiRequest(`/api/tasks/${taskId}/dependencies`, 'POST', { dependsOnTaskId }),
+      apiRequest('POST', `/api/tasks/${taskId}/dependencies`, { dependsOnTaskId }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
     },
@@ -77,7 +77,7 @@ export function useAddTaskDependency() {
 export function useRemoveTaskDependency() {
   return useMutation({
     mutationFn: ({ taskId, dependsOnTaskId }: { taskId: number; dependsOnTaskId: number }) =>
-      apiRequest(`/api/tasks/${taskId}/dependencies/${dependsOnTaskId}`, 'DELETE'),
+      apiRequest('DELETE', `/api/tasks/${taskId}/dependencies/${dependsOnTaskId}`),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
     },
