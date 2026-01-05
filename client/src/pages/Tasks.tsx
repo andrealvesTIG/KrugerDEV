@@ -40,7 +40,7 @@ export default function Tasks() {
   const form = useForm({
     resolver: zodResolver(insertTaskSchema),
     defaultValues: {
-      projectId: 0,
+      projectId: undefined as any,
       name: "",
       description: "",
       startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -69,7 +69,7 @@ export default function Tasks() {
   const openCreateDialog = () => {
     setEditingTask(null);
     form.reset({
-      projectId: projects?.[0]?.id || 0,
+      projectId: projects && projects.length > 0 ? projects[0].id : undefined as any,
       name: "",
       description: "",
       startDate: format(new Date(), 'yyyy-MM-dd'),
@@ -82,24 +82,36 @@ export default function Tasks() {
   };
 
   const onSubmit = (data: any) => {
-    if (data.projectId === 0) {
-      toast({ title: "Error", description: "Please select a project", variant: "destructive" });
+    // Ensure we have a valid projectId before mutating
+    const projectId = Number(data.projectId);
+    if (!projectId || isNaN(projectId)) {
+      toast({ 
+        title: "Validation Error", 
+        description: "Please select a valid project.", 
+        variant: "destructive" 
+      });
       return;
     }
-    
+
     if (editingTask) {
-      updateTask.mutate({ id: editingTask.id, projectId: editingTask.projectId, ...data }, {
+      updateTask.mutate({ id: editingTask.id, projectId, ...data }, {
         onSuccess: () => {
           toast({ title: "Success", description: "Task updated" });
           setIsDialogOpen(false);
           setEditingTask(null);
+        },
+        onError: (error) => {
+          toast({ title: "Error", description: "Failed to update task", variant: "destructive" });
         }
       });
     } else {
-      createTask.mutate(data, {
+      createTask.mutate({ ...data, projectId }, {
         onSuccess: () => {
           toast({ title: "Success", description: "Task created" });
           setIsDialogOpen(false);
+        },
+        onError: (error) => {
+          toast({ title: "Error", description: "Failed to create task", variant: "destructive" });
         }
       });
     }
@@ -140,20 +152,26 @@ export default function Tasks() {
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
                 <div className="space-y-2">
                   <Label>Project</Label>
-                  <Controller control={form.control} name="projectId" render={({field}) => (
-                    <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value || "")}>
-                      <SelectTrigger data-testid="select-task-project"><SelectValue placeholder="Select project" /></SelectTrigger>
-                      <SelectContent>
-                        {projects?.map(p => (
-                          <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <Controller control={form.control} name="projectId" render={({field, fieldState}) => (
+                    <div className="space-y-1">
+                      <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value ? String(field.value) : ""}>
+                        <SelectTrigger data-testid="select-task-project" className={cn(fieldState.error && "border-destructive")}>
+                          <SelectValue placeholder="Select project" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projects?.map(p => (
+                            <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                    </div>
                   )} />
                 </div>
                 <div className="space-y-2">
                   <Label>Task Name</Label>
-                  <Input {...form.register("name")} data-testid="input-task-name" />
+                  <Input {...form.register("name")} data-testid="input-task-name" className={cn(form.formState.errors.name && "border-destructive")} />
+                  {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -210,7 +228,12 @@ export default function Tasks() {
                       Delete
                     </Button>
                   )}
-                  <Button type="submit" data-testid="button-save-task">
+                  <Button 
+                    type="submit" 
+                    data-testid="button-save-task" 
+                    disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
+                  >
+                    {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {editingTask ? "Update Task" : "Save Task"}
                   </Button>
                 </DialogFooter>
