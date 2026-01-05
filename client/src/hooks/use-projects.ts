@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type CreateProjectRequest, type UpdateProjectRequest } from "@shared/routes";
+import type { ProjectChangeLog } from "@shared/schema";
 
 export function useProjects(organizationId?: number | null, portfolioId?: number) {
   return useQuery({
@@ -80,5 +81,17 @@ export function useDeleteProject() {
       if (!res.ok) throw new Error("Failed to delete project");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.projects.list.path] }),
+  });
+}
+
+export function useProjectHistory(projectId: number) {
+  return useQuery<ProjectChangeLog[]>({
+    queryKey: ['/api/projects', projectId, 'history'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/history`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch project history");
+      return res.json();
+    },
+    enabled: projectId > 0,
   });
 }

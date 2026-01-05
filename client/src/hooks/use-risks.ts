@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type CreateRiskRequest, type UpdateRiskRequest } from "@shared/routes";
+import type { RiskChangeLog } from "@shared/schema";
 
 export function useRisks(projectId: number) {
   return useQuery({
@@ -67,5 +68,17 @@ export function useDeleteRisk() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.risks.list.path, variables.projectId] });
     },
+  });
+}
+
+export function useRiskHistory(riskId: number) {
+  return useQuery<RiskChangeLog[]>({
+    queryKey: ['/api/risks', riskId, 'history'],
+    queryFn: async () => {
+      const res = await fetch(`/api/risks/${riskId}/history`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch risk history");
+      return res.json();
+    },
+    enabled: riskId > 0,
   });
 }

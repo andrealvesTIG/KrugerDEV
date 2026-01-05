@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import type { CreateIssueRequest, UpdateIssueRequest } from "@shared/schema";
+import type { CreateIssueRequest, UpdateIssueRequest, IssueChangeLog } from "@shared/schema";
 
 export function useIssues(projectId: number) {
   return useQuery({
@@ -80,5 +80,17 @@ export function useDeleteIssue() {
       queryClient.invalidateQueries({ queryKey: [api.issues.list.path, variables.projectId] });
       queryClient.invalidateQueries({ queryKey: [api.issues.listAll.path] });
     },
+  });
+}
+
+export function useIssueHistory(issueId: number) {
+  return useQuery<IssueChangeLog[]>({
+    queryKey: ['/api/issues', issueId, 'history'],
+    queryFn: async () => {
+      const res = await fetch(`/api/issues/${issueId}/history`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch issue history");
+      return res.json();
+    },
+    enabled: issueId > 0,
   });
 }
