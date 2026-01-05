@@ -15,7 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -46,10 +47,15 @@ export default function Tasks() {
   const [durationDays, setDurationDays] = useState(7);
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const { toast } = useToast();
+
+  const handleDeleteTaskFromKanban = (task: Task) => {
+    setDeleteTaskData(task);
+  };
 
   const projectIds = useMemo(() => new Set(projects?.map(p => p.id) || []), [projects]);
   const tasks = useMemo(() => {
@@ -456,6 +462,7 @@ export default function Tasks() {
                 });
               }
             }}
+            onDeleteTask={handleDeleteTaskFromKanban}
           />
         )
       ) : (
@@ -474,8 +481,39 @@ export default function Tasks() {
               });
             }
           }}
+          onDeleteTask={handleDeleteTaskFromKanban}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteTaskData !== null} onOpenChange={() => setDeleteTaskData(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Task</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">Are you sure you want to delete this task? It will be moved to the recycle bin.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTaskData(null)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (deleteTaskData) {
+                  deleteTask.mutate({ id: deleteTaskData.id, projectId: deleteTaskData.projectId }, {
+                    onSuccess: () => {
+                      toast({ title: "Success", description: "Task moved to recycle bin" });
+                      setDeleteTaskData(null);
+                    }
+                  });
+                }
+              }}
+              disabled={deleteTask.isPending}
+              data-testid="button-confirm-delete-task"
+            >
+              {deleteTask.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -488,12 +526,14 @@ function GroupedTasksView({
   projects,
   onTaskClick,
   onStatusChange,
+  onDeleteTask,
 }: {
   groupedTasks: TaskGroup[];
   view: "gantt" | "kanban";
   projects: any[];
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
+  onDeleteTask: (task: Task) => void;
 }) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(groupedTasks.map(g => g.id)));
 
@@ -548,6 +588,7 @@ function GroupedTasksView({
                   projects={projects} 
                   onTaskClick={onTaskClick}
                   onStatusChange={onStatusChange}
+                  onDeleteTask={onDeleteTask}
                 />
               )}
             </CardContent>
@@ -697,12 +738,14 @@ function KanbanView({
   tasks, 
   projects, 
   onTaskClick, 
-  onStatusChange 
+  onStatusChange,
+  onDeleteTask 
 }: { 
   tasks: Task[]; 
   projects: any[]; 
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
+  onDeleteTask: (task: Task) => void;
 }) {
   const columns = [
     { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
@@ -759,6 +802,7 @@ function KanbanView({
             tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
             getProjectName={getProjectName}
             onTaskClick={onTaskClick}
+            onDeleteTask={onDeleteTask}
           />
         ))}
       </div>
@@ -787,12 +831,14 @@ function KanbanColumn({
   column, 
   tasks, 
   getProjectName, 
-  onTaskClick 
+  onTaskClick,
+  onDeleteTask 
 }: { 
   column: { id: string; label: string; color: string }; 
   tasks: Task[]; 
   getProjectName: (id: number) => string;
   onTaskClick: (task: Task) => void;
+  onDeleteTask: (task: Task) => void;
 }) {
   const { setNodeRef, isOver } = useSortable({
     id: column.id,
@@ -816,6 +862,7 @@ function KanbanColumn({
             task={task}
             getProjectName={getProjectName}
             onTaskClick={onTaskClick}
+            onDeleteTask={onDeleteTask}
           />
         ))}
         {tasks.length === 0 && (
@@ -831,11 +878,13 @@ function KanbanColumn({
 function DraggableTaskCard({ 
   task, 
   getProjectName, 
-  onTaskClick 
+  onTaskClick,
+  onDeleteTask 
 }: { 
   task: Task; 
   getProjectName: (id: number) => string;
   onTaskClick: (task: Task) => void;
+  onDeleteTask: (task: Task) => void;
 }) {
   const {
     attributes,
@@ -862,10 +911,36 @@ function DraggableTaskCard({
       className={cn(isDragging && "opacity-50")}
     >
       <Card 
-        className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing"
+        className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing group relative"
         onClick={() => onTaskClick(task)}
         data-testid={`kanban-task-${task.id}`}
       >
+        <div className="absolute top-2 right-2 invisible group-hover:visible z-10">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                data-testid={`button-menu-task-${task.id}`}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+              <DropdownMenuItem 
+                onClick={(e) => { e.stopPropagation(); onDeleteTask(task); }}
+                className="text-red-600 focus:text-red-600"
+                data-testid={`menu-delete-task-${task.id}`}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <CardContent className="p-4">
           <div className="font-medium text-sm">{task.name}</div>
           <Link 
