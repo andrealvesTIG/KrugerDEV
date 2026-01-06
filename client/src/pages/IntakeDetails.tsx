@@ -4,7 +4,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
-import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,22 +14,65 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, DollarSign, Shield, Calculator, Save } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, DollarSign, Shield, Calculator, Save, Lightbulb, Filter, ClipboardCheck, Users, Gavel } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
 
 const WORKFLOW_STEPS = [
-  { id: "is_backlog", label: "Is Backlog", description: "Determine if this is a backlog item or a new project" },
-  { id: "provide_basic_information", label: "Basic Information", description: "Provide project details and context" },
-  { id: "financials", label: "Financials", description: "Estimate budget and funding requirements" },
-  { id: "project_cost_evaluation", label: "Cost Evaluation", description: "Review project cost breakdown and estimates" },
-  { id: "cyber_arch_evaluation", label: "Cyber & Architecture", description: "Security and architecture review" },
-  { id: "submit_to_pmo", label: "Submit to PMO", description: "Final review and submission for approval" },
+  { 
+    id: "intake_capture", 
+    label: "Intake Capture", 
+    description: "Capture the initial idea and basic information",
+    icon: Lightbulb,
+    requiredFields: ["projectName", "description"],
+    helpText: "Document the initial request, problem statement, and desired outcome."
+  },
+  { 
+    id: "triage", 
+    label: "Triage", 
+    description: "Classify and prioritize the intake request",
+    icon: Filter,
+    requiredFields: ["portfolioId", "fundingSource"],
+    helpText: "Determine if this is a new initiative or backlog item, and assign to appropriate portfolio."
+  },
+  { 
+    id: "business_case", 
+    label: "Business Case", 
+    description: "Define business justification and expected benefits",
+    icon: FileText,
+    requiredFields: ["estimatedBudget", "financialJustification"],
+    helpText: "Document the business case including ROI, benefits, and stakeholder alignment."
+  },
+  { 
+    id: "technical_evaluation", 
+    label: "Technical Evaluation", 
+    description: "Assess technical feasibility and resource requirements",
+    icon: Calculator,
+    requiredFields: ["itCostEstimate", "resourceRequirements"],
+    helpText: "Evaluate technical requirements, architecture impact, and resource availability."
+  },
+  { 
+    id: "governance_review", 
+    label: "Governance Review", 
+    description: "Security, compliance, and architecture approval",
+    icon: Shield,
+    requiredFields: ["cyberRiskAssessment"],
+    helpText: "Complete security assessment, compliance review, and architecture sign-off."
+  },
+  { 
+    id: "decision", 
+    label: "Decision", 
+    description: "Final PMO review and approval decision",
+    icon: Gavel,
+    requiredFields: [],
+    helpText: "PMO reviews the complete intake and makes approval, deferral, or rejection decision."
+  },
 ];
 
 function getStepIndex(stepId: string): number {
-  return WORKFLOW_STEPS.findIndex(s => s.id === stepId);
+  const index = WORKFLOW_STEPS.findIndex(s => s.id === stepId);
+  return index >= 0 ? index : 0;
 }
 
 function getStatusBadge(status: string) {
@@ -39,6 +81,8 @@ function getStatusBadge(status: string) {
       return <Badge variant="default" className="bg-green-500/20 text-green-700 dark:text-green-300">Approved</Badge>;
     case "rejected":
       return <Badge variant="default" className="bg-red-500/20 text-red-700 dark:text-red-300">Rejected</Badge>;
+    case "deferred":
+      return <Badge variant="default" className="bg-amber-500/20 text-amber-700 dark:text-amber-300">Deferred</Badge>;
     case "in_progress":
       return <Badge variant="default" className="bg-blue-500/20 text-blue-700 dark:text-blue-300">In Progress</Badge>;
     case "draft":
@@ -49,12 +93,12 @@ function getStatusBadge(status: string) {
 
 function getCompletedSteps(intake: ProjectIntake): string[] {
   const completed: string[] = [];
-  if (intake.isBacklogComplete) completed.push("is_backlog");
-  if (intake.basicInfoComplete) completed.push("provide_basic_information");
-  if (intake.financialsComplete) completed.push("financials");
-  if (intake.projectCostComplete) completed.push("project_cost_evaluation");
-  if (intake.cyberArchComplete) completed.push("cyber_arch_evaluation");
-  if (intake.pmoSubmitted) completed.push("submit_to_pmo");
+  if (intake.isBacklogComplete) completed.push("intake_capture");
+  if (intake.basicInfoComplete) completed.push("triage");
+  if (intake.financialsComplete) completed.push("business_case");
+  if (intake.projectCostComplete) completed.push("technical_evaluation");
+  if (intake.cyberArchComplete) completed.push("governance_review");
+  if (intake.pmoSubmitted) completed.push("decision");
   return completed;
 }
 
@@ -68,6 +112,7 @@ export default function IntakeDetails() {
   
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [activeTab, setActiveTab] = useState("details");
   
   const { data: intake, isLoading } = useQuery<ProjectIntake>({
     queryKey: ['/api/project-intakes', id],
@@ -88,7 +133,7 @@ export default function IntakeDetails() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
-      toast({ title: "Saved", description: "Intake form has been saved" });
+      toast({ title: "Saved", description: "Intake has been saved" });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -102,7 +147,7 @@ export default function IntakeDetails() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
-      toast({ title: "Approved", description: "Project has been created from intake" });
+      toast({ title: "Intake Approved", description: "A new project has been created from this intake" });
       if (data.project?.id) {
         navigate(`/projects/${data.project.id}`);
       }
@@ -119,7 +164,7 @@ export default function IntakeDetails() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
-      toast({ title: "Rejected", description: "Intake has been rejected" });
+      toast({ title: "Intake Rejected", description: "The intake has been rejected" });
       setIsRejectDialogOpen(false);
       navigate('/intakes');
     },
@@ -132,19 +177,69 @@ export default function IntakeDetails() {
     updateIntake.mutate({ ...formData });
   };
 
+  const validateGate = (gateId: string): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    const currentData = { ...intake, ...formData };
+    
+    switch (gateId) {
+      case "intake_capture":
+        if (!currentData.projectName?.trim()) errors.push("Intake Name is required");
+        if (!currentData.description?.trim()) errors.push("Description / Problem Statement is required");
+        break;
+      case "triage":
+        if (!currentData.portfolioId) errors.push("Target Portfolio is required for classification");
+        if (!currentData.fundingSource) errors.push("Funding Source must be identified");
+        break;
+      case "business_case":
+        if (!currentData.estimatedBudget || parseFloat(String(currentData.estimatedBudget)) <= 0) {
+          errors.push("Estimated Budget is required");
+        }
+        if (!currentData.financialJustification?.trim()) {
+          errors.push("Business Justification is required");
+        }
+        break;
+      case "technical_evaluation":
+        if (!currentData.itCostEstimate || parseFloat(String(currentData.itCostEstimate)) <= 0) {
+          errors.push("IT Cost Estimate is required");
+        }
+        if (!currentData.resourceRequirements?.trim()) {
+          errors.push("Resource Requirements must be documented");
+        }
+        break;
+      case "governance_review":
+        if (!currentData.cyberRiskAssessment?.trim()) {
+          errors.push("Cybersecurity Risk Assessment is required");
+        }
+        break;
+    }
+    
+    return { valid: errors.length === 0, errors };
+  };
+
   const handleNextStep = () => {
     if (!intake) return;
-    const currentIndex = getStepIndex(intake.currentStep || "is_backlog");
+    const currentIndex = getStepIndex(intake.currentStep || "intake_capture");
+    const currentStepId = intake.currentStep || "intake_capture";
+    
+    const validation = validateGate(currentStepId);
+    if (!validation.valid) {
+      toast({
+        title: "Gate Requirements Not Met",
+        description: validation.errors.join(". "),
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (currentIndex < WORKFLOW_STEPS.length - 1) {
       const nextStep = WORKFLOW_STEPS[currentIndex + 1].id;
-      const currentStepId = intake.currentStep || "is_backlog";
       
       const stepCompletionUpdate: Partial<ProjectIntake> = {};
-      if (currentStepId === "is_backlog") stepCompletionUpdate.isBacklogComplete = true;
-      if (currentStepId === "provide_basic_information") stepCompletionUpdate.basicInfoComplete = true;
-      if (currentStepId === "financials") stepCompletionUpdate.financialsComplete = true;
-      if (currentStepId === "project_cost_evaluation") stepCompletionUpdate.projectCostComplete = true;
-      if (currentStepId === "cyber_arch_evaluation") stepCompletionUpdate.cyberArchComplete = true;
+      if (currentStepId === "intake_capture") stepCompletionUpdate.isBacklogComplete = true;
+      if (currentStepId === "triage") stepCompletionUpdate.basicInfoComplete = true;
+      if (currentStepId === "business_case") stepCompletionUpdate.financialsComplete = true;
+      if (currentStepId === "technical_evaluation") stepCompletionUpdate.projectCostComplete = true;
+      if (currentStepId === "governance_review") stepCompletionUpdate.cyberArchComplete = true;
       
       updateIntake.mutate({
         ...formData,
@@ -157,7 +252,7 @@ export default function IntakeDetails() {
 
   const handlePreviousStep = () => {
     if (!intake) return;
-    const currentIndex = getStepIndex(intake.currentStep || "is_backlog");
+    const currentIndex = getStepIndex(intake.currentStep || "intake_capture");
     if (currentIndex > 0) {
       const prevStep = WORKFLOW_STEPS[currentIndex - 1].id;
       updateIntake.mutate({
@@ -191,32 +286,36 @@ export default function IntakeDetails() {
     );
   }
 
-  const currentStepIndex = getStepIndex(intake.currentStep || "is_backlog");
+  const currentStepIndex = getStepIndex(intake.currentStep || "intake_capture");
+  const currentStep = WORKFLOW_STEPS[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === WORKFLOW_STEPS.length - 1;
   const isApproved = intake.status === "approved";
   const isRejected = intake.status === "rejected";
   const isLocked = isApproved || isRejected;
   const completedSteps = getCompletedSteps(intake);
+  const StepIcon = currentStep?.icon || FileText;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/intakes')}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-display font-bold text-foreground">{intake.projectName}</h1>
               {getStatusBadge(intake.status || "draft")}
               {intake.intakeNumber && (
-                <span className="text-sm text-muted-foreground">{intake.intakeNumber}</span>
+                <span className="text-sm text-muted-foreground font-mono">{intake.intakeNumber}</span>
               )}
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {WORKFLOW_STEPS[currentStepIndex]?.label}: {WORKFLOW_STEPS[currentStepIndex]?.description}
-            </p>
+            <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+              <StepIcon className="h-4 w-4" />
+              <span className="font-medium">{currentStep?.label}:</span>
+              <span>{currentStep?.description}</span>
+            </div>
           </div>
         </div>
         
@@ -224,7 +323,7 @@ export default function IntakeDetails() {
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleSave} disabled={updateIntake.isPending}>
               <Save className="h-4 w-4 mr-2" />
-              Save
+              Save Progress
             </Button>
           </div>
         )}
@@ -232,39 +331,41 @@ export default function IntakeDetails() {
 
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-6 overflow-x-auto pb-2">
+          <div className="flex items-center justify-between mb-2 overflow-x-auto pb-2">
             {WORKFLOW_STEPS.map((step, index) => {
               const isCompleted = completedSteps.includes(step.id) || (isApproved && index <= currentStepIndex);
-              const isCurrent = index === currentStepIndex && !isApproved;
-              const isClickable = index <= currentStepIndex;
+              const isCurrent = index === currentStepIndex && !isApproved && !isRejected;
+              const isClickable = index <= currentStepIndex && !isLocked;
+              const Icon = step.icon;
               
               return (
                 <div key={step.id} className="flex items-center flex-1">
                   <div 
                     className={cn(
-                      "flex flex-col items-center text-center cursor-pointer",
+                      "flex flex-col items-center text-center min-w-[80px]",
+                      isClickable ? "cursor-pointer" : "",
                       isClickable ? "opacity-100" : "opacity-50"
                     )}
                     onClick={() => {
-                      if (isClickable && !isLocked) {
+                      if (isClickable) {
                         updateIntake.mutate({ currentStep: step.id });
                       }
                     }}
                   >
                     <div 
                       className={cn(
-                        "flex items-center justify-center w-10 h-10 rounded-full text-sm font-medium mb-2",
+                        "flex items-center justify-center w-10 h-10 rounded-full text-sm font-medium mb-2 transition-colors",
                         isCompleted 
                           ? "bg-primary text-primary-foreground" 
                           : isCurrent 
-                            ? "border-2 border-primary text-primary" 
+                            ? "border-2 border-primary text-primary bg-primary/10" 
                             : "border border-muted-foreground/30 text-muted-foreground"
                       )}
                     >
-                      {isCompleted ? <Check className="w-5 h-5" /> : index + 1}
+                      {isCompleted ? <Check className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
                     </div>
                     <span className={cn(
-                      "text-xs max-w-[80px]",
+                      "text-xs",
                       isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
                     )}>
                       {step.label}
@@ -272,7 +373,7 @@ export default function IntakeDetails() {
                   </div>
                   {index < WORKFLOW_STEPS.length - 1 && (
                     <div className={cn(
-                      "flex-1 h-0.5 mx-2",
+                      "flex-1 h-0.5 mx-2 min-w-[20px]",
                       isCompleted ? "bg-primary" : "bg-muted-foreground/30"
                     )} />
                   )}
@@ -280,55 +381,62 @@ export default function IntakeDetails() {
               );
             })}
           </div>
+          
+          {currentStep?.helpText && !isLocked && (
+            <div className="mt-4 p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
+              <strong>Gate {currentStepIndex + 1}:</strong> {currentStep.helpText}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="form" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="form" data-testid="tab-form">
+          <TabsTrigger value="details" data-testid="tab-details">
+            <Lightbulb className="h-4 w-4 mr-2" />
+            Intake Details
+          </TabsTrigger>
+          <TabsTrigger value="business-case" data-testid="tab-business-case">
             <FileText className="h-4 w-4 mr-2" />
-            Intake Form
+            Business Case
           </TabsTrigger>
-          <TabsTrigger value="financials" data-testid="tab-financials">
-            <DollarSign className="h-4 w-4 mr-2" />
-            Financials
-          </TabsTrigger>
-          <TabsTrigger value="cyber-arch" data-testid="tab-cyber-arch">
-            <Shield className="h-4 w-4 mr-2" />
-            Cyber & Architecture
-          </TabsTrigger>
-          <TabsTrigger value="cost-eval" data-testid="tab-cost-eval">
+          <TabsTrigger value="technical" data-testid="tab-technical">
             <Calculator className="h-4 w-4 mr-2" />
-            Cost Evaluation
+            Technical Evaluation
+          </TabsTrigger>
+          <TabsTrigger value="governance" data-testid="tab-governance">
+            <Shield className="h-4 w-4 mr-2" />
+            Governance
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="form" className="space-y-4">
+        <TabsContent value="details" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>Core project details and context</CardDescription>
+              <CardTitle>Intake Information</CardTitle>
+              <CardDescription>Core details about this intake request</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Project Name *</Label>
+                  <Label>Intake Name *</Label>
                   <Input
                     value={formData.projectName ?? intake.projectName}
                     onChange={(e) => handleFieldChange('projectName', e.target.value)}
                     disabled={isLocked}
-                    data-testid="input-project-name"
+                    placeholder="Enter a descriptive name for this intake"
+                    data-testid="input-intake-name"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Portfolio</Label>
+                  <Label>Target Portfolio</Label>
                   <Select 
                     value={String(formData.portfolioId ?? intake.portfolioId ?? "")}
                     onValueChange={(v) => handleFieldChange('portfolioId', v ? parseInt(v) : null)}
                     disabled={isLocked}
                   >
                     <SelectTrigger data-testid="select-portfolio">
-                      <SelectValue placeholder="Select portfolio" />
+                      <SelectValue placeholder="Assign to portfolio" />
                     </SelectTrigger>
                     <SelectContent>
                       {portfolios?.map((p: Portfolio) => (
@@ -340,12 +448,13 @@ export default function IntakeDetails() {
               </div>
               
               <div className="space-y-2">
-                <Label>Description</Label>
+                <Label>Description / Problem Statement</Label>
                 <Textarea
                   value={formData.description ?? intake.description ?? ""}
                   onChange={(e) => handleFieldChange('description', e.target.value)}
                   disabled={isLocked}
                   rows={4}
+                  placeholder="Describe the problem, opportunity, or request..."
                   data-testid="input-description"
                 />
               </div>
@@ -359,18 +468,19 @@ export default function IntakeDetails() {
                     disabled={isLocked}
                   >
                     <SelectTrigger data-testid="select-funding-source">
-                      <SelectValue placeholder="Select funding" />
+                      <SelectValue placeholder="Select funding type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Business Funded">Business Funded</SelectItem>
                       <SelectItem value="IT Funded">IT Funded</SelectItem>
-                      <SelectItem value="Shared">Shared</SelectItem>
-                      <SelectItem value="Capital">Capital</SelectItem>
+                      <SelectItem value="Shared">Shared Funding</SelectItem>
+                      <SelectItem value="Capital">Capital Budget</SelectItem>
+                      <SelectItem value="Operating">Operating Budget</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Business Unit</Label>
+                  <Label>Requesting Business Unit</Label>
                   <Select 
                     value={formData.businessUnit ?? intake.businessUnit ?? ""}
                     onValueChange={(v) => handleFieldChange('businessUnit', v)}
@@ -380,22 +490,24 @@ export default function IntakeDetails() {
                       <SelectValue placeholder="Select BU" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="HO">HO</SelectItem>
-                      <SelectItem value="IT">IT</SelectItem>
+                      <SelectItem value="HO">Head Office</SelectItem>
+                      <SelectItem value="IT">Information Technology</SelectItem>
                       <SelectItem value="Finance">Finance</SelectItem>
                       <SelectItem value="Operations">Operations</SelectItem>
                       <SelectItem value="Sales">Sales</SelectItem>
                       <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="HR">Human Resources</SelectItem>
+                      <SelectItem value="Legal">Legal</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Program Name</Label>
+                  <Label>Related Program</Label>
                   <Input
                     value={formData.programName ?? intake.programName ?? ""}
                     onChange={(e) => handleFieldChange('programName', e.target.value)}
                     disabled={isLocked}
-                    placeholder="Enter program name"
+                    placeholder="Program name (if applicable)"
                     data-testid="input-program-name"
                   />
                 </div>
@@ -404,16 +516,16 @@ export default function IntakeDetails() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="financials" className="space-y-4">
+        <TabsContent value="business-case" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Financial Estimates</CardTitle>
-              <CardDescription>Budget planning and funding allocation</CardDescription>
+              <CardTitle>Business Case & Financial Justification</CardTitle>
+              <CardDescription>Document the business value, expected benefits, and budget requirements</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Estimated Budget</Label>
+                  <Label>Estimated Total Budget</Label>
                   <Input
                     type="number"
                     value={formData.estimatedBudget ?? intake.estimatedBudget ?? ""}
@@ -448,84 +560,37 @@ export default function IntakeDetails() {
               </div>
 
               <div className="space-y-2">
-                <Label>Financial Justification</Label>
+                <Label>Business Justification & Expected Benefits</Label>
                 <Textarea
                   value={formData.financialJustification ?? intake.financialJustification ?? ""}
                   onChange={(e) => handleFieldChange('financialJustification', e.target.value)}
                   disabled={isLocked}
-                  rows={3}
-                  placeholder="Explain the budget requirements..."
+                  rows={4}
+                  placeholder="Describe the business case, expected ROI, cost savings, revenue impact, or strategic benefits..."
                   data-testid="input-financial-justification"
                 />
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="cyber-arch" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cybersecurity & Architecture Evaluation</CardTitle>
-              <CardDescription>Security requirements and technical architecture review</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Cyber Risk Assessment</Label>
-                <Textarea
-                  value={formData.cyberRiskAssessment ?? intake.cyberRiskAssessment ?? ""}
-                  onChange={(e) => handleFieldChange('cyberRiskAssessment', e.target.value)}
-                  disabled={isLocked}
-                  rows={3}
-                  placeholder="Describe cybersecurity risks and mitigation strategies..."
-                  data-testid="input-cyber-risk-assessment"
-                />
-              </div>
 
               <div className="space-y-2">
-                <Label>Architectural Review</Label>
+                <Label>Cost-Benefit Analysis</Label>
                 <Textarea
-                  value={formData.architecturalReview ?? intake.architecturalReview ?? ""}
-                  onChange={(e) => handleFieldChange('architecturalReview', e.target.value)}
+                  value={formData.costBenefitAnalysis ?? intake.costBenefitAnalysis ?? ""}
+                  onChange={(e) => handleFieldChange('costBenefitAnalysis', e.target.value)}
                   disabled={isLocked}
                   rows={3}
-                  placeholder="Technical architecture details and considerations..."
-                  data-testid="input-architectural-review"
+                  placeholder="Summarize the expected return on investment and payback period..."
+                  data-testid="input-cost-benefit-analysis"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Compliance Requirements</Label>
-                <Textarea
-                  value={formData.complianceRequirements ?? intake.complianceRequirements ?? ""}
-                  onChange={(e) => handleFieldChange('complianceRequirements', e.target.value)}
-                  disabled={isLocked}
-                  rows={3}
-                  placeholder="Regulatory and compliance requirements..."
-                  data-testid="input-compliance-requirements"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-4">
-                <Checkbox 
-                  id="securityApproval"
-                  checked={formData.securityApproval ?? intake.securityApproval ?? false}
-                  onCheckedChange={(checked) => handleFieldChange('securityApproval', checked)}
-                  disabled={isLocked}
-                  data-testid="checkbox-security-approval"
-                />
-                <Label htmlFor="securityApproval" className="text-sm">
-                  Security review approved
-                </Label>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="cost-eval" className="space-y-4">
+        <TabsContent value="technical" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Project Cost Evaluation</CardTitle>
-              <CardDescription>IT cost estimates and resource requirements</CardDescription>
+              <CardTitle>Technical Evaluation</CardTitle>
+              <CardDescription>Assess technical feasibility, resource requirements, and implementation approach</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -547,7 +612,7 @@ export default function IntakeDetails() {
                   onChange={(e) => handleFieldChange('resourceRequirements', e.target.value)}
                   disabled={isLocked}
                   rows={3}
-                  placeholder="Describe required resources (team, skills, equipment)..."
+                  placeholder="List required team members, skills, equipment, or external resources..."
                   data-testid="input-resource-requirements"
                 />
               </div>
@@ -559,21 +624,68 @@ export default function IntakeDetails() {
                   onChange={(e) => handleFieldChange('implementationTimeline', e.target.value)}
                   disabled={isLocked}
                   rows={3}
-                  placeholder="Estimated timeline and milestones..."
+                  placeholder="Describe estimated phases, key milestones, and expected duration..."
                   data-testid="input-implementation-timeline"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Cost-Benefit Analysis</Label>
+                <Label>Architectural Review Notes</Label>
                 <Textarea
-                  value={formData.costBenefitAnalysis ?? intake.costBenefitAnalysis ?? ""}
-                  onChange={(e) => handleFieldChange('costBenefitAnalysis', e.target.value)}
+                  value={formData.architecturalReview ?? intake.architecturalReview ?? ""}
+                  onChange={(e) => handleFieldChange('architecturalReview', e.target.value)}
                   disabled={isLocked}
                   rows={3}
-                  placeholder="Business case and expected ROI..."
-                  data-testid="input-cost-benefit-analysis"
+                  placeholder="Technical architecture considerations, integration points, infrastructure needs..."
+                  data-testid="input-architectural-review"
                 />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="governance" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Governance & Compliance Review</CardTitle>
+              <CardDescription>Security assessment, compliance requirements, and approval tracking</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Cybersecurity Risk Assessment</Label>
+                <Textarea
+                  value={formData.cyberRiskAssessment ?? intake.cyberRiskAssessment ?? ""}
+                  onChange={(e) => handleFieldChange('cyberRiskAssessment', e.target.value)}
+                  disabled={isLocked}
+                  rows={3}
+                  placeholder="Identify security risks, data sensitivity, access requirements, and mitigation strategies..."
+                  data-testid="input-cyber-risk-assessment"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Compliance Requirements</Label>
+                <Textarea
+                  value={formData.complianceRequirements ?? intake.complianceRequirements ?? ""}
+                  onChange={(e) => handleFieldChange('complianceRequirements', e.target.value)}
+                  disabled={isLocked}
+                  rows={3}
+                  placeholder="Regulatory requirements, data privacy (GDPR, HIPAA), industry standards..."
+                  data-testid="input-compliance-requirements"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-4 pb-2">
+                <Checkbox 
+                  id="securityApproval"
+                  checked={formData.securityApproval ?? intake.securityApproval ?? false}
+                  onCheckedChange={(checked) => handleFieldChange('securityApproval', checked)}
+                  disabled={isLocked}
+                  data-testid="checkbox-security-approval"
+                />
+                <Label htmlFor="securityApproval" className="text-sm cursor-pointer">
+                  Security review completed and approved
+                </Label>
               </div>
             </CardContent>
           </Card>
@@ -583,21 +695,21 @@ export default function IntakeDetails() {
       {!isLocked && (
         <Card>
           <CardContent className="py-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <Button
                 variant="outline"
                 onClick={handlePreviousStep}
-                disabled={isFirstStep}
+                disabled={isFirstStep || updateIntake.isPending}
               >
                 <ChevronLeft className="h-4 w-4 mr-2" />
-                Previous Step
+                Previous Gate
               </Button>
               
               <div className="flex items-center gap-2">
                 {isLastStep ? (
                   <>
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       onClick={() => setIsRejectDialogOpen(true)}
                     >
                       <XCircle className="h-4 w-4 mr-2" />
@@ -608,12 +720,12 @@ export default function IntakeDetails() {
                       disabled={approveIntake.isPending}
                     >
                       <Check className="h-4 w-4 mr-2" />
-                      {approveIntake.isPending ? "Approving..." : "Approve & Create Project"}
+                      {approveIntake.isPending ? "Converting..." : "Approve & Convert to Project"}
                     </Button>
                   </>
                 ) : (
-                  <Button onClick={handleNextStep}>
-                    Next Step
+                  <Button onClick={handleNextStep} disabled={updateIntake.isPending}>
+                    Proceed to Next Gate
                     <ChevronRight className="h-4 w-4 ml-2" />
                   </Button>
                 )}
@@ -626,10 +738,10 @@ export default function IntakeDetails() {
       {isApproved && intake.createdProjectId && (
         <Card className="border-green-500/50 bg-green-500/5">
           <CardContent className="py-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3">
                 <Check className="h-5 w-5 text-green-500" />
-                <span>This intake has been approved and a project has been created.</span>
+                <span>This intake has been approved and converted to a project.</span>
               </div>
               <Button onClick={() => navigate(`/projects/${intake.createdProjectId}`)}>
                 View Project
@@ -659,16 +771,21 @@ export default function IntakeDetails() {
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject Project Intake</DialogTitle>
+            <DialogTitle>Reject Intake</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Label>Reason for Rejection</Label>
-            <Textarea
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Provide a reason for rejecting this intake..."
-              rows={4}
-            />
+            <p className="text-sm text-muted-foreground">
+              Please provide a reason for rejecting this intake request. The submitter will be notified.
+            </p>
+            <div className="space-y-2">
+              <Label>Rejection Reason</Label>
+              <Textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Explain why this intake is being rejected..."
+                rows={4}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>Cancel</Button>

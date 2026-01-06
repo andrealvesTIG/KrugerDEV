@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye } from "lucide-react";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -20,16 +20,17 @@ import { usePortfolios } from "@/hooks/use-portfolios";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
 
 const WORKFLOW_STEPS = [
-  { id: "is_backlog", label: "Is Backlog", shortLabel: "Backlog" },
-  { id: "provide_basic_information", label: "Provide Basic Information", shortLabel: "Basic Info" },
-  { id: "financials", label: "Financials", shortLabel: "Financials" },
-  { id: "project_cost_evaluation", label: "Project Cost Evaluation", shortLabel: "Cost Eval" },
-  { id: "cyber_arch_evaluation", label: "Cybersecurity And Architecture Evaluation", shortLabel: "Cyber/Arch" },
-  { id: "submit_to_pmo", label: "Submit To PMO", shortLabel: "Submit" },
+  { id: "intake_capture", label: "Intake Capture", shortLabel: "Capture", icon: Lightbulb },
+  { id: "triage", label: "Triage", shortLabel: "Triage", icon: Filter },
+  { id: "business_case", label: "Business Case", shortLabel: "Business", icon: FileText },
+  { id: "technical_evaluation", label: "Technical Evaluation", shortLabel: "Technical", icon: Calculator },
+  { id: "governance_review", label: "Governance Review", shortLabel: "Governance", icon: Shield },
+  { id: "decision", label: "Decision", shortLabel: "Decision", icon: Gavel },
 ];
 
 function getStepIndex(stepId: string): number {
-  return WORKFLOW_STEPS.findIndex(s => s.id === stepId);
+  const index = WORKFLOW_STEPS.findIndex(s => s.id === stepId);
+  return index >= 0 ? index : 0;
 }
 
 function getStatusBadge(status: string) {
@@ -38,6 +39,8 @@ function getStatusBadge(status: string) {
       return <Badge variant="default" className="bg-green-500/20 text-green-700 dark:text-green-300">Approved</Badge>;
     case "rejected":
       return <Badge variant="default" className="bg-red-500/20 text-red-700 dark:text-red-300">Rejected</Badge>;
+    case "deferred":
+      return <Badge variant="default" className="bg-amber-500/20 text-amber-700 dark:text-amber-300">Deferred</Badge>;
     case "in_progress":
       return <Badge variant="default" className="bg-blue-500/20 text-blue-700 dark:text-blue-300">In Progress</Badge>;
     case "draft":
@@ -53,7 +56,8 @@ function WorkflowProgress({ currentStep, status }: { currentStep: string; status
     <div className="flex items-center gap-1 overflow-x-auto py-2">
       {WORKFLOW_STEPS.map((step, index) => {
         const isCompleted = status === "approved" || index < currentIndex;
-        const isCurrent = index === currentIndex && status !== "approved";
+        const isCurrent = index === currentIndex && status !== "approved" && status !== "rejected";
+        const Icon = step.icon;
         
         return (
           <div key={step.id} className="flex items-center">
@@ -62,11 +66,12 @@ function WorkflowProgress({ currentStep, status }: { currentStep: string; status
                 isCompleted 
                   ? "bg-primary text-primary-foreground" 
                   : isCurrent 
-                    ? "border-2 border-primary text-primary" 
+                    ? "border-2 border-primary text-primary bg-primary/10" 
                     : "border border-muted-foreground/30 text-muted-foreground"
               }`}
+              title={step.label}
             >
-              {isCompleted ? <Check className="w-3 h-3" /> : index + 1}
+              {isCompleted ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
             </div>
             {index < WORKFLOW_STEPS.length - 1 && (
               <div className={`w-4 h-0.5 ${isCompleted ? "bg-primary" : "bg-muted-foreground/30"}`} />
@@ -88,7 +93,7 @@ interface CreateIntakeDialogProps {
 function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: CreateIntakeDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [projectName, setProjectName] = useState("");
+  const [intakeName, setIntakeName] = useState("");
   const [description, setDescription] = useState("");
   const [portfolioId, setPortfolioId] = useState<string>("");
   const [fundingSource, setFundingSource] = useState("");
@@ -101,7 +106,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
-      toast({ title: "Success", description: "Project intake created successfully" });
+      toast({ title: "Success", description: "Intake request created successfully" });
       onOpenChange(false);
       resetForm();
     },
@@ -111,7 +116,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
   });
 
   const resetForm = () => {
-    setProjectName("");
+    setIntakeName("");
     setDescription("");
     setPortfolioId("");
     setFundingSource("");
@@ -119,19 +124,20 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
   };
 
   const handleSubmit = () => {
-    if (!projectName.trim()) {
-      toast({ title: "Validation Error", description: "Project name is required", variant: "destructive" });
+    if (!intakeName.trim()) {
+      toast({ title: "Validation Error", description: "Intake name is required", variant: "destructive" });
       return;
     }
 
     createIntake.mutate({
       organizationId,
-      projectName,
+      projectName: intakeName,
       description,
       portfolioId: portfolioId ? parseInt(portfolioId) : null,
       fundingSource,
       businessUnit: businessUnit,
       submitterId: user?.id,
+      currentStep: "intake_capture",
     });
   };
 
@@ -139,36 +145,36 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>New Project Intake</DialogTitle>
+          <DialogTitle>New Intake Request</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="projectName">Project Name *</Label>
+            <Label htmlFor="intakeName">Intake Name *</Label>
             <Input
-              id="projectName"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="Enter project name"
-              data-testid="input-project-name"
+              id="intakeName"
+              value={intakeName}
+              onChange={(e) => setIntakeName(e.target.value)}
+              placeholder="Enter a descriptive name for this request"
+              data-testid="input-intake-name"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Description / Problem Statement</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the project idea"
+              placeholder="Describe the problem, opportunity, or request..."
               rows={3}
               data-testid="input-description"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Portfolio</Label>
+              <Label>Target Portfolio</Label>
               <Select value={portfolioId} onValueChange={setPortfolioId}>
                 <SelectTrigger data-testid="select-portfolio">
-                  <SelectValue placeholder="Select portfolio" />
+                  <SelectValue placeholder="Assign to portfolio" />
                 </SelectTrigger>
                 <SelectContent>
                   {portfolios?.map(p => (
@@ -181,30 +187,33 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
               <Label>Funding Source</Label>
               <Select value={fundingSource} onValueChange={setFundingSource}>
                 <SelectTrigger data-testid="select-funding-source">
-                  <SelectValue placeholder="Select funding" />
+                  <SelectValue placeholder="Select funding type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Business Funded">Business Funded</SelectItem>
                   <SelectItem value="IT Funded">IT Funded</SelectItem>
-                  <SelectItem value="Shared">Shared</SelectItem>
-                  <SelectItem value="Capital">Capital</SelectItem>
+                  <SelectItem value="Shared">Shared Funding</SelectItem>
+                  <SelectItem value="Capital">Capital Budget</SelectItem>
+                  <SelectItem value="Operating">Operating Budget</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bu">Business Unit</Label>
+            <Label htmlFor="bu">Requesting Business Unit</Label>
             <Select value={businessUnit} onValueChange={setBu}>
               <SelectTrigger data-testid="select-business-unit">
-                <SelectValue placeholder="Select BU" />
+                <SelectValue placeholder="Select business unit" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="HO">HO</SelectItem>
-                <SelectItem value="IT">IT</SelectItem>
+                <SelectItem value="HO">Head Office</SelectItem>
+                <SelectItem value="IT">Information Technology</SelectItem>
                 <SelectItem value="Finance">Finance</SelectItem>
                 <SelectItem value="Operations">Operations</SelectItem>
                 <SelectItem value="Sales">Sales</SelectItem>
                 <SelectItem value="Marketing">Marketing</SelectItem>
+                <SelectItem value="HR">Human Resources</SelectItem>
+                <SelectItem value="Legal">Legal</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -212,7 +221,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={createIntake.isPending} data-testid="button-submit-intake">
-            {createIntake.isPending ? "Creating..." : "Create Intake"}
+            {createIntake.isPending ? "Creating..." : "Submit Intake"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -245,7 +254,7 @@ export default function ProjectIntakes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
-      toast({ title: "Success", description: "Project intake deleted" });
+      toast({ title: "Success", description: "Intake deleted" });
       setDeleteIntakeId(null);
     },
     onError: (err: Error) => {
@@ -267,12 +276,17 @@ export default function ProjectIntakes() {
     rejected: intakes?.filter(i => i.status === "rejected").length || 0,
   };
 
+  const getStepLabel = (stepId: string) => {
+    const step = WORKFLOW_STEPS.find(s => s.id === stepId);
+    return step?.label || "Unknown";
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Project Intakes</h1>
-          <p className="mt-1 text-muted-foreground">Submit and track new project ideas through the approval process.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">Intake Requests</h1>
+          <p className="mt-1 text-muted-foreground">Submit and track new requests through the approval workflow.</p>
         </div>
         <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-intake">
           <Plus className="h-4 w-4 mr-2" />
@@ -302,7 +316,7 @@ export default function ProjectIntakes() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.draft + stats.inProgress}</p>
-                <p className="text-xs text-muted-foreground">In Progress</p>
+                <p className="text-xs text-muted-foreground">In Review</p>
               </div>
             </div>
           </CardContent>
@@ -363,47 +377,48 @@ export default function ProjectIntakes() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-pulse text-muted-foreground">Loading intakes...</div>
+        <div className="flex items-center justify-center h-48">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       ) : filteredIntakes?.length === 0 ? (
-        <Card className="p-8 text-center">
-          <FileInput className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold">No project intakes yet</h3>
-          <p className="text-muted-foreground mb-4">Start by creating a new project intake request.</p>
-          <Button onClick={() => setIsDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create First Intake
-          </Button>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileInput className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-medium mb-1">No intakes found</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {search || statusFilter !== "all" 
+                ? "Try adjusting your filters" 
+                : "Submit a new intake request to get started"}
+            </p>
+            {!search && statusFilter === "all" && (
+              <Button onClick={() => setIsDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Intake
+              </Button>
+            )}
+          </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
           {filteredIntakes?.map(intake => (
-            <Card key={intake.id} className="hover-elevate" data-testid={`card-intake-${intake.id}`}>
-              <CardContent className="p-4">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <Card key={intake.id} className="hover-elevate">
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 flex-wrap mb-2">
                       <Link href={`/intakes/${intake.id}`}>
-                        <span className="font-semibold text-lg hover:text-primary cursor-pointer truncate" data-testid={`link-intake-${intake.id}`}>
+                        <span className="font-medium text-foreground hover:text-primary cursor-pointer" data-testid={`link-intake-${intake.id}`}>
                           {intake.projectName}
                         </span>
                       </Link>
                       {getStatusBadge(intake.status || "draft")}
                       {intake.intakeNumber && (
-                        <span className="text-xs text-muted-foreground">{intake.intakeNumber}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{intake.intakeNumber}</span>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-1 mb-2">
-                      {intake.description || "No description provided"}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                      {intake.businessUnit && (
-                        <span>BU: {intake.businessUnit}</span>
-                      )}
-                      {intake.fundingSource && (
-                        <span>Funding: {intake.fundingSource}</span>
-                      )}
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                      <span>Current Gate: {getStepLabel(intake.currentStep || "intake_capture")}</span>
+                      {intake.businessUnit && <span>BU: {intake.businessUnit}</span>}
                       {intake.createdAt && (
                         <span>Created: {format(new Date(intake.createdAt), "MMM d, yyyy")}</span>
                       )}
@@ -411,41 +426,42 @@ export default function ProjectIntakes() {
                   </div>
                   
                   <div className="flex items-center gap-4">
-                    <div className="hidden md:block">
-                      <WorkflowProgress currentStep={intake.currentStep || "is_backlog"} status={intake.status || "draft"} />
-                    </div>
+                    <WorkflowProgress 
+                      currentStep={intake.currentStep || "intake_capture"} 
+                      status={intake.status || "draft"} 
+                    />
                     
-                    <div className="flex items-center gap-2">
-                      <Link href={`/intakes/${intake.id}`}>
-                        <Button variant="outline" size="sm" data-testid={`button-view-intake-${intake.id}`}>
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" data-testid={`button-menu-${intake.id}`}>
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
-                      </Link>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" data-testid={`button-menu-intake-${intake.id}`}>
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/intakes/${intake.id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </Link>
+                        </DropdownMenuItem>
+                        {intake.createdProjectId && (
                           <DropdownMenuItem asChild>
-                            <Link href={`/intakes/${intake.id}`} className="cursor-pointer">
-                              <Eye className="h-4 w-4 mr-2" />
-                              View Details
+                            <Link href={`/projects/${intake.createdProjectId}`}>
+                              <ChevronRight className="h-4 w-4 mr-2" />
+                              View Project
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem 
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => setDeleteIntakeId(intake.id)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="text-destructive"
+                          onClick={() => setDeleteIntakeId(intake.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardContent>
@@ -454,8 +470,8 @@ export default function ProjectIntakes() {
         </div>
       )}
 
-      <CreateIntakeDialog
-        open={isDialogOpen}
+      <CreateIntakeDialog 
+        open={isDialogOpen} 
         onOpenChange={setIsDialogOpen}
         portfolios={portfolios || []}
         organizationId={currentOrganization?.id}
@@ -464,10 +480,10 @@ export default function ProjectIntakes() {
       <Dialog open={deleteIntakeId !== null} onOpenChange={() => setDeleteIntakeId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Project Intake</DialogTitle>
+            <DialogTitle>Delete Intake</DialogTitle>
           </DialogHeader>
           <p className="text-muted-foreground">
-            Are you sure you want to delete this project intake? This action cannot be undone.
+            Are you sure you want to delete this intake? This action cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteIntakeId(null)}>Cancel</Button>
