@@ -24,6 +24,8 @@ import Profile from "@/pages/Profile";
 import UserSettings from "@/pages/UserSettings";
 import UserGuide from "@/pages/UserGuide";
 import Resources from "@/pages/Resources";
+import ProjectIntakes from "@/pages/ProjectIntakes";
+import IntakeDetails from "@/pages/IntakeDetails";
 
 function Router() {
   return (
@@ -34,6 +36,8 @@ function Router() {
         <Route path="/portfolios/:id" component={PortfolioDetails} />
         <Route path="/projects" component={Projects} />
         <Route path="/projects/:id" component={ProjectDetails} />
+        <Route path="/intakes" component={ProjectIntakes} />
+        <Route path="/intakes/:id" component={IntakeDetails} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/issues" component={Issues} />
         <Route path="/resources" component={Resources} />
