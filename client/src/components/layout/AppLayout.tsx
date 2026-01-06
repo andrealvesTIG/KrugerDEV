@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Sidebar, SidebarProvider, useSidebarState, logoIcon } from "./Sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
-import { Loader2, Building2, ChevronDown } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -35,23 +35,36 @@ export function AppLayout({ children }: { children: ReactNode }) {
 }
 
 function AppLayoutContent({ children }: { children: ReactNode }) {
-  const { isCollapsed } = useSidebarState();
+  const { isCollapsed, setIsMobileOpen } = useSidebarState();
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center gap-4 border-b border-slate-200 bg-white px-6 dark:border-slate-800 dark:bg-slate-900">
+        <header className="flex h-14 items-center gap-4 border-b border-slate-200 bg-white px-3 md:px-6 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-3 flex-shrink-0">
+            {/* Mobile hamburger menu */}
+            <button
+              onClick={() => setIsMobileOpen(true)}
+              className="flex md:hidden h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              data-testid="button-mobile-menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            {/* Logo - show on mobile always, on desktop only when collapsed */}
+            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity md:hidden">
+              <img src={logoIcon} alt="Friday Report" className="h-8 w-8" />
+              <span className="font-display font-bold text-lg text-foreground">Friday Report</span>
+            </Link>
             {isCollapsed && (
-              <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <Link href="/" className="hidden md:flex items-center gap-3 hover:opacity-80 transition-opacity">
                 <img src={logoIcon} alt="Friday Report" className="h-8 w-8" />
                 <span className="font-display font-bold text-lg text-foreground">Friday Report</span>
               </Link>
             )}
             {organizations.length > 0 && (
-              <>
+              <div className="hidden md:flex items-center gap-2">
                 {isCollapsed && <div className="h-5 w-px bg-border" />}
                 {organizations.length === 1 ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-organization-name">
@@ -82,7 +95,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-              </>
+              </div>
             )}
           </div>
           <div className="flex-1 flex justify-center">
@@ -93,7 +106,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="mx-auto max-w-7xl px-8 py-8">
+          <div className="mx-auto max-w-7xl px-4 py-4 md:px-8 md:py-8">
             {children}
           </div>
         </main>

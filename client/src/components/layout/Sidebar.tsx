@@ -1,6 +1,6 @@
-import { useState, createContext, useContext, ReactNode } from "react";
+import { useState, createContext, useContext, ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle, Users } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle, Users, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,6 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 interface SidebarContextType {
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
+  isMobileOpen: boolean;
+  setIsMobileOpen: (open: boolean) => void;
 }
 
 const SidebarContext = createContext<SidebarContextType | null>(null);
@@ -20,15 +22,28 @@ const SidebarContext = createContext<SidebarContextType | null>(null);
 export function useSidebarState() {
   const context = useContext(SidebarContext);
   if (!context) {
-    return { isCollapsed: false, setIsCollapsed: () => {} };
+    return { isCollapsed: false, setIsCollapsed: () => {}, isMobileOpen: false, setIsMobileOpen: () => {} };
   }
   return context;
 }
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Close mobile menu on window resize to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsMobileOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
-    <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
+    <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen }}>
       {children}
     </SidebarContext.Provider>
   );
@@ -61,28 +76,55 @@ export function Sidebar() {
   const [location, setLocation] = useLocation();
   const { logout, user } = useAuth();
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
-  const { isCollapsed, setIsCollapsed } = useSidebarState();
+  const { isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen } = useSidebarState();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const handleMenuItemClick = (href: string) => {
     setLocation(href);
     setIsUserMenuOpen(false);
+    setIsMobileOpen(false);
   };
 
   const handleLogout = () => {
     setIsUserMenuOpen(false);
+    setIsMobileOpen(false);
     logout();
   };
 
+  const handleNavClick = () => {
+    setIsMobileOpen(false);
+  };
+
   return (
-    <div className={cn(
-      "flex h-screen flex-col bg-slate-900 text-white transition-all duration-300 relative",
-      isCollapsed ? "w-20" : "w-72"
-    )}>
-      {/* Collapse Toggle Button */}
+    <>
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsMobileOpen(false)}
+          data-testid="overlay-mobile-sidebar"
+        />
+      )}
+      <div className={cn(
+        "flex h-screen flex-col bg-slate-900 text-white transition-all duration-300 relative",
+        "fixed md:relative z-50",
+        "md:translate-x-0",
+        isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+        isCollapsed ? "md:w-20" : "md:w-72",
+        "w-72"
+      )}>
+      {/* Mobile Close Button */}
+      <button
+        onClick={() => setIsMobileOpen(false)}
+        className="absolute right-4 top-6 z-10 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors md:hidden"
+        data-testid="button-close-mobile-sidebar"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      {/* Collapse Toggle Button - Desktop only */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-24 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white transition-colors"
+        className="absolute -right-3 top-24 z-10 hidden md:flex h-6 w-6 items-center justify-center rounded-full bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white transition-colors"
         data-testid="button-toggle-sidebar"
       >
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -105,7 +147,7 @@ export function Sidebar() {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           
           const navItem = (
-            <Link key={item.name} href={item.href}>
+            <Link key={item.name} href={item.href} onClick={handleNavClick}>
               <div
                 className={cn(
                   "group flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
@@ -155,7 +197,7 @@ export function Sidebar() {
           const isActive = location === item.href || location.startsWith(item.href);
           
           const navItem = (
-            <Link key={item.name} href={item.href}>
+            <Link key={item.name} href={item.href} onClick={handleNavClick}>
               <div
                 className={cn(
                   "group flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
@@ -297,5 +339,6 @@ export function Sidebar() {
         </Popover>
       </div>
     </div>
+    </>
   );
 }
