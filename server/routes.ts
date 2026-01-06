@@ -1710,6 +1710,163 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // ==================== RESOURCES ====================
+  
+  // Get all resources for an organization
+  app.get('/api/resources', async (req, res) => {
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const resourceList = await storage.getResources(organizationId);
+      res.json(resourceList);
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching resources" });
+    }
+  });
+
+  // Get a single resource
+  app.get('/api/resources/:id', async (req, res) => {
+    const resource = await storage.getResource(Number(req.params.id));
+    if (!resource) return res.status(404).json({ message: "Resource not found" });
+    res.json(resource);
+  });
+
+  // Create a resource
+  app.post('/api/resources', async (req, res) => {
+    try {
+      const { organizationId, displayName, email, title, department, skills, hourlyRate, isActive, notes } = req.body;
+      if (!organizationId || !displayName) {
+        return res.status(400).json({ message: "organizationId and displayName are required" });
+      }
+      const resource = await storage.createResource({
+        organizationId,
+        displayName,
+        email,
+        title,
+        department,
+        skills,
+        hourlyRate,
+        isActive,
+        notes
+      });
+      res.status(201).json(resource);
+    } catch (err) {
+      res.status(500).json({ message: "Error creating resource" });
+    }
+  });
+
+  // Update a resource
+  app.put('/api/resources/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getResource(id);
+      if (!existing) return res.status(404).json({ message: "Resource not found" });
+      
+      const updated = await storage.updateResource(id, req.body);
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: "Error updating resource" });
+    }
+  });
+
+  // Delete a resource
+  app.delete('/api/resources/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getResource(id);
+    if (!existing) return res.status(404).json({ message: "Resource not found" });
+    await storage.deleteResource(id);
+    res.status(204).send();
+  });
+
+  // ==================== TASK RESOURCE ASSIGNMENTS ====================
+  
+  // Get assignments for a task
+  app.get('/api/tasks/:taskId/resources', async (req, res) => {
+    try {
+      const taskId = Number(req.params.taskId);
+      const assignments = await storage.getTaskResourceAssignments(taskId);
+      res.json(assignments);
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching task assignments" });
+    }
+  });
+
+  // Update assignments for a task (replace all)
+  app.put('/api/tasks/:taskId/resources', async (req, res) => {
+    try {
+      const taskId = Number(req.params.taskId);
+      const { resourceIds } = req.body;
+      if (!Array.isArray(resourceIds)) {
+        return res.status(400).json({ message: "resourceIds must be an array" });
+      }
+      await storage.updateTaskResourceAssignments(taskId, resourceIds);
+      const assignments = await storage.getTaskResourceAssignments(taskId);
+      res.json(assignments);
+    } catch (err) {
+      res.status(500).json({ message: "Error updating task assignments" });
+    }
+  });
+
+  // ==================== ISSUE RESOURCE ASSIGNMENTS ====================
+  
+  // Get assignments for an issue
+  app.get('/api/issues/:issueId/resources', async (req, res) => {
+    try {
+      const issueId = Number(req.params.issueId);
+      const assignments = await storage.getIssueResourceAssignments(issueId);
+      res.json(assignments);
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching issue assignments" });
+    }
+  });
+
+  // Update assignments for an issue (replace all)
+  app.put('/api/issues/:issueId/resources', async (req, res) => {
+    try {
+      const issueId = Number(req.params.issueId);
+      const { resourceIds } = req.body;
+      if (!Array.isArray(resourceIds)) {
+        return res.status(400).json({ message: "resourceIds must be an array" });
+      }
+      await storage.updateIssueResourceAssignments(issueId, resourceIds);
+      const assignments = await storage.getIssueResourceAssignments(issueId);
+      res.json(assignments);
+    } catch (err) {
+      res.status(500).json({ message: "Error updating issue assignments" });
+    }
+  });
+
+  // ==================== RISK RESOURCE ASSIGNMENTS ====================
+  
+  // Get assignments for a risk
+  app.get('/api/risks/:riskId/resources', async (req, res) => {
+    try {
+      const riskId = Number(req.params.riskId);
+      const assignments = await storage.getRiskResourceAssignments(riskId);
+      res.json(assignments);
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching risk assignments" });
+    }
+  });
+
+  // Update assignments for a risk (replace all)
+  app.put('/api/risks/:riskId/resources', async (req, res) => {
+    try {
+      const riskId = Number(req.params.riskId);
+      const { resourceIds } = req.body;
+      if (!Array.isArray(resourceIds)) {
+        return res.status(400).json({ message: "resourceIds must be an array" });
+      }
+      await storage.updateRiskResourceAssignments(riskId, resourceIds);
+      const assignments = await storage.getRiskResourceAssignments(riskId);
+      res.json(assignments);
+    } catch (err) {
+      res.status(500).json({ message: "Error updating risk assignments" });
+    }
+  });
+
   // Demo Data Generation (Super Admin Only)
   app.get('/api/demo-data/industries', async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
