@@ -1,8 +1,8 @@
-# PPM Suite - Project Portfolio Management Application
+# Friday Report - Project Portfolio Management Application
 
 ## Overview
 
-PPM Suite is a full-stack project portfolio management application designed for enterprise teams to track projects, portfolios, risks, milestones, and issues. The application follows a Linear + Asana hybrid design approach, emphasizing clean data tables, refined status badges, and professional enterprise-grade UI.
+Friday Report is a full-stack project portfolio management application designed for enterprise teams to track projects, portfolios, risks, milestones, and issues. The application follows a Linear + Asana hybrid design approach, emphasizing clean data tables, refined status badges, and professional enterprise-grade UI.
 
 The stack consists of a React frontend with TypeScript, an Express.js backend, PostgreSQL database with Drizzle ORM, and Replit Auth for authentication.
 

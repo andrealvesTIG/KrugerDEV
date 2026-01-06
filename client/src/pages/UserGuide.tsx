@@ -268,7 +268,7 @@ const pdfStyles = StyleSheet.create({
 const UserGuidePDF = () => (
   <Document>
     <Page size="A4" style={pdfStyles.coverPage}>
-      <Text style={pdfStyles.coverTitle}>PPM Suite</Text>
+      <Text style={pdfStyles.coverTitle}>Friday Report</Text>
       <Text style={pdfStyles.coverSubtitle}>Project Portfolio Management</Text>
       <Text style={pdfStyles.coverSubtitle}>Complete User Guide</Text>
       <Text style={pdfStyles.coverVersion}>Version 1.0 - January 2026</Text>
@@ -287,9 +287,9 @@ const UserGuidePDF = () => (
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
         <Text style={pdfStyles.sectionTitle}>1. Overview</Text>
-        <Text style={pdfStyles.sectionSubtitle}>Introduction to PPM Suite</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Introduction to Friday Report</Text>
         <Text style={pdfStyles.paragraph}>
-          PPM Suite is an enterprise-grade Project Portfolio Management application designed to help teams 
+          Friday Report is an enterprise-grade Project Portfolio Management application designed to help teams 
           track projects, portfolios, risks, milestones, and issues efficiently. The application follows 
           modern design principles inspired by tools like Linear and Asana.
         </Text>
@@ -311,7 +311,7 @@ const UserGuidePDF = () => (
           <Text style={pdfStyles.featureDesc}>Calendar views for milestones and project timelines</Text>
         </View>
       </View>
-      <Text style={pdfStyles.footer}>PPM Suite User Guide</Text>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
       <Text style={pdfStyles.pageNumber}>3</Text>
     </Page>
 
@@ -345,7 +345,7 @@ const UserGuidePDF = () => (
           <Text style={pdfStyles.listItem}>Charts: Visual representations of project status and health distribution</Text>
         </View>
       </View>
-      <Text style={pdfStyles.footer}>PPM Suite User Guide</Text>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
       <Text style={pdfStyles.pageNumber}>4</Text>
     </Page>
 
@@ -375,7 +375,7 @@ const UserGuidePDF = () => (
           <Text style={pdfStyles.featureDesc}>Remove portfolios that are no longer needed (requires admin permissions)</Text>
         </View>
       </View>
-      <Text style={pdfStyles.footer}>PPM Suite User Guide</Text>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
       <Text style={pdfStyles.pageNumber}>5</Text>
     </Page>
 
@@ -384,7 +384,7 @@ const UserGuidePDF = () => (
         <Text style={pdfStyles.sectionTitle}>4. Projects</Text>
         <Text style={pdfStyles.sectionSubtitle}>Core project tracking and management</Text>
         <Text style={pdfStyles.paragraph}>
-          Projects are the heart of PPM Suite. Track individual initiatives with detailed information 
+          Projects are the heart of Friday Report. Track individual initiatives with detailed information 
           including status, priority, health, budget, and completion percentage.
         </Text>
         <Text style={pdfStyles.heading}>Project Attributes:</Text>
@@ -423,7 +423,7 @@ const UserGuidePDF = () => (
           <Text style={pdfStyles.listItem}>Issues Tab: Log and track project issues</Text>
         </View>
       </View>
-      <Text style={pdfStyles.footer}>PPM Suite User Guide</Text>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
       <Text style={pdfStyles.pageNumber}>6</Text>
     </Page>
 
@@ -478,7 +478,7 @@ const UserGuidePDF = () => (
         <Text style={pdfStyles.heading}>Issue Workflow:</Text>
         <Text style={pdfStyles.listItem}>Open → In Progress → Resolved → Closed</Text>
       </View>
-      <Text style={pdfStyles.footer}>PPM Suite User Guide</Text>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
       <Text style={pdfStyles.pageNumber}>7</Text>
     </Page>
 
@@ -517,7 +517,7 @@ const UserGuidePDF = () => (
         <Text style={pdfStyles.sectionTitle}>8. Organizations</Text>
         <Text style={pdfStyles.sectionSubtitle}>Multi-organization support and switching</Text>
         <Text style={pdfStyles.paragraph}>
-          PPM Suite supports multiple organizations. Each organization has its own set of portfolios, 
+          Friday Report supports multiple organizations. Each organization has its own set of portfolios, 
           projects, and team members. Switch between organizations using the sidebar selector.
         </Text>
         <Text style={pdfStyles.heading}>Access Control:</Text>
@@ -530,7 +530,7 @@ const UserGuidePDF = () => (
           <Text style={pdfStyles.featureDesc}>Can only access organizations they are members of</Text>
         </View>
       </View>
-      <Text style={pdfStyles.footer}>PPM Suite User Guide</Text>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
       <Text style={pdfStyles.pageNumber}>8</Text>
     </Page>
 
@@ -582,7 +582,7 @@ const UserGuidePDF = () => (
           <Text style={pdfStyles.featureDesc}>System-wide settings (Super Admins only)</Text>
         </View>
       </View>
-      <Text style={pdfStyles.footer}>PPM Suite User Guide</Text>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
       <Text style={pdfStyles.pageNumber}>9</Text>
     </Page>
 
@@ -591,7 +591,7 @@ const UserGuidePDF = () => (
         <Text style={pdfStyles.sectionTitle}>11. Themes</Text>
         <Text style={pdfStyles.sectionSubtitle}>Customize your visual experience</Text>
         <Text style={pdfStyles.paragraph}>
-          PPM Suite supports multiple themes to customize your visual experience. 
+          Friday Report supports multiple themes to customize your visual experience. 
           Toggle between light and dark modes using the theme switcher in the top bar.
         </Text>
         <Text style={pdfStyles.heading}>Available Themes:</Text>
@@ -613,10 +613,10 @@ const UserGuidePDF = () => (
         <Text style={pdfStyles.helpHeading}>Need More Help?</Text>
         <Text style={pdfStyles.paragraph}>
           Contact your administrator or reach out to our support team for additional assistance 
-          with PPM Suite. We're here to help you get the most out of your project portfolio management.
+          with Friday Report. We're here to help you get the most out of your project portfolio management.
         </Text>
       </View>
-      <Text style={pdfStyles.footer}>PPM Suite User Guide</Text>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
       <Text style={pdfStyles.pageNumber}>10</Text>
     </Page>
   </Document>
@@ -686,7 +686,7 @@ export default function UserGuide() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "PPM_Suite_User_Guide.pdf";
+      link.download = "Friday_Report_User_Guide.pdf";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -712,7 +712,7 @@ export default function UserGuide() {
               User Guide
             </h1>
             <p className="mt-2 text-muted-foreground">
-              Complete documentation for PPM Suite - Project Portfolio Management
+              Complete documentation for Friday Report - Project Portfolio Management
             </p>
           </div>
           <Button
@@ -765,13 +765,13 @@ export default function UserGuide() {
                     </div>
                     <div>
                       <CardTitle>Overview</CardTitle>
-                      <CardDescription>Introduction to PPM Suite</CardDescription>
+                      <CardDescription>Introduction to Friday Report</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-muted-foreground">
-                    PPM Suite is an enterprise-grade Project Portfolio Management application designed to help teams 
+                    Friday Report is an enterprise-grade Project Portfolio Management application designed to help teams 
                     track projects, portfolios, risks, milestones, and issues efficiently. The application follows 
                     modern design principles inspired by tools like Linear and Asana.
                   </p>
@@ -939,7 +939,7 @@ export default function UserGuide() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-muted-foreground">
-                    Projects are the heart of PPM Suite. Track individual initiatives with detailed information 
+                    Projects are the heart of Friday Report. Track individual initiatives with detailed information 
                     including status, priority, health, budget, and completion percentage.
                   </p>
                   
@@ -1172,7 +1172,7 @@ export default function UserGuide() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-muted-foreground">
-                    PPM Suite supports multiple organizations. Each organization has its own set of portfolios, 
+                    Friday Report supports multiple organizations. Each organization has its own set of portfolios, 
                     projects, and team members. Switch between organizations using the sidebar selector.
                   </p>
                   
@@ -1305,7 +1305,7 @@ export default function UserGuide() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-muted-foreground">
-                    PPM Suite supports multiple themes to customize your visual experience. 
+                    Friday Report supports multiple themes to customize your visual experience. 
                     Toggle between light and dark modes using the theme switcher in the top bar.
                   </p>
                   
