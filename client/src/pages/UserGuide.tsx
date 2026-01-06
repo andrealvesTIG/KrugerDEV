@@ -39,7 +39,8 @@ import {
   CalendarDays,
   UserCircle,
   LogOut,
-  Milestone
+  Milestone,
+  UserCog
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -55,6 +56,7 @@ const sections = [
   { id: "projects", name: "Projects", icon: FolderKanban },
   { id: "tasks", name: "Tasks", icon: CheckSquare },
   { id: "issues", name: "Issues", icon: CircleDot },
+  { id: "resources", name: "Resources", icon: UserCog },
   { id: "calendar", name: "Calendar", icon: Calendar },
   { id: "organizations", name: "Organizations", icon: Building2 },
   { id: "users", name: "User Management", icon: Users },
@@ -484,7 +486,42 @@ const UserGuidePDF = () => (
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>7. Calendar</Text>
+        <Text style={pdfStyles.sectionTitle}>7. Resources</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Team member and resource management</Text>
+        <Text style={pdfStyles.paragraph}>
+          The Resources page helps you manage team members and resources across your organization. 
+          Resources can be assigned to tasks, issues, and risks for better workload tracking.
+        </Text>
+        <Text style={pdfStyles.heading}>Resource Management:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Global Resource List: View all resources in your organization</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Auto-Sync Members: Organization members are automatically added as resources</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Resource Details: Track email, title, department, and skills</Text>
+        </View>
+        <Text style={pdfStyles.heading}>Resource Assignments:</Text>
+        <View style={pdfStyles.featureBox}>
+          <Text style={pdfStyles.featureTitle}>Tasks</Text>
+          <Text style={pdfStyles.featureDesc}>Assign multiple resources to tasks from the task dialog</Text>
+        </View>
+        <View style={pdfStyles.featureBox}>
+          <Text style={pdfStyles.featureTitle}>Issues</Text>
+          <Text style={pdfStyles.featureDesc}>Assign resources to issues for tracking ownership</Text>
+        </View>
+        <View style={pdfStyles.featureBox}>
+          <Text style={pdfStyles.featureTitle}>Risks</Text>
+          <Text style={pdfStyles.featureDesc}>Assign resources to manage and mitigate project risks</Text>
+        </View>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>8. Calendar</Text>
         <Text style={pdfStyles.sectionSubtitle}>Timeline and milestone visualization</Text>
         <Text style={pdfStyles.paragraph}>
           The Calendar view provides a visual timeline of your projects, milestones, and key dates. 
@@ -512,9 +549,13 @@ const UserGuidePDF = () => (
           <Text style={pdfStyles.listItem}>Color-Coded Events: Different colors for different projects</Text>
         </View>
       </View>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>8</Text>
+    </Page>
 
+    <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>8. Organizations</Text>
+        <Text style={pdfStyles.sectionTitle}>9. Organizations</Text>
         <Text style={pdfStyles.sectionSubtitle}>Multi-organization support and switching</Text>
         <Text style={pdfStyles.paragraph}>
           Friday Report supports multiple organizations. Each organization has its own set of portfolios, 
@@ -530,13 +571,9 @@ const UserGuidePDF = () => (
           <Text style={pdfStyles.featureDesc}>Can only access organizations they are members of</Text>
         </View>
       </View>
-      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>8</Text>
-    </Page>
 
-    <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>9. User Management</Text>
+        <Text style={pdfStyles.sectionTitle}>10. User Management</Text>
         <Text style={pdfStyles.sectionSubtitle}>Profile and user settings</Text>
         <Text style={pdfStyles.paragraph}>
           Manage your user profile and account settings through the user menu in the sidebar. 
@@ -560,9 +597,13 @@ const UserGuidePDF = () => (
           <Text style={pdfStyles.listItem}>Log Out: Sign out of the application</Text>
         </View>
       </View>
+      <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>9</Text>
+    </Page>
 
+    <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>10. Settings</Text>
+        <Text style={pdfStyles.sectionTitle}>11. Settings</Text>
         <Text style={pdfStyles.sectionSubtitle}>Application and organization configuration</Text>
         <Text style={pdfStyles.paragraph}>
           Configure application settings, organization preferences, and user-specific options 
@@ -583,12 +624,12 @@ const UserGuidePDF = () => (
         </View>
       </View>
       <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>9</Text>
+      <Text style={pdfStyles.pageNumber}>10</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>11. Themes</Text>
+        <Text style={pdfStyles.sectionTitle}>12. Themes</Text>
         <Text style={pdfStyles.sectionSubtitle}>Customize your visual experience</Text>
         <Text style={pdfStyles.paragraph}>
           Friday Report supports multiple themes to customize your visual experience. 
@@ -617,7 +658,7 @@ const UserGuidePDF = () => (
         </Text>
       </View>
       <Text style={pdfStyles.footer}>Friday Report User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>10</Text>
+      <Text style={pdfStyles.pageNumber}>11</Text>
     </Page>
   </Document>
 );
@@ -1106,6 +1147,76 @@ export default function UserGuide() {
                     <Badge variant="outline" className="border-orange-500 text-orange-600">High</Badge>
                     <Badge variant="outline" className="border-yellow-500 text-yellow-600">Medium</Badge>
                     <Badge variant="outline" className="border-slate-400 text-slate-600">Low</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="resources" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/30">
+                      <UserCog className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Resources</CardTitle>
+                      <CardDescription>Team member and resource management</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Resources page helps you manage team members and resources across your organization. 
+                    Resources can be assigned to tasks, issues, and risks for better workload tracking.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">Resource Management:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Global Resource List:</strong> View all resources in your organization</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Auto-Sync Members:</strong> Organization members are automatically added as resources</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Resource Details:</strong> Track email, title, department, and skills</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Active Status:</strong> Mark resources as active or inactive</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Resource Assignments:</h4>
+                  <p className="text-muted-foreground">
+                    Assign resources to work items throughout the application:
+                  </p>
+                  <div className="space-y-3 mt-2">
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <CheckSquare className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Tasks</h5>
+                        <p className="text-sm text-muted-foreground">Assign multiple resources to tasks from the task dialog</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <CircleDot className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Issues</h5>
+                        <p className="text-sm text-muted-foreground">Assign resources to issues for tracking ownership</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <AlertTriangle className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Risks</h5>
+                        <p className="text-sm text-muted-foreground">Assign resources to manage and mitigate project risks</p>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
