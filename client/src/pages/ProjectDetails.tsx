@@ -2683,25 +2683,26 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
     });
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string | null) => {
     const styles: Record<string, string> = {
-      pending: "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300",
-      under_review: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-      approved: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
-      rejected: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300",
-      implemented: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+      Draft: "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300",
+      Submitted: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+      "Under Review": "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300",
+      Approved: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
+      Rejected: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300",
+      Implemented: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
     };
-    return styles[status] || styles.pending;
+    return styles[status || 'Draft'] || styles.Draft;
   };
 
-  const getPriorityBadge = (priority: string) => {
+  const getPriorityBadge = (priority: string | null) => {
     const styles: Record<string, string> = {
-      low: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400",
-      medium: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
-      high: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-      critical: "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
+      Low: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400",
+      Medium: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+      High: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+      Critical: "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
     };
-    return styles[priority] || styles.medium;
+    return styles[priority || 'Medium'] || styles.Medium;
   };
 
   if (isLoading) {
@@ -2834,8 +2835,8 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-medium truncate">{request.title}</h4>
-                      <Badge className={cn("text-xs", getStatusBadge(request.status))}>{request.status.replace('_', ' ')}</Badge>
-                      <Badge className={cn("text-xs", getPriorityBadge(request.priority))}>{request.priority}</Badge>
+                      <Badge className={cn("text-xs", getStatusBadge(request.status))}>{request.status || 'Draft'}</Badge>
+                      <Badge className={cn("text-xs", getPriorityBadge(request.priority))}>{request.priority || 'Medium'}</Badge>
                       <Badge variant="outline" className="text-xs">{request.type}</Badge>
                     </div>
                     {request.description && (
@@ -2890,9 +2891,9 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
                   </div>
                 )}
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span>Created: {format(new Date(request.createdAt), 'MMM d, yyyy')}</span>
-                  {request.reviewedAt && <span>Reviewed: {format(new Date(request.reviewedAt), 'MMM d, yyyy')}</span>}
-                  {request.implementedAt && <span>Implemented: {format(new Date(request.implementedAt), 'MMM d, yyyy')}</span>}
+                  {request.createdAt && <span>Created: {format(new Date(request.createdAt), 'MMM d, yyyy')}</span>}
+                  {request.reviewedDate && <span>Reviewed: {format(new Date(request.reviewedDate), 'MMM d, yyyy')}</span>}
+                  {request.implementedDate && <span>Implemented: {format(new Date(request.implementedDate), 'MMM d, yyyy')}</span>}
                 </div>
               </div>
             ))}
@@ -2911,28 +2912,32 @@ function DocumentsTab({ projectId }: { projectId: number }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<ProjectDocument | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<{ name: string; status: 'uploading' | 'done' | 'error' }[]>([]);
   const [formData, setFormData] = useState({
-    name: '',
+    title: '',
     description: '',
-    category: 'general' as 'general' | 'contract' | 'requirement' | 'design' | 'test' | 'report' | 'other',
+    category: 'General' as string,
     fileUrl: '',
     version: '1.0',
+    fileName: '',
   });
 
   const resetForm = () => {
     setFormData({
-      name: '',
+      title: '',
       description: '',
-      category: 'general',
+      category: 'General',
       fileUrl: '',
       version: '1.0',
+      fileName: '',
     });
     setEditingDocument(null);
   };
 
   const handleSubmit = () => {
-    if (!formData.name.trim()) {
-      toast({ title: "Error", description: "Document name is required", variant: "destructive" });
+    if (!formData.title.trim()) {
+      toast({ title: "Error", description: "Document title is required", variant: "destructive" });
       return;
     }
 
@@ -2958,19 +2963,91 @@ function DocumentsTab({ projectId }: { projectId: number }) {
   const handleEdit = (doc: ProjectDocument) => {
     setEditingDocument(doc);
     setFormData({
-      name: doc.name,
+      title: doc.title,
       description: doc.description || '',
-      category: doc.category as any,
+      category: doc.category || 'General',
       fileUrl: doc.fileUrl || '',
       version: doc.version || '1.0',
+      fileName: doc.fileName || '',
     });
     setIsDialogOpen(true);
   };
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      setUploadingFiles(prev => [...prev, { name: file.name, status: 'uploading' }]);
+      
+      const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+      let category = 'General';
+      if (['pdf', 'doc', 'docx'].includes(fileExtension)) category = 'General';
+      else if (['xls', 'xlsx', 'csv'].includes(fileExtension)) category = 'Report';
+      else if (['ppt', 'pptx'].includes(fileExtension)) category = 'Design';
+      else if (['txt', 'md'].includes(fileExtension)) category = 'Requirements';
+
+      try {
+        await createDocument.mutateAsync({
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          description: `Uploaded file: ${file.name}`,
+          category,
+          fileName: file.name,
+          fileUrl: '',
+          version: '1.0',
+        });
+        
+        setUploadingFiles(prev => 
+          prev.map(f => f.name === file.name ? { ...f, status: 'done' } : f)
+        );
+        
+        toast({ title: "Document Added", description: `${file.name} has been added` });
+      } catch (error) {
+        setUploadingFiles(prev => 
+          prev.map(f => f.name === file.name ? { ...f, status: 'error' } : f)
+        );
+        toast({ title: "Error", description: `Failed to add ${file.name}`, variant: "destructive" });
+      }
+    }
+
+    setTimeout(() => {
+      setUploadingFiles([]);
+    }, 3000);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    setFormData({
+      ...formData,
+      title: formData.title || file.name.replace(/\.[^/.]+$/, ''),
+      fileName: file.name,
+    });
+  };
+
+  const getCategoryIcon = (category: string | null) => {
+    switch (category?.toLowerCase()) {
       case 'contract': return <FileText className="h-4 w-4" />;
-      case 'requirement': return <ClipboardList className="h-4 w-4" />;
+      case 'requirement':
+      case 'requirements': return <ClipboardList className="h-4 w-4" />;
       case 'design': return <LayoutGrid className="h-4 w-4" />;
       case 'test': return <CheckSquare className="h-4 w-4" />;
       case 'report': return <FileText className="h-4 w-4" />;
@@ -3007,29 +3084,30 @@ function DocumentsTab({ projectId }: { projectId: number }) {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Document Name *</Label>
+                <Label>Document Title *</Label>
                 <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="e.g., Project Charter, Requirements Spec"
-                  data-testid="input-document-name"
+                  data-testid="input-document-title"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category</Label>
-                  <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v as any })}>
+                  <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
                     <SelectTrigger data-testid="select-document-category">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="general">General</SelectItem>
-                      <SelectItem value="contract">Contract</SelectItem>
-                      <SelectItem value="requirement">Requirement</SelectItem>
-                      <SelectItem value="design">Design</SelectItem>
-                      <SelectItem value="test">Test</SelectItem>
-                      <SelectItem value="report">Report</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="General">General</SelectItem>
+                      <SelectItem value="Charter">Charter</SelectItem>
+                      <SelectItem value="Plan">Plan</SelectItem>
+                      <SelectItem value="Requirements">Requirements</SelectItem>
+                      <SelectItem value="Design">Design</SelectItem>
+                      <SelectItem value="Test">Test</SelectItem>
+                      <SelectItem value="Training">Training</SelectItem>
+                      <SelectItem value="Report">Report</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -3054,19 +3132,27 @@ function DocumentsTab({ projectId }: { projectId: number }) {
                 />
               </div>
               <div className="space-y-2">
-                <Label>File URL / Link</Label>
+                <Label>File</Label>
                 <div className="flex gap-2">
                   <Input
-                    value={formData.fileUrl}
-                    onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
-                    placeholder="https://... or path to file"
+                    type="file"
+                    onChange={handleFileSelect}
                     className="flex-1"
-                    data-testid="input-document-url"
+                    data-testid="input-document-file"
                   />
-                  <Button variant="outline" size="icon">
-                    <LinkIcon className="h-4 w-4" />
-                  </Button>
                 </div>
+                {formData.fileName && (
+                  <p className="text-xs text-muted-foreground">Selected: {formData.fileName}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>File URL / Link (optional)</Label>
+                <Input
+                  value={formData.fileUrl}
+                  onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
+                  placeholder="https://... or external link"
+                  data-testid="input-document-url"
+                />
               </div>
             </div>
             <DialogFooter>
@@ -3083,10 +3169,50 @@ function DocumentsTab({ projectId }: { projectId: number }) {
           </DialogContent>
         </Dialog>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {/* Drag and Drop Zone */}
+        <div
+          className={cn(
+            "border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer",
+            isDragOver 
+              ? "border-primary bg-primary/5" 
+              : "border-muted-foreground/25 hover:border-muted-foreground/50"
+          )}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          data-testid="dropzone-documents"
+        >
+          <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Drag and drop files here to add documents
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            PDF, Word, Excel, PowerPoint, and text files supported
+          </p>
+        </div>
+
+        {/* Upload Progress */}
+        {uploadingFiles.length > 0 && (
+          <div className="space-y-2">
+            {uploadingFiles.map((file, idx) => (
+              <div key={idx} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                {file.status === 'uploading' && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                {file.status === 'done' && <Check className="h-4 w-4 text-green-600" />}
+                {file.status === 'error' && <X className="h-4 w-4 text-red-600" />}
+                <span className="text-sm truncate flex-1">{file.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {file.status === 'uploading' ? 'Adding...' : file.status === 'done' ? 'Added' : 'Failed'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Document List */}
         {!documents || documents.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No documents yet. Click "Add Document" to add one.
+          <div className="text-center py-4 text-muted-foreground">
+            No documents yet. Drag files here or click "Add Document" to add one.
           </div>
         ) : (
           <div className="space-y-2">
@@ -3101,17 +3227,22 @@ function DocumentsTab({ projectId }: { projectId: number }) {
                     {getCategoryIcon(doc.category)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-medium truncate">{doc.name}</h4>
-                      <Badge variant="outline" className="text-xs">{doc.category}</Badge>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-medium truncate">{doc.title}</h4>
+                      {doc.category && <Badge variant="outline" className="text-xs">{doc.category}</Badge>}
                       {doc.version && <span className="text-xs text-muted-foreground">v{doc.version}</span>}
                     </div>
                     {doc.description && (
                       <p className="text-sm text-muted-foreground truncate">{doc.description}</p>
                     )}
-                    <span className="text-xs text-muted-foreground">
-                      Added {format(new Date(doc.uploadedAt), 'MMM d, yyyy')}
-                    </span>
+                    {doc.fileName && (
+                      <span className="text-xs text-muted-foreground">File: {doc.fileName}</span>
+                    )}
+                    {doc.createdAt && (
+                      <span className="text-xs text-muted-foreground block">
+                        Added {format(new Date(doc.createdAt), 'MMM d, yyyy')}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
