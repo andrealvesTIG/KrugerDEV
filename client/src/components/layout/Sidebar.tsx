@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle, Users, Menu, X, FileInput } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -60,6 +60,7 @@ const navigation = [
   { name: "Issues", href: "/issues", icon: CircleDot },
   { name: "Resources", href: "/resources", icon: Users },
   { name: "Calendar", href: "/calendar", icon: Calendar },
+  { name: "Integrations", href: "/integrations", icon: Plug },
 ];
 
 const helpNavigation = [
