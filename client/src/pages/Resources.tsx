@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -377,17 +377,55 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
     },
   });
 
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        organizationId: organizationId || 0,
+        displayName: resource?.displayName || "",
+        email: resource?.email || "",
+        title: resource?.title || "",
+        department: resource?.department || "",
+        skills: resource?.skills || "",
+        hourlyRate: resource?.hourlyRate || "",
+        isActive: resource?.isActive ?? true,
+        notes: resource?.notes || "",
+      });
+    }
+  }, [open, organizationId, resource]);
+
+  const { toast } = useToast();
+
   const onSubmit = async (data: ResourceFormData) => {
+    if (!organizationId) {
+      toast({ title: "Error", description: "No organization selected", variant: "destructive" });
+      return;
+    }
     try {
+      const resourceData = {
+        organizationId,
+        displayName: data.displayName,
+        email: data.email || null,
+        title: data.title || null,
+        department: data.department || null,
+        skills: data.skills || null,
+        hourlyRate: data.hourlyRate || null,
+        isActive: data.isActive ?? true,
+        notes: data.notes || null,
+      };
       if (isEditing && resource) {
-        await updateResource.mutateAsync({ id: resource.id, updates: data });
+        await updateResource.mutateAsync({ id: resource.id, updates: resourceData });
       } else {
-        await createResource.mutateAsync({ ...data, organizationId: organizationId! });
+        await createResource.mutateAsync(resourceData);
       }
       onSuccess();
       form.reset();
-    } catch (err) {
-      console.error("Failed to save resource:", err);
+    } catch (err: any) {
+      console.error("Failed to save resource:", err?.message || err);
+      toast({ 
+        title: "Error", 
+        description: err?.message || "Failed to save resource", 
+        variant: "destructive" 
+      });
     }
   };
 
