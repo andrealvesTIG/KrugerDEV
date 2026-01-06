@@ -58,6 +58,7 @@ export const projects = pgTable("projects", {
   managerId: varchar("manager_id").references(() => users.id), // Changed to varchar to match users.id
   completionPercentage: integer("completion_percentage").default(0),
   health: text("health").default("Green"), // Green, Yellow, Red
+  source: text("source").default("manual"), // "manual" = created in app, "imported" = from MPP/external file
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),

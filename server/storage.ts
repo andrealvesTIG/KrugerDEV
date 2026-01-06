@@ -1544,6 +1544,7 @@ export class DatabaseStorage implements IStorage {
       health: "Green",
       budget: "0",
       completionPercentage: 0,
+      source: "imported", // Mark as imported from MPP file
     }).returning();
 
     // Create a mapping from old taskId to new task id
