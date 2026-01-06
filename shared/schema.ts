@@ -304,6 +304,72 @@ export const costItems = pgTable("cost_items", {
   isDemo: boolean("is_demo").default(false),
 });
 
+// Project Intakes (Intake workflow for new project ideas)
+export const projectIntakes = pgTable("project_intakes", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  intakeNumber: text("intake_number"), // Auto-generated intake ID (e.g., "INT-2026-001")
+  
+  // Basic Information (Intake Form tab)
+  projectName: text("project_name").notNull(),
+  submitterId: varchar("submitter_id").references(() => users.id),
+  description: text("description"),
+  fundingSource: text("funding_source"), // "Business Funded", "IT Funded", "Shared", etc.
+  portfolioId: integer("portfolio_id").references(() => portfolios.id),
+  businessUnit: text("business_unit"), // BU field
+  programId: integer("program_id"), // Reference to program (can be added later)
+  programName: text("program_name"), // Stored program name for display
+  
+  // Workflow state
+  currentStep: text("current_step").default("is_backlog"), // Workflow step
+  status: text("status").default("draft"), // draft, in_progress, approved, rejected, cancelled
+  
+  // Step completion tracking
+  isBacklogComplete: boolean("is_backlog_complete").default(false),
+  basicInfoComplete: boolean("basic_info_complete").default(false),
+  financialsComplete: boolean("financials_complete").default(false),
+  projectCostComplete: boolean("project_cost_complete").default(false),
+  cyberArchComplete: boolean("cyber_arch_complete").default(false),
+  pmoSubmitted: boolean("pmo_submitted").default(false),
+  
+  // Financials tab data
+  estimatedBudget: numeric("estimated_budget").default("0"),
+  capitalExpense: numeric("capital_expense").default("0"),
+  operatingExpense: numeric("operating_expense").default("0"),
+  financialJustification: text("financial_justification"),
+  
+  // Cyber and Architectural Evaluation tab
+  cyberRiskAssessment: text("cyber_risk_assessment"),
+  architecturalReview: text("architectural_review"),
+  complianceRequirements: text("compliance_requirements"),
+  securityApproval: boolean("security_approval"),
+  securityApprovalDate: timestamp("security_approval_date"),
+  securityApproverId: varchar("security_approver_id").references(() => users.id),
+  
+  // Project Cost Evaluation (IT) tab
+  itCostEstimate: numeric("it_cost_estimate").default("0"),
+  resourceRequirements: text("resource_requirements"),
+  implementationTimeline: text("implementation_timeline"),
+  costBenefitAnalysis: text("cost_benefit_analysis"),
+  
+  // Approval tracking
+  approvedAt: timestamp("approved_at"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  rejectedAt: timestamp("rejected_at"),
+  rejectedBy: varchar("rejected_by").references(() => users.id),
+  rejectionReason: text("rejection_reason"),
+  
+  // Created project reference (populated after approval)
+  createdProjectId: integer("created_project_id").references(() => projects.id),
+  
+  // Meta
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+});
+
 // === RELATIONS ===
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
@@ -378,6 +444,25 @@ export const projectFinancialsRelations = relations(projectFinancials, ({ one })
 export const costItemsRelations = relations(costItems, ({ one }) => ({
   project: one(projects, {
     fields: [costItems.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const projectIntakesRelations = relations(projectIntakes, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [projectIntakes.organizationId],
+    references: [organizations.id],
+  }),
+  portfolio: one(portfolios, {
+    fields: [projectIntakes.portfolioId],
+    references: [portfolios.id],
+  }),
+  submitter: one(users, {
+    fields: [projectIntakes.submitterId],
+    references: [users.id],
+  }),
+  createdProject: one(projects, {
+    fields: [projectIntakes.createdProjectId],
     references: [projects.id],
   }),
 }));
@@ -508,6 +593,7 @@ export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourc
 export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
 export const insertRiskResourceAssignmentSchema = createInsertSchema(riskResourceAssignments).omit({ id: true, createdAt: true });
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -570,6 +656,9 @@ export type InsertRiskResourceAssignment = z.infer<typeof insertRiskResourceAssi
 export type CostItem = typeof costItems.$inferSelect;
 export type InsertCostItem = z.infer<typeof insertCostItemSchema>;
 
+export type ProjectIntake = typeof projectIntakes.$inferSelect;
+export type InsertProjectIntake = z.infer<typeof insertProjectIntakeSchema>;
+
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
 export type UpdatePortfolioRequest = Partial<InsertPortfolio>;
@@ -600,6 +689,9 @@ export type UpdateResourceRequest = Partial<InsertResource>;
 
 export type CreateCostItemRequest = InsertCostItem;
 export type UpdateCostItemRequest = Partial<InsertCostItem>;
+
+export type CreateProjectIntakeRequest = InsertProjectIntake;
+export type UpdateProjectIntakeRequest = Partial<InsertProjectIntake>;
 
 // Recycle Bin Types
 export type RecycleBinItemType = 'portfolio' | 'project' | 'task' | 'risk' | 'milestone' | 'issue';
