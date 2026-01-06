@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
@@ -621,8 +621,20 @@ function GroupedTasksView({
   );
 }
 
+type TaskZoomLevel = 'day' | 'week' | 'month' | 'quarter' | 'year' | '5year';
+const taskZoomLevels: TaskZoomLevel[] = ['day', 'week', 'month', 'quarter', 'year', '5year'];
+const taskZoomLabels: Record<TaskZoomLevel, string> = {
+  'day': 'Day',
+  'week': 'Week',
+  'month': 'Month',
+  'quarter': 'Quarter',
+  'year': 'Year',
+  '5year': '5 Years'
+};
+
 function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void; embedded?: boolean }) {
   const today = new Date();
+  const [zoomLevel, setZoomLevel] = useState<TaskZoomLevel>('month');
   
   const { minDate, maxDate, dateRange } = useMemo(() => {
     const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
@@ -639,9 +651,47 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: 
       maxDate = endOfMonth(addDays(today, 60));
     }
     
+    // Extend range based on zoom level
+    if (zoomLevel === 'quarter') {
+      maxDate = addDays(maxDate, 90);
+    } else if (zoomLevel === 'year') {
+      maxDate = addDays(maxDate, 365);
+    } else if (zoomLevel === '5year') {
+      maxDate = addDays(maxDate, 1825);
+    }
+    
     const dateRange = eachDayOfInterval({ start: minDate, end: maxDate });
     return { minDate, maxDate, dateRange };
-  }, [tasks, today]);
+  }, [tasks, today, zoomLevel]);
+
+  const { filteredDates, dateFormat, columnWidth } = useMemo(() => {
+    switch (zoomLevel) {
+      case 'day':
+        return { filteredDates: dateRange, dateFormat: 'd', columnWidth: 'min-w-[40px]' };
+      case 'week':
+        return { filteredDates: dateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
+      case 'month':
+        return { filteredDates: dateRange.filter((_, i) => i % 30 === 0), dateFormat: 'MMM yyyy', columnWidth: 'min-w-[100px]' };
+      case 'quarter':
+        return { filteredDates: dateRange.filter((_, i) => i % 90 === 0), dateFormat: 'QQQ yyyy', columnWidth: 'min-w-[80px]' };
+      case 'year':
+        return { filteredDates: dateRange.filter((_, i) => i % 365 === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[80px]' };
+      case '5year':
+        return { filteredDates: dateRange.filter((_, i) => i % 365 === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[60px]' };
+      default:
+        return { filteredDates: dateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
+    }
+  }, [dateRange, zoomLevel]);
+
+  const handleZoomIn = () => {
+    const idx = taskZoomLevels.indexOf(zoomLevel);
+    if (idx > 0) setZoomLevel(taskZoomLevels[idx - 1]);
+  };
+
+  const handleZoomOut = () => {
+    const idx = taskZoomLevels.indexOf(zoomLevel);
+    if (idx < taskZoomLevels.length - 1) setZoomLevel(taskZoomLevels[idx + 1]);
+  };
 
   const getProjectName = (projectId: number) => {
     return projects.find(p => p.id === projectId)?.name || "Unknown";
@@ -664,15 +714,44 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: 
     );
   }
 
+  const zoomControls = (
+    <div className="flex items-center gap-2 p-3 border-b bg-muted/30">
+      <span className="text-xs text-muted-foreground">
+        View: {taskZoomLabels[zoomLevel]}
+      </span>
+      <div className="flex items-center gap-1 ml-2">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleZoomIn}
+          disabled={taskZoomLevels.indexOf(zoomLevel) === 0}
+          data-testid="button-task-gantt-zoom-in"
+        >
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleZoomOut}
+          disabled={taskZoomLevels.indexOf(zoomLevel) === taskZoomLevels.length - 1}
+          data-testid="button-task-gantt-zoom-out"
+        >
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+
   const ganttContent = (
     <div className="overflow-x-auto">
       <div className="min-w-[800px]">
+        {!embedded && zoomControls}
         <div className="flex border-b bg-muted/50">
           <div className="w-64 flex-shrink-0 border-r p-3 font-semibold text-sm text-foreground">Task</div>
           <div className="flex-1 flex">
-            {dateRange.filter((_, i) => i % 7 === 0).map((date, i) => (
-              <div key={i} className="flex-1 min-w-[100px] p-2 text-center text-xs font-medium text-muted-foreground border-l">
-                {format(date, 'MMM d')}
+            {filteredDates.map((date, i) => (
+              <div key={i} className={cn("flex-1 p-2 text-center text-xs font-medium text-muted-foreground border-l", columnWidth)}>
+                {format(date, dateFormat)}
               </div>
             ))}
           </div>
