@@ -1710,6 +1710,91 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // ==================== COST ITEMS (Financial Grid) ====================
+
+  // Get all cost items for a project (optionally filtered by fiscal year)
+  app.get('/api/projects/:projectId/cost-items', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : undefined;
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      const items = await storage.getCostItems(projectId, fiscalYear);
+      res.json(items);
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching cost items" });
+    }
+  });
+
+  // Get a single cost item
+  app.get('/api/cost-items/:id', async (req, res) => {
+    const item = await storage.getCostItem(Number(req.params.id));
+    if (!item) return res.status(404).json({ message: "Cost item not found" });
+    res.json(item);
+  });
+
+  // Create a cost item
+  app.post('/api/projects/:projectId/cost-items', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      const { name, parentId, wbs, comments, category, fiscalYear, aopTotal, fcstTotal, actTotal,
+        fcstM1, fcstM2, fcstM3, fcstM4, fcstM5, fcstM6, fcstM7, fcstM8, fcstM9, fcstM10, fcstM11, fcstM12,
+        actM1, actM2, actM3, actM4, actM5, actM6, actM7, actM8, actM9, actM10, actM11, actM12,
+        sortOrder } = req.body;
+      
+      if (!name || !fiscalYear) {
+        return res.status(400).json({ message: "name and fiscalYear are required" });
+      }
+      
+      const item = await storage.createCostItem({
+        projectId,
+        parentId: parentId || null,
+        name,
+        wbs,
+        comments,
+        category,
+        fiscalYear,
+        aopTotal,
+        fcstTotal,
+        actTotal,
+        fcstM1, fcstM2, fcstM3, fcstM4, fcstM5, fcstM6, fcstM7, fcstM8, fcstM9, fcstM10, fcstM11, fcstM12,
+        actM1, actM2, actM3, actM4, actM5, actM6, actM7, actM8, actM9, actM10, actM11, actM12,
+        sortOrder: sortOrder || 0,
+      });
+      res.status(201).json(item);
+    } catch (err) {
+      console.error("Error creating cost item:", err);
+      res.status(500).json({ message: "Error creating cost item" });
+    }
+  });
+
+  // Update a cost item
+  app.put('/api/cost-items/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getCostItem(id);
+      if (!existing) return res.status(404).json({ message: "Cost item not found" });
+      
+      const updated = await storage.updateCostItem(id, req.body);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating cost item:", err);
+      res.status(500).json({ message: "Error updating cost item" });
+    }
+  });
+
+  // Delete a cost item
+  app.delete('/api/cost-items/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getCostItem(id);
+    if (!existing) return res.status(404).json({ message: "Cost item not found" });
+    await storage.deleteCostItem(id);
+    res.status(204).send();
+  });
+
   // ==================== RESOURCES ====================
   
   // Get all resources for an organization
