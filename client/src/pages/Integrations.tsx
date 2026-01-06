@@ -4,12 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, formatDistanceToNow } from "date-fns";
-import type { MppImport, MppImportTask } from "@shared/schema";
+import { useLocation } from "wouter";
+import type { MppImport, MppImportTask, Portfolio } from "@shared/schema";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface MppImportWithTasks extends MppImport {
@@ -19,9 +24,16 @@ interface MppImportWithTasks extends MppImport {
 export default function Integrations() {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [expandedImports, setExpandedImports] = useState<Set<number>>(new Set());
   const [selectedImportId, setSelectedImportId] = useState<number | null>(null);
+  const [convertModalOpen, setConvertModalOpen] = useState(false);
+  const [convertingImport, setConvertingImport] = useState<MppImportWithTasks | null>(null);
+  const [projectName, setProjectName] = useState("");
+  const [projectPortfolio, setProjectPortfolio] = useState("");
+  const [projectStatus, setProjectStatus] = useState("Initiation");
+  const [projectPriority, setProjectPriority] = useState("Medium");
 
   const { data: imports, isLoading, refetch } = useQuery<MppImportWithTasks[]>({
     queryKey: ['/api/mpp-imports', currentOrganization?.id],
@@ -70,6 +82,62 @@ export default function Integrations() {
       queryClient.invalidateQueries({ queryKey: ['/api/mpp-imports'] });
     },
   });
+
+  const { data: portfolios } = useQuery<Portfolio[]>({
+    queryKey: ['/api/portfolios', currentOrganization?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/portfolios?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) throw new Error('Failed to fetch portfolios');
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const convertMutation = useMutation({
+    mutationFn: async (data: { importId: number; name: string; portfolioId?: number; status: string; priority: string }) => {
+      const res = await apiRequest('POST', `/api/mpp-imports/${data.importId}/convert`, {
+        name: data.name,
+        portfolioId: data.portfolioId,
+        status: data.status,
+        priority: data.priority,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "Project Created", 
+        description: data.message || `Project created with ${data.taskCount} tasks`,
+      });
+      setConvertModalOpen(false);
+      setConvertingImport(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/mpp-imports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const openConvertModal = (imp: MppImportWithTasks) => {
+    setConvertingImport(imp);
+    setProjectName(imp.fileName.replace(/\.(mpp|xml|csv)$/i, ''));
+    setProjectPortfolio("");
+    setProjectStatus("Initiation");
+    setProjectPriority("Medium");
+    setConvertModalOpen(true);
+  };
+
+  const handleConvert = () => {
+    if (!convertingImport || !projectName.trim()) return;
+    const portfolioNum = projectPortfolio ? Number(projectPortfolio) : undefined;
+    convertMutation.mutate({
+      importId: convertingImport.id,
+      name: projectName.trim(),
+      portfolioId: portfolioNum && portfolioNum > 0 ? portfolioNum : undefined,
+      status: projectStatus,
+      priority: projectPriority,
+    });
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -233,6 +301,44 @@ export default function Integrations() {
                     <div className="flex items-center gap-3">
                       <Badge variant="outline">{imp.taskCount} tasks</Badge>
                       <Badge variant="secondary">{imp.fileType?.toUpperCase()}</Badge>
+                      {imp.projectId ? (
+                        <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                          <CheckCircle2 className="mr-1 h-3 w-3" />
+                          Converted
+                        </Badge>
+                      ) : imp.status === "converted" ? (
+                        <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                          <CheckCircle2 className="mr-1 h-3 w-3" />
+                          Converted
+                        </Badge>
+                      ) : (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openConvertModal(imp);
+                          }}
+                          data-testid={`button-create-project-${imp.id}`}
+                        >
+                          <FolderPlus className="mr-2 h-4 w-4" />
+                          Create Project
+                        </Button>
+                      )}
+                      {imp.projectId && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/projects/${imp.projectId}`);
+                          }}
+                          data-testid={`button-view-project-${imp.id}`}
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          View
+                        </Button>
+                      )}
                       <Button 
                         variant="ghost" 
                         size="icon"
@@ -320,6 +426,93 @@ export default function Integrations() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={convertModalOpen} onOpenChange={setConvertModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Project from Import</DialogTitle>
+            <DialogDescription>
+              This will create a new project with {convertingImport?.taskCount || 0} tasks from the imported file.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="projectName">Project Name</Label>
+              <Input
+                id="projectName"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="Enter project name"
+                data-testid="input-project-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="portfolio">Portfolio (Optional)</Label>
+              <Select value={projectPortfolio} onValueChange={setProjectPortfolio}>
+                <SelectTrigger data-testid="select-portfolio">
+                  <SelectValue placeholder="Select a portfolio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No Portfolio</SelectItem>
+                  {portfolios?.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select value={projectStatus} onValueChange={setProjectStatus}>
+                  <SelectTrigger data-testid="select-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Initiation">Initiation</SelectItem>
+                    <SelectItem value="Planning">Planning</SelectItem>
+                    <SelectItem value="Execution">Execution</SelectItem>
+                    <SelectItem value="Monitoring">Monitoring</SelectItem>
+                    <SelectItem value="Closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="priority">Priority</Label>
+                <Select value={projectPriority} onValueChange={setProjectPriority}>
+                  <SelectTrigger data-testid="select-priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConvertModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConvert} 
+              disabled={convertMutation.isPending || !projectName.trim()}
+              data-testid="button-confirm-create"
+            >
+              {convertMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FolderPlus className="mr-2 h-4 w-4" />
+              )}
+              Create Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

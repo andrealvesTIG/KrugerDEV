@@ -1509,22 +1509,42 @@ export class DatabaseStorage implements IStorage {
     // Get the imported tasks
     const importedTasks = await this.getMppImportTasks(importId);
     
-    // Create the project
+    // Calculate default dates if needed
+    const today = new Date().toISOString().split('T')[0];
+    const defaultEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    // Calculate project start/end dates from tasks
+    let projectStartDate = today;
+    let projectEndDate = defaultEndDate;
+    
+    const validStartDates = importedTasks
+      .filter(t => t.startDate)
+      .map(t => t.startDate as string);
+    const validEndDates = importedTasks
+      .filter(t => t.finishDate)
+      .map(t => t.finishDate as string);
+    
+    if (validStartDates.length > 0) {
+      projectStartDate = validStartDates.sort()[0];
+    }
+    if (validEndDates.length > 0) {
+      projectEndDate = validEndDates.sort().reverse()[0];
+    }
+    
+    // Create the project (portfolioId should be undefined/null, not 0)
     const [newProject] = await db.insert(projects).values({
       organizationId: projectData.organizationId,
-      portfolioId: projectData.portfolioId || null,
+      portfolioId: projectData.portfolioId && projectData.portfolioId > 0 ? projectData.portfolioId : null,
       name: projectData.name,
       description: projectData.description || mppImport.fileName,
       status: projectData.status || "Initiation",
       priority: projectData.priority || "Medium",
+      startDate: projectStartDate,
+      endDate: projectEndDate,
       health: "Green",
       budget: "0",
       completionPercentage: 0,
     }).returning();
-
-    // Calculate default dates if needed
-    const today = new Date().toISOString().split('T')[0];
-    const defaultEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     // Create a mapping from old taskId to new task id
     const taskIdMapping: Map<number, number> = new Map();
@@ -1569,9 +1589,10 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Update the import with the created project ID
+    // Update the import with the created project ID and task count
+    const actualTaskCount = importedTasks.length;
     await db.update(mppImports)
-      .set({ projectId: newProject.id, status: "converted" })
+      .set({ projectId: newProject.id, status: "converted", taskCount: actualTaskCount })
       .where(eq(mppImports.id, importId));
 
     // Calculate and update project completion percentage based on tasks
