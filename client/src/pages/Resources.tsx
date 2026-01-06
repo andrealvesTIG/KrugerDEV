@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -54,7 +55,83 @@ export default function Resources() {
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [deleteResourceId, setDeleteResourceId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const handleExportToExcel = () => {
+    if (!resources || resources.length === 0) {
+      toast({ title: "No data", description: "There are no resources to export", variant: "destructive" });
+      return;
+    }
+    const exportData = resources.map(r => ({
+      Name: r.displayName,
+      Email: r.email || "",
+      Title: r.title || "",
+      Department: r.department || "",
+      Skills: r.skills || "",
+      "Hourly Rate": r.hourlyRate || "",
+      Active: r.isActive ? "Yes" : "No",
+      Notes: r.notes || ""
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Resources");
+    const colWidths = [
+      { wch: 25 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, 
+      { wch: 30 }, { wch: 12 }, { wch: 8 }, { wch: 40 }
+    ];
+    worksheet["!cols"] = colWidths;
+    XLSX.writeFile(workbook, `Resources_${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast({ title: "Success", description: `Exported ${resources.length} resources to Excel` });
+  };
+
+  const handleImportFromExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !currentOrganization) return;
+    setIsImporting(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet);
+      let imported = 0;
+      let skipped = 0;
+      for (const row of jsonData) {
+        const name = row["Name"] || row["name"] || row["Display Name"] || row["displayName"];
+        if (!name || typeof name !== "string" || name.trim() === "") {
+          skipped++;
+          continue;
+        }
+        try {
+          await createResource.mutateAsync({
+            organizationId: currentOrganization.id,
+            displayName: name.trim(),
+            email: (row["Email"] || row["email"] || "").toString().trim() || null,
+            title: (row["Title"] || row["title"] || "").toString().trim() || null,
+            department: (row["Department"] || row["department"] || "").toString().trim() || null,
+            skills: (row["Skills"] || row["skills"] || "").toString().trim() || null,
+            hourlyRate: (row["Hourly Rate"] || row["hourlyRate"] || row["Rate"] || "").toString().trim() || null,
+            isActive: (row["Active"] || row["active"] || "Yes").toString().toLowerCase() !== "no",
+            notes: (row["Notes"] || row["notes"] || "").toString().trim() || null
+          });
+          imported++;
+        } catch (err) {
+          skipped++;
+        }
+      }
+      toast({ 
+        title: "Import Complete", 
+        description: `Imported ${imported} resources${skipped > 0 ? `, skipped ${skipped} rows` : ""}` 
+      });
+    } catch (err) {
+      toast({ title: "Import Failed", description: "Could not read the Excel file", variant: "destructive" });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const filteredResources = resources?.filter(r => 
     r.displayName.toLowerCase().includes(search.toLowerCase()) || 
@@ -82,10 +159,38 @@ export default function Resources() {
           <h1 className="text-3xl font-display font-bold text-foreground">Resources</h1>
           <p className="mt-1 text-muted-foreground">Manage your team members and assign them to tasks, issues, and risks.</p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-resource">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Resource
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImportFromExcel}
+            accept=".xlsx,.xls"
+            className="hidden"
+            data-testid="input-import-file"
+          />
+          <Button 
+            variant="outline" 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            data-testid="button-import-resources"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {isImporting ? "Importing..." : "Import"}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleExportToExcel}
+            disabled={!resources || resources.length === 0}
+            data-testid="button-export-resources"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
+          <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-resource">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Resource
+          </Button>
+        </div>
       </div>
 
       <div className="relative">
