@@ -23,6 +23,7 @@ import OrgSettings from "@/pages/OrgSettings";
 import Profile from "@/pages/Profile";
 import UserSettings from "@/pages/UserSettings";
 import UserGuide from "@/pages/UserGuide";
+import Resources from "@/pages/Resources";
 
 function Router() {
   return (
@@ -35,6 +36,7 @@ function Router() {
         <Route path="/projects/:id" component={ProjectDetails} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/issues" component={Issues} />
+        <Route path="/resources" component={Resources} />
         <Route path="/calendar" component={Calendar} />
         <Route path="/admin" component={Admin} />
         <Route path="/super-admin" component={SuperAdmin} />
