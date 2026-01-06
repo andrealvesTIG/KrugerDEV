@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink, Files, X } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -34,6 +35,18 @@ export default function Integrations() {
   const [projectPortfolio, setProjectPortfolio] = useState("");
   const [projectStatus, setProjectStatus] = useState("Initiation");
   const [projectPriority, setProjectPriority] = useState("Medium");
+  
+  // Multi-file upload states
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<Map<string, 'pending' | 'uploading' | 'success' | 'error'>>(new Map());
+  
+  // Batch selection states
+  const [selectedImports, setSelectedImports] = useState<Set<number>>(new Set());
+  const [batchConvertModalOpen, setBatchConvertModalOpen] = useState(false);
+  const [batchPortfolio, setBatchPortfolio] = useState("");
+  const [batchStatus, setBatchStatus] = useState("Initiation");
+  const [batchPriority, setBatchPriority] = useState("Medium");
 
   const { data: imports, isLoading, refetch } = useQuery<MppImportWithTasks[]>({
     queryKey: ['/api/mpp-imports', currentOrganization?.id],
@@ -45,6 +58,67 @@ export default function Integrations() {
     enabled: !!currentOrganization?.id,
     refetchInterval: 30000,
   });
+
+  // Upload a single file and return the result
+  const uploadSingleFile = async (file: File): Promise<{ success: boolean; name: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('organizationId', String(currentOrganization?.id));
+    
+    const res = await fetch('/api/mpp-imports/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || 'Upload failed');
+    }
+    return { success: true, name: file.name };
+  };
+
+  // Upload multiple files sequentially
+  const uploadMultipleFiles = async (files: File[]) => {
+    const fileNames = files.map(f => f.name);
+    setUploadingFiles(fileNames);
+    
+    const newProgress = new Map<string, 'pending' | 'uploading' | 'success' | 'error'>();
+    fileNames.forEach(name => newProgress.set(name, 'pending'));
+    setUploadProgress(newProgress);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const file of files) {
+      setUploadProgress(prev => new Map(prev).set(file.name, 'uploading'));
+      
+      try {
+        await uploadSingleFile(file);
+        setUploadProgress(prev => new Map(prev).set(file.name, 'success'));
+        successCount++;
+      } catch (error) {
+        setUploadProgress(prev => new Map(prev).set(file.name, 'error'));
+        errorCount++;
+      }
+    }
+    
+    // Clear after a delay
+    setTimeout(() => {
+      setUploadingFiles([]);
+      setUploadProgress(new Map());
+    }, 3000);
+    
+    queryClient.invalidateQueries({ queryKey: ['/api/mpp-imports'] });
+    
+    if (successCount > 0) {
+      toast({ 
+        title: "Upload Complete", 
+        description: `${successCount} file(s) imported successfully${errorCount > 0 ? `, ${errorCount} failed` : ''}` 
+      });
+    } else {
+      toast({ title: "Upload Failed", description: "All files failed to upload", variant: "destructive" });
+    }
+  };
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -140,12 +214,111 @@ export default function Integrations() {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      uploadMutation.mutate(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const fileArray = Array.from(files);
+      if (fileArray.length === 1) {
+        uploadMutation.mutate(fileArray[0]);
+      } else {
+        uploadMultipleFiles(fileArray);
+      }
     }
     e.target.value = '';
   };
+
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+      file.name.match(/\.(mpp|xml|csv)$/i)
+    );
+    
+    if (files.length === 0) {
+      toast({ title: "Invalid Files", description: "Please drop .mpp, .xml, or .csv files", variant: "destructive" });
+      return;
+    }
+    
+    if (files.length === 1) {
+      uploadMutation.mutate(files[0]);
+    } else {
+      uploadMultipleFiles(files);
+    }
+  }, [uploadMultipleFiles, uploadMutation, toast]);
+
+  // Batch selection handlers
+  const toggleImportSelection = (importId: number) => {
+    const newSelected = new Set(selectedImports);
+    if (newSelected.has(importId)) {
+      newSelected.delete(importId);
+    } else {
+      newSelected.add(importId);
+    }
+    setSelectedImports(newSelected);
+  };
+
+  const selectAllUnconverted = () => {
+    const unconvertedIds = imports?.filter(imp => !imp.projectId && imp.status !== "converted").map(imp => imp.id) || [];
+    setSelectedImports(new Set(unconvertedIds));
+  };
+
+  const clearSelection = () => {
+    setSelectedImports(new Set());
+  };
+
+  const handleBatchConvert = async () => {
+    if (selectedImports.size === 0) return;
+    
+    const importsToConvert = imports?.filter(imp => selectedImports.has(imp.id)) || [];
+    const portfolioNum = batchPortfolio && batchPortfolio !== "none" ? Number(batchPortfolio) : undefined;
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const imp of importsToConvert) {
+      try {
+        await apiRequest('POST', `/api/mpp-imports/${imp.id}/convert`, {
+          name: imp.fileName.replace(/\.(mpp|xml|csv)$/i, ''),
+          portfolioId: portfolioNum && portfolioNum > 0 ? portfolioNum : undefined,
+          status: batchStatus,
+          priority: batchPriority,
+        });
+        successCount++;
+      } catch (error) {
+        errorCount++;
+      }
+    }
+    
+    setBatchConvertModalOpen(false);
+    setSelectedImports(new Set());
+    queryClient.invalidateQueries({ queryKey: ['/api/mpp-imports'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    
+    toast({ 
+      title: "Batch Conversion Complete", 
+      description: `${successCount} project(s) created${errorCount > 0 ? `, ${errorCount} failed` : ''}` 
+    });
+  };
+
+  // Get unconverted imports for batch actions
+  const unconvertedImports = imports?.filter(imp => !imp.projectId && imp.status !== "converted") || [];
+  const selectedUnconvertedCount = Array.from(selectedImports).filter(id => 
+    unconvertedImports.some(imp => imp.id === id)
+  ).length;
 
   const toggleExpanded = (importId: number) => {
     const newExpanded = new Set(expandedImports);
@@ -216,49 +389,140 @@ export default function Integrations() {
                   <li>Task Hierarchy (Outline Level, Summary/Milestone)</li>
                 </ul>
               </div>
+              
+              {/* Drag and Drop Upload Zone */}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`
+                  relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+                  transition-colors duration-200
+                  ${isDragOver 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                  }
+                `}
+                data-testid="dropzone-upload"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".mpp,.xml,.csv"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  data-testid="input-file-upload"
+                />
+                
+                {uploadingFiles.length > 0 ? (
+                  <div className="space-y-3">
+                    <Files className="mx-auto h-10 w-10 text-primary" />
+                    <div className="text-sm font-medium">Uploading {uploadingFiles.length} file(s)...</div>
+                    <div className="space-y-2 max-h-32 overflow-auto">
+                      {uploadingFiles.map((fileName) => (
+                        <div key={fileName} className="flex items-center justify-center gap-2 text-sm">
+                          {uploadProgress.get(fileName) === 'uploading' && (
+                            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                          )}
+                          {uploadProgress.get(fileName) === 'success' && (
+                            <CheckCircle2 className="h-3 w-3 text-green-600" />
+                          )}
+                          {uploadProgress.get(fileName) === 'error' && (
+                            <X className="h-3 w-3 text-destructive" />
+                          )}
+                          {uploadProgress.get(fileName) === 'pending' && (
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                          )}
+                          <span className="truncate max-w-[200px]">{fileName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : uploadMutation.isPending ? (
+                  <div className="space-y-3">
+                    <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
+                    <div className="text-sm font-medium">Uploading...</div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Upload className={`mx-auto h-10 w-10 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {isDragOver ? 'Drop files here' : 'Drag and drop files here'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        or click to browse - supports multiple files
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
-          <CardFooter>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".mpp,.xml,.csv"
-              onChange={handleFileSelect}
-              className="hidden"
-              data-testid="input-file-upload"
-            />
-            <Button 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadMutation.isPending}
-              data-testid="button-upload-mpp"
-            >
-              {uploadMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="mr-2 h-4 w-4" />
-              )}
-              Upload File
-            </Button>
-          </CardFooter>
         </Card>
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
           <div>
             <CardTitle>Import History</CardTitle>
             <CardDescription>Previously imported project files</CardDescription>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => refetch()}
-            disabled={isLoading}
-            data-testid="button-refresh-imports"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {unconvertedImports.length > 0 && (
+              <>
+                {selectedImports.size > 0 ? (
+                  <>
+                    <Badge variant="secondary">{selectedUnconvertedCount} selected</Badge>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={clearSelection}
+                      data-testid="button-clear-selection"
+                    >
+                      Clear
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      onClick={() => {
+                        setBatchPortfolio("");
+                        setBatchStatus("Initiation");
+                        setBatchPriority("Medium");
+                        setBatchConvertModalOpen(true);
+                      }}
+                      disabled={selectedUnconvertedCount === 0}
+                      data-testid="button-batch-convert"
+                    >
+                      <FolderPlus className="mr-2 h-4 w-4" />
+                      Create All Projects
+                    </Button>
+                  </>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={selectAllUnconverted}
+                    data-testid="button-select-all"
+                  >
+                    <Files className="mr-2 h-4 w-4" />
+                    Select All ({unconvertedImports.length})
+                  </Button>
+                )}
+              </>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => refetch()}
+              disabled={isLoading}
+              data-testid="button-refresh-imports"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -272,14 +536,26 @@ export default function Integrations() {
             </div>
           ) : (
             <div className="space-y-4">
-              {imports.map((imp) => (
-                <div key={imp.id} className="border rounded-lg" data-testid={`import-item-${imp.id}`}>
+              {imports.map((imp) => {
+                const isUnconverted = !imp.projectId && imp.status !== "converted";
+                const isSelected = selectedImports.has(imp.id);
+                
+                return (
+                <div key={imp.id} className={`border rounded-lg ${isSelected ? 'border-primary bg-primary/5' : ''}`} data-testid={`import-item-${imp.id}`}>
                   <div 
                     className="flex items-center justify-between p-4 cursor-pointer hover-elevate"
                     onClick={() => toggleExpanded(imp.id)}
                     data-testid={`button-expand-import-${imp.id}`}
                   >
                     <div className="flex items-center gap-3">
+                      {isUnconverted && (
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleImportSelection(imp.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`checkbox-select-import-${imp.id}`}
+                        />
+                      )}
                       <Button variant="ghost" size="icon" className="h-6 w-6">
                         {expandedImports.has(imp.id) ? (
                           <ChevronDown className="h-4 w-4" />
@@ -421,7 +697,8 @@ export default function Integrations() {
                     )}
                   </AnimatePresence>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </CardContent>
@@ -509,6 +786,92 @@ export default function Integrations() {
                 <FolderPlus className="mr-2 h-4 w-4" />
               )}
               Create Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Convert Modal */}
+      <Dialog open={batchConvertModalOpen} onOpenChange={setBatchConvertModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create All Projects</DialogTitle>
+            <DialogDescription>
+              This will create {selectedUnconvertedCount} project(s) from the selected imports.
+              Each project will use the file name as the project name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border bg-muted/30 p-3 max-h-32 overflow-auto">
+              <p className="text-sm font-medium mb-2">Selected Files:</p>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                {imports?.filter(imp => selectedImports.has(imp.id)).map(imp => (
+                  <li key={imp.id} className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-3 w-3" />
+                    {imp.fileName} ({imp.taskCount} tasks)
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="batchPortfolio">Portfolio (Optional)</Label>
+              <Select value={batchPortfolio} onValueChange={setBatchPortfolio}>
+                <SelectTrigger data-testid="select-batch-portfolio">
+                  <SelectValue placeholder="No portfolio selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Portfolio</SelectItem>
+                  {portfolios?.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="batchStatus">Status</Label>
+                <Select value={batchStatus} onValueChange={setBatchStatus}>
+                  <SelectTrigger data-testid="select-batch-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Initiation">Initiation</SelectItem>
+                    <SelectItem value="Planning">Planning</SelectItem>
+                    <SelectItem value="Execution">Execution</SelectItem>
+                    <SelectItem value="Monitoring">Monitoring</SelectItem>
+                    <SelectItem value="Closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="batchPriority">Priority</Label>
+                <Select value={batchPriority} onValueChange={setBatchPriority}>
+                  <SelectTrigger data-testid="select-batch-priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchConvertModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleBatchConvert} 
+              disabled={selectedUnconvertedCount === 0}
+              data-testid="button-confirm-batch-create"
+            >
+              <FolderPlus className="mr-2 h-4 w-4" />
+              Create {selectedUnconvertedCount} Project(s)
             </Button>
           </DialogFooter>
         </DialogContent>
