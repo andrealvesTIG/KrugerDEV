@@ -8,6 +8,7 @@ import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinanc
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
+import ProjectFinancialGrid from "@/components/ProjectFinancialGrid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -2231,6 +2232,10 @@ function FinancialsTab({ projectId }: { projectId: number }) {
             </tfoot>
           </table>
         </div>
+      </CardContent>
+
+      <CardContent className="pt-8 border-t">
+        <ProjectFinancialGrid projectId={projectId} />
       </CardContent>
     </Card>
   );
