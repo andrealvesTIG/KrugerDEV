@@ -9,6 +9,7 @@ import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
+import Papa from "papaparse";
 
 // Configure multer for file uploads (memory storage)
 const upload = multer({ 
@@ -89,7 +90,7 @@ async function parseXmlMspdi(xmlContent: string): Promise<Array<{
   return tasks;
 }
 
-// Parse CSV format
+// Parse CSV format using papaparse for robust RFC-compliant parsing
 function parseCsv(csvContent: string): Array<{
   taskId?: number;
   wbs?: string;
@@ -105,29 +106,40 @@ function parseCsv(csvContent: string): Array<{
   isMilestone?: boolean;
   notes?: string;
 }> {
-  const lines = csvContent.split('\n').map(line => line.trim()).filter(line => line);
-  if (lines.length < 2) return [];
+  const parseResult = Papa.parse(csvContent, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: (header: string) => header.trim().toLowerCase(),
+  });
   
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+  if (parseResult.errors.length > 0 || !parseResult.data.length) {
+    console.error('CSV parsing errors:', parseResult.errors);
+    return [];
+  }
+  
   const tasks: any[] = [];
+  const headers = parseResult.meta.fields || [];
   
-  // Find column indices
-  const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('task'));
-  const startIdx = headers.findIndex(h => h.includes('start'));
-  const finishIdx = headers.findIndex(h => h.includes('finish') || h.includes('end'));
-  const durationIdx = headers.findIndex(h => h.includes('duration'));
-  const percentIdx = headers.findIndex(h => h.includes('percent') || h.includes('%') || h.includes('complete'));
-  const wbsIdx = headers.findIndex(h => h.includes('wbs'));
+  // Find column names (flexible matching)
+  const findColumn = (patterns: string[]): string | undefined => {
+    return headers.find(h => patterns.some(p => h.includes(p)));
+  };
   
-  for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim().replace(/['"]/g, ''));
-    const taskName = nameIdx >= 0 ? values[nameIdx] : '';
+  const nameCol = findColumn(['name', 'task']);
+  const startCol = findColumn(['start']);
+  const finishCol = findColumn(['finish', 'end']);
+  const durationCol = findColumn(['duration']);
+  const percentCol = findColumn(['percent', '%', 'complete']);
+  const wbsCol = findColumn(['wbs']);
+  
+  parseResult.data.forEach((row: any, index: number) => {
+    const taskName = nameCol ? row[nameCol]?.trim() : '';
     
-    if (!taskName) continue;
+    if (!taskName) return;
     
     // Parse duration (e.g., "5 days" or "5d")
     let durationDays: number | undefined;
-    const durationStr = durationIdx >= 0 ? values[durationIdx] : '';
+    const durationStr = durationCol ? row[durationCol] || '' : '';
     const daysMatch = durationStr.match(/(\d+)/);
     if (daysMatch) {
       durationDays = parseInt(daysMatch[1]);
@@ -135,17 +147,17 @@ function parseCsv(csvContent: string): Array<{
     
     // Parse percent complete
     let percentComplete = 0;
-    if (percentIdx >= 0) {
-      const pctStr = values[percentIdx].replace('%', '');
+    if (percentCol && row[percentCol]) {
+      const pctStr = row[percentCol].replace('%', '').trim();
       percentComplete = parseInt(pctStr) || 0;
     }
     
     tasks.push({
-      taskId: i,
-      wbs: wbsIdx >= 0 ? values[wbsIdx] : undefined,
+      taskId: index + 1,
+      wbs: wbsCol ? row[wbsCol]?.trim() : undefined,
       taskName,
-      startDate: startIdx >= 0 ? parseDate(values[startIdx]) : undefined,
-      finishDate: finishIdx >= 0 ? parseDate(values[finishIdx]) : undefined,
+      startDate: startCol ? parseDate(row[startCol]) : undefined,
+      finishDate: finishCol ? parseDate(row[finishCol]) : undefined,
       duration: durationStr,
       durationDays,
       percentComplete,
@@ -153,7 +165,7 @@ function parseCsv(csvContent: string): Array<{
       isSummary: false,
       isMilestone: false,
     });
-  }
+  });
   
   return tasks;
 }
