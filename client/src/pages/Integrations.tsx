@@ -129,7 +129,7 @@ export default function Integrations() {
 
   const handleConvert = () => {
     if (!convertingImport || !projectName.trim()) return;
-    const portfolioNum = projectPortfolio ? Number(projectPortfolio) : undefined;
+    const portfolioNum = projectPortfolio && projectPortfolio !== "none" ? Number(projectPortfolio) : undefined;
     convertMutation.mutate({
       importId: convertingImport.id,
       name: projectName.trim(),
@@ -450,10 +450,10 @@ export default function Integrations() {
               <Label htmlFor="portfolio">Portfolio (Optional)</Label>
               <Select value={projectPortfolio} onValueChange={setProjectPortfolio}>
                 <SelectTrigger data-testid="select-portfolio">
-                  <SelectValue placeholder="Select a portfolio" />
+                  <SelectValue placeholder="No portfolio selected" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Portfolio</SelectItem>
+                  <SelectItem value="none">No Portfolio</SelectItem>
                   {portfolios?.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
                       {p.name}
