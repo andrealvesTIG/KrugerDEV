@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
+import { useUpdateIssueResourceAssignments } from "@/hooks/use-resources";
+import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,8 +52,10 @@ export default function Issues() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const createIssue = useCreateIssue();
   const deleteIssue = useDeleteIssue();
+  const updateIssueResources = useUpdateIssueResourceAssignments();
   const { toast } = useToast();
   const [deleteIssueData, setDeleteIssueData] = useState<{ id: number; projectId: number } | null>(null);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
 
   const form = useForm({
     resolver: zodResolver(insertIssueSchema.extend({
@@ -70,9 +74,13 @@ export default function Issues() {
 
   const onSubmit = (data: any) => {
     createIssue.mutate(data, {
-      onSuccess: () => {
+      onSuccess: (newIssue: any) => {
+        if (selectedResourceIds.length > 0 && newIssue?.id) {
+          updateIssueResources.mutate({ issueId: newIssue.id, resourceIds: selectedResourceIds });
+        }
         toast({ title: "Success", description: "Issue created successfully" });
         setIsDialogOpen(false);
+        setSelectedResourceIds([]);
         form.reset({
           projectId: undefined as unknown as number,
           title: "",
@@ -197,6 +205,12 @@ export default function Issues() {
                 <Label>Assignee</Label>
                 <Input {...form.register("assignee")} data-testid="input-issue-assignee" placeholder="Name of assignee" />
               </div>
+              <ResourceAssignment
+                organizationId={currentOrganization?.id || null}
+                selectedResourceIds={selectedResourceIds}
+                onSelectionChange={setSelectedResourceIds}
+                label="Assigned Resources"
+              />
               <DialogFooter>
                 <Button type="submit" disabled={createIssue.isPending} data-testid="button-submit-issue">
                   {createIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

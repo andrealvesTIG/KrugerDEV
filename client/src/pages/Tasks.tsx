@@ -4,6 +4,8 @@ import { useAllTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistor
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
+import { useTaskResourceAssignments, useUpdateTaskResourceAssignments } from "@/hooks/use-resources";
+import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,10 +50,19 @@ export default function Tasks() {
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const updateTaskResources = useUpdateTaskResourceAssignments();
+  const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (taskAssignments && editingTask) {
+      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+    }
+  }, [taskAssignments, editingTask]);
 
   const handleDeleteTaskFromKanban = (task: Task) => {
     setDeleteTaskData(task);
@@ -167,6 +178,7 @@ export default function Tasks() {
   const openCreateDialog = () => {
     setEditingTask(null);
     setDurationDays(7);
+    setSelectedResourceIds([]);
     form.reset({
       projectId: projects && projects.length > 0 ? projects[0].id : undefined as any,
       name: "",
@@ -207,6 +219,7 @@ export default function Tasks() {
     if (editingTask) {
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: () => {
+          updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
           toast({ title: "Success", description: "Task updated" });
           setIsDialogOpen(false);
           setEditingTask(null);
@@ -218,7 +231,10 @@ export default function Tasks() {
       });
     } else {
       createTask.mutate(taskData, {
-        onSuccess: () => {
+        onSuccess: (newTask: any) => {
+          if (selectedResourceIds.length > 0 && newTask?.id) {
+            updateTaskResources.mutate({ taskId: newTask.id, resourceIds: selectedResourceIds });
+          }
           toast({ title: "Success", description: "Task created" });
           setIsDialogOpen(false);
         },
@@ -392,6 +408,12 @@ export default function Tasks() {
                   <Label>Assignee</Label>
                   <Input {...form.register("assignee")} placeholder="Name of assignee" />
                 </div>
+                <ResourceAssignment
+                  organizationId={currentOrganization?.id || null}
+                  selectedResourceIds={selectedResourceIds}
+                  onSelectionChange={setSelectedResourceIds}
+                  label="Assigned Resources"
+                />
                 <DialogFooter className="flex items-center gap-2">
                   {editingTask && (
                     <Button 

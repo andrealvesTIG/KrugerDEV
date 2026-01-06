@@ -5,6 +5,9 @@ import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory }
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
+import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/hooks/use-resources";
+import { useOrganization } from "@/hooks/use-organization";
+import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -422,15 +425,25 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
 }
 
 function RisksTab({ projectId }: { projectId: number }) {
+  const { currentOrganization } = useOrganization();
   const { data: risks, isLoading } = useRisks(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
   const [deleteRiskData, setDeleteRiskData] = useState<Risk | null>(null);
   const [historyRiskId, setHistoryRiskId] = useState<number | null>(null);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const createRisk = useCreateRisk();
   const updateRisk = useUpdateRisk();
   const deleteRisk = useDeleteRisk();
+  const updateRiskResources = useUpdateRiskResourceAssignments();
+  const { data: riskAssignments } = useRiskResourceAssignments(editingRisk?.id ?? null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (riskAssignments && editingRisk) {
+      setSelectedResourceIds(riskAssignments.map(a => a.resourceId));
+    }
+  }, [riskAssignments, editingRisk]);
 
   const form = useForm({
     resolver: zodResolver(insertRiskSchema),
@@ -461,6 +474,7 @@ function RisksTab({ projectId }: { projectId: number }) {
 
   const openCreateDialog = () => {
     setEditingRisk(null);
+    setSelectedResourceIds([]);
     form.reset({
       projectId,
       title: "",
@@ -477,6 +491,7 @@ function RisksTab({ projectId }: { projectId: number }) {
     if (editingRisk) {
       updateRisk.mutate({ id: editingRisk.id, projectId, ...data }, {
         onSuccess: () => {
+          updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
           toast({ title: "Success", description: "Risk updated" });
           setIsDialogOpen(false);
           setEditingRisk(null);
@@ -487,7 +502,10 @@ function RisksTab({ projectId }: { projectId: number }) {
       });
     } else {
       createRisk.mutate(data, {
-        onSuccess: () => {
+        onSuccess: (newRisk: any) => {
+          if (selectedResourceIds.length > 0 && newRisk?.id) {
+            updateRiskResources.mutate({ riskId: newRisk.id, resourceIds: selectedResourceIds });
+          }
           toast({ title: "Success", description: "Risk added" });
           setIsDialogOpen(false);
         }
@@ -565,6 +583,12 @@ function RisksTab({ projectId }: { projectId: number }) {
                 <Label>Mitigation Plan</Label>
                 <Textarea {...form.register("mitigationPlan")} placeholder="How will this risk be mitigated?" data-testid="input-risk-mitigation" />
               </div>
+              <ResourceAssignment
+                organizationId={currentOrganization?.id || null}
+                selectedResourceIds={selectedResourceIds}
+                onSelectionChange={setSelectedResourceIds}
+                label="Assigned Resources"
+              />
               <DialogFooter className="gap-2">
                 {editingRisk && (
                   <Button 
