@@ -4,7 +4,7 @@ import {
   organizations, organizationMembers, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
-  costItems, projectIntakes,
+  costItems, projectIntakes, mppImports, mppImportTasks,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -26,6 +26,8 @@ import {
   type RiskResourceAssignment, type InsertRiskResourceAssignment,
   type CostItem, type InsertCostItem, type UpdateCostItemRequest,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
+  type MppImport, type InsertMppImport,
+  type MppImportTask, type InsertMppImportTask,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
@@ -189,6 +191,19 @@ export interface IStorage {
   updateProjectIntake(id: number, updates: UpdateProjectIntakeRequest): Promise<ProjectIntake>;
   deleteProjectIntake(id: number): Promise<void>;
   approveProjectIntake(id: number, approvedBy: string): Promise<Project>;
+
+  // MPP Imports
+  getMppImports(organizationId: number): Promise<MppImport[]>;
+  getMppImport(id: number): Promise<MppImport | undefined>;
+  createMppImport(mppImport: InsertMppImport): Promise<MppImport>;
+  updateMppImport(id: number, updates: Partial<InsertMppImport>): Promise<MppImport>;
+  deleteMppImport(id: number): Promise<void>;
+  
+  // MPP Import Tasks
+  getMppImportTasks(importId: number): Promise<MppImportTask[]>;
+  createMppImportTask(task: InsertMppImportTask): Promise<MppImportTask>;
+  createMppImportTasks(tasks: InsertMppImportTask[]): Promise<MppImportTask[]>;
+  deleteMppImportTasks(importId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1417,6 +1432,60 @@ export class DatabaseStorage implements IStorage {
       .where(eq(projectIntakes.id, id));
 
     return newProject;
+  }
+
+  // MPP Imports
+  async getMppImports(organizationId: number): Promise<MppImport[]> {
+    return await db.select().from(mppImports)
+      .where(and(
+        eq(mppImports.organizationId, organizationId),
+        eq(mppImports.status, "active")
+      ))
+      .orderBy(desc(mppImports.lastSyncedAt));
+  }
+
+  async getMppImport(id: number): Promise<MppImport | undefined> {
+    const [mppImport] = await db.select().from(mppImports).where(eq(mppImports.id, id));
+    return mppImport;
+  }
+
+  async createMppImport(mppImport: InsertMppImport): Promise<MppImport> {
+    const [newImport] = await db.insert(mppImports).values(mppImport).returning();
+    return newImport;
+  }
+
+  async updateMppImport(id: number, updates: Partial<InsertMppImport>): Promise<MppImport> {
+    const [updated] = await db.update(mppImports)
+      .set({ ...updates, lastSyncedAt: new Date() })
+      .where(eq(mppImports.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteMppImport(id: number): Promise<void> {
+    await db.delete(mppImportTasks).where(eq(mppImportTasks.importId, id));
+    await db.delete(mppImports).where(eq(mppImports.id, id));
+  }
+
+  // MPP Import Tasks
+  async getMppImportTasks(importId: number): Promise<MppImportTask[]> {
+    return await db.select().from(mppImportTasks)
+      .where(eq(mppImportTasks.importId, importId))
+      .orderBy(mppImportTasks.taskId);
+  }
+
+  async createMppImportTask(task: InsertMppImportTask): Promise<MppImportTask> {
+    const [newTask] = await db.insert(mppImportTasks).values(task).returning();
+    return newTask;
+  }
+
+  async createMppImportTasks(tasks: InsertMppImportTask[]): Promise<MppImportTask[]> {
+    if (tasks.length === 0) return [];
+    return await db.insert(mppImportTasks).values(tasks).returning();
+  }
+
+  async deleteMppImportTasks(importId: number): Promise<void> {
+    await db.delete(mppImportTasks).where(eq(mppImportTasks.importId, importId));
   }
 }
 

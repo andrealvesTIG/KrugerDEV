@@ -7,6 +7,182 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import multer from "multer";
+import xml2js from "xml2js";
+
+// Configure multer for file uploads (memory storage)
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.xml', '.csv'];
+    const ext = '.' + file.originalname.split('.').pop()?.toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only XML and CSV files are allowed'));
+    }
+  }
+});
+
+// Parse MSPDI XML (MS Project XML format)
+async function parseXmlMspdi(xmlContent: string): Promise<Array<{
+  taskId?: number;
+  wbs?: string;
+  taskName: string;
+  startDate?: string;
+  finishDate?: string;
+  duration?: string;
+  durationDays?: number;
+  percentComplete?: number;
+  outlineLevel?: number;
+  parentTaskId?: number;
+  isSummary?: boolean;
+  isMilestone?: boolean;
+  notes?: string;
+}>> {
+  const parser = new xml2js.Parser({ explicitArray: false });
+  const result = await parser.parseStringPromise(xmlContent);
+  
+  const tasks: any[] = [];
+  
+  // Handle MSPDI format (Microsoft Project XML)
+  if (result.Project?.Tasks?.Task) {
+    const xmlTasks = Array.isArray(result.Project.Tasks.Task) 
+      ? result.Project.Tasks.Task 
+      : [result.Project.Tasks.Task];
+    
+    for (const task of xmlTasks) {
+      // Skip project summary (UID 0) which is typically the project itself
+      if (task.UID === '0' || task.UID === 0) continue;
+      
+      const taskName = task.Name || task.Title || 'Unnamed Task';
+      if (!taskName) continue;
+      
+      // Parse duration string (e.g., "PT40H0M0S" for 40 hours)
+      let durationDays: number | undefined;
+      let durationStr = task.Duration || '';
+      if (durationStr.startsWith('PT')) {
+        const hoursMatch = durationStr.match(/(\d+)H/);
+        if (hoursMatch) {
+          durationDays = Math.ceil(parseInt(hoursMatch[1]) / 8);
+        }
+      }
+      
+      tasks.push({
+        taskId: task.UID ? parseInt(task.UID) : undefined,
+        wbs: task.WBS || task.OutlineNumber,
+        taskName,
+        startDate: task.Start ? task.Start.split('T')[0] : undefined,
+        finishDate: task.Finish ? task.Finish.split('T')[0] : undefined,
+        duration: task.Duration,
+        durationDays,
+        percentComplete: task.PercentComplete ? parseInt(task.PercentComplete) : 0,
+        outlineLevel: task.OutlineLevel ? parseInt(task.OutlineLevel) : 1,
+        isSummary: task.Summary === '1' || task.Summary === 'true' || task.Summary === true,
+        isMilestone: task.Milestone === '1' || task.Milestone === 'true' || task.Milestone === true,
+        notes: task.Notes,
+      });
+    }
+  }
+  
+  return tasks;
+}
+
+// Parse CSV format
+function parseCsv(csvContent: string): Array<{
+  taskId?: number;
+  wbs?: string;
+  taskName: string;
+  startDate?: string;
+  finishDate?: string;
+  duration?: string;
+  durationDays?: number;
+  percentComplete?: number;
+  outlineLevel?: number;
+  parentTaskId?: number;
+  isSummary?: boolean;
+  isMilestone?: boolean;
+  notes?: string;
+}> {
+  const lines = csvContent.split('\n').map(line => line.trim()).filter(line => line);
+  if (lines.length < 2) return [];
+  
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+  const tasks: any[] = [];
+  
+  // Find column indices
+  const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('task'));
+  const startIdx = headers.findIndex(h => h.includes('start'));
+  const finishIdx = headers.findIndex(h => h.includes('finish') || h.includes('end'));
+  const durationIdx = headers.findIndex(h => h.includes('duration'));
+  const percentIdx = headers.findIndex(h => h.includes('percent') || h.includes('%') || h.includes('complete'));
+  const wbsIdx = headers.findIndex(h => h.includes('wbs'));
+  
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim().replace(/['"]/g, ''));
+    const taskName = nameIdx >= 0 ? values[nameIdx] : '';
+    
+    if (!taskName) continue;
+    
+    // Parse duration (e.g., "5 days" or "5d")
+    let durationDays: number | undefined;
+    const durationStr = durationIdx >= 0 ? values[durationIdx] : '';
+    const daysMatch = durationStr.match(/(\d+)/);
+    if (daysMatch) {
+      durationDays = parseInt(daysMatch[1]);
+    }
+    
+    // Parse percent complete
+    let percentComplete = 0;
+    if (percentIdx >= 0) {
+      const pctStr = values[percentIdx].replace('%', '');
+      percentComplete = parseInt(pctStr) || 0;
+    }
+    
+    tasks.push({
+      taskId: i,
+      wbs: wbsIdx >= 0 ? values[wbsIdx] : undefined,
+      taskName,
+      startDate: startIdx >= 0 ? parseDate(values[startIdx]) : undefined,
+      finishDate: finishIdx >= 0 ? parseDate(values[finishIdx]) : undefined,
+      duration: durationStr,
+      durationDays,
+      percentComplete,
+      outlineLevel: 1,
+      isSummary: false,
+      isMilestone: false,
+    });
+  }
+  
+  return tasks;
+}
+
+// Helper to parse various date formats
+function parseDate(dateStr: string): string | undefined {
+  if (!dateStr) return undefined;
+  
+  // Try ISO format first
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    return dateStr.split('T')[0];
+  }
+  
+  // Try MM/DD/YYYY or DD/MM/YYYY
+  const parts = dateStr.split(/[\/\-]/);
+  if (parts.length === 3) {
+    const [a, b, c] = parts.map(p => parseInt(p));
+    // Assume MM/DD/YYYY if first number is <= 12
+    if (a <= 12 && c > 1900) {
+      return `${c}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+    }
+    // Try DD/MM/YYYY
+    if (b <= 12 && c > 1900) {
+      return `${c}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+    }
+  }
+  
+  return undefined;
+}
 
 // Seed data function with software development focused demo data
 async function seedDatabase() {
@@ -2284,6 +2460,130 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error rejecting project intake:", err);
       res.status(500).json({ message: "Error rejecting project intake" });
+    }
+  });
+
+  // ==================== MPP IMPORTS ====================
+  
+  // Get all MPP imports for an organization
+  app.get('/api/mpp-imports', async (req, res) => {
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (isNaN(organizationId)) {
+        return res.status(400).json({ message: "Organization ID required" });
+      }
+      const imports = await storage.getMppImports(organizationId);
+      res.json(imports);
+    } catch (err) {
+      console.error("Error fetching MPP imports:", err);
+      res.status(500).json({ message: "Error fetching MPP imports" });
+    }
+  });
+
+  // Get tasks for a specific import
+  app.get('/api/mpp-imports/:id/tasks', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const tasks = await storage.getMppImportTasks(id);
+      res.json(tasks);
+    } catch (err) {
+      console.error("Error fetching MPP import tasks:", err);
+      res.status(500).json({ message: "Error fetching tasks" });
+    }
+  });
+
+  // Upload and parse MPP file (XML or CSV)
+  app.post('/api/mpp-imports/upload', upload.single('file'), async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const organizationId = Number(req.body.organizationId);
+      
+      if (isNaN(organizationId)) {
+        return res.status(400).json({ message: "Organization ID required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const fileName = req.file.originalname;
+      const fileContent = req.file.buffer.toString('utf-8');
+      const fileExt = fileName.split('.').pop()?.toLowerCase();
+      
+      let parsedTasks: Array<{
+        taskId?: number;
+        wbs?: string;
+        taskName: string;
+        startDate?: string;
+        finishDate?: string;
+        duration?: string;
+        durationDays?: number;
+        percentComplete?: number;
+        outlineLevel?: number;
+        parentTaskId?: number;
+        isSummary?: boolean;
+        isMilestone?: boolean;
+        notes?: string;
+      }> = [];
+
+      if (fileExt === 'xml') {
+        parsedTasks = await parseXmlMspdi(fileContent);
+      } else if (fileExt === 'csv') {
+        parsedTasks = parseCsv(fileContent);
+      } else {
+        return res.status(400).json({ message: "Unsupported file format. Use XML or CSV." });
+      }
+
+      // Create the import record
+      const mppImport = await storage.createMppImport({
+        organizationId,
+        fileName,
+        fileType: fileExt || 'unknown',
+        importedBy: userId,
+        taskCount: parsedTasks.length,
+        status: 'active',
+      });
+
+      // Create task records
+      if (parsedTasks.length > 0) {
+        const taskRecords = parsedTasks.map(task => ({
+          importId: mppImport.id,
+          taskId: task.taskId,
+          wbs: task.wbs,
+          taskName: task.taskName,
+          startDate: task.startDate,
+          finishDate: task.finishDate,
+          duration: task.duration,
+          durationDays: task.durationDays,
+          percentComplete: task.percentComplete || 0,
+          outlineLevel: task.outlineLevel || 1,
+          parentTaskId: task.parentTaskId,
+          isSummary: task.isSummary || false,
+          isMilestone: task.isMilestone || false,
+          notes: task.notes,
+        }));
+        await storage.createMppImportTasks(taskRecords);
+      }
+
+      res.json({
+        ...mppImport,
+        taskCount: parsedTasks.length,
+      });
+    } catch (err) {
+      console.error("Error uploading MPP file:", err);
+      res.status(500).json({ message: "Error processing file" });
+    }
+  });
+
+  // Delete an MPP import
+  app.delete('/api/mpp-imports/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteMppImport(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting MPP import:", err);
+      res.status(500).json({ message: "Error deleting import" });
     }
   });
 
