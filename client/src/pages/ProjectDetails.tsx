@@ -4,6 +4,7 @@ import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-pro
 import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory } from "@/hooks/use-risks";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
+import { useMilestones } from "@/hooks/use-milestones";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
@@ -18,7 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { useTaskHistory } from "@/hooks/use-tasks";
@@ -163,6 +165,13 @@ export default function ProjectDetails() {
         </Card>
       </div>
 
+      {/* Timeline Section */}
+      <ProjectTimeline 
+        projectId={project.id}
+        startDate={project.startDate}
+        endDate={project.endDate}
+      />
+
       <Tabs defaultValue="summary" className="w-full">
         <TabsList className="bg-muted p-1 rounded-xl">
           <TabsTrigger value="summary" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Project Summary</TabsTrigger>
@@ -254,6 +263,242 @@ function ProjectHistoryDialog({ projectId, open, onOpenChange }: { projectId: nu
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface TimelineEvent {
+  id: number;
+  type: 'milestone' | 'task-milestone';
+  title: string;
+  date: Date;
+  completed: boolean;
+}
+
+function ProjectTimeline({ 
+  projectId, 
+  startDate, 
+  endDate 
+}: { 
+  projectId: number;
+  startDate: string | null;
+  endDate: string | null;
+}) {
+  const [isOpen, setIsOpen] = useState(true);
+  const { data: milestones } = useMilestones(projectId);
+  
+  // Parse project dates
+  const projectStart = startDate ? parseISO(startDate) : null;
+  const projectEnd = endDate ? parseISO(endDate) : null;
+  
+  // Get milestones from milestones table
+  const allEvents = useMemo(() => {
+    const events: TimelineEvent[] = [];
+    
+    // Add milestones from milestones table
+    milestones?.forEach((m) => {
+      events.push({
+        id: m.id,
+        type: 'milestone',
+        title: m.title,
+        date: parseISO(m.dueDate),
+        completed: m.completed || false,
+      });
+    });
+    
+    // Sort by date
+    return events.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [milestones]);
+  
+  // Calculate timeline range
+  const timelineRange = useMemo(() => {
+    if (!projectStart || !projectEnd) return null;
+    
+    const today = startOfDay(new Date());
+    const totalDays = differenceInDays(projectEnd, projectStart);
+    
+    if (totalDays <= 0) return null;
+    
+    return {
+      start: projectStart,
+      end: projectEnd,
+      totalDays,
+      today,
+      todayPosition: Math.max(0, Math.min(100, (differenceInDays(today, projectStart) / totalDays) * 100)),
+    };
+  }, [projectStart, projectEnd]);
+  
+  // Generate year markers for the timeline
+  const yearMarkers = useMemo(() => {
+    if (!timelineRange) return [];
+    
+    const markers: { year: number; position: number }[] = [];
+    const startYear = timelineRange.start.getFullYear();
+    const endYear = timelineRange.end.getFullYear();
+    
+    for (let year = startYear; year <= endYear; year++) {
+      const yearStart = new Date(year, 0, 1);
+      let position: number;
+      
+      if (year === startYear) {
+        position = 0;
+      } else {
+        position = (differenceInDays(yearStart, timelineRange.start) / timelineRange.totalDays) * 100;
+      }
+      
+      if (position >= 0 && position <= 100) {
+        markers.push({ year, position });
+      }
+    }
+    
+    return markers;
+  }, [timelineRange]);
+  
+  if (!projectStart || !projectEnd || !timelineRange) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <GanttChart className="h-4 w-4" />
+            Timeline
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Set project start and end dates to view the timeline.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Card>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="pb-2 cursor-pointer hover-elevate flex flex-row items-center justify-between gap-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              <GanttChart className="h-4 w-4" />
+              Timeline
+            </CardTitle>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Flag className="h-3 w-3 text-primary" />
+                {format(projectStart, 'M/d/yyyy')}
+              </span>
+              <span className="flex items-center gap-1">
+                {format(projectEnd, 'M/d/yyyy')}
+                <Flag className="h-3 w-3 text-green-600" />
+              </span>
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <CardContent className="pt-0">
+            {/* Year markers */}
+            <div className="relative h-6 mb-1">
+              {yearMarkers.map((marker) => (
+                <span 
+                  key={marker.year}
+                  className="absolute text-xs text-muted-foreground"
+                  style={{ left: `${marker.position}%` }}
+                >
+                  {marker.year}
+                </span>
+              ))}
+            </div>
+            
+            {/* Timeline bar */}
+            <div className="relative h-10">
+              {/* Background bar */}
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-5 bg-muted rounded-full" />
+              
+              {/* Progress bar (from start to today if today is within range) */}
+              {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
+                <div 
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 h-5 bg-slate-400 dark:bg-slate-600",
+                    timelineRange.todayPosition < 100 ? "rounded-l-full" : "rounded-full"
+                  )}
+                  style={{ left: 0, width: `${Math.max(1, timelineRange.todayPosition)}%` }}
+                />
+              )}
+              
+              {/* Today indicator */}
+              {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
+                <div 
+                  className="absolute top-0 bottom-0 w-0.5 bg-green-600 z-10"
+                  style={{ left: `${timelineRange.todayPosition}%` }}
+                >
+                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-green-600 font-medium whitespace-nowrap">
+                    {format(timelineRange.today, 'MMM dd')}
+                  </div>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-green-600" />
+                </div>
+              )}
+              
+              {/* Milestone markers */}
+              {allEvents.map((event) => {
+                const position = (differenceInDays(event.date, timelineRange.start) / timelineRange.totalDays) * 100;
+                
+                if (position < 0 || position > 100) return null;
+                
+                return (
+                  <Tooltip key={`${event.type}-${event.id}`}>
+                    <TooltipTrigger asChild>
+                      <div 
+                        className={cn(
+                          "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-sm rotate-45 cursor-pointer z-20 border",
+                          event.completed 
+                            ? "bg-green-600 border-green-700" 
+                            : "bg-red-500 border-red-600"
+                        )}
+                        style={{ left: `${position}%` }}
+                        data-testid={`timeline-milestone-${event.id}`}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="font-medium">{event.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(event.date, 'MMM d, yyyy')}
+                        {event.completed && ' - Completed'}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+              
+              {/* Start marker */}
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2">
+                <Flag className="h-4 w-4 text-primary" />
+              </div>
+              
+              {/* End marker */}
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2">
+                <Flag className="h-4 w-4 text-green-600" />
+              </div>
+            </div>
+            
+            {/* Legend */}
+            {allEvents.length > 0 && (
+              <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-600 rounded-sm rotate-45" />
+                  <span>Completed Milestone</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-red-500 rounded-sm rotate-45" />
+                  <span>Pending Milestone</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-0.5 bg-green-600" />
+                  <span>Today</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
 
