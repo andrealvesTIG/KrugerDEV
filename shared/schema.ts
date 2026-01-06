@@ -370,6 +370,40 @@ export const projectIntakes = pgTable("project_intakes", {
   isDemo: boolean("is_demo").default(false),
 });
 
+// MPP Imports - Store imported Microsoft Project data
+export const mppImports = pgTable("mpp_imports", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id), // Optional link to existing project
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull().default("xml"), // "xml", "csv", "mpp"
+  importedBy: varchar("imported_by").references(() => users.id),
+  lastSyncedAt: timestamp("last_synced_at").defaultNow(),
+  taskCount: integer("task_count").default(0),
+  status: text("status").default("active"), // "active", "archived"
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// MPP Import Tasks - Individual tasks from MPP imports
+export const mppImportTasks = pgTable("mpp_import_tasks", {
+  id: serial("id").primaryKey(),
+  importId: integer("import_id").references(() => mppImports.id).notNull(),
+  taskId: integer("task_id"), // Original task ID from the file
+  wbs: text("wbs"), // Work Breakdown Structure code
+  taskName: text("task_name").notNull(),
+  startDate: date("start_date"),
+  finishDate: date("finish_date"),
+  duration: text("duration"), // Duration as text (e.g., "5 days")
+  durationDays: integer("duration_days"), // Duration in days
+  percentComplete: integer("percent_complete").default(0),
+  outlineLevel: integer("outline_level").default(1), // Task hierarchy level
+  parentTaskId: integer("parent_task_id"), // Parent task reference
+  isSummary: boolean("is_summary").default(false), // Summary/parent task
+  isMilestone: boolean("is_milestone").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === RELATIONS ===
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
@@ -594,6 +628,8 @@ export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResou
 export const insertRiskResourceAssignmentSchema = createInsertSchema(riskResourceAssignments).omit({ id: true, createdAt: true });
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
+export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 
@@ -658,6 +694,12 @@ export type InsertCostItem = z.infer<typeof insertCostItemSchema>;
 
 export type ProjectIntake = typeof projectIntakes.$inferSelect;
 export type InsertProjectIntake = z.infer<typeof insertProjectIntakeSchema>;
+
+export type MppImport = typeof mppImports.$inferSelect;
+export type InsertMppImport = z.infer<typeof insertMppImportSchema>;
+
+export type MppImportTask = typeof mppImportTasks.$inferSelect;
+export type InsertMppImportTask = z.infer<typeof insertMppImportTaskSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
