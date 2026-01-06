@@ -2985,6 +2985,36 @@ function DocumentsTab({ projectId }: { projectId: number }) {
     setIsDragOver(false);
   };
 
+  const uploadFileToStorage = async (file: File): Promise<string> => {
+    const urlResponse = await fetch("/api/uploads/request-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: file.name,
+        size: file.size,
+        contentType: file.type || "application/octet-stream",
+      }),
+    });
+
+    if (!urlResponse.ok) {
+      throw new Error("Failed to get upload URL");
+    }
+
+    const { uploadURL, objectPath } = await urlResponse.json();
+
+    const uploadResponse = await fetch(uploadURL, {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error("Failed to upload file");
+    }
+
+    return objectPath;
+  };
+
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -3004,12 +3034,16 @@ function DocumentsTab({ projectId }: { projectId: number }) {
       else if (['txt', 'md'].includes(fileExtension)) category = 'Requirements';
 
       try {
+        const objectPath = await uploadFileToStorage(file);
+        
         await createDocument.mutateAsync({
           title: file.name.replace(/\.[^/.]+$/, ''),
           description: `Uploaded file: ${file.name}`,
           category,
           fileName: file.name,
-          fileUrl: '',
+          fileUrl: objectPath,
+          fileSize: file.size,
+          mimeType: file.type || "application/octet-stream",
           version: '1.0',
         });
         
@@ -3017,12 +3051,12 @@ function DocumentsTab({ projectId }: { projectId: number }) {
           prev.map(f => f.name === file.name ? { ...f, status: 'done' } : f)
         );
         
-        toast({ title: "Document Added", description: `${file.name} has been added` });
+        toast({ title: "Document Uploaded", description: `${file.name} has been uploaded` });
       } catch (error) {
         setUploadingFiles(prev => 
           prev.map(f => f.name === file.name ? { ...f, status: 'error' } : f)
         );
-        toast({ title: "Error", description: `Failed to add ${file.name}`, variant: "destructive" });
+        toast({ title: "Error", description: `Failed to upload ${file.name}`, variant: "destructive" });
       }
     }
 
@@ -3252,13 +3286,20 @@ function DocumentsTab({ projectId }: { projectId: number }) {
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          onClick={() => window.open(doc.fileUrl!, '_blank')}
+                          onClick={() => {
+                            const url = doc.fileUrl!.startsWith('/objects/') 
+                              ? doc.fileUrl! 
+                              : doc.fileUrl!.startsWith('http') 
+                                ? doc.fileUrl! 
+                                : `/objects/${doc.fileUrl}`;
+                            window.open(url, '_blank');
+                          }}
                           data-testid={`button-open-document-${doc.id}`}
                         >
-                          <ExternalLink className="h-4 w-4" />
+                          <Download className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Open document</TooltipContent>
+                      <TooltipContent>Download document</TooltipContent>
                     </Tooltip>
                   )}
                   <Button 
