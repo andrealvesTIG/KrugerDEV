@@ -4,6 +4,7 @@ import {
   organizations, organizationMembers, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
+  costItems,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -23,6 +24,7 @@ import {
   type TaskResourceAssignment, type InsertTaskResourceAssignment,
   type IssueResourceAssignment, type InsertIssueResourceAssignment,
   type RiskResourceAssignment, type InsertRiskResourceAssignment,
+  type CostItem, type InsertCostItem, type UpdateCostItemRequest,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
@@ -171,6 +173,13 @@ export interface IStorage {
   addRiskResourceAssignment(assignment: InsertRiskResourceAssignment): Promise<RiskResourceAssignment>;
   removeRiskResourceAssignment(riskId: number, resourceId: number): Promise<void>;
   updateRiskResourceAssignments(riskId: number, resourceIds: number[]): Promise<void>;
+
+  // Cost Items
+  getCostItems(projectId: number, fiscalYear?: number): Promise<CostItem[]>;
+  getCostItem(id: number): Promise<CostItem | undefined>;
+  createCostItem(costItem: InsertCostItem): Promise<CostItem>;
+  updateCostItem(id: number, updates: UpdateCostItemRequest): Promise<CostItem>;
+  deleteCostItem(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1282,6 +1291,46 @@ export class DatabaseStorage implements IStorage {
         resourceIds.map(resourceId => ({ riskId, resourceId }))
       );
     }
+  }
+
+  // Cost Items
+  async getCostItems(projectId: number, fiscalYear?: number): Promise<CostItem[]> {
+    if (fiscalYear) {
+      return await db.select().from(costItems)
+        .where(and(
+          eq(costItems.projectId, projectId),
+          eq(costItems.fiscalYear, fiscalYear)
+        ))
+        .orderBy(costItems.sortOrder, costItems.id);
+    }
+    return await db.select().from(costItems)
+      .where(eq(costItems.projectId, projectId))
+      .orderBy(costItems.sortOrder, costItems.id);
+  }
+
+  async getCostItem(id: number): Promise<CostItem | undefined> {
+    const [item] = await db.select().from(costItems).where(eq(costItems.id, id));
+    return item;
+  }
+
+  async createCostItem(costItem: InsertCostItem): Promise<CostItem> {
+    const [newItem] = await db.insert(costItems).values(costItem).returning();
+    return newItem;
+  }
+
+  async updateCostItem(id: number, updates: UpdateCostItemRequest): Promise<CostItem> {
+    const [updated] = await db.update(costItems)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(costItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCostItem(id: number): Promise<void> {
+    // First delete any children
+    await db.delete(costItems).where(eq(costItems.parentId, id));
+    // Then delete the item itself
+    await db.delete(costItems).where(eq(costItems.id, id));
   }
 }
 
