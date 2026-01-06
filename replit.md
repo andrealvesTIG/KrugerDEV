@@ -80,3 +80,9 @@ The `shared/` directory contains code used by both frontend and backend:
 - **date-fns** - Date formatting and manipulation
 - **Zod** - Schema validation
 - **drizzle-zod** - Generate Zod schemas from Drizzle tables
+
+### Microsoft Project Integration
+- **MPXJ** - Open-source Java library for parsing native .mpp files
+- Located in `lib/` directory with compiled Java parser
+- Supports MPP (native), XML (MSPDI), and CSV formats
+- Parsed fields: Task Name, WBS, Start/Finish Date, Duration, % Complete, Outline Level, Summary/Milestone flags

@@ -1,0 +1,98 @@
+import net.sf.mpxj.*;
+import net.sf.mpxj.reader.*;
+import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.*;
+
+public class MppParser {
+    public static void main(String[] args) {
+        if (args.length < 1) {
+            System.err.println("Usage: java MppParser <mpp-file>");
+            System.exit(1);
+        }
+        
+        try {
+            File file = new File(args[0]);
+            ProjectReader reader = new UniversalProjectReader();
+            ProjectFile projectFile = reader.read(file);
+            
+            StringBuilder json = new StringBuilder();
+            json.append("{\"tasks\":[");
+            
+            boolean first = true;
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+            
+            for (Task task : projectFile.getTasks()) {
+                if (task.getID() == null || task.getID() == 0) continue;
+                if (task.getName() == null || task.getName().trim().isEmpty()) continue;
+                
+                if (!first) json.append(",");
+                first = false;
+                
+                json.append("{");
+                json.append("\"taskId\":").append(task.getID()).append(",");
+                json.append("\"wbs\":").append(escapeJson(task.getWBS())).append(",");
+                json.append("\"taskName\":").append(escapeJson(task.getName())).append(",");
+                
+                if (task.getStart() != null) {
+                    json.append("\"startDate\":\"").append(dateFormat.format(task.getStart())).append("\",");
+                } else {
+                    json.append("\"startDate\":null,");
+                }
+                
+                if (task.getFinish() != null) {
+                    json.append("\"finishDate\":\"").append(dateFormat.format(task.getFinish())).append("\",");
+                } else {
+                    json.append("\"finishDate\":null,");
+                }
+                
+                Duration duration = task.getDuration();
+                if (duration != null) {
+                    json.append("\"duration\":\"").append(duration.toString()).append("\",");
+                    double days = duration.convertUnits(TimeUnit.DAYS, projectFile.getProjectProperties()).getDuration();
+                    json.append("\"durationDays\":").append((int)Math.ceil(days)).append(",");
+                } else {
+                    json.append("\"duration\":null,");
+                    json.append("\"durationDays\":null,");
+                }
+                
+                Number percentComplete = task.getPercentageComplete();
+                json.append("\"percentComplete\":").append(percentComplete != null ? percentComplete.intValue() : 0).append(",");
+                
+                Integer outlineLevel = task.getOutlineLevel();
+                json.append("\"outlineLevel\":").append(outlineLevel != null ? outlineLevel : 1).append(",");
+                
+                Task parent = task.getParentTask();
+                if (parent != null && parent.getID() != null && parent.getID() != 0) {
+                    json.append("\"parentTaskId\":").append(parent.getID()).append(",");
+                } else {
+                    json.append("\"parentTaskId\":null,");
+                }
+                
+                json.append("\"isSummary\":").append(task.hasChildTasks()).append(",");
+                json.append("\"isMilestone\":").append(task.getMilestone()).append(",");
+                json.append("\"notes\":").append(escapeJson(task.getNotes()));
+                json.append("}");
+            }
+            
+            json.append("]}");
+            System.out.println(json.toString());
+            
+        } catch (Exception e) {
+            System.err.println("Error parsing MPP file: " + e.getMessage());
+            e.printStackTrace(System.err);
+            System.exit(1);
+        }
+    }
+    
+    private static String escapeJson(String value) {
+        if (value == null) return "null";
+        return "\"" + value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+            + "\"";
+    }
+}

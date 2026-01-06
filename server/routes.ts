@@ -11,20 +11,85 @@ import multer from "multer";
 import xml2js from "xml2js";
 import Papa from "papaparse";
 
+import { execSync } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+
 // Configure multer for file uploads (memory storage)
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit for MPP files
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.xml', '.csv'];
+    const allowedTypes = ['.xml', '.csv', '.mpp'];
     const ext = '.' + file.originalname.split('.').pop()?.toLowerCase();
     if (allowedTypes.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Only XML and CSV files are allowed'));
+      cb(new Error('Only MPP, XML, and CSV files are allowed'));
     }
   }
 });
+
+// Parse MPP file using MPXJ Java library
+function parseMppFile(fileBuffer: Buffer): Array<{
+  taskId?: number;
+  wbs?: string;
+  taskName: string;
+  startDate?: string;
+  finishDate?: string;
+  duration?: string;
+  durationDays?: number;
+  percentComplete?: number;
+  outlineLevel?: number;
+  parentTaskId?: number;
+  isSummary?: boolean;
+  isMilestone?: boolean;
+  notes?: string;
+}> {
+  const tempDir = os.tmpdir();
+  const tempFile = path.join(tempDir, `mpp_${Date.now()}.mpp`);
+  
+  try {
+    // Write buffer to temp file
+    fs.writeFileSync(tempFile, fileBuffer);
+    
+    // Build classpath for MPXJ
+    const libDir = path.join(process.cwd(), 'lib');
+    const jars = [
+      'mpxj.jar', 'poi.jar', 'poi-ooxml.jar', 'commons-io.jar',
+      'commons-collections4.jar', 'commons-compress.jar', 'log4j-api.jar', 'xmlbeans.jar'
+    ].map(jar => path.join(libDir, jar)).join(':');
+    
+    const classpath = `${jars}:${libDir}`;
+    
+    // Execute Java parser
+    const result = execSync(`java -cp "${classpath}" MppParser "${tempFile}"`, {
+      encoding: 'utf-8',
+      maxBuffer: 50 * 1024 * 1024,
+      timeout: 60000,
+    });
+    
+    const parsed = JSON.parse(result);
+    return parsed.tasks || [];
+    
+  } catch (error: any) {
+    console.error('Error parsing MPP file:', error.message);
+    if (error.stderr) {
+      console.error('STDERR:', error.stderr);
+    }
+    throw new Error('Failed to parse MPP file. Please ensure it is a valid Microsoft Project file.');
+  } finally {
+    // Clean up temp file
+    try {
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+  }
+}
 
 // Parse MSPDI XML (MS Project XML format)
 async function parseXmlMspdi(xmlContent: string): Promise<Array<{
@@ -2538,12 +2603,14 @@ export async function registerRoutes(
         notes?: string;
       }> = [];
 
-      if (fileExt === 'xml') {
+      if (fileExt === 'mpp') {
+        parsedTasks = parseMppFile(req.file.buffer);
+      } else if (fileExt === 'xml') {
         parsedTasks = await parseXmlMspdi(fileContent);
       } else if (fileExt === 'csv') {
         parsedTasks = parseCsv(fileContent);
       } else {
-        return res.status(400).json({ message: "Unsupported file format. Use XML or CSV." });
+        return res.status(400).json({ message: "Unsupported file format. Use MPP, XML, or CSV." });
       }
 
       // Create the import record

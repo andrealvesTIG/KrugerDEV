@@ -130,21 +130,22 @@ export default function Integrations() {
               <div className="rounded-lg border bg-muted/30 p-4">
                 <h4 className="font-medium text-sm mb-2">Supported Formats</h4>
                 <div className="flex flex-wrap gap-2">
+                  <Badge variant="default">MPP (Native)</Badge>
                   <Badge variant="secondary">XML (MSPDI)</Badge>
                   <Badge variant="secondary">CSV</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Export your .mpp file from MS Project as XML (File &gt; Save As &gt; XML Format) or CSV
+                  Upload native .mpp files directly, or export from MS Project as XML/CSV
                 </p>
               </div>
               
               <div className="rounded-lg border bg-muted/30 p-4">
                 <h4 className="font-medium text-sm mb-2">Imported Fields</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>Task Name</li>
+                  <li>Task Name &amp; WBS</li>
                   <li>Start Date &amp; Finish Date</li>
-                  <li>Duration</li>
-                  <li>% Complete</li>
+                  <li>Duration &amp; % Complete</li>
+                  <li>Task Hierarchy (Outline Level, Summary/Milestone)</li>
                 </ul>
               </div>
             </div>
@@ -153,7 +154,7 @@ export default function Integrations() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xml,.csv"
+              accept=".mpp,.xml,.csv"
               onChange={handleFileSelect}
               className="hidden"
               data-testid="input-file-upload"
