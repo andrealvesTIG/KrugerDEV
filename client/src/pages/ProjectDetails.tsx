@@ -5,7 +5,7 @@ import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory }
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
-import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useResources } from "@/hooks/use-resources";
+import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -785,10 +785,12 @@ const taskStatusColors = {
 };
 
 function TasksTab({ projectId }: { projectId: number }) {
+  const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading } = useTasks(projectId);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const updateTaskResources = useUpdateTaskResourceAssignments();
   const { toast } = useToast();
   
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
@@ -796,6 +798,14 @@ function TasksTab({ projectId }: { projectId: number }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [durationDays, setDurationDays] = useState(7);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
+  
+  useEffect(() => {
+    if (taskAssignments && editingTask) {
+      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+    }
+  }, [taskAssignments, editingTask]);
 
   const form = useForm({
     resolver: zodResolver(insertTaskSchema),
@@ -852,6 +862,7 @@ function TasksTab({ projectId }: { projectId: number }) {
   const openCreateDialog = () => {
     setEditingTask(null);
     setDurationDays(7);
+    setSelectedResourceIds([]);
     form.reset({
       projectId: projectId,
       name: "",
@@ -882,6 +893,7 @@ function TasksTab({ projectId }: { projectId: number }) {
     if (editingTask) {
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: () => {
+          updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
           toast({ title: "Success", description: "Task updated" });
           setIsDialogOpen(false);
           setEditingTask(null);
@@ -892,7 +904,10 @@ function TasksTab({ projectId }: { projectId: number }) {
       });
     } else {
       createTask.mutate(taskData, {
-        onSuccess: () => {
+        onSuccess: (newTask: any) => {
+          if (selectedResourceIds.length > 0 && newTask?.id) {
+            updateTaskResources.mutate({ taskId: newTask.id, resourceIds: selectedResourceIds });
+          }
           toast({ title: "Success", description: "Task created" });
           setIsDialogOpen(false);
         },
@@ -999,10 +1014,12 @@ function TasksTab({ projectId }: { projectId: number }) {
                 <Label>Description</Label>
                 <Textarea {...form.register("description")} />
               </div>
-              <div className="space-y-2">
-                <Label>Assignee</Label>
-                <Input {...form.register("assignee")} placeholder="Name of assignee" />
-              </div>
+              <ResourceAssignment
+                organizationId={currentOrganization?.id || null}
+                selectedResourceIds={selectedResourceIds}
+                onSelectionChange={setSelectedResourceIds}
+                label="Assigned Resources"
+              />
               <DialogFooter className="flex items-center gap-2">
                 {editingTask && (
                   <Button 
@@ -1546,15 +1563,25 @@ const typeIcons = {
 };
 
 function IssuesTab({ projectId }: { projectId: number }) {
+  const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useIssues(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
   const [deleteIssueData, setDeleteIssueData] = useState<Issue | null>(null);
   const [historyIssueId, setHistoryIssueId] = useState<number | null>(null);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
+  const updateIssueResources = useUpdateIssueResourceAssignments();
+  const { data: issueAssignments } = useIssueResourceAssignments(editingIssue?.id ?? null);
   const { toast } = useToast();
+  
+  useEffect(() => {
+    if (issueAssignments && editingIssue) {
+      setSelectedResourceIds(issueAssignments.map(a => a.resourceId));
+    }
+  }, [issueAssignments, editingIssue]);
 
   const form = useForm({
     resolver: zodResolver(insertIssueSchema),
@@ -1585,6 +1612,7 @@ function IssuesTab({ projectId }: { projectId: number }) {
 
   const openCreateDialog = () => {
     setEditingIssue(null);
+    setSelectedResourceIds([]);
     form.reset({
       projectId,
       title: "",
@@ -1601,6 +1629,7 @@ function IssuesTab({ projectId }: { projectId: number }) {
     if (editingIssue) {
       updateIssue.mutate({ id: editingIssue.id, projectId, ...data }, {
         onSuccess: () => {
+          updateIssueResources.mutate({ issueId: editingIssue.id, resourceIds: selectedResourceIds });
           toast({ title: "Success", description: "Issue updated" });
           setIsDialogOpen(false);
           setEditingIssue(null);
@@ -1611,7 +1640,10 @@ function IssuesTab({ projectId }: { projectId: number }) {
       });
     } else {
       createIssue.mutate(data, {
-        onSuccess: () => {
+        onSuccess: (newIssue: any) => {
+          if (selectedResourceIds.length > 0 && newIssue?.id) {
+            updateIssueResources.mutate({ issueId: newIssue.id, resourceIds: selectedResourceIds });
+          }
           toast({ title: "Success", description: "Issue created" });
           setIsDialogOpen(false);
         }
@@ -1670,30 +1702,30 @@ function IssuesTab({ projectId }: { projectId: number }) {
                   )} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                   <Controller control={form.control} name="status" render={({field}) => (
-                    <Select onValueChange={field.onChange} value={field.value || "Open"}>
-                       <SelectTrigger data-testid="select-issue-status"><SelectValue /></SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="Open">Open</SelectItem>
-                         <SelectItem value="In Progress">In Progress</SelectItem>
-                         <SelectItem value="Resolved">Resolved</SelectItem>
-                         <SelectItem value="Closed">Closed</SelectItem>
-                       </SelectContent>
-                    </Select>
-                  )} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Assignee</Label>
-                  <Input {...form.register("assignee")} data-testid="input-issue-assignee" placeholder="Name of assignee" />
-                </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                 <Controller control={form.control} name="status" render={({field}) => (
+                  <Select onValueChange={field.onChange} value={field.value || "Open"}>
+                     <SelectTrigger data-testid="select-issue-status"><SelectValue /></SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="Open">Open</SelectItem>
+                       <SelectItem value="In Progress">In Progress</SelectItem>
+                       <SelectItem value="Resolved">Resolved</SelectItem>
+                       <SelectItem value="Closed">Closed</SelectItem>
+                     </SelectContent>
+                  </Select>
+                )} />
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Textarea {...form.register("description")} data-testid="input-issue-description" />
               </div>
+              <ResourceAssignment
+                organizationId={currentOrganization?.id || null}
+                selectedResourceIds={selectedResourceIds}
+                onSelectionChange={setSelectedResourceIds}
+                label="Assigned Resources"
+              />
               <DialogFooter className="gap-2">
                 {editingIssue && (
                   <Button 
