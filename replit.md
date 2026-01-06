@@ -41,12 +41,14 @@ Key backend files:
 - `shared/schema.ts` - Drizzle schema definitions and Zod validators
 
 ### Data Model
-The application manages five core entities:
+The application manages the following core entities:
 1. **Portfolios** - Strategic groupings of projects
 2. **Projects** - Individual initiatives with status, health, budget tracking
 3. **Risks** - Project risks with probability/impact assessment
 4. **Milestones** - Key project milestones with completion tracking
 5. **Issues** - Bug/task/enhancement tracking per project
+6. **Change Requests** - Formal change requests with type (scope/schedule/budget/resource), priority, impact assessment, justification, and workflow status (pending/under_review/approved/rejected/implemented)
+7. **Project Documents** - Document management with categories (general/contract/requirement/design/test/report), versioning, and URL references
 
 ### Shared Code Pattern
 The `shared/` directory contains code used by both frontend and backend:
