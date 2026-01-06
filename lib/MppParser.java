@@ -1,10 +1,13 @@
 import net.sf.mpxj.*;
 import net.sf.mpxj.reader.*;
 import java.io.*;
-import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class MppParser {
+    private static final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    
     public static void main(String[] args) {
         if (args.length < 1) {
             System.err.println("Usage: java MppParser <mpp-file>");
@@ -20,7 +23,6 @@ public class MppParser {
             json.append("{\"tasks\":[");
             
             boolean first = true;
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
             
             for (Task task : projectFile.getTasks()) {
                 if (task.getID() == null || task.getID() == 0) continue;
@@ -34,14 +36,16 @@ public class MppParser {
                 json.append("\"wbs\":").append(escapeJson(task.getWBS())).append(",");
                 json.append("\"taskName\":").append(escapeJson(task.getName())).append(",");
                 
-                if (task.getStart() != null) {
-                    json.append("\"startDate\":\"").append(dateFormat.format(task.getStart())).append("\",");
+                LocalDateTime startDate = task.getStart();
+                if (startDate != null) {
+                    json.append("\"startDate\":\"").append(startDate.format(dateFormat)).append("\",");
                 } else {
                     json.append("\"startDate\":null,");
                 }
                 
-                if (task.getFinish() != null) {
-                    json.append("\"finishDate\":\"").append(dateFormat.format(task.getFinish())).append("\",");
+                LocalDateTime finishDate = task.getFinish();
+                if (finishDate != null) {
+                    json.append("\"finishDate\":\"").append(finishDate.format(dateFormat)).append("\",");
                 } else {
                     json.append("\"finishDate\":null,");
                 }
