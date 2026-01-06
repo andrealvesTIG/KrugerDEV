@@ -44,7 +44,6 @@ const navigation = [
   { name: "Issues", href: "/issues", icon: CircleDot },
   { name: "Resources", href: "/resources", icon: Users },
   { name: "Calendar", href: "/calendar", icon: Calendar },
-  { name: "Super Admin", href: "/super-admin", icon: Crown, superAdminOnly: true },
 ];
 
 const helpNavigation = [
@@ -55,6 +54,7 @@ const userMenuItems = [
   { name: "Profile", href: "/profile", icon: User },
   { name: "User Settings", href: "/user-settings", icon: UserCog },
   { name: "Org Settings", href: "/org-settings", icon: Building2 },
+  { name: "Super Admin", href: "/super-admin", icon: Crown, superAdminOnly: true },
 ];
 
 export function Sidebar() {
@@ -102,10 +102,6 @@ export function Sidebar() {
           </p>
         )}
         {navigation.map((item) => {
-          if ((item as any).superAdminOnly && user?.role !== 'super_admin') {
-            return null;
-          }
-          
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           
           const navItem = (
@@ -262,6 +258,9 @@ export function Sidebar() {
 
               {/* Menu Items */}
               {userMenuItems.map((item) => {
+                if ((item as any).superAdminOnly && user?.role !== 'super_admin') {
+                  return null;
+                }
                 const isActive = location === item.href;
                 return (
                   <button
