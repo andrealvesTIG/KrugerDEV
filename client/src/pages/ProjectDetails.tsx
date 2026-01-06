@@ -5,7 +5,7 @@ import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory }
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
-import { useRiskResourceAssignments, useUpdateRiskResourceAssignments } from "@/hooks/use-resources";
+import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
