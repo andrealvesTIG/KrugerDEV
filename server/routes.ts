@@ -2193,7 +2193,7 @@ export async function registerRoutes(
         businessUnit,
         programName,
         status: 'draft',
-        currentStep: 'is_backlog',
+        currentStep: 'intake_capture',
       });
       res.status(201).json(intake);
     } catch (err) {

@@ -401,71 +401,76 @@ export default function ProjectIntakes() {
       ) : (
         <div className="space-y-3">
           {filteredIntakes?.map(intake => (
-            <Card key={intake.id} className="hover-elevate">
-              <CardContent className="py-4">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap mb-2">
-                      <Link href={`/intakes/${intake.id}`}>
-                        <span className="font-medium text-foreground hover:text-primary cursor-pointer" data-testid={`link-intake-${intake.id}`}>
+            <Link key={intake.id} href={`/intakes/${intake.id}`} data-testid={`link-intake-${intake.id}`}>
+              <Card className="hover-elevate cursor-pointer">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap mb-2">
+                        <span className="font-medium text-foreground">
                           {intake.projectName}
                         </span>
-                      </Link>
-                      {getStatusBadge(intake.status || "draft")}
-                      {intake.intakeNumber && (
-                        <span className="text-xs text-muted-foreground font-mono">{intake.intakeNumber}</span>
-                      )}
+                        {getStatusBadge(intake.status || "draft")}
+                        {intake.intakeNumber && (
+                          <span className="text-xs text-muted-foreground font-mono">{intake.intakeNumber}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                        <span>Current Gate: {getStepLabel(intake.currentStep || "intake_capture")}</span>
+                        {intake.businessUnit && <span>BU: {intake.businessUnit}</span>}
+                        {intake.createdAt && (
+                          <span>Created: {format(new Date(intake.createdAt), "MMM d, yyyy")}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                      <span>Current Gate: {getStepLabel(intake.currentStep || "intake_capture")}</span>
-                      {intake.businessUnit && <span>BU: {intake.businessUnit}</span>}
-                      {intake.createdAt && (
-                        <span>Created: {format(new Date(intake.createdAt), "MMM d, yyyy")}</span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <WorkflowProgress 
-                      currentStep={intake.currentStep || "intake_capture"} 
-                      status={intake.status || "draft"} 
-                    />
                     
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" data-testid={`button-menu-${intake.id}`}>
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/intakes/${intake.id}`}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
-                          </Link>
-                        </DropdownMenuItem>
-                        {intake.createdProjectId && (
+                    <div className="flex items-center gap-4">
+                      <WorkflowProgress 
+                        currentStep={intake.currentStep || "intake_capture"} 
+                        status={intake.status || "draft"} 
+                      />
+                    
+                    <div onClick={(e) => e.preventDefault()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" data-testid={`button-menu-${intake.id}`} onClick={(e) => e.stopPropagation()}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
-                            <Link href={`/projects/${intake.createdProjectId}`}>
-                              <ChevronRight className="h-4 w-4 mr-2" />
-                              View Project
+                            <Link href={`/intakes/${intake.id}`}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
                             </Link>
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          className="text-destructive"
-                          onClick={() => setDeleteIntakeId(intake.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          {intake.createdProjectId && (
+                            <DropdownMenuItem asChild>
+                              <Link href={`/projects/${intake.createdProjectId}`}>
+                                <ChevronRight className="h-4 w-4 mr-2" />
+                                View Project
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteIntakeId(intake.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       )}

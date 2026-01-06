@@ -298,39 +298,34 @@ export default function IntakeDetails() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/intakes')}>
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-display font-bold text-foreground">{intake.projectName}</h1>
-              {getStatusBadge(intake.status || "draft")}
-              {intake.intakeNumber && (
-                <span className="text-sm text-muted-foreground font-mono">{intake.intakeNumber}</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-              <StepIcon className="h-4 w-4" />
-              <span className="font-medium">{currentStep?.label}:</span>
-              <span>{currentStep?.description}</span>
-            </div>
-          </div>
-        </div>
-        
-        {!isLocked && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleSave} disabled={updateIntake.isPending}>
-              <Save className="h-4 w-4 mr-2" />
-              Save Progress
-            </Button>
-          </div>
-        )}
-      </div>
-
       <Card>
         <CardContent className="pt-6">
+          <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/intakes')}>
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h1 className="text-2xl font-display font-bold text-foreground">{intake.projectName}</h1>
+                  {getStatusBadge(intake.status || "draft")}
+                  {intake.intakeNumber && (
+                    <span className="text-sm text-muted-foreground font-mono">{intake.intakeNumber}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {!isLocked && (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleSave} disabled={updateIntake.isPending}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Progress
+                </Button>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center justify-between mb-2 overflow-x-auto pb-2">
             {WORKFLOW_STEPS.map((step, index) => {
               const isCompleted = completedSteps.includes(step.id) || (isApproved && index <= currentStepIndex);
@@ -384,7 +379,8 @@ export default function IntakeDetails() {
           
           {currentStep?.helpText && !isLocked && (
             <div className="mt-4 p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
-              <strong>Gate {currentStepIndex + 1}:</strong> {currentStep.helpText}
+              <StepIcon className="inline h-4 w-4 mr-2" />
+              <strong>Gate {currentStepIndex + 1} - {currentStep.label}:</strong> {currentStep.helpText}
             </div>
           )}
         </CardContent>
