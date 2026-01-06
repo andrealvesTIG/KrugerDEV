@@ -21,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -1055,7 +1055,20 @@ function TasksTab({ projectId }: { projectId: number }) {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [durationDays, setDurationDays] = useState(7);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
+  
+  const filteredTasks = useMemo(() => {
+    if (!tasks) return [];
+    if (!searchQuery.trim()) return tasks;
+    const query = searchQuery.toLowerCase();
+    return tasks.filter(task => 
+      task.name.toLowerCase().includes(query) ||
+      task.description?.toLowerCase().includes(query) ||
+      task.assignee?.toLowerCase().includes(query) ||
+      task.status?.toLowerCase().includes(query)
+    );
+  }, [tasks, searchQuery]);
   
   useEffect(() => {
     if (taskAssignments && editingTask) {
@@ -1191,12 +1204,23 @@ function TasksTab({ projectId }: { projectId: number }) {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
-          <DialogTrigger asChild>
-            <Button onClick={openCreateDialog} data-testid="button-add-task">
-              <Plus className="mr-2 h-4 w-4" /> Add Task
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
+          <div className="relative max-w-xs w-full sm:w-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-full sm:w-60"
+              data-testid="input-task-search"
+            />
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
+            <DialogTrigger asChild>
+              <Button onClick={openCreateDialog} data-testid="button-add-task">
+                <Plus className="mr-2 h-4 w-4" /> Add Task
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
@@ -1318,7 +1342,8 @@ function TasksTab({ projectId }: { projectId: number }) {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
         
         <ProjectTaskHistoryDialog 
           taskId={editingTask?.id || 0} 
@@ -1328,10 +1353,10 @@ function TasksTab({ projectId }: { projectId: number }) {
       </div>
 
       {view === "gantt" ? (
-        <ProjectGanttView tasks={tasks || []} onTaskClick={openEditDialog} />
+        <ProjectGanttView tasks={filteredTasks} onTaskClick={openEditDialog} />
       ) : (
         <ProjectKanbanView 
-          tasks={tasks || []} 
+          tasks={filteredTasks} 
           onTaskClick={openEditDialog}
           onStatusChange={(taskId, newStatus) => {
             const task = tasks?.find(t => t.id === taskId);
