@@ -21,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -2914,6 +2914,7 @@ function DocumentsTab({ projectId }: { projectId: number }) {
   const [editingDocument, setEditingDocument] = useState<ProjectDocument | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<{ name: string; status: 'uploading' | 'done' | 'error' }[]>([]);
+  const [previewDoc, setPreviewDoc] = useState<ProjectDocument | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -2922,6 +2923,32 @@ function DocumentsTab({ projectId }: { projectId: number }) {
     version: '1.0',
     fileName: '',
   });
+
+  const getFileUrl = (doc: ProjectDocument) => {
+    if (!doc.fileUrl) return null;
+    return doc.fileUrl.startsWith('/objects/') 
+      ? doc.fileUrl 
+      : doc.fileUrl.startsWith('http') 
+        ? doc.fileUrl 
+        : `/objects/${doc.fileUrl}`;
+  };
+
+  const canPreview = (doc: ProjectDocument) => {
+    const mimeType = doc.mimeType?.toLowerCase() || '';
+    const fileName = doc.fileName?.toLowerCase() || '';
+    const ext = fileName.split('.').pop() || '';
+    
+    const previewableTypes = [
+      'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
+      'application/pdf',
+      'text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json',
+      'video/mp4', 'video/webm',
+      'audio/mpeg', 'audio/wav', 'audio/ogg'
+    ];
+    const previewableExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'pdf', 'txt', 'html', 'css', 'js', 'json', 'mp4', 'webm', 'mp3', 'wav', 'ogg'];
+    
+    return previewableTypes.includes(mimeType) || previewableExts.includes(ext);
+  };
 
   const resetForm = () => {
     setFormData({
@@ -3280,6 +3307,21 @@ function DocumentsTab({ projectId }: { projectId: number }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {doc.fileUrl && canPreview(doc) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => setPreviewDoc(doc)}
+                          data-testid={`button-preview-document-${doc.id}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Preview document</TooltipContent>
+                    </Tooltip>
+                  )}
                   {doc.fileUrl && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -3287,12 +3329,8 @@ function DocumentsTab({ projectId }: { projectId: number }) {
                           variant="ghost" 
                           size="icon"
                           onClick={() => {
-                            const url = doc.fileUrl!.startsWith('/objects/') 
-                              ? doc.fileUrl! 
-                              : doc.fileUrl!.startsWith('http') 
-                                ? doc.fileUrl! 
-                                : `/objects/${doc.fileUrl}`;
-                            window.open(url, '_blank');
+                            const url = getFileUrl(doc);
+                            if (url) window.open(url, '_blank');
                           }}
                           data-testid={`button-open-document-${doc.id}`}
                         >
@@ -3324,6 +3362,85 @@ function DocumentsTab({ projectId }: { projectId: number }) {
           </div>
         )}
       </CardContent>
+
+      {/* Preview Dialog */}
+      <Dialog open={!!previewDoc} onOpenChange={(open) => !open && setPreviewDoc(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              {previewDoc?.title || 'Document Preview'}
+            </DialogTitle>
+            <DialogDescription>
+              {previewDoc?.fileName || 'Viewing document'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto min-h-[400px]">
+            {previewDoc && (() => {
+              const url = getFileUrl(previewDoc);
+              if (!url) return <div className="text-center py-8 text-muted-foreground">No file available</div>;
+              
+              const mimeType = previewDoc.mimeType?.toLowerCase() || '';
+              const ext = (previewDoc.fileName?.split('.').pop() || '').toLowerCase();
+              
+              if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) {
+                return <img src={url} alt={previewDoc.title} className="max-w-full h-auto mx-auto" />;
+              }
+              
+              if (mimeType === 'application/pdf' || ext === 'pdf') {
+                return <iframe src={url} className="w-full h-[600px] border-0" title={previewDoc.title} />;
+              }
+              
+              if (mimeType.startsWith('video/') || ['mp4', 'webm'].includes(ext)) {
+                return (
+                  <video controls className="max-w-full mx-auto">
+                    <source src={url} type={mimeType || 'video/mp4'} />
+                    Your browser does not support the video tag.
+                  </video>
+                );
+              }
+              
+              if (mimeType.startsWith('audio/') || ['mp3', 'wav', 'ogg'].includes(ext)) {
+                return (
+                  <div className="py-8 flex justify-center">
+                    <audio controls>
+                      <source src={url} type={mimeType || 'audio/mpeg'} />
+                      Your browser does not support the audio tag.
+                    </audio>
+                  </div>
+                );
+              }
+              
+              if (mimeType.startsWith('text/') || ['txt', 'html', 'css', 'js', 'json'].includes(ext)) {
+                return <iframe src={url} className="w-full h-[600px] border rounded-md bg-muted" title={previewDoc.title} />;
+              }
+              
+              return (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Preview not available for this file type.</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => window.open(url, '_blank')}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download to view
+                  </Button>
+                </div>
+              );
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewDoc(null)}>Close</Button>
+            {previewDoc && getFileUrl(previewDoc) && (
+              <Button onClick={() => window.open(getFileUrl(previewDoc)!, '_blank')}>
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
