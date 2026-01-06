@@ -13,7 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -30,6 +30,7 @@ import { CSS } from "@dnd-kit/utilities";
 export default function Projects() {
   const { currentOrganization } = useOrganization();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -53,9 +54,13 @@ export default function Projects() {
     }
   });
 
-  const filteredProjects = projects?.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredProjects = projects?.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const matchesSource = sourceFilter === "all" || 
+      (sourceFilter === "manual" && (p.source === "manual" || !p.source)) ||
+      (sourceFilter === "imported" && p.source === "imported");
+    return matchesSearch && matchesSource;
+  });
 
   const handleStatusChange = (projectId: number, newStatus: string) => {
     updateProject.mutate(
@@ -108,6 +113,28 @@ export default function Projects() {
               {portfolios?.map(p => (
                 <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full sm:w-[180px]">
+          <Select value={sourceFilter} onValueChange={setSourceFilter}>
+            <SelectTrigger data-testid="select-source-filter">
+              <SelectValue placeholder="Filter by Source" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              <SelectItem value="manual">
+                <span className="flex items-center gap-2">
+                  <PenTool className="h-3 w-3" />
+                  Created in App
+                </span>
+              </SelectItem>
+              <SelectItem value="imported">
+                <span className="flex items-center gap-2">
+                  <Upload className="h-3 w-3" />
+                  Imported
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -4,7 +4,9 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
-import { Loader2, Briefcase, AlertTriangle, TrendingUp, CheckCircle2, FileInput, Clock } from "lucide-react";
+import { Loader2, Briefcase, AlertTriangle, TrendingUp, CheckCircle2, FileInput, Clock, Upload, PenTool } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import type { ProjectIntake } from "@shared/schema";
@@ -19,8 +21,17 @@ const COLORS = {
 
 export default function Dashboard() {
   const { currentOrganization } = useOrganization();
-  const { data: projects, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
   const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
+  
+  // Filter projects by source - use empty array as fallback for loading state
+  const projects = (projectsData ?? []).filter(p => {
+    if (sourceFilter === "all") return true;
+    if (sourceFilter === "manual") return p.source === "manual" || !p.source;
+    if (sourceFilter === "imported") return p.source === "imported";
+    return true;
+  });
   const { data: intakes, isLoading: intakesLoading } = useQuery<ProjectIntake[]>({
     queryKey: ['/api/project-intakes', currentOrganization?.id],
     queryFn: async () => {
@@ -96,9 +107,33 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Executive Dashboard</h1>
-        <p className="mt-2 text-muted-foreground">Overview of your project portfolio performance and health.</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-display font-bold text-foreground">Executive Dashboard</h1>
+          <p className="mt-2 text-muted-foreground">Overview of your project portfolio performance and health.</p>
+        </div>
+        <div className="w-full sm:w-[180px]">
+          <Select value={sourceFilter} onValueChange={setSourceFilter}>
+            <SelectTrigger data-testid="select-dashboard-source-filter">
+              <SelectValue placeholder="Filter by Source" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              <SelectItem value="manual">
+                <span className="flex items-center gap-2">
+                  <PenTool className="h-3 w-3" />
+                  Created in App
+                </span>
+              </SelectItem>
+              <SelectItem value="imported">
+                <span className="flex items-center gap-2">
+                  <Upload className="h-3 w-3" />
+                  Imported
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* KPI Cards */}
