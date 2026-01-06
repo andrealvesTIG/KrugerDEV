@@ -3,6 +3,7 @@ import {
   users, portfolios, projects, risks, milestones, issues, tasks,
   organizations, organizationMembers, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
+  resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -18,6 +19,10 @@ import {
   type IssueChangeLog, type InsertIssueChangeLog,
   type TaskDependency, type InsertTaskDependency,
   type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest,
+  type Resource, type InsertResource, type UpdateResourceRequest,
+  type TaskResourceAssignment, type InsertTaskResourceAssignment,
+  type IssueResourceAssignment, type InsertIssueResourceAssignment,
+  type RiskResourceAssignment, type InsertRiskResourceAssignment,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
@@ -141,6 +146,31 @@ export interface IStorage {
   softDeleteItem(type: RecycleBinItemType, id: number, userId: string, organizationId?: number): Promise<boolean>;
   restoreItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean>;
   permanentlyDeleteItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean>;
+
+  // Resources
+  getResources(organizationId: number): Promise<Resource[]>;
+  getResource(id: number): Promise<Resource | undefined>;
+  createResource(resource: InsertResource): Promise<Resource>;
+  updateResource(id: number, updates: UpdateResourceRequest): Promise<Resource>;
+  deleteResource(id: number): Promise<void>;
+
+  // Task Resource Assignments
+  getTaskResourceAssignments(taskId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
+  addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment>;
+  removeTaskResourceAssignment(taskId: number, resourceId: number): Promise<void>;
+  updateTaskResourceAssignments(taskId: number, resourceIds: number[]): Promise<void>;
+
+  // Issue Resource Assignments
+  getIssueResourceAssignments(issueId: number): Promise<(IssueResourceAssignment & { resource: Resource })[]>;
+  addIssueResourceAssignment(assignment: InsertIssueResourceAssignment): Promise<IssueResourceAssignment>;
+  removeIssueResourceAssignment(issueId: number, resourceId: number): Promise<void>;
+  updateIssueResourceAssignments(issueId: number, resourceIds: number[]): Promise<void>;
+
+  // Risk Resource Assignments
+  getRiskResourceAssignments(riskId: number): Promise<(RiskResourceAssignment & { resource: Resource })[]>;
+  addRiskResourceAssignment(assignment: InsertRiskResourceAssignment): Promise<RiskResourceAssignment>;
+  removeRiskResourceAssignment(riskId: number, resourceId: number): Promise<void>;
+  updateRiskResourceAssignments(riskId: number, resourceIds: number[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1079,6 +1109,150 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return true;
+  }
+
+  // Resources
+  async getResources(organizationId: number): Promise<Resource[]> {
+    return await db.select().from(resources)
+      .where(and(
+        eq(resources.organizationId, organizationId),
+        isNull(resources.deletedAt)
+      ))
+      .orderBy(resources.displayName);
+  }
+
+  async getResource(id: number): Promise<Resource | undefined> {
+    const [resource] = await db.select().from(resources).where(eq(resources.id, id));
+    return resource;
+  }
+
+  async createResource(resource: InsertResource): Promise<Resource> {
+    const [newResource] = await db.insert(resources).values(resource).returning();
+    return newResource;
+  }
+
+  async updateResource(id: number, updates: UpdateResourceRequest): Promise<Resource> {
+    const [updated] = await db.update(resources)
+      .set(updates)
+      .where(eq(resources.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteResource(id: number): Promise<void> {
+    // First delete all assignments for this resource
+    await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, id));
+    await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, id));
+    await db.delete(riskResourceAssignments).where(eq(riskResourceAssignments.resourceId, id));
+    // Then delete the resource
+    await db.delete(resources).where(eq(resources.id, id));
+  }
+
+  // Task Resource Assignments
+  async getTaskResourceAssignments(taskId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]> {
+    const assignments = await db.select()
+      .from(taskResourceAssignments)
+      .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
+      .where(eq(taskResourceAssignments.taskId, taskId));
+    
+    return assignments.map(a => ({
+      ...a.task_resource_assignments,
+      resource: a.resources
+    }));
+  }
+
+  async addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment> {
+    const [newAssignment] = await db.insert(taskResourceAssignments).values(assignment).returning();
+    return newAssignment;
+  }
+
+  async removeTaskResourceAssignment(taskId: number, resourceId: number): Promise<void> {
+    await db.delete(taskResourceAssignments)
+      .where(and(
+        eq(taskResourceAssignments.taskId, taskId),
+        eq(taskResourceAssignments.resourceId, resourceId)
+      ));
+  }
+
+  async updateTaskResourceAssignments(taskId: number, resourceIds: number[]): Promise<void> {
+    // Remove all existing assignments
+    await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, taskId));
+    // Add new assignments
+    if (resourceIds.length > 0) {
+      await db.insert(taskResourceAssignments).values(
+        resourceIds.map(resourceId => ({ taskId, resourceId }))
+      );
+    }
+  }
+
+  // Issue Resource Assignments
+  async getIssueResourceAssignments(issueId: number): Promise<(IssueResourceAssignment & { resource: Resource })[]> {
+    const assignments = await db.select()
+      .from(issueResourceAssignments)
+      .innerJoin(resources, eq(issueResourceAssignments.resourceId, resources.id))
+      .where(eq(issueResourceAssignments.issueId, issueId));
+    
+    return assignments.map(a => ({
+      ...a.issue_resource_assignments,
+      resource: a.resources
+    }));
+  }
+
+  async addIssueResourceAssignment(assignment: InsertIssueResourceAssignment): Promise<IssueResourceAssignment> {
+    const [newAssignment] = await db.insert(issueResourceAssignments).values(assignment).returning();
+    return newAssignment;
+  }
+
+  async removeIssueResourceAssignment(issueId: number, resourceId: number): Promise<void> {
+    await db.delete(issueResourceAssignments)
+      .where(and(
+        eq(issueResourceAssignments.issueId, issueId),
+        eq(issueResourceAssignments.resourceId, resourceId)
+      ));
+  }
+
+  async updateIssueResourceAssignments(issueId: number, resourceIds: number[]): Promise<void> {
+    await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.issueId, issueId));
+    if (resourceIds.length > 0) {
+      await db.insert(issueResourceAssignments).values(
+        resourceIds.map(resourceId => ({ issueId, resourceId }))
+      );
+    }
+  }
+
+  // Risk Resource Assignments
+  async getRiskResourceAssignments(riskId: number): Promise<(RiskResourceAssignment & { resource: Resource })[]> {
+    const assignments = await db.select()
+      .from(riskResourceAssignments)
+      .innerJoin(resources, eq(riskResourceAssignments.resourceId, resources.id))
+      .where(eq(riskResourceAssignments.riskId, riskId));
+    
+    return assignments.map(a => ({
+      ...a.risk_resource_assignments,
+      resource: a.resources
+    }));
+  }
+
+  async addRiskResourceAssignment(assignment: InsertRiskResourceAssignment): Promise<RiskResourceAssignment> {
+    const [newAssignment] = await db.insert(riskResourceAssignments).values(assignment).returning();
+    return newAssignment;
+  }
+
+  async removeRiskResourceAssignment(riskId: number, resourceId: number): Promise<void> {
+    await db.delete(riskResourceAssignments)
+      .where(and(
+        eq(riskResourceAssignments.riskId, riskId),
+        eq(riskResourceAssignments.resourceId, resourceId)
+      ));
+  }
+
+  async updateRiskResourceAssignments(riskId: number, resourceIds: number[]): Promise<void> {
+    await db.delete(riskResourceAssignments).where(eq(riskResourceAssignments.riskId, riskId));
+    if (resourceIds.length > 0) {
+      await db.insert(riskResourceAssignments).values(
+        resourceIds.map(resourceId => ({ riskId, resourceId }))
+      );
+    }
   }
 }
 
