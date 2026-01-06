@@ -2142,6 +2142,151 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== PROJECT INTAKES ====================
+
+  // Get all project intakes for an organization
+  app.get('/api/project-intakes', async (req, res) => {
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const intakes = await storage.getProjectIntakes(organizationId);
+      res.json(intakes);
+    } catch (err) {
+      console.error("Error fetching project intakes:", err);
+      res.status(500).json({ message: "Error fetching project intakes" });
+    }
+  });
+
+  // Get a single project intake
+  app.get('/api/project-intakes/:id', async (req, res) => {
+    try {
+      const intake = await storage.getProjectIntake(Number(req.params.id));
+      if (!intake) return res.status(404).json({ message: "Project intake not found" });
+      res.json(intake);
+    } catch (err) {
+      console.error("Error fetching project intake:", err);
+      res.status(500).json({ message: "Error fetching project intake" });
+    }
+  });
+
+  // Create a new project intake
+  app.post('/api/project-intakes', async (req, res) => {
+    try {
+      const { 
+        organizationId, projectName, submitterId, description, fundingSource,
+        portfolioId, businessUnit, programName
+      } = req.body;
+      
+      if (!organizationId || !projectName) {
+        return res.status(400).json({ message: "organizationId and projectName are required" });
+      }
+
+      const intake = await storage.createProjectIntake({
+        organizationId,
+        projectName,
+        submitterId,
+        description,
+        fundingSource,
+        portfolioId,
+        businessUnit,
+        programName,
+        status: 'draft',
+        currentStep: 'is_backlog',
+      });
+      res.status(201).json(intake);
+    } catch (err) {
+      console.error("Error creating project intake:", err);
+      res.status(500).json({ message: "Error creating project intake" });
+    }
+  });
+
+  // Update a project intake
+  app.put('/api/project-intakes/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getProjectIntake(id);
+      if (!existing) return res.status(404).json({ message: "Project intake not found" });
+      
+      const updated = await storage.updateProjectIntake(id, req.body);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating project intake:", err);
+      res.status(500).json({ message: "Error updating project intake" });
+    }
+  });
+
+  // Delete a project intake
+  app.delete('/api/project-intakes/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getProjectIntake(id);
+      if (!existing) return res.status(404).json({ message: "Project intake not found" });
+      await storage.deleteProjectIntake(id);
+      res.status(204).send();
+    } catch (err) {
+      console.error("Error deleting project intake:", err);
+      res.status(500).json({ message: "Error deleting project intake" });
+    }
+  });
+
+  // Approve a project intake and create project
+  app.post('/api/project-intakes/:id/approve', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req.user as any)?.claims?.sub;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const existing = await storage.getProjectIntake(id);
+      if (!existing) return res.status(404).json({ message: "Project intake not found" });
+      
+      if (existing.status === 'approved') {
+        return res.status(400).json({ message: "Project intake is already approved" });
+      }
+
+      const project = await storage.approveProjectIntake(id, userId);
+      res.json({ 
+        message: "Project intake approved and project created",
+        project 
+      });
+    } catch (err) {
+      console.error("Error approving project intake:", err);
+      res.status(500).json({ message: "Error approving project intake" });
+    }
+  });
+
+  // Reject a project intake
+  app.post('/api/project-intakes/:id/reject', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req.user as any)?.claims?.sub;
+      const { reason } = req.body;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const existing = await storage.getProjectIntake(id);
+      if (!existing) return res.status(404).json({ message: "Project intake not found" });
+      
+      const updated = await storage.updateProjectIntake(id, {
+        status: 'rejected',
+        rejectedAt: new Date(),
+        rejectedBy: userId,
+        rejectionReason: reason,
+      });
+      
+      res.json(updated);
+    } catch (err) {
+      console.error("Error rejecting project intake:", err);
+      res.status(500).json({ message: "Error rejecting project intake" });
+    }
+  });
+
   // Delete all demo data for an organization (SuperAdmin only)
   app.delete('/api/demo-data/:organizationId', async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
