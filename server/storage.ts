@@ -1112,7 +1112,36 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Resources
+  async syncOrganizationMembersAsResources(organizationId: number): Promise<void> {
+    // Get all org members with their user info
+    const members = await db.select({
+      userId: organizationMembers.userId,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+    })
+      .from(organizationMembers)
+      .innerJoin(users, eq(organizationMembers.userId, users.id))
+      .where(eq(organizationMembers.organizationId, organizationId));
+
+    // Insert resources for members that don't have one yet using ON CONFLICT DO NOTHING
+    // This is concurrency-safe due to the unique index on (organization_id, user_id)
+    for (const member of members) {
+      const displayName = [member.firstName, member.lastName].filter(Boolean).join(' ') || member.email || member.userId;
+      await db.insert(resources).values({
+        organizationId,
+        userId: member.userId,
+        displayName,
+        email: member.email || null,
+        isActive: true,
+      }).onConflictDoNothing();
+    }
+  }
+
   async getResources(organizationId: number): Promise<Resource[]> {
+    // Auto-sync org members as resources before returning
+    await this.syncOrganizationMembersAsResources(organizationId);
+    
     return await db.select().from(resources)
       .where(and(
         eq(resources.organizationId, organizationId),

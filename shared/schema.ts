@@ -197,6 +197,7 @@ export const taskDependencies = pgTable("task_dependencies", {
 export const resources = pgTable("resources", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id), // Links to organization member user (for auto-synced resources)
   displayName: text("display_name").notNull(),
   email: text("email"),
   title: text("title"), // Job title/role
