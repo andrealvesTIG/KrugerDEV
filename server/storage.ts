@@ -4,7 +4,7 @@ import {
   organizations, organizationMembers, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
-  costItems,
+  costItems, projectIntakes,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -25,6 +25,7 @@ import {
   type IssueResourceAssignment, type InsertIssueResourceAssignment,
   type RiskResourceAssignment, type InsertRiskResourceAssignment,
   type CostItem, type InsertCostItem, type UpdateCostItemRequest,
+  type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
@@ -180,6 +181,14 @@ export interface IStorage {
   createCostItem(costItem: InsertCostItem): Promise<CostItem>;
   updateCostItem(id: number, updates: UpdateCostItemRequest): Promise<CostItem>;
   deleteCostItem(id: number): Promise<void>;
+
+  // Project Intakes
+  getProjectIntakes(organizationId: number): Promise<ProjectIntake[]>;
+  getProjectIntake(id: number): Promise<ProjectIntake | undefined>;
+  createProjectIntake(intake: InsertProjectIntake): Promise<ProjectIntake>;
+  updateProjectIntake(id: number, updates: UpdateProjectIntakeRequest): Promise<ProjectIntake>;
+  deleteProjectIntake(id: number): Promise<void>;
+  approveProjectIntake(id: number, approvedBy: string): Promise<Project>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1331,6 +1340,83 @@ export class DatabaseStorage implements IStorage {
     await db.delete(costItems).where(eq(costItems.parentId, id));
     // Then delete the item itself
     await db.delete(costItems).where(eq(costItems.id, id));
+  }
+
+  // Project Intakes
+  async getProjectIntakes(organizationId: number): Promise<ProjectIntake[]> {
+    return await db.select().from(projectIntakes)
+      .where(and(
+        eq(projectIntakes.organizationId, organizationId),
+        isNull(projectIntakes.deletedAt)
+      ))
+      .orderBy(desc(projectIntakes.createdAt));
+  }
+
+  async getProjectIntake(id: number): Promise<ProjectIntake | undefined> {
+    const [intake] = await db.select().from(projectIntakes).where(eq(projectIntakes.id, id));
+    return intake;
+  }
+
+  async createProjectIntake(intake: InsertProjectIntake): Promise<ProjectIntake> {
+    // Generate intake number
+    const year = new Date().getFullYear();
+    const existingCount = await db.select({ count: sql<number>`count(*)` })
+      .from(projectIntakes)
+      .where(sql`EXTRACT(YEAR FROM ${projectIntakes.createdAt}) = ${year}`);
+    const count = Number(existingCount[0]?.count || 0) + 1;
+    const intakeNumber = `INT-${year}-${String(count).padStart(3, '0')}`;
+    
+    const [newIntake] = await db.insert(projectIntakes)
+      .values({ ...intake, intakeNumber })
+      .returning();
+    return newIntake;
+  }
+
+  async updateProjectIntake(id: number, updates: UpdateProjectIntakeRequest): Promise<ProjectIntake> {
+    const [updated] = await db.update(projectIntakes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(projectIntakes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProjectIntake(id: number): Promise<void> {
+    await db.delete(projectIntakes).where(eq(projectIntakes.id, id));
+  }
+
+  async approveProjectIntake(id: number, approvedBy: string): Promise<Project> {
+    // Get the intake
+    const intake = await this.getProjectIntake(id);
+    if (!intake) {
+      throw new Error("Project intake not found");
+    }
+
+    // Create the project from intake data
+    const [newProject] = await db.insert(projects).values({
+      organizationId: intake.organizationId,
+      portfolioId: intake.portfolioId,
+      name: intake.projectName,
+      description: intake.description,
+      budget: intake.estimatedBudget || "0",
+      status: "Initiation",
+      priority: "Medium",
+      health: "Green",
+    }).returning();
+
+    // Update the intake with approval info and created project reference
+    await db.update(projectIntakes)
+      .set({
+        status: "approved",
+        currentStep: "submit_to_pmo",
+        pmoSubmitted: true,
+        approvedAt: new Date(),
+        approvedBy: approvedBy,
+        createdProjectId: newProject.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(projectIntakes.id, id));
+
+    return newProject;
   }
 }
 
