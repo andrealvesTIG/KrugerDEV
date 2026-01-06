@@ -258,6 +258,52 @@ export const projectFinancials = pgTable("project_financials", {
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
+// Cost Items (Hierarchical financial line items with monthly breakdown)
+export const costItems = pgTable("cost_items", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  parentId: integer("parent_id"), // Self-reference for hierarchy (null = root level)
+  name: text("name").notNull(), // Cost item name
+  wbs: text("wbs"), // Work Breakdown Structure code
+  comments: text("comments"),
+  category: text("category"), // "Direct Expense", "Licenses", "Outside Services", "Travel/Meals", "Project Material", etc.
+  fiscalYear: integer("fiscal_year").notNull(), // e.g., 2026
+  // Annual totals
+  aopTotal: numeric("aop_total").default("0"), // Annual Operating Plan (original budget)
+  fcstTotal: numeric("fcst_total").default("0"), // Forecast total
+  actTotal: numeric("act_total").default("0"), // Actual total
+  // Monthly forecasts (fiscal year Oct-Sep: M1=Oct, M2=Nov, ..., M12=Sep)
+  fcstM1: numeric("fcst_m1").default("0"), // October
+  fcstM2: numeric("fcst_m2").default("0"), // November
+  fcstM3: numeric("fcst_m3").default("0"), // December
+  fcstM4: numeric("fcst_m4").default("0"), // January
+  fcstM5: numeric("fcst_m5").default("0"), // February
+  fcstM6: numeric("fcst_m6").default("0"), // March
+  fcstM7: numeric("fcst_m7").default("0"), // April
+  fcstM8: numeric("fcst_m8").default("0"), // May
+  fcstM9: numeric("fcst_m9").default("0"), // June
+  fcstM10: numeric("fcst_m10").default("0"), // July
+  fcstM11: numeric("fcst_m11").default("0"), // August
+  fcstM12: numeric("fcst_m12").default("0"), // September
+  // Monthly actuals
+  actM1: numeric("act_m1").default("0"),
+  actM2: numeric("act_m2").default("0"),
+  actM3: numeric("act_m3").default("0"),
+  actM4: numeric("act_m4").default("0"),
+  actM5: numeric("act_m5").default("0"),
+  actM6: numeric("act_m6").default("0"),
+  actM7: numeric("act_m7").default("0"),
+  actM8: numeric("act_m8").default("0"),
+  actM9: numeric("act_m9").default("0"),
+  actM10: numeric("act_m10").default("0"),
+  actM11: numeric("act_m11").default("0"),
+  actM12: numeric("act_m12").default("0"),
+  sortOrder: integer("sort_order").default(0), // For manual ordering within parent
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
+});
+
 // === RELATIONS ===
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
@@ -319,11 +365,19 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   issues: many(issues),
   tasks: many(tasks),
   financials: many(projectFinancials),
+  costItems: many(costItems),
 }));
 
 export const projectFinancialsRelations = relations(projectFinancials, ({ one }) => ({
   project: one(projects, {
     fields: [projectFinancials.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const costItemsRelations = relations(costItems, ({ one }) => ({
+  project: one(projects, {
+    fields: [costItems.projectId],
     references: [projects.id],
   }),
 }));
@@ -453,6 +507,7 @@ export const insertResourceSchema = createInsertSchema(resources).omit({ id: tru
 export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourceAssignments).omit({ id: true, createdAt: true });
 export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
 export const insertRiskResourceAssignmentSchema = createInsertSchema(riskResourceAssignments).omit({ id: true, createdAt: true });
+export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -512,6 +567,9 @@ export type InsertIssueResourceAssignment = z.infer<typeof insertIssueResourceAs
 export type RiskResourceAssignment = typeof riskResourceAssignments.$inferSelect;
 export type InsertRiskResourceAssignment = z.infer<typeof insertRiskResourceAssignmentSchema>;
 
+export type CostItem = typeof costItems.$inferSelect;
+export type InsertCostItem = z.infer<typeof insertCostItemSchema>;
+
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
 export type UpdatePortfolioRequest = Partial<InsertPortfolio>;
@@ -539,6 +597,9 @@ export type UpdateProjectFinancialRequest = Partial<InsertProjectFinancial>;
 
 export type CreateResourceRequest = InsertResource;
 export type UpdateResourceRequest = Partial<InsertResource>;
+
+export type CreateCostItemRequest = InsertCostItem;
+export type UpdateCostItemRequest = Partial<InsertCostItem>;
 
 // Recycle Bin Types
 export type RecycleBinItemType = 'portfolio' | 'project' | 'task' | 'risk' | 'milestone' | 'issue';
