@@ -98,7 +98,12 @@ function formatCurrency(value: string | number | null | undefined): string {
 }
 
 function getMonthValue(item: CostItem, month: string, viewMode: ViewMode): number {
-  const prefix = viewMode === "fcst" ? "fcst" : viewMode === "act" ? "act" : "fcst";
+  if (viewMode === "aop") {
+    // AOP doesn't have monthly breakdown - show distributed budget (total / 12) for reference
+    const total = parseFloat(String(item.aopTotal || 0)) || 0;
+    return total / 12;
+  }
+  const prefix = viewMode === "fcst" ? "fcst" : "act";
   const key = `${prefix}${month}` as keyof CostItem;
   return parseFloat(String(item[key] || 0)) || 0;
 }
@@ -450,11 +455,18 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
 
                   {viewMode === "aop" ? (
                     <>
-                      {MONTHS.map((m) => (
-                        <div key={m.key} className="p-2 text-center text-sm text-muted-foreground">
-                          -
-                        </div>
-                      ))}
+                      {MONTHS.map((m) => {
+                        const distributedValue = getMonthValue(item, m.key, viewMode);
+                        return (
+                          <div 
+                            key={m.key} 
+                            className="p-2 text-center text-xs text-muted-foreground"
+                            data-testid={`cell-aop-${m.key}-${item.id}`}
+                          >
+                            {distributedValue > 0 ? formatCurrency(distributedValue) : "-"}
+                          </div>
+                        );
+                      })}
                     </>
                   ) : (
                     MONTHS.map((m) => {
