@@ -404,10 +404,6 @@ export default function Tasks() {
                   <Label>Description</Label>
                   <Textarea {...form.register("description")} />
                 </div>
-                <div className="space-y-2">
-                  <Label>Assignee</Label>
-                  <Input {...form.register("assignee")} placeholder="Name of assignee" />
-                </div>
                 <ResourceAssignment
                   organizationId={currentOrganization?.id || null}
                   selectedResourceIds={selectedResourceIds}
