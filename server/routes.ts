@@ -2654,6 +2654,47 @@ export async function registerRoutes(
     }
   });
 
+  // Convert MPP import to a project with tasks
+  app.post('/api/mpp-imports/:id/convert', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { name, portfolioId, description, status, priority } = req.body;
+      
+      // Get the import to verify it exists and get organizationId
+      const mppImport = await storage.getMppImport(id);
+      if (!mppImport) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+      
+      if (mppImport.projectId) {
+        return res.status(400).json({ message: "This import has already been converted to a project" });
+      }
+      
+      if (!name) {
+        return res.status(400).json({ message: "Project name is required" });
+      }
+      
+      const result = await storage.convertMppImportToProject(id, {
+        organizationId: mppImport.organizationId,
+        portfolioId: portfolioId ? Number(portfolioId) : undefined,
+        name,
+        description,
+        status,
+        priority,
+      });
+      
+      res.json({
+        success: true,
+        project: result.project,
+        taskCount: result.taskCount,
+        message: `Created project "${result.project.name}" with ${result.taskCount} tasks`,
+      });
+    } catch (err) {
+      console.error("Error converting MPP import:", err);
+      res.status(500).json({ message: "Error converting import to project" });
+    }
+  });
+
   // Delete an MPP import
   app.delete('/api/mpp-imports/:id', async (req, res) => {
     try {

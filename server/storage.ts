@@ -1487,6 +1487,104 @@ export class DatabaseStorage implements IStorage {
   async deleteMppImportTasks(importId: number): Promise<void> {
     await db.delete(mppImportTasks).where(eq(mppImportTasks.importId, importId));
   }
+
+  // Convert MPP Import to Project with Tasks
+  async convertMppImportToProject(
+    importId: number,
+    projectData: {
+      organizationId: number;
+      portfolioId?: number;
+      name: string;
+      description?: string;
+      status?: string;
+      priority?: string;
+    }
+  ): Promise<{ project: Project; taskCount: number }> {
+    // Get the import
+    const mppImport = await this.getMppImport(importId);
+    if (!mppImport) {
+      throw new Error("Import not found");
+    }
+
+    // Get the imported tasks
+    const importedTasks = await this.getMppImportTasks(importId);
+    
+    // Create the project
+    const [newProject] = await db.insert(projects).values({
+      organizationId: projectData.organizationId,
+      portfolioId: projectData.portfolioId || null,
+      name: projectData.name,
+      description: projectData.description || mppImport.fileName,
+      status: projectData.status || "Initiation",
+      priority: projectData.priority || "Medium",
+      health: "Green",
+      budget: "0",
+      completionPercentage: 0,
+    }).returning();
+
+    // Calculate default dates if needed
+    const today = new Date().toISOString().split('T')[0];
+    const defaultEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Create a mapping from old taskId to new task id
+    const taskIdMapping: Map<number, number> = new Map();
+    
+    // First pass: create all tasks without parent references
+    for (const importedTask of importedTasks) {
+      const startDate = importedTask.startDate || today;
+      const endDate = importedTask.finishDate || 
+        (importedTask.durationDays 
+          ? new Date(new Date(startDate).getTime() + importedTask.durationDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          : defaultEndDate);
+
+      const [newTask] = await db.insert(tasks).values({
+        projectId: newProject.id,
+        name: importedTask.taskName,
+        description: importedTask.notes || (importedTask.wbs ? `WBS: ${importedTask.wbs}` : undefined),
+        startDate,
+        endDate,
+        durationDays: importedTask.durationDays,
+        progress: importedTask.percentComplete || 0,
+        status: importedTask.percentComplete === 100 ? "Completed" : 
+                importedTask.percentComplete && importedTask.percentComplete > 0 ? "In Progress" : "Not Started",
+        parentId: null, // Will update in second pass
+      }).returning();
+
+      if (importedTask.taskId) {
+        taskIdMapping.set(importedTask.taskId, newTask.id);
+      }
+    }
+
+    // Second pass: update parent references
+    for (const importedTask of importedTasks) {
+      if (importedTask.parentTaskId && importedTask.taskId) {
+        const newTaskId = taskIdMapping.get(importedTask.taskId);
+        const newParentId = taskIdMapping.get(importedTask.parentTaskId);
+        
+        if (newTaskId && newParentId) {
+          await db.update(tasks)
+            .set({ parentId: newParentId })
+            .where(eq(tasks.id, newTaskId));
+        }
+      }
+    }
+
+    // Update the import with the created project ID
+    await db.update(mppImports)
+      .set({ projectId: newProject.id, status: "converted" })
+      .where(eq(mppImports.id, importId));
+
+    // Calculate and update project completion percentage based on tasks
+    const avgProgress = importedTasks.length > 0
+      ? Math.round(importedTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / importedTasks.length)
+      : 0;
+    
+    await db.update(projects)
+      .set({ completionPercentage: avgProgress })
+      .where(eq(projects.id, newProject.id));
+
+    return { project: newProject, taskCount: importedTasks.length };
+  }
 }
 
 export const storage = new DatabaseStorage();
