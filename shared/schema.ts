@@ -241,6 +241,63 @@ export const riskResourceAssignments = pgTable("risk_resource_assignments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Change Requests (Project change control)
+export const changeRequests = pgTable("change_requests", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  requestNumber: text("request_number"), // Auto-generated CR number (e.g., "CR-001")
+  title: text("title").notNull(),
+  description: text("description"),
+  justification: text("justification"), // Business justification for the change
+  type: text("type").default("Scope"), // Scope, Schedule, Budget, Resource, Quality
+  priority: text("priority").default("Medium"), // Low, Medium, High, Critical
+  status: text("status").default("Draft"), // Draft, Submitted, Under Review, Approved, Rejected, Implemented
+  impact: text("impact"), // Description of impact on project
+  requestedBy: text("requested_by"), // Name of requester
+  requestedDate: date("requested_date"),
+  reviewedBy: text("reviewed_by"), // Name of reviewer/approver
+  reviewedDate: date("reviewed_date"),
+  implementedDate: date("implemented_date"),
+  estimatedCost: numeric("estimated_cost"), // Cost impact of the change
+  estimatedEffort: text("estimated_effort"), // Effort estimate (e.g., "5 days")
+  affectedAreas: text("affected_areas"), // Comma-separated list of affected areas
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+});
+
+// Project Documents (Documentation management)
+export const projectDocuments = pgTable("project_documents", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  type: text("type").default("General"), // Charter, Plan, Requirements, Design, Test, Training, General
+  category: text("category"), // Project Management, Technical, Business, Compliance
+  version: text("version").default("1.0"),
+  status: text("status").default("Draft"), // Draft, In Review, Approved, Archived
+  fileName: text("file_name"), // Original file name if uploaded
+  fileUrl: text("file_url"), // URL/path to the document
+  fileSize: integer("file_size"), // Size in bytes
+  mimeType: text("mime_type"), // File MIME type
+  content: text("content"), // For text-based documents, store content directly
+  author: text("author"), // Document author
+  owner: text("owner"), // Document owner/maintainer
+  reviewedBy: text("reviewed_by"),
+  reviewedDate: date("reviewed_date"),
+  approvedBy: text("approved_by"),
+  approvedDate: date("approved_date"),
+  expiresAt: date("expires_at"), // Optional expiration date
+  tags: text("tags"), // Comma-separated tags for categorization
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+});
+
 // Project Financials (Budget/Plan/Actuals with CapEx/OpEx breakdown)
 export const projectFinancials = pgTable("project_financials", {
   id: serial("id").primaryKey(),
@@ -509,6 +566,20 @@ export const risksRelations = relations(risks, ({ one }) => ({
   }),
 }));
 
+export const changeRequestsRelations = relations(changeRequests, ({ one }) => ({
+  project: one(projects, {
+    fields: [changeRequests.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const projectDocumentsRelations = relations(projectDocuments, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectDocuments.projectId],
+    references: [projects.id],
+  }),
+}));
+
 export const milestonesRelations = relations(milestones, ({ one }) => ({
   project: one(projects, {
     fields: [milestones.projectId],
@@ -631,6 +702,8 @@ export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: tru
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
 export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit({ id: true, createdAt: true });
+export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
+export const insertProjectDocumentSchema = createInsertSchema(projectDocuments).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -702,6 +775,12 @@ export type InsertMppImport = z.infer<typeof insertMppImportSchema>;
 export type MppImportTask = typeof mppImportTasks.$inferSelect;
 export type InsertMppImportTask = z.infer<typeof insertMppImportTaskSchema>;
 
+export type ChangeRequest = typeof changeRequests.$inferSelect;
+export type InsertChangeRequest = z.infer<typeof insertChangeRequestSchema>;
+
+export type ProjectDocument = typeof projectDocuments.$inferSelect;
+export type InsertProjectDocument = z.infer<typeof insertProjectDocumentSchema>;
+
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
 export type UpdatePortfolioRequest = Partial<InsertPortfolio>;
@@ -735,6 +814,12 @@ export type UpdateCostItemRequest = Partial<InsertCostItem>;
 
 export type CreateProjectIntakeRequest = InsertProjectIntake;
 export type UpdateProjectIntakeRequest = Partial<InsertProjectIntake>;
+
+export type CreateChangeRequestRequest = InsertChangeRequest;
+export type UpdateChangeRequestRequest = Partial<InsertChangeRequest>;
+
+export type CreateProjectDocumentRequest = InsertProjectDocument;
+export type UpdateProjectDocumentRequest = Partial<InsertProjectDocument>;
 
 // Recycle Bin Types
 export type RecycleBinItemType = 'portfolio' | 'project' | 'task' | 'risk' | 'milestone' | 'issue';

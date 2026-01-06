@@ -2707,6 +2707,128 @@ export async function registerRoutes(
     }
   });
 
+  // =========== CHANGE REQUESTS ===========
+  
+  // Get all change requests for a project
+  app.get('/api/projects/:projectId/change-requests', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const changeRequests = await storage.getChangeRequests(projectId);
+      res.json(changeRequests);
+    } catch (err) {
+      console.error("Error fetching change requests:", err);
+      res.status(500).json({ message: "Error fetching change requests" });
+    }
+  });
+
+  // Create a change request
+  app.post('/api/projects/:projectId/change-requests', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const userId = (req.user as any)?.claims?.sub;
+      const changeRequest = await storage.createChangeRequest({
+        ...req.body,
+        projectId,
+        requestedBy: userId,
+      });
+      res.status(201).json(changeRequest);
+    } catch (err) {
+      console.error("Error creating change request:", err);
+      res.status(500).json({ message: "Error creating change request" });
+    }
+  });
+
+  // Update a change request
+  app.patch('/api/change-requests/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req.user as any)?.claims?.sub;
+      const updates = { ...req.body };
+      
+      // Track who reviewed/approved if status is changing to those states
+      if (updates.status === 'approved' || updates.status === 'rejected') {
+        updates.reviewedBy = userId;
+        updates.reviewedAt = new Date();
+      }
+      if (updates.status === 'implemented') {
+        updates.implementedAt = new Date();
+      }
+      
+      const changeRequest = await storage.updateChangeRequest(id, updates);
+      res.json(changeRequest);
+    } catch (err) {
+      console.error("Error updating change request:", err);
+      res.status(500).json({ message: "Error updating change request" });
+    }
+  });
+
+  // Delete a change request
+  app.delete('/api/change-requests/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteChangeRequest(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting change request:", err);
+      res.status(500).json({ message: "Error deleting change request" });
+    }
+  });
+
+  // =========== PROJECT DOCUMENTS ===========
+  
+  // Get all documents for a project
+  app.get('/api/projects/:projectId/documents', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const documents = await storage.getProjectDocuments(projectId);
+      res.json(documents);
+    } catch (err) {
+      console.error("Error fetching project documents:", err);
+      res.status(500).json({ message: "Error fetching documents" });
+    }
+  });
+
+  // Create a document record (metadata only - actual file upload handled separately)
+  app.post('/api/projects/:projectId/documents', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const userId = (req.user as any)?.claims?.sub;
+      const document = await storage.createProjectDocument({
+        ...req.body,
+        projectId,
+        uploadedBy: userId,
+      });
+      res.status(201).json(document);
+    } catch (err) {
+      console.error("Error creating project document:", err);
+      res.status(500).json({ message: "Error creating document" });
+    }
+  });
+
+  // Update a document
+  app.patch('/api/documents/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const document = await storage.updateProjectDocument(id, req.body);
+      res.json(document);
+    } catch (err) {
+      console.error("Error updating document:", err);
+      res.status(500).json({ message: "Error updating document" });
+    }
+  });
+
+  // Delete a document
+  app.delete('/api/documents/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteProjectDocument(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting document:", err);
+      res.status(500).json({ message: "Error deleting document" });
+    }
+  });
+
   // Delete all demo data for an organization (SuperAdmin only)
   app.delete('/api/demo-data/:organizationId', async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;

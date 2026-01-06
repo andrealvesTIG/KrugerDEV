@@ -5,6 +5,8 @@ import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory }
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
 import { useMilestones } from "@/hooks/use-milestones";
+import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useDeleteChangeRequest } from "@/hooks/use-change-requests";
+import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument, useDeleteProjectDocument } from "@/hooks/use-project-documents";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
@@ -19,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -29,7 +31,7 @@ import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOf
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
-import type { Task, ProjectFinancial, Risk, Issue } from "@shared/schema";
+import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
@@ -173,12 +175,14 @@ export default function ProjectDetails() {
       />
 
       <Tabs defaultValue="summary" className="w-full">
-        <TabsList className="bg-muted p-1 rounded-xl">
+        <TabsList className="bg-muted p-1 rounded-xl flex-wrap">
           <TabsTrigger value="summary" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Project Summary</TabsTrigger>
           <TabsTrigger value="tasks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Tasks</TabsTrigger>
           <TabsTrigger value="risks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Risks Log</TabsTrigger>
           <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Issues</TabsTrigger>
           <TabsTrigger value="financials" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Financials</TabsTrigger>
+          <TabsTrigger value="change-requests" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Change Requests</TabsTrigger>
+          <TabsTrigger value="documents" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Documents</TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
@@ -195,6 +199,12 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="financials">
             <FinancialsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="change-requests">
+            <ChangeRequestsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="documents">
+            <DocumentsTab projectId={project.id} />
           </TabsContent>
         </div>
       </Tabs>
@@ -2595,5 +2605,553 @@ function FinancialTableRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+function ChangeRequestsTab({ projectId }: { projectId: number }) {
+  const { data: changeRequests, isLoading } = useChangeRequests(projectId);
+  const createChangeRequest = useCreateChangeRequest(projectId);
+  const updateChangeRequest = useUpdateChangeRequest(projectId);
+  const deleteChangeRequest = useDeleteChangeRequest(projectId);
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<ChangeRequest | null>(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    type: 'scope' as 'scope' | 'schedule' | 'budget' | 'resource' | 'other',
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
+    impact: '',
+    justification: '',
+  });
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      description: '',
+      type: 'scope',
+      priority: 'medium',
+      impact: '',
+      justification: '',
+    });
+    setEditingRequest(null);
+  };
+
+  const handleSubmit = () => {
+    if (!formData.title.trim()) {
+      toast({ title: "Error", description: "Title is required", variant: "destructive" });
+      return;
+    }
+
+    if (editingRequest) {
+      updateChangeRequest.mutate({ id: editingRequest.id, data: formData }, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Change request updated" });
+          setIsDialogOpen(false);
+          resetForm();
+        }
+      });
+    } else {
+      createChangeRequest.mutate(formData, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Change request created" });
+          setIsDialogOpen(false);
+          resetForm();
+        }
+      });
+    }
+  };
+
+  const handleEdit = (request: ChangeRequest) => {
+    setEditingRequest(request);
+    setFormData({
+      title: request.title,
+      description: request.description || '',
+      type: request.type as any,
+      priority: request.priority as any,
+      impact: request.impact || '',
+      justification: request.justification || '',
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleStatusChange = (request: ChangeRequest, status: string) => {
+    updateChangeRequest.mutate({ id: request.id, data: { status } }, {
+      onSuccess: () => {
+        toast({ title: "Status Updated", description: `Change request marked as ${status}` });
+      }
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      pending: "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300",
+      under_review: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+      approved: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
+      rejected: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300",
+      implemented: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+    };
+    return styles[status] || styles.pending;
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    const styles: Record<string, string> = {
+      low: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400",
+      medium: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+      high: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+      critical: "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
+    };
+    return styles[priority] || styles.medium;
+  };
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <ClipboardList className="h-5 w-5" />
+            Change Requests
+          </CardTitle>
+          <CardDescription>Track and manage project change requests</CardDescription>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button size="sm" data-testid="button-add-change-request">
+              <Plus className="h-4 w-4 mr-1" /> New Request
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>{editingRequest ? 'Edit Change Request' : 'New Change Request'}</DialogTitle>
+              <DialogDescription>
+                {editingRequest ? 'Update the change request details' : 'Submit a new change request for this project'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="Brief title for the change request"
+                  data-testid="input-change-request-title"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v as any })}>
+                    <SelectTrigger data-testid="select-change-request-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="scope">Scope</SelectItem>
+                      <SelectItem value="schedule">Schedule</SelectItem>
+                      <SelectItem value="budget">Budget</SelectItem>
+                      <SelectItem value="resource">Resource</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select value={formData.priority} onValueChange={(v) => setFormData({ ...formData, priority: v as any })}>
+                    <SelectTrigger data-testid="select-change-request-priority">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Detailed description of the proposed change"
+                  rows={3}
+                  data-testid="input-change-request-description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Impact Assessment</Label>
+                <Textarea
+                  value={formData.impact}
+                  onChange={(e) => setFormData({ ...formData, impact: e.target.value })}
+                  placeholder="Describe the impact of this change on the project"
+                  rows={2}
+                  data-testid="input-change-request-impact"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Justification</Label>
+                <Textarea
+                  value={formData.justification}
+                  onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
+                  placeholder="Why is this change necessary?"
+                  rows={2}
+                  data-testid="input-change-request-justification"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
+              <Button 
+                onClick={handleSubmit} 
+                disabled={createChangeRequest.isPending || updateChangeRequest.isPending}
+                data-testid="button-submit-change-request"
+              >
+                {(createChangeRequest.isPending || updateChangeRequest.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingRequest ? 'Update' : 'Submit'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {!changeRequests || changeRequests.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No change requests yet. Click "New Request" to submit one.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {changeRequests.map((request) => (
+              <div 
+                key={request.id}
+                className="border rounded-lg p-4 space-y-3"
+                data-testid={`change-request-${request.id}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-medium truncate">{request.title}</h4>
+                      <Badge className={cn("text-xs", getStatusBadge(request.status))}>{request.status.replace('_', ' ')}</Badge>
+                      <Badge className={cn("text-xs", getPriorityBadge(request.priority))}>{request.priority}</Badge>
+                      <Badge variant="outline" className="text-xs">{request.type}</Badge>
+                    </div>
+                    {request.description && (
+                      <p className="text-sm text-muted-foreground mt-1">{request.description}</p>
+                    )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" data-testid={`button-change-request-menu-${request.id}`}>
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleEdit(request)}>
+                        <Pencil className="h-4 w-4 mr-2" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStatusChange(request, 'under_review')}>
+                        <Clock className="h-4 w-4 mr-2" /> Mark Under Review
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStatusChange(request, 'approved')}>
+                        <Check className="h-4 w-4 mr-2" /> Approve
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStatusChange(request, 'rejected')}>
+                        <X className="h-4 w-4 mr-2" /> Reject
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStatusChange(request, 'implemented')}>
+                        <CheckSquare className="h-4 w-4 mr-2" /> Mark Implemented
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => deleteChangeRequest.mutate(request.id)}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                {(request.impact || request.justification) && (
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {request.impact && (
+                      <div>
+                        <span className="text-muted-foreground">Impact:</span>
+                        <p className="text-slate-700 dark:text-slate-300">{request.impact}</p>
+                      </div>
+                    )}
+                    {request.justification && (
+                      <div>
+                        <span className="text-muted-foreground">Justification:</span>
+                        <p className="text-slate-700 dark:text-slate-300">{request.justification}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span>Created: {format(new Date(request.createdAt), 'MMM d, yyyy')}</span>
+                  {request.reviewedAt && <span>Reviewed: {format(new Date(request.reviewedAt), 'MMM d, yyyy')}</span>}
+                  {request.implementedAt && <span>Implemented: {format(new Date(request.implementedAt), 'MMM d, yyyy')}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DocumentsTab({ projectId }: { projectId: number }) {
+  const { data: documents, isLoading } = useProjectDocuments(projectId);
+  const createDocument = useCreateProjectDocument(projectId);
+  const updateDocument = useUpdateProjectDocument(projectId);
+  const deleteDocument = useDeleteProjectDocument(projectId);
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<ProjectDocument | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    category: 'general' as 'general' | 'contract' | 'requirement' | 'design' | 'test' | 'report' | 'other',
+    fileUrl: '',
+    version: '1.0',
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      category: 'general',
+      fileUrl: '',
+      version: '1.0',
+    });
+    setEditingDocument(null);
+  };
+
+  const handleSubmit = () => {
+    if (!formData.name.trim()) {
+      toast({ title: "Error", description: "Document name is required", variant: "destructive" });
+      return;
+    }
+
+    if (editingDocument) {
+      updateDocument.mutate({ id: editingDocument.id, data: formData }, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Document updated" });
+          setIsDialogOpen(false);
+          resetForm();
+        }
+      });
+    } else {
+      createDocument.mutate(formData, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Document added" });
+          setIsDialogOpen(false);
+          resetForm();
+        }
+      });
+    }
+  };
+
+  const handleEdit = (doc: ProjectDocument) => {
+    setEditingDocument(doc);
+    setFormData({
+      name: doc.name,
+      description: doc.description || '',
+      category: doc.category as any,
+      fileUrl: doc.fileUrl || '',
+      version: doc.version || '1.0',
+    });
+    setIsDialogOpen(true);
+  };
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'contract': return <FileText className="h-4 w-4" />;
+      case 'requirement': return <ClipboardList className="h-4 w-4" />;
+      case 'design': return <LayoutGrid className="h-4 w-4" />;
+      case 'test': return <CheckSquare className="h-4 w-4" />;
+      case 'report': return <FileText className="h-4 w-4" />;
+      default: return <FolderOpen className="h-4 w-4" />;
+    }
+  };
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <FolderOpen className="h-5 w-5" />
+            Project Documents
+          </CardTitle>
+          <CardDescription>Manage project documentation and files</CardDescription>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button size="sm" data-testid="button-add-document">
+              <Plus className="h-4 w-4 mr-1" /> Add Document
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>{editingDocument ? 'Edit Document' : 'Add Document'}</DialogTitle>
+              <DialogDescription>
+                {editingDocument ? 'Update the document details' : 'Add a new document reference to this project'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Document Name *</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., Project Charter, Requirements Spec"
+                  data-testid="input-document-name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v as any })}>
+                    <SelectTrigger data-testid="select-document-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="contract">Contract</SelectItem>
+                      <SelectItem value="requirement">Requirement</SelectItem>
+                      <SelectItem value="design">Design</SelectItem>
+                      <SelectItem value="test">Test</SelectItem>
+                      <SelectItem value="report">Report</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Version</Label>
+                  <Input
+                    value={formData.version}
+                    onChange={(e) => setFormData({ ...formData, version: e.target.value })}
+                    placeholder="e.g., 1.0, 2.1"
+                    data-testid="input-document-version"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Brief description of the document"
+                  rows={2}
+                  data-testid="input-document-description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>File URL / Link</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={formData.fileUrl}
+                    onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
+                    placeholder="https://... or path to file"
+                    className="flex-1"
+                    data-testid="input-document-url"
+                  />
+                  <Button variant="outline" size="icon">
+                    <LinkIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
+              <Button 
+                onClick={handleSubmit} 
+                disabled={createDocument.isPending || updateDocument.isPending}
+                data-testid="button-submit-document"
+              >
+                {(createDocument.isPending || updateDocument.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingDocument ? 'Update' : 'Add'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {!documents || documents.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No documents yet. Click "Add Document" to add one.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {documents.map((doc) => (
+              <div 
+                key={doc.id}
+                className="flex items-center justify-between gap-4 border rounded-lg p-3 hover-elevate"
+                data-testid={`document-${doc.id}`}
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="p-2 rounded-md bg-muted">
+                    {getCategoryIcon(doc.category)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-medium truncate">{doc.name}</h4>
+                      <Badge variant="outline" className="text-xs">{doc.category}</Badge>
+                      {doc.version && <span className="text-xs text-muted-foreground">v{doc.version}</span>}
+                    </div>
+                    {doc.description && (
+                      <p className="text-sm text-muted-foreground truncate">{doc.description}</p>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      Added {format(new Date(doc.uploadedAt), 'MMM d, yyyy')}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  {doc.fileUrl && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => window.open(doc.fileUrl!, '_blank')}
+                          data-testid={`button-open-document-${doc.id}`}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Open document</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => handleEdit(doc)}
+                    data-testid={`button-edit-document-${doc.id}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => deleteDocument.mutate(doc.id)}
+                    data-testid={`button-delete-document-${doc.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

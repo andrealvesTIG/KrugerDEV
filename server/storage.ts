@@ -5,6 +5,7 @@ import {
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks,
+  changeRequests, projectDocuments,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -28,6 +29,8 @@ import {
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
+  type ChangeRequest, type InsertChangeRequest, type UpdateChangeRequestRequest,
+  type ProjectDocument, type InsertProjectDocument, type UpdateProjectDocumentRequest,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
@@ -204,6 +207,20 @@ export interface IStorage {
   createMppImportTask(task: InsertMppImportTask): Promise<MppImportTask>;
   createMppImportTasks(tasks: InsertMppImportTask[]): Promise<MppImportTask[]>;
   deleteMppImportTasks(importId: number): Promise<void>;
+
+  // Change Requests
+  getChangeRequests(projectId: number): Promise<ChangeRequest[]>;
+  getChangeRequest(id: number): Promise<ChangeRequest | undefined>;
+  createChangeRequest(changeRequest: InsertChangeRequest): Promise<ChangeRequest>;
+  updateChangeRequest(id: number, updates: UpdateChangeRequestRequest): Promise<ChangeRequest>;
+  deleteChangeRequest(id: number): Promise<void>;
+
+  // Project Documents
+  getProjectDocuments(projectId: number): Promise<ProjectDocument[]>;
+  getProjectDocument(id: number): Promise<ProjectDocument | undefined>;
+  createProjectDocument(document: InsertProjectDocument): Promise<ProjectDocument>;
+  updateProjectDocument(id: number, updates: UpdateProjectDocumentRequest): Promise<ProjectDocument>;
+  deleteProjectDocument(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1606,6 +1623,64 @@ export class DatabaseStorage implements IStorage {
       .where(eq(projects.id, newProject.id));
 
     return { project: newProject, taskCount: importedTasks.length };
+  }
+
+  // Change Requests
+  async getChangeRequests(projectId: number): Promise<ChangeRequest[]> {
+    return await db.select().from(changeRequests)
+      .where(eq(changeRequests.projectId, projectId))
+      .orderBy(desc(changeRequests.createdAt));
+  }
+
+  async getChangeRequest(id: number): Promise<ChangeRequest | undefined> {
+    const [changeRequest] = await db.select().from(changeRequests).where(eq(changeRequests.id, id));
+    return changeRequest;
+  }
+
+  async createChangeRequest(changeRequest: InsertChangeRequest): Promise<ChangeRequest> {
+    const [created] = await db.insert(changeRequests).values(changeRequest).returning();
+    return created;
+  }
+
+  async updateChangeRequest(id: number, updates: UpdateChangeRequestRequest): Promise<ChangeRequest> {
+    const [updated] = await db.update(changeRequests)
+      .set(updates)
+      .where(eq(changeRequests.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteChangeRequest(id: number): Promise<void> {
+    await db.delete(changeRequests).where(eq(changeRequests.id, id));
+  }
+
+  // Project Documents
+  async getProjectDocuments(projectId: number): Promise<ProjectDocument[]> {
+    return await db.select().from(projectDocuments)
+      .where(eq(projectDocuments.projectId, projectId))
+      .orderBy(desc(projectDocuments.uploadedAt));
+  }
+
+  async getProjectDocument(id: number): Promise<ProjectDocument | undefined> {
+    const [document] = await db.select().from(projectDocuments).where(eq(projectDocuments.id, id));
+    return document;
+  }
+
+  async createProjectDocument(document: InsertProjectDocument): Promise<ProjectDocument> {
+    const [created] = await db.insert(projectDocuments).values(document).returning();
+    return created;
+  }
+
+  async updateProjectDocument(id: number, updates: UpdateProjectDocumentRequest): Promise<ProjectDocument> {
+    const [updated] = await db.update(projectDocuments)
+      .set(updates)
+      .where(eq(projectDocuments.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProjectDocument(id: number): Promise<void> {
+    await db.delete(projectDocuments).where(eq(projectDocuments.id, id));
   }
 }
 
