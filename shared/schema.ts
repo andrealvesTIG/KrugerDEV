@@ -193,6 +193,52 @@ export const taskDependencies = pgTable("task_dependencies", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Resources (Global list of team members/resources)
+export const resources = pgTable("resources", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  displayName: text("display_name").notNull(),
+  email: text("email"),
+  title: text("title"), // Job title/role
+  department: text("department"),
+  skills: text("skills"), // Comma-separated skills
+  hourlyRate: numeric("hourly_rate"), // For cost tracking
+  isActive: boolean("is_active").default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+});
+
+// Task Resource Assignments (Join table)
+export const taskResourceAssignments = pgTable("task_resource_assignments", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id).notNull(),
+  resourceId: integer("resource_id").references(() => resources.id).notNull(),
+  allocationPercentage: integer("allocation_percentage").default(100), // 0-100%
+  role: text("role"), // Role in this specific task (e.g., "Lead", "Support")
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Issue Resource Assignments (Join table)
+export const issueResourceAssignments = pgTable("issue_resource_assignments", {
+  id: serial("id").primaryKey(),
+  issueId: integer("issue_id").references(() => issues.id).notNull(),
+  resourceId: integer("resource_id").references(() => resources.id).notNull(),
+  role: text("role"), // Role (e.g., "Assignee", "Reviewer")
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Risk Resource Assignments (Join table)
+export const riskResourceAssignments = pgTable("risk_resource_assignments", {
+  id: serial("id").primaryKey(),
+  riskId: integer("risk_id").references(() => risks.id).notNull(),
+  resourceId: integer("resource_id").references(() => resources.id).notNull(),
+  role: text("role"), // Role (e.g., "Owner", "Mitigator")
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Project Financials (Budget/Plan/Actuals with CapEx/OpEx breakdown)
 export const projectFinancials = pgTable("project_financials", {
   id: serial("id").primaryKey(),
@@ -310,6 +356,50 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   changeLogs: many(taskChangeLogs),
   dependencies: many(taskDependencies, { relationName: "taskDependencies" }),
   dependentOn: many(taskDependencies, { relationName: "taskDependentOn" }),
+  resourceAssignments: many(taskResourceAssignments),
+}));
+
+export const resourcesRelations = relations(resources, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [resources.organizationId],
+    references: [organizations.id],
+  }),
+  taskAssignments: many(taskResourceAssignments),
+  issueAssignments: many(issueResourceAssignments),
+  riskAssignments: many(riskResourceAssignments),
+}));
+
+export const taskResourceAssignmentsRelations = relations(taskResourceAssignments, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskResourceAssignments.taskId],
+    references: [tasks.id],
+  }),
+  resource: one(resources, {
+    fields: [taskResourceAssignments.resourceId],
+    references: [resources.id],
+  }),
+}));
+
+export const issueResourceAssignmentsRelations = relations(issueResourceAssignments, ({ one }) => ({
+  issue: one(issues, {
+    fields: [issueResourceAssignments.issueId],
+    references: [issues.id],
+  }),
+  resource: one(resources, {
+    fields: [issueResourceAssignments.resourceId],
+    references: [resources.id],
+  }),
+}));
+
+export const riskResourceAssignmentsRelations = relations(riskResourceAssignments, ({ one }) => ({
+  risk: one(risks, {
+    fields: [riskResourceAssignments.riskId],
+    references: [risks.id],
+  }),
+  resource: one(resources, {
+    fields: [riskResourceAssignments.resourceId],
+    references: [resources.id],
+  }),
 }));
 
 export const taskChangeLogsRelations = relations(taskChangeLogs, ({ one }) => ({
@@ -358,6 +448,10 @@ export const insertRiskChangeLogSchema = createInsertSchema(riskChangeLogs).omit
 export const insertIssueChangeLogSchema = createInsertSchema(issueChangeLogs).omit({ id: true, changedAt: true });
 export const insertTaskDependencySchema = createInsertSchema(taskDependencies).omit({ id: true, createdAt: true });
 export const insertProjectFinancialSchema = createInsertSchema(projectFinancials).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertResourceSchema = createInsertSchema(resources).omit({ id: true, createdAt: true });
+export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourceAssignments).omit({ id: true, createdAt: true });
+export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
+export const insertRiskResourceAssignmentSchema = createInsertSchema(riskResourceAssignments).omit({ id: true, createdAt: true });
 
 // === TYPES ===
 
@@ -405,6 +499,18 @@ export type InsertTaskDependency = z.infer<typeof insertTaskDependencySchema>;
 export type ProjectFinancial = typeof projectFinancials.$inferSelect;
 export type InsertProjectFinancial = z.infer<typeof insertProjectFinancialSchema>;
 
+export type Resource = typeof resources.$inferSelect;
+export type InsertResource = z.infer<typeof insertResourceSchema>;
+
+export type TaskResourceAssignment = typeof taskResourceAssignments.$inferSelect;
+export type InsertTaskResourceAssignment = z.infer<typeof insertTaskResourceAssignmentSchema>;
+
+export type IssueResourceAssignment = typeof issueResourceAssignments.$inferSelect;
+export type InsertIssueResourceAssignment = z.infer<typeof insertIssueResourceAssignmentSchema>;
+
+export type RiskResourceAssignment = typeof riskResourceAssignments.$inferSelect;
+export type InsertRiskResourceAssignment = z.infer<typeof insertRiskResourceAssignmentSchema>;
+
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
 export type UpdatePortfolioRequest = Partial<InsertPortfolio>;
@@ -429,6 +535,9 @@ export type UpdateTaskRequest = Partial<InsertTask>;
 
 export type CreateProjectFinancialRequest = InsertProjectFinancial;
 export type UpdateProjectFinancialRequest = Partial<InsertProjectFinancial>;
+
+export type CreateResourceRequest = InsertResource;
+export type UpdateResourceRequest = Partial<InsertResource>;
 
 // Recycle Bin Types
 export type RecycleBinItemType = 'portfolio' | 'project' | 'task' | 'risk' | 'milestone' | 'issue';
