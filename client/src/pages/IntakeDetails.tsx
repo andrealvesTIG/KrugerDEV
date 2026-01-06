@@ -377,6 +377,48 @@ export default function IntakeDetails() {
             })}
           </div>
           
+          {!isLocked && (
+            <div className="flex items-center justify-between gap-4 flex-wrap mt-4 pt-4 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviousStep}
+                disabled={isFirstStep || updateIntake.isPending}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Previous
+              </Button>
+              
+              <div className="flex items-center gap-2">
+                {isLastStep ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsRejectDialogOpen(true)}
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />
+                      Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => approveIntake.mutate()}
+                      disabled={approveIntake.isPending}
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      {approveIntake.isPending ? "Converting..." : "Approve & Convert"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" onClick={handleNextStep} disabled={updateIntake.isPending}>
+                    Next Gate
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+          
           {currentStep?.helpText && !isLocked && (
             <div className="mt-4 p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
               <StepIcon className="inline h-4 w-4 mr-2" />
@@ -688,48 +730,6 @@ export default function IntakeDetails() {
         </TabsContent>
       </Tabs>
 
-      {!isLocked && (
-        <Card>
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <Button
-                variant="outline"
-                onClick={handlePreviousStep}
-                disabled={isFirstStep || updateIntake.isPending}
-              >
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                Previous Gate
-              </Button>
-              
-              <div className="flex items-center gap-2">
-                {isLastStep ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsRejectDialogOpen(true)}
-                    >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Reject
-                    </Button>
-                    <Button
-                      onClick={() => approveIntake.mutate()}
-                      disabled={approveIntake.isPending}
-                    >
-                      <Check className="h-4 w-4 mr-2" />
-                      {approveIntake.isPending ? "Converting..." : "Approve & Convert to Project"}
-                    </Button>
-                  </>
-                ) : (
-                  <Button onClick={handleNextStep} disabled={updateIntake.isPending}>
-                    Proceed to Next Gate
-                    <ChevronRight className="h-4 w-4 ml-2" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {isApproved && intake.createdProjectId && (
         <Card className="border-green-500/50 bg-green-500/5">
