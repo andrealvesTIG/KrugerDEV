@@ -26,6 +26,7 @@ import UserGuide from "@/pages/UserGuide";
 import Resources from "@/pages/Resources";
 import ProjectIntakes from "@/pages/ProjectIntakes";
 import IntakeDetails from "@/pages/IntakeDetails";
+import Integrations from "@/pages/Integrations";
 
 function Router() {
   return (
@@ -42,6 +43,7 @@ function Router() {
         <Route path="/issues" component={Issues} />
         <Route path="/resources" component={Resources} />
         <Route path="/calendar" component={Calendar} />
+        <Route path="/integrations" component={Integrations} />
         <Route path="/admin" component={Admin} />
         <Route path="/super-admin" component={SuperAdmin} />
         <Route path="/org-settings" component={OrgSettings} />
