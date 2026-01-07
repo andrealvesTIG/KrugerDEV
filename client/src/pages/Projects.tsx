@@ -85,7 +85,7 @@ export default function Projects() {
 
   const handleStatusChange = (projectId: number, newStatus: string) => {
     updateProject.mutate(
-      { id: projectId, data: { status: newStatus } },
+      { id: projectId, status: newStatus },
       {
         onSuccess: () => {
           toast({ title: "Project updated", description: `Status changed to ${newStatus}` });
