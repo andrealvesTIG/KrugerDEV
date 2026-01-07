@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel } from "lucide-react";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -17,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePortfolios } from "@/hooks/use-portfolios";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
 
 const WORKFLOW_STEPS = [
@@ -399,36 +401,74 @@ export default function ProjectIntakes() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {filteredIntakes?.map(intake => (
-            <Link key={intake.id} href={`/intakes/${intake.id}`} data-testid={`link-intake-${intake.id}`}>
-              <Card className="hover-elevate cursor-pointer">
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 flex-wrap mb-2">
-                        <span className="font-medium text-foreground">
-                          {intake.projectName}
-                        </span>
-                        {getStatusBadge(intake.status || "draft")}
-                        {intake.intakeNumber && (
-                          <span className="text-xs text-muted-foreground font-mono">{intake.intakeNumber}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                        <span>Current Gate: {getStepLabel(intake.currentStep || "intake_capture")}</span>
-                        {intake.businessUnit && <span>BU: {intake.businessUnit}</span>}
-                        {intake.createdAt && (
-                          <span>Created: {format(new Date(intake.createdAt), "MMM d, yyyy")}</span>
-                        )}
-                      </div>
+        <div className="space-y-6">
+          {filteredIntakes?.map((intake, index) => (
+            <motion.div
+              key={intake.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+            >
+              <Link href={`/intakes/${intake.id}`} data-testid={`link-intake-${intake.id}`}>
+                <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer">
+                  
+                  {/* Status Indicator Stripe */}
+                  <div className={cn(
+                    "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-all duration-300 group-hover:w-2",
+                    intake.status === 'approved' && "bg-gradient-to-b from-emerald-400 to-emerald-600",
+                    intake.status === 'rejected' && "bg-gradient-to-b from-rose-400 to-rose-600",
+                    intake.status === 'in_progress' && "bg-gradient-to-b from-blue-400 to-blue-600",
+                    (intake.status === 'draft' || !intake.status) && "bg-gradient-to-b from-slate-400 to-slate-600",
+                  )} />
+
+                  <div className="flex-1 pl-5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
+                        {intake.projectName}
+                      </h3>
+                      {getStatusBadge(intake.status || "draft")}
+                      {intake.intakeNumber && (
+                        <span className="text-xs text-muted-foreground font-mono">{intake.intakeNumber}</span>
+                      )}
                     </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <Gavel className="h-4 w-4 text-muted-foreground" />
+                        <span>Gate: {getStepLabel(intake.currentStep || "intake_capture")}</span>
+                      </div>
+                      {intake.createdAt && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>Created {format(new Date(intake.createdAt), "MMM d, yyyy")}</span>
+                        </div>
+                      )}
+                      {intake.businessUnit && (
+                        <div className="flex items-center gap-2">
+                          <span>BU: {intake.businessUnit}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-6 pl-5 sm:pl-0 mt-4 sm:mt-0">
+                    {/* Estimated Budget */}
+                    {intake.estimatedBudget && Number(intake.estimatedBudget) > 0 && (
+                      <div className="text-right hidden sm:block">
+                        <div className="flex items-center gap-1.5 justify-end text-muted-foreground mb-1">
+                          <DollarSign className="h-3.5 w-3.5" />
+                          <span className="text-xs font-medium uppercase tracking-wide">Est. Budget</span>
+                        </div>
+                        <p className="text-lg font-bold text-foreground">${Number(intake.estimatedBudget).toLocaleString()}</p>
+                      </div>
+                    )}
                     
-                    <div className="flex items-center gap-4">
+                    {/* Workflow Progress */}
+                    <div className="hidden md:block">
                       <WorkflowProgress 
                         currentStep={intake.currentStep || "intake_capture"} 
                         status={intake.status || "draft"} 
                       />
+                    </div>
                     
                     <div onClick={(e) => e.preventDefault()}>
                       <DropdownMenu>
@@ -466,11 +506,10 @@ export default function ProjectIntakes() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            </Link>
+                </div>
+              </Link>
+            </motion.div>
           ))}
         </div>
       )}
