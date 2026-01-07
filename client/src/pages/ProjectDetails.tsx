@@ -215,6 +215,39 @@ export default function ProjectDetails() {
             </SelectContent>
           </Select>
           
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" data-testid="button-download-project">
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Download Project</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={() => {
+                  window.open(`/api/projects/${project.id}/export?format=csv`, '_blank');
+                }}
+                data-testid="menu-download-csv"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Download as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => {
+                  window.open(`/api/projects/${project.id}/export?format=mspdi`, '_blank');
+                }}
+                data-testid="menu-download-mspdi"
+              >
+                <GanttChart className="h-4 w-4 mr-2" />
+                Download as MS Project XML
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
