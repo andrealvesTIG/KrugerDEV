@@ -21,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -39,6 +39,86 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+const PROJECT_STAGES = [
+  { value: "Initiation", label: "Initiation", description: "Project kickoff" },
+  { value: "Planning", label: "Planning", description: "Define scope & schedule" },
+  { value: "Execution", label: "Execution", description: "Active development" },
+  { value: "Monitoring", label: "Monitoring", description: "Track & control" },
+  { value: "Closing", label: "Closing", description: "Project completion" },
+];
+
+function BusinessProcessFlow({ 
+  currentStatus, 
+  onStatusChange 
+}: { 
+  currentStatus: string; 
+  onStatusChange: (status: string) => void;
+}) {
+  const currentIndex = PROJECT_STAGES.findIndex(s => s.value === currentStatus);
+  
+  return (
+    <div className="bg-muted/50 border border-border rounded-lg p-4">
+      <div className="flex items-center justify-between">
+        {PROJECT_STAGES.map((stage, index) => {
+          const isCompleted = index < currentIndex;
+          const isCurrent = index === currentIndex;
+          const isUpcoming = index > currentIndex;
+          
+          return (
+            <div key={stage.value} className="flex items-center flex-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => onStatusChange(stage.value)}
+                    className={cn(
+                      "flex flex-col items-center gap-1 group cursor-pointer transition-all",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md p-2"
+                    )}
+                    data-testid={`status-stage-${stage.value.toLowerCase()}`}
+                  >
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center transition-all border-2",
+                      isCompleted && "bg-primary border-primary text-primary-foreground",
+                      isCurrent && "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
+                      isUpcoming && "bg-muted border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50 group-hover:bg-muted/80"
+                    )}>
+                      {isCompleted ? (
+                        <CheckCircle2 className="h-5 w-5" />
+                      ) : isCurrent ? (
+                        <span className="text-sm font-bold">{index + 1}</span>
+                      ) : (
+                        <Circle className="h-5 w-5" />
+                      )}
+                    </div>
+                    <span className={cn(
+                      "text-xs font-medium transition-colors",
+                      (isCompleted || isCurrent) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}>
+                      {stage.label}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="font-medium">{stage.label}</p>
+                  <p className="text-xs text-muted-foreground">{stage.description}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Click to set status</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              {index < PROJECT_STAGES.length - 1 && (
+                <div className={cn(
+                  "flex-1 h-1 mx-2 rounded-full transition-colors",
+                  index < currentIndex ? "bg-primary" : "bg-muted-foreground/20"
+                )} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function ProjectDetails() {
   const [, params] = useRoute("/projects/:id");
@@ -91,20 +171,7 @@ export default function ProjectDetails() {
           </div>
           <p className="mt-2 max-w-2xl text-slate-500">{project.description}</p>
         </div>
-        <div className="flex gap-3">
-           <Select value={project.status} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Initiation">Initiation</SelectItem>
-              <SelectItem value="Planning">Planning</SelectItem>
-              <SelectItem value="Execution">Execution</SelectItem>
-              <SelectItem value="Monitoring">Monitoring</SelectItem>
-              <SelectItem value="Closing">Closing</SelectItem>
-            </SelectContent>
-          </Select>
-          
+        <div className="flex items-center gap-3">
            <Select value={project.health || "Green"} onValueChange={handleHealthChange}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Health" />
@@ -131,6 +198,12 @@ export default function ProjectDetails() {
           </Tooltip>
         </div>
       </div>
+
+      {/* Business Process Flow */}
+      <BusinessProcessFlow 
+        currentStatus={project.status} 
+        onStatusChange={handleStatusChange} 
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         <Card className="py-2">
