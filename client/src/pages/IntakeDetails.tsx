@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -173,6 +173,18 @@ export default function IntakeDetails() {
     }
   });
 
+  // Redirect if intake doesn't belong to current organization
+  useEffect(() => {
+    if (intake && currentOrganization && intake.organizationId !== currentOrganization.id) {
+      toast({
+        title: "Organization Changed",
+        description: "Redirecting to dashboard - this intake belongs to a different organization.",
+        variant: "default"
+      });
+      navigate("/");
+    }
+  }, [intake, currentOrganization, navigate, toast]);
+
   const handleSave = () => {
     updateIntake.mutate({ ...formData });
   };
@@ -284,6 +296,11 @@ export default function IntakeDetails() {
         </Button>
       </div>
     );
+  }
+
+  // Don't render if intake doesn't match current organization (will redirect)
+  if (currentOrganization && intake.organizationId !== currentOrganization.id) {
+    return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
   const currentStepIndex = getStepIndex(intake.currentStep || "intake_capture");

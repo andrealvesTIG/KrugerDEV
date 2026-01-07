@@ -39,6 +39,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useLocation } from "wouter";
 
 const PROJECT_STAGES = [
   { value: "Initiation", label: "Initiation", description: "Project kickoff" },
@@ -128,6 +129,20 @@ export default function ProjectDetails() {
   const { mutate: updateProject } = useUpdateProject();
   const { toast } = useToast();
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
+  const { currentOrganization } = useOrganization();
+  const [, setLocation] = useLocation();
+
+  // Redirect if project doesn't belong to current organization
+  useEffect(() => {
+    if (project && currentOrganization && project.organizationId !== currentOrganization.id) {
+      toast({
+        title: "Organization Changed",
+        description: "Redirecting to dashboard - this project belongs to a different organization.",
+        variant: "default"
+      });
+      setLocation("/");
+    }
+  }, [project, currentOrganization, setLocation, toast]);
 
   // Calculate financial budget total if financials exist
   const financialBudgetTotal = useMemo(() => {
@@ -140,6 +155,11 @@ export default function ProjectDetails() {
 
   if (isLoading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!project) return <div>Project not found</div>;
+  
+  // Don't render if project doesn't match current organization (will redirect)
+  if (currentOrganization && project.organizationId !== currentOrganization.id) {
+    return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
 
   const handleStatusChange = (status: string) => {
     updateProject({ id: project.id, status }, {
