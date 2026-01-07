@@ -3457,5 +3457,117 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // SuperAdmin: Update plan details (pricing, description)
+  app.put('/api/admin/plans/:id', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    const user = userId ? await storage.getUser(userId) : null;
+    
+    if (!user || user.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    
+    const planId = parseInt(req.params.id);
+    const { name, description, monthlyPriceCents, maxSeats, isActive } = req.body;
+    
+    try {
+      const [updated] = await db.update(plans)
+        .set({
+          ...(name !== undefined && { name }),
+          ...(description !== undefined && { description }),
+          ...(monthlyPriceCents !== undefined && { monthlyPriceCents }),
+          ...(maxSeats !== undefined && { maxSeats }),
+          ...(isActive !== undefined && { isActive }),
+        })
+        .where(eq(plans.id, planId))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ message: 'Plan not found' });
+      }
+      
+      await db.insert(billingAuditLogs).values({
+        actorUserId: userId,
+        action: 'PLAN_UPDATED',
+        entityType: 'plan',
+        entityId: planId.toString(),
+        metadata: { changes: req.body },
+      });
+      
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating plan:", err);
+      res.status(500).json({ message: "Failed to update plan" });
+    }
+  });
+
+  // SuperAdmin: Get plan meter rules
+  app.get('/api/admin/plans/:id/rules', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    const user = userId ? await storage.getUser(userId) : null;
+    
+    if (!user || user.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    
+    const planId = parseInt(req.params.id);
+    
+    try {
+      const rules = await db.select()
+        .from(planMeterRules)
+        .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
+        .where(eq(planMeterRules.planId, planId));
+      
+      res.json(rules.map(r => ({
+        ...r.plan_meter_rules,
+        meter: r.meters
+      })));
+    } catch (err) {
+      console.error("Error fetching plan rules:", err);
+      res.status(500).json({ message: "Failed to fetch plan rules" });
+    }
+  });
+
+  // SuperAdmin: Update plan meter rule
+  app.put('/api/admin/plans/:planId/rules/:ruleId', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    const user = userId ? await storage.getUser(userId) : null;
+    
+    if (!user || user.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    
+    const ruleId = parseInt(req.params.ruleId);
+    const { includedUnitsMonthly, hardCapUnits, overageUnitPriceMicrocents, isSharedPool } = req.body;
+    
+    try {
+      const [updated] = await db.update(planMeterRules)
+        .set({
+          ...(includedUnitsMonthly !== undefined && { includedUnitsMonthly }),
+          ...(hardCapUnits !== undefined && { hardCapUnits }),
+          ...(overageUnitPriceMicrocents !== undefined && { overageUnitPriceMicrocents }),
+          ...(isSharedPool !== undefined && { isSharedPool }),
+        })
+        .where(eq(planMeterRules.id, ruleId))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ message: 'Rule not found' });
+      }
+      
+      await db.insert(billingAuditLogs).values({
+        actorUserId: userId,
+        action: 'PLAN_RULE_UPDATED',
+        entityType: 'plan_meter_rule',
+        entityId: ruleId.toString(),
+        metadata: { changes: req.body },
+      });
+      
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating plan rule:", err);
+      res.status(500).json({ message: "Failed to update plan rule" });
+    }
+  });
+
   return httpServer;
 }
