@@ -3149,7 +3149,26 @@ Return ONLY valid JSON, no markdown or explanations.`;
   app.get('/api/billing/plans', async (req, res) => {
     try {
       const allPlans = await db.select().from(plans).where(eq(plans.isActive, true));
-      res.json(allPlans);
+      
+      const plansWithRules = await Promise.all(allPlans.map(async (plan) => {
+        const rules = await db.select().from(planMeterRules)
+          .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
+          .where(eq(planMeterRules.planId, plan.id));
+        
+        return {
+          ...plan,
+          meterRules: rules.map(r => ({
+            meterCode: r.meters.code,
+            meterName: r.meters.name,
+            ruleType: r.plan_meter_rules.ruleType,
+            includedUnitsMonthly: r.plan_meter_rules.includedUnitsMonthly,
+            hardCapUnits: r.plan_meter_rules.hardCapUnits,
+            overageUnitPriceMicrocents: r.plan_meter_rules.overageUnitPriceMicrocents,
+          })),
+        };
+      }));
+      
+      res.json(plansWithRules);
     } catch (err) {
       console.error("Error fetching plans:", err);
       res.status(500).json({ message: "Failed to fetch plans" });
@@ -3191,7 +3210,24 @@ Return ONLY valid JSON, no markdown or explanations.`;
     try {
       const subscription = await billingProvider.ensureUserHasSubscription(userId);
       const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
-      res.json({ ...subscription, plan });
+      
+      const rules = await db.select().from(planMeterRules)
+        .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
+        .where(eq(planMeterRules.planId, plan.id));
+      
+      const planWithRules = {
+        ...plan,
+        meterRules: rules.map(r => ({
+          meterCode: r.meters.code,
+          meterName: r.meters.name,
+          ruleType: r.plan_meter_rules.ruleType,
+          includedUnitsMonthly: r.plan_meter_rules.includedUnitsMonthly,
+          hardCapUnits: r.plan_meter_rules.hardCapUnits,
+          overageUnitPriceMicrocents: r.plan_meter_rules.overageUnitPriceMicrocents,
+        })),
+      };
+      
+      res.json({ ...subscription, plan: planWithRules });
     } catch (err) {
       console.error("Error fetching subscription:", err);
       res.status(500).json({ message: "Failed to fetch subscription" });

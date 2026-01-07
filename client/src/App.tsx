@@ -29,6 +29,7 @@ import Resources from "@/pages/Resources";
 import ProjectIntakes from "@/pages/ProjectIntakes";
 import IntakeDetails from "@/pages/IntakeDetails";
 import Integrations from "@/pages/Integrations";
+import Billing from "@/pages/Billing";
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -90,6 +91,7 @@ function Router() {
         <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
         <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
         <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
+        <Route path="/billing" component={Billing} />
         <Route path="/admin" component={Admin} />
         <Route path="/super-admin" component={SuperAdmin} />
         <Route path="/org-settings" component={OrgSettings} />
