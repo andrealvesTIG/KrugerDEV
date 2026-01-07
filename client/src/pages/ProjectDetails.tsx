@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -813,9 +813,21 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
 function ProjectCommentsFeed({ projectId }: { projectId: number }) {
   const { toast } = useToast();
   const [newComment, setNewComment] = useState("");
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyContent, setReplyContent] = useState("");
   const { data: comments, isLoading } = useProjectComments(projectId);
   const createComment = useCreateProjectComment(projectId);
   const deleteComment = useDeleteProjectComment(projectId);
+
+  // Group comments by parent - top level first, then replies
+  const topLevelComments = comments?.filter(c => !c.parentId) || [];
+  const repliesByParent = comments?.reduce((acc, c) => {
+    if (c.parentId) {
+      if (!acc[c.parentId]) acc[c.parentId] = [];
+      acc[c.parentId].push(c);
+    }
+    return acc;
+  }, {} as Record<number, typeof comments>) || {};
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -832,6 +844,21 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
     });
   };
 
+  const handleReplySubmit = (parentId: number) => {
+    if (!replyContent.trim()) return;
+    
+    createComment.mutate({ content: replyContent.trim(), parentId }, {
+      onSuccess: () => {
+        setReplyContent("");
+        setReplyingTo(null);
+        toast({ title: "Reply added" });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to add reply", variant: "destructive" });
+      }
+    });
+  };
+
   const handleDelete = (id: number) => {
     deleteComment.mutate(id, {
       onSuccess: () => {
@@ -842,6 +869,74 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
       }
     });
   };
+
+  // Highlight @mentions in comment text
+  const renderContent = (content: string) => {
+    const mentionRegex = /@(\w+(?:\.\w+)*(?:@[\w.-]+)?)/g;
+    const result: (string | JSX.Element)[] = [];
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = mentionRegex.exec(content)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        result.push(content.slice(lastIndex, match.index));
+      }
+      // Add the highlighted mention (match[0] includes the @)
+      result.push(
+        <span key={match.index} className="text-primary font-medium">{match[0]}</span>
+      );
+      lastIndex = mentionRegex.lastIndex;
+    }
+    // Add remaining text after last match
+    if (lastIndex < content.length) {
+      result.push(content.slice(lastIndex));
+    }
+    
+    return result.length > 0 ? result : content;
+  };
+
+  const renderComment = (comment: typeof topLevelComments[0], isReply = false) => (
+    <div 
+      key={comment.id} 
+      className={`flex items-start gap-3 group p-2 rounded-md hover-elevate ${isReply ? 'ml-8 border-l-2 border-muted' : ''}`} 
+      data-testid={`comment-${comment.id}`}
+    >
+      <div className={`${isReply ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0`}>
+        <User className={`${isReply ? 'h-3 w-3' : 'h-4 w-4'} text-primary`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium">{comment.authorName}</span>
+          <span className="text-xs text-muted-foreground">
+            {format(new Date(comment.createdAt!), 'MMM d, yyyy h:mm a')}
+          </span>
+        </div>
+        <p className="text-sm text-muted-foreground mt-0.5 break-words">{renderContent(comment.content)}</p>
+        {!isReply && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 mt-1 text-xs text-muted-foreground"
+            onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+            data-testid={`button-reply-${comment.id}`}
+          >
+            <Reply className="h-3 w-3 mr-1" />
+            Reply
+          </Button>
+        )}
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={() => handleDelete(comment.id)}
+        data-testid={`button-delete-comment-${comment.id}`}
+      >
+        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+      </Button>
+    </div>
+  );
 
   return (
     <Card className="mt-4">
@@ -859,7 +954,7 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
           <Input
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add a comment..."
+            placeholder="Add a comment... (use @username to mention)"
             className="flex-1"
             data-testid="input-new-comment"
           />
@@ -877,31 +972,44 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
           <div className="flex justify-center py-4">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : comments && comments.length > 0 ? (
+        ) : topLevelComments.length > 0 ? (
           <div className="space-y-3">
-            {comments.map((comment) => (
-              <div key={comment.id} className="flex items-start gap-3 group p-2 rounded-md hover-elevate" data-testid={`comment-${comment.id}`}>
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <User className="h-4 w-4 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{comment.authorName}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(comment.createdAt!), 'MMM d, yyyy h:mm a')}
-                    </span>
+            {topLevelComments.map((comment) => (
+              <div key={comment.id}>
+                {renderComment(comment)}
+                
+                {/* Reply form */}
+                {replyingTo === comment.id && (
+                  <div className="ml-8 mt-2 flex gap-2">
+                    <Input
+                      value={replyContent}
+                      onChange={(e) => setReplyContent(e.target.value)}
+                      placeholder="Write a reply... (use @username to mention)"
+                      className="flex-1"
+                      autoFocus
+                      data-testid={`input-reply-${comment.id}`}
+                    />
+                    <Button
+                      size="icon"
+                      onClick={() => handleReplySubmit(comment.id)}
+                      disabled={!replyContent.trim() || createComment.isPending}
+                      data-testid={`button-submit-reply-${comment.id}`}
+                    >
+                      {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => { setReplyingTo(null); setReplyContent(""); }}
+                      data-testid={`button-cancel-reply-${comment.id}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-0.5 break-words">{comment.content}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => handleDelete(comment.id)}
-                  data-testid={`button-delete-comment-${comment.id}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                </Button>
+                )}
+                
+                {/* Replies */}
+                {repliesByParent[comment.id]?.map((reply) => renderComment(reply, true))}
               </div>
             ))}
           </div>
