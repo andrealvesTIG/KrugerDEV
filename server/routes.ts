@@ -3557,16 +3557,19 @@ Return ONLY valid JSON, no markdown or explanations.`;
       let documentCount = 0;
       
       if (orgIds.length > 0) {
+        // Convert JS array to PostgreSQL array format
+        const orgIdsArray = `{${orgIds.join(',')}}`;
+        
         // Count projects (excluding deleted)
         const projectResult = await db.execute(
-          sql`SELECT COUNT(*) as count FROM projects WHERE organization_id = ANY(${orgIds}) AND deleted_at IS NULL`
+          sql`SELECT COUNT(*) as count FROM projects WHERE organization_id = ANY(${orgIdsArray}::int[]) AND deleted_at IS NULL`
         );
         projectCount = parseInt(projectResult.rows[0]?.count as string || '0');
         
         // Count tasks (excluding deleted)
         const taskResult = await db.execute(
           sql`SELECT COUNT(*) as count FROM tasks 
-              WHERE project_id IN (SELECT id FROM projects WHERE organization_id = ANY(${orgIds}) AND deleted_at IS NULL) 
+              WHERE project_id IN (SELECT id FROM projects WHERE organization_id = ANY(${orgIdsArray}::int[]) AND deleted_at IS NULL) 
               AND deleted_at IS NULL`
         );
         taskCount = parseInt(taskResult.rows[0]?.count as string || '0');
@@ -3574,7 +3577,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
         // Count documents (excluding deleted)
         const docResult = await db.execute(
           sql`SELECT COUNT(*) as count FROM project_documents 
-              WHERE project_id IN (SELECT id FROM projects WHERE organization_id = ANY(${orgIds}) AND deleted_at IS NULL) 
+              WHERE project_id IN (SELECT id FROM projects WHERE organization_id = ANY(${orgIdsArray}::int[]) AND deleted_at IS NULL) 
               AND deleted_at IS NULL`
         );
         documentCount = parseInt(docResult.rows[0]?.count as string || '0');
