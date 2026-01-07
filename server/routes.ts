@@ -2871,7 +2871,7 @@ export async function registerRoutes(
     }
   });
 
-  // Create a comment for a project
+  // Create a comment for a project (supports replies via parentId and @mentions)
   app.post('/api/projects/:projectId/comments', async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
@@ -2898,15 +2898,73 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Comment content is required" });
       }
       
+      const parentId = req.body.parentId ? Number(req.body.parentId) : null;
+      
+      // Parse @mentions from content (match @username patterns)
+      const mentionRegex = /@(\w+(?:\.\w+)*(?:@[\w.-]+)?)/g;
+      const mentionMatches = content.match(mentionRegex) || [];
+      const mentionedUsernames = mentionMatches.map((m: string) => m.substring(1)); // Remove @ prefix
+      
+      // Find mentioned users by username or email
+      const allUsers = await storage.getAllUsers();
+      const mentionedUsers = allUsers.filter(u => 
+        mentionedUsernames.some((mention: string) => 
+          u.username?.toLowerCase() === mention.toLowerCase() ||
+          u.email?.toLowerCase() === mention.toLowerCase()
+        )
+      );
+      const mentionedUserIds = mentionedUsers.map(u => u.id);
+      
       const user = await storage.getUser(userId);
+      const authorName = user?.firstName && user?.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user?.username || user?.email || 'Unknown';
+      
       const comment = await storage.createProjectComment({
         projectId,
+        parentId,
         authorId: userId,
-        authorName: user?.firstName && user?.lastName 
-          ? `${user.firstName} ${user.lastName}` 
-          : user?.username || 'Unknown',
+        authorName,
         content,
+        mentions: mentionedUserIds.length > 0 ? mentionedUserIds : null,
       });
+      
+      // Create notifications for mentioned users
+      for (const mentionedUser of mentionedUsers) {
+        if (mentionedUser.id !== userId) { // Don't notify self
+          await storage.createNotification({
+            userId: mentionedUser.id,
+            type: 'mention',
+            title: 'You were mentioned in a comment',
+            message: `${authorName} mentioned you in a comment on "${project.name}"`,
+            projectId,
+            commentId: comment.id,
+            fromUserId: userId,
+            fromUserName: authorName,
+          });
+        }
+      }
+      
+      // If this is a reply, also notify the parent comment author
+      if (parentId) {
+        const parentComment = await storage.getProjectComment(parentId);
+        if (parentComment && parentComment.authorId && parentComment.authorId !== userId) {
+          // Check if we already notified this user via mention
+          if (!mentionedUserIds.includes(parentComment.authorId)) {
+            await storage.createNotification({
+              userId: parentComment.authorId,
+              type: 'comment_reply',
+              title: 'Someone replied to your comment',
+              message: `${authorName} replied to your comment on "${project.name}"`,
+              projectId,
+              commentId: comment.id,
+              fromUserId: userId,
+              fromUserName: authorName,
+            });
+          }
+        }
+      }
+      
       res.status(201).json(comment);
     } catch (err) {
       console.error("Error creating project comment:", err);
@@ -2945,6 +3003,73 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error deleting comment:", err);
       res.status(500).json({ message: "Error deleting comment" });
+    }
+  });
+
+  // =========== NOTIFICATIONS ===========
+  
+  // Get all notifications for the current user
+  app.get('/api/notifications', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const notifications = await storage.getNotifications(userId);
+      res.json(notifications);
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+      res.status(500).json({ message: "Error fetching notifications" });
+    }
+  });
+
+  // Get unread notification count
+  app.get('/api/notifications/unread-count', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const count = await storage.getUnreadNotificationCount(userId);
+      res.json({ count });
+    } catch (err) {
+      console.error("Error fetching notification count:", err);
+      res.status(500).json({ message: "Error fetching notification count" });
+    }
+  });
+
+  // Mark a notification as read
+  app.patch('/api/notifications/:id/read', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const id = Number(req.params.id);
+      await storage.markNotificationRead(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+      res.status(500).json({ message: "Error marking notification as read" });
+    }
+  });
+
+  // Mark all notifications as read
+  app.patch('/api/notifications/read-all', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      await storage.markAllNotificationsRead(userId);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error marking all notifications as read:", err);
+      res.status(500).json({ message: "Error marking all notifications as read" });
     }
   });
 
