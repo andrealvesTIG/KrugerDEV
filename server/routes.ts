@@ -3490,7 +3490,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
         action: 'PLAN_UPDATED',
         entityType: 'plan',
         entityId: planId.toString(),
-        metadata: { changes: req.body },
+        metadataJson: { changes: req.body },
       });
       
       res.json(updated);
@@ -3559,7 +3559,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
         action: 'PLAN_RULE_UPDATED',
         entityType: 'plan_meter_rule',
         entityId: ruleId.toString(),
-        metadata: { changes: req.body },
+        metadataJson: { changes: req.body },
       });
       
       res.json(updated);

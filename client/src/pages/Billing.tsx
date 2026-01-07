@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight } from "lucide-react";
+import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import type { Plan, Subscription, UsageRollup } from "@shared/schema";
 
 interface PlanWithRules extends Plan {
+  monthlyPriceCents?: number | null;
   meterRules?: Array<{
     meterCode: string;
     meterName: string;
@@ -43,6 +44,11 @@ const meterLabels: Record<string, string> = {
 
 function formatPrice(microcents: number): string {
   return `$${(microcents / 1000000).toFixed(2)}`;
+}
+
+function formatPlanPrice(cents: number | null | undefined): string {
+  if (!cents || cents === 0) return "Free";
+  return `$${(cents / 100).toFixed(2)}`;
 }
 
 function getLimit(rules: PlanWithRules['meterRules'], meterCode: string): { included: number | null; hardCap: number | null; overage: number | null } {
@@ -229,6 +235,40 @@ export default function Billing() {
         </Card>
       )}
 
+      <Card data-testid="card-payment-methods">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Payment Methods
+          </CardTitle>
+          <CardDescription>
+            {currentPlan?.code === "FREE" 
+              ? "Add a payment method to upgrade to a paid plan" 
+              : "Manage your payment methods for subscription billing"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4 p-4 rounded-lg border border-dashed bg-muted/30">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                <CreditCard className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-medium text-muted-foreground">No payment method on file</p>
+                <p className="text-sm text-muted-foreground">Payment methods will be managed through Stripe</p>
+              </div>
+            </div>
+            <Button variant="outline" disabled data-testid="button-add-payment-method">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Payment Method
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Stripe integration coming soon. For now, you can explore all features on the Free plan.
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="space-y-4">
         <h2 className="text-2xl font-display font-bold">Available Plans</h2>
         <div className="grid gap-6 md:grid-cols-3">
@@ -253,7 +293,15 @@ export default function Billing() {
                       <Badge variant="secondary" className="text-xs">Current</Badge>
                     )}
                   </div>
-                  <CardDescription>{plan.description || `${plan.name} plan features`}</CardDescription>
+                  <div className="mt-2">
+                    <span className="text-3xl font-bold" data-testid={`price-${plan.code.toLowerCase()}`}>
+                      {formatPlanPrice(plan.monthlyPriceCents)}
+                    </span>
+                    {plan.monthlyPriceCents && plan.monthlyPriceCents > 0 ? (
+                      <span className="text-muted-foreground text-sm">/month</span>
+                    ) : null}
+                  </div>
+                  <CardDescription className="mt-2">{plan.description || `${plan.name} plan features`}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
