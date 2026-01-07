@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -119,9 +120,103 @@ export default function OrgSettings() {
         )}
       </div>
 
+      {orgId && currentOrg && <ModuleVisibilitySection organization={currentOrg} />}
       {orgId && <MembersSection organizationId={orgId} orgName={currentOrg?.name || ''} />}
       {orgId && <RecycleBinSection organizationId={orgId} />}
     </div>
+  );
+}
+
+const availableModules = [
+  { key: "dashboard", name: "Dashboard", icon: LayoutDashboard, description: "Overview and analytics" },
+  { key: "portfolios", name: "Portfolios", icon: Briefcase, description: "Group and manage portfolios" },
+  { key: "projects", name: "Projects", icon: FolderKanban, description: "Project management" },
+  { key: "intakes", name: "Intakes", icon: FileInput, description: "Project intake requests" },
+  { key: "tasks", name: "Tasks", icon: CheckSquare, description: "Task tracking" },
+  { key: "issues", name: "Issues", icon: CircleDot, description: "Issue tracking" },
+  { key: "resources", name: "Resources", icon: Users, description: "Resource management" },
+  { key: "calendar", name: "Calendar", icon: Calendar, description: "Calendar view" },
+  { key: "integrations", name: "Integrations", icon: Plug, description: "External integrations" },
+];
+
+function ModuleVisibilitySection({ organization }: { organization: Organization }) {
+  const { toast } = useToast();
+  const hiddenModules = organization.hiddenModules || [];
+  
+  const updateOrgMutation = useMutation({
+    mutationFn: async (newHiddenModules: string[]) => {
+      return apiRequest('PUT', `/api/organizations/${organization.id}`, { 
+        hiddenModules: newHiddenModules 
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      toast({ title: "Saved", description: "Module visibility settings updated" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update settings", variant: "destructive" });
+    }
+  });
+
+  const toggleModule = (moduleKey: string) => {
+    const isHidden = hiddenModules.includes(moduleKey);
+    const newHiddenModules = isHidden 
+      ? hiddenModules.filter(k => k !== moduleKey)
+      : [...hiddenModules, moduleKey];
+    updateOrgMutation.mutate(newHiddenModules);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <EyeOff className="h-5 w-5" />
+          Module Visibility
+        </CardTitle>
+        <CardDescription>
+          Control which modules are visible in the sidebar for this organization. Hidden modules will not appear in navigation.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {availableModules.map((module) => {
+            const isHidden = hiddenModules.includes(module.key);
+            const Icon = module.icon;
+            return (
+              <div 
+                key={module.key} 
+                className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
+                data-testid={`module-toggle-${module.key}`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-md ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="font-medium flex items-center gap-2">
+                      {module.name}
+                      {isHidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                    </div>
+                    <div className="text-sm text-muted-foreground">{module.description}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </span>
+                  <Switch
+                    checked={!isHidden}
+                    onCheckedChange={() => toggleModule(module.key)}
+                    disabled={updateOrgMutation.isPending}
+                    data-testid={`switch-module-${module.key}`}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
