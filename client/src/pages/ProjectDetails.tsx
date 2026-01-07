@@ -870,15 +870,25 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
     const atIndex = textBeforeCursor.lastIndexOf('@');
     
     if (atIndex !== -1) {
-      const newValue = currentValue.slice(0, atIndex) + '@' + mentionText + ' ' + currentValue.slice(cursorPos);
+      const insertedMention = '@' + mentionText + ' ';
+      const newValue = currentValue.slice(0, atIndex) + insertedMention + currentValue.slice(cursorPos);
+      const newCursorPos = atIndex + insertedMention.length;
+      
       if (mentionTarget === 'new') {
         setNewComment(newValue);
       } else {
         setReplyContent(newValue);
       }
+      
+      // Restore cursor position after React updates
+      requestAnimationFrame(() => {
+        if (inputElement) {
+          inputElement.focus();
+          inputElement.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      });
     }
     setShowMentions(false);
-    inputElement?.focus();
   };
 
   // Group comments by parent - top level first, then replies
