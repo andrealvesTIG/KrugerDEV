@@ -2471,9 +2471,22 @@ export async function registerRoutes(
   // Update a project intake
   app.put('/api/project-intakes/:id', async (req, res) => {
     try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const id = Number(req.params.id);
       const existing = await storage.getProjectIntake(id);
       if (!existing) return res.status(404).json({ message: "Project intake not found" });
+      
+      // Check user has access to the organization this intake belongs to
+      if (existing.organizationId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(existing.organizationId)) {
+          return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+      }
       
       const updated = await storage.updateProjectIntake(id, req.body);
       res.json(updated);
@@ -2486,9 +2499,23 @@ export async function registerRoutes(
   // Delete a project intake
   app.delete('/api/project-intakes/:id', async (req, res) => {
     try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const id = Number(req.params.id);
       const existing = await storage.getProjectIntake(id);
       if (!existing) return res.status(404).json({ message: "Project intake not found" });
+      
+      // Check user has access to the organization this intake belongs to
+      if (existing.organizationId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(existing.organizationId)) {
+          return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+      }
+      
       await storage.deleteProjectIntake(id);
       res.status(204).send();
     } catch (err) {
