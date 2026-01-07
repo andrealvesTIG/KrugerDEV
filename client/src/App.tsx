@@ -31,6 +31,7 @@ import IntakeDetails from "@/pages/IntakeDetails";
 import Integrations from "@/pages/Integrations";
 import Billing from "@/pages/Billing";
 import AuthPage from "@/pages/AuthPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -114,6 +115,7 @@ function App() {
             <Toaster />
             <Switch>
               <Route path="/auth" component={AuthPage} />
+              <Route path="/reset-password" component={ResetPasswordPage} />
               <Route>
                 <Router />
               </Route>

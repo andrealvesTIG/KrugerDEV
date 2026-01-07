@@ -7,11 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 
+type AuthMode = "login" | "register" | "forgot-password";
+
 export default function AuthPage() {
-  const [isLogin, setIsLogin] = useState(true);
+  const [mode, setMode] = useState<AuthMode>("login");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -66,36 +68,85 @@ export default function AuthPage() {
     },
   });
 
+  const forgotPasswordMutation = useMutation({
+    mutationFn: async (data: { email: string }) => {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Request failed");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Check Your Email", description: data.message });
+      setMode("login");
+      setEmail("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Request Failed", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLogin) {
+    if (mode === "login") {
       loginMutation.mutate({ email, password });
-    } else {
+    } else if (mode === "register") {
       registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined });
+    } else if (mode === "forgot-password") {
+      forgotPasswordMutation.mutate({ email });
     }
   };
 
-  const isPending = loginMutation.isPending || registerMutation.isPending;
+  const isPending = loginMutation.isPending || registerMutation.isPending || forgotPasswordMutation.isPending;
+
+  const getTitle = () => {
+    switch (mode) {
+      case "login": return "Welcome Back";
+      case "register": return "Create Account";
+      case "forgot-password": return "Reset Password";
+    }
+  };
+
+  const getDescription = () => {
+    switch (mode) {
+      case "login": return "Sign in to your Friday Report account";
+      case "register": return "Get started with Friday Report";
+      case "forgot-password": return "Enter your email to receive a password reset link";
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          {mode === "forgot-password" && (
+            <button
+              type="button"
+              onClick={() => setMode("login")}
+              className="absolute left-4 top-4 text-muted-foreground hover:text-foreground"
+              data-testid="button-back-to-login"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          )}
           <div className="flex justify-center mb-4">
             <img src={logoIcon} alt="Friday Report" className="h-16 w-16" />
           </div>
           <CardTitle className="text-2xl font-display">
-            {isLogin ? "Welcome Back" : "Create Account"}
+            {getTitle()}
           </CardTitle>
           <CardDescription>
-            {isLogin 
-              ? "Sign in to your Friday Report account" 
-              : "Get started with Friday Report"}
+            {getDescription()}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
+            {mode === "register" && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
@@ -133,37 +184,55 @@ export default function AuthPage() {
                 data-testid="input-email"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                minLength={6}
-                data-testid="input-password"
-              />
-            </div>
+            {mode !== "forgot-password" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="password">Password</Label>
+                  {mode === "login" && (
+                    <button
+                      type="button"
+                      onClick={() => setMode("forgot-password")}
+                      className="text-sm text-muted-foreground hover:text-primary"
+                      data-testid="button-forgot-password"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                  minLength={6}
+                  data-testid="input-password"
+                />
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={isPending} data-testid="button-submit-auth">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLogin ? "Sign In" : "Create Account"}
+              {mode === "login" && "Sign In"}
+              {mode === "register" && "Create Account"}
+              {mode === "forgot-password" && "Send Reset Link"}
             </Button>
           </form>
-          <div className="mt-6 text-center text-sm">
-            <span className="text-muted-foreground">
-              {isLogin ? "Don't have an account?" : "Already have an account?"}
-            </span>{" "}
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline font-medium"
-              data-testid="button-toggle-auth-mode"
-            >
-              {isLogin ? "Sign Up" : "Sign In"}
-            </button>
-          </div>
+          {mode !== "forgot-password" && (
+            <div className="mt-6 text-center text-sm">
+              <span className="text-muted-foreground">
+                {mode === "login" ? "Don't have an account?" : "Already have an account?"}
+              </span>{" "}
+              <button
+                type="button"
+                onClick={() => setMode(mode === "login" ? "register" : "login")}
+                className="text-primary hover:underline font-medium"
+                data-testid="button-toggle-auth-mode"
+              >
+                {mode === "login" ? "Sign Up" : "Sign In"}
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
