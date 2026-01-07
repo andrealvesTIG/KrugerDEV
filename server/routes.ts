@@ -3547,9 +3547,23 @@ Return ONLY valid JSON, no markdown or explanations.`;
     try {
       const subscription = await billingProvider.ensureUserHasSubscription(userId);
       
-      // Get the user's organizations
-      const userOrgMemberships = await storage.getUserOrganizations(userId);
-      const orgIds = userOrgMemberships.map(m => m.organizationId);
+      // Get the specific org ID from query params, or use user's organizations
+      const requestedOrgId = req.query.orgId ? parseInt(req.query.orgId as string) : null;
+      
+      let orgIds: number[] = [];
+      if (requestedOrgId) {
+        // Verify user has access to this organization
+        const userOrgMemberships = await storage.getUserOrganizations(userId);
+        const user = await storage.getUser(userId);
+        const hasAccess = user?.role === 'super_admin' || userOrgMemberships.some(m => m.organizationId === requestedOrgId);
+        if (hasAccess) {
+          orgIds = [requestedOrgId];
+        }
+      } else {
+        // Fallback to all user's organizations
+        const userOrgMemberships = await storage.getUserOrganizations(userId);
+        orgIds = userOrgMemberships.map(m => m.organizationId);
+      }
       
       // Count actual objects from the database
       let projectCount = 0;

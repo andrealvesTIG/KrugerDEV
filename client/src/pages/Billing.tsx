@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState } from "react";
@@ -89,6 +90,7 @@ function formatLimit(limits: { included: number | null; hardCap: number | null; 
 
 export default function Billing() {
   const { user, isLoading: authLoading } = useAuth();
+  const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const [changePlanDialog, setChangePlanDialog] = useState<PlanWithRules | null>(null);
 
@@ -102,7 +104,15 @@ export default function Billing() {
   });
 
   const { data: usage, isLoading: usageLoading } = useQuery<UsageSummary>({
-    queryKey: ['/api/billing/usage'],
+    queryKey: ['/api/billing/usage', currentOrganization?.id],
+    queryFn: async () => {
+      const url = currentOrganization?.id 
+        ? `/api/billing/usage?orgId=${currentOrganization.id}`
+        : '/api/billing/usage';
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch usage');
+      return res.json();
+    },
     enabled: !!user && !!subscription,
   });
 
