@@ -7,6 +7,7 @@ import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/u
 import { useMilestones } from "@/hooks/use-milestones";
 import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useDeleteChangeRequest } from "@/hooks/use-change-requests";
 import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument, useDeleteProjectDocument } from "@/hooks/use-project-documents";
+import { useProjectComments, useCreateProjectComment, useDeleteProjectComment } from "@/hooks/use-project-comments";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
@@ -21,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -665,6 +666,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
   };
 
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div>
@@ -799,6 +801,112 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               <p className="mt-1 text-slate-600">{project.description || 'No description provided.'}</p>
             </div>
           </div>
+        )}
+      </CardContent>
+    </Card>
+    
+    <ProjectCommentsFeed projectId={project.id} />
+  </>
+  );
+}
+
+function ProjectCommentsFeed({ projectId }: { projectId: number }) {
+  const { toast } = useToast();
+  const [newComment, setNewComment] = useState("");
+  const { data: comments, isLoading } = useProjectComments(projectId);
+  const createComment = useCreateProjectComment(projectId);
+  const deleteComment = useDeleteProjectComment(projectId);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    
+    createComment.mutate({ content: newComment.trim() }, {
+      onSuccess: () => {
+        setNewComment("");
+        toast({ title: "Comment added" });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to add comment", variant: "destructive" });
+      }
+    });
+  };
+
+  const handleDelete = (id: number) => {
+    deleteComment.mutate(id, {
+      onSuccess: () => {
+        toast({ title: "Comment deleted" });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to delete comment", variant: "destructive" });
+      }
+    });
+  };
+
+  return (
+    <Card className="mt-4">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-base">Comments</CardTitle>
+          {comments && comments.length > 0 && (
+            <Badge variant="secondary" className="text-xs">{comments.length}</Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex gap-2">
+          <Input
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder="Add a comment..."
+            className="flex-1"
+            data-testid="input-new-comment"
+          />
+          <Button 
+            type="submit" 
+            size="icon" 
+            disabled={!newComment.trim() || createComment.isPending}
+            data-testid="button-submit-comment"
+          >
+            {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
+        </form>
+
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : comments && comments.length > 0 ? (
+          <div className="space-y-3">
+            {comments.map((comment) => (
+              <div key={comment.id} className="flex items-start gap-3 group p-2 rounded-md hover-elevate" data-testid={`comment-${comment.id}`}>
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{comment.authorName}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(comment.createdAt!), 'MMM d, yyyy h:mm a')}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5 break-words">{comment.content}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => handleDelete(comment.id)}
+                  data-testid={`button-delete-comment-${comment.id}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-4">No comments yet. Be the first to add one!</p>
         )}
       </CardContent>
     </Card>

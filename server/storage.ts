@@ -225,6 +225,7 @@ export interface IStorage {
 
   // Project Comments
   getProjectComments(projectId: number): Promise<ProjectComment[]>;
+  getProjectComment(id: number): Promise<ProjectComment | undefined>;
   createProjectComment(comment: InsertProjectComment): Promise<ProjectComment>;
   deleteProjectComment(id: number): Promise<void>;
 }
@@ -1694,6 +1695,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(projectComments)
       .where(eq(projectComments.projectId, projectId))
       .orderBy(desc(projectComments.createdAt));
+  }
+
+  async getProjectComment(id: number): Promise<ProjectComment | undefined> {
+    const [comment] = await db.select().from(projectComments).where(eq(projectComments.id, id));
+    return comment;
   }
 
   async createProjectComment(comment: InsertProjectComment): Promise<ProjectComment> {
