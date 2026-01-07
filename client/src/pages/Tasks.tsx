@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -50,6 +51,7 @@ export default function Tasks() {
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
@@ -491,15 +493,7 @@ export default function Tasks() {
                       type="button" 
                       variant="destructive" 
                       size="sm"
-                      onClick={() => {
-                        deleteTask.mutate({ id: editingTask.id, projectId: editingTask.projectId }, {
-                          onSuccess: () => {
-                            toast({ title: "Deleted", description: "Task deleted" });
-                            setIsDialogOpen(false);
-                            setEditingTask(null);
-                          }
-                        });
-                      }}
+                      onClick={() => setShowDeleteConfirm(true)}
                       data-testid="button-delete-task"
                     >
                       Delete Task
@@ -527,6 +521,37 @@ export default function Tasks() {
             open={isHistoryOpen} 
             onOpenChange={setIsHistoryOpen} 
           />
+          
+          <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Task</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete this task?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel data-testid="button-delete-cancel">No</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (editingTask) {
+                      deleteTask.mutate({ id: editingTask.id, projectId: editingTask.projectId }, {
+                        onSuccess: () => {
+                          toast({ title: "Deleted", description: "Task deleted" });
+                          setShowDeleteConfirm(false);
+                          setIsDialogOpen(false);
+                          setEditingTask(null);
+                        }
+                      });
+                    }
+                  }}
+                  data-testid="button-delete-confirm"
+                >
+                  Yes
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
