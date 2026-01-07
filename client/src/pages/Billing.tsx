@@ -159,42 +159,38 @@ export default function Billing() {
   });
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center gap-3">
-        <CreditCard className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Billing & Subscription</h1>
-          <p className="text-muted-foreground">Manage your plan and monitor usage</p>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <CreditCard className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-display font-bold text-foreground">Billing</h1>
         </div>
+        {subscription && (
+          <Badge variant={subscription.status === "ACTIVE" ? "default" : "secondary"} data-testid="badge-subscription-status">
+            {subscription.status}
+          </Badge>
+        )}
       </div>
 
       {subscription && currentPlan && (
-        <Card data-testid="card-current-subscription">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Current Plan
-                  <Badge variant="default" data-testid="badge-current-plan">{currentPlan.name}</Badge>
-                </CardTitle>
-                <CardDescription>
-                  Billing period: {format(new Date(subscription.currentPeriodStart), "MMM d, yyyy")} - {format(new Date(subscription.currentPeriodEnd), "MMM d, yyyy")}
-                </CardDescription>
-              </div>
-              <Badge variant={subscription.status === "ACTIVE" ? "default" : "secondary"} data-testid="badge-subscription-status">
-                {subscription.status}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Usage This Period</h3>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card data-testid="card-current-subscription">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                Current Plan
+                <Badge variant="default" data-testid="badge-current-plan">{currentPlan.name}</Badge>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {format(new Date(subscription.currentPeriodStart), "MMM d")} - {format(new Date(subscription.currentPeriodEnd), "MMM d, yyyy")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
               {usageLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-3">
                   {Object.keys(meterLabels).map((meterCode) => {
                     const rollup = usage?.[meterCode];
                     const Icon = meterIcons[meterCode] || Zap;
@@ -208,80 +204,59 @@ export default function Billing() {
                     const isAtLimit = percentage >= 100;
 
                     return (
-                      <Card key={meterCode} className="bg-muted/30" data-testid={`card-usage-${meterCode}`}>
-                        <CardContent className="pt-4">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                              <Icon className="h-5 w-5 text-primary" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-medium">{meterLabels[meterCode]}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {current.toLocaleString()} / {limit > 0 ? limit.toLocaleString() : "∞"}
-                              </p>
-                            </div>
-                            {isAtLimit && (
-                              <AlertTriangle className="h-5 w-5 text-destructive" />
-                            )}
+                      <div key={meterCode} className="space-y-1" data-testid={`card-usage-${meterCode}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-xs font-medium">{meterLabels[meterCode]}</span>
                           </div>
-                          <Progress 
-                            value={percentage} 
-                            className={isAtLimit ? "bg-destructive/20" : isNearLimit ? "bg-warning/20" : ""}
-                            data-testid={`progress-${meterCode}`}
-                          />
-                          {limits.overage && current > (limits.included || 0) && (
-                            <p className="text-xs text-muted-foreground mt-2">
-                              Overage: {(current - (limits.included || 0)).toLocaleString()} units at {formatPrice(limits.overage)}/unit
-                            </p>
-                          )}
-                        </CardContent>
-                      </Card>
+                          {isAtLimit && <AlertTriangle className="h-3 w-3 text-destructive" />}
+                        </div>
+                        <Progress 
+                          value={percentage} 
+                          className={`h-1.5 ${isAtLimit ? "bg-destructive/20" : isNearLimit ? "bg-warning/20" : ""}`}
+                          data-testid={`progress-${meterCode}`}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {current.toLocaleString()} / {limit > 0 ? limit.toLocaleString() : "∞"}
+                        </p>
+                      </div>
                     );
                   })}
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-payment-methods">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Wallet className="h-4 w-4" />
+                Payment
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-dashed bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">No payment method</span>
+                </div>
+                <Button size="sm" variant="outline" disabled data-testid="button-add-payment-method">
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Stripe integration coming soon.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
-      <Card data-testid="card-payment-methods">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            Payment Methods
-          </CardTitle>
-          <CardDescription>
-            {currentPlan?.code === "FREE" 
-              ? "Add a payment method to upgrade to a paid plan" 
-              : "Manage your payment methods for subscription billing"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between gap-4 p-4 rounded-lg border border-dashed bg-muted/30">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                <CreditCard className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="font-medium text-muted-foreground">No payment method on file</p>
-                <p className="text-sm text-muted-foreground">Payment methods will be managed through Stripe</p>
-              </div>
-            </div>
-            <Button variant="outline" disabled data-testid="button-add-payment-method">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Payment Method
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            Stripe integration coming soon. For now, you can explore all features on the Free plan.
-          </p>
-        </CardContent>
-      </Card>
-
-      <div className="space-y-4">
-        <h2 className="text-2xl font-display font-bold">Available Plans</h2>
-        <div className="grid gap-6 md:grid-cols-3">
+      <div className="space-y-3">
+        <h2 className="text-lg font-display font-semibold">Plans</h2>
+        <div className="grid gap-4 md:grid-cols-3">
           {sortedPlans?.map((plan) => {
             const isCurrentPlan = currentPlan?.code === plan.code;
             const planRules = plan.meterRules || [];
@@ -289,63 +264,56 @@ export default function Billing() {
             return (
               <Card 
                 key={plan.id} 
-                className={isCurrentPlan ? "border-primary shadow-md" : ""} 
+                className={isCurrentPlan ? "border-primary" : ""} 
                 data-testid={`card-plan-${plan.code.toLowerCase()}`}
               >
-                <CardHeader>
+                <CardHeader className="pb-2">
                   <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="flex items-center gap-2">
-                      {plan.code === "TEAM" && <Users className="h-5 w-5 text-primary" />}
-                      {plan.code === "BASIC" && <Zap className="h-5 w-5 text-primary" />}
+                    <CardTitle className="flex items-center gap-1.5 text-base">
+                      {plan.code === "TEAM" && <Users className="h-4 w-4 text-primary" />}
+                      {plan.code === "BASIC" && <Zap className="h-4 w-4 text-primary" />}
                       {plan.name}
                     </CardTitle>
-                    {isCurrentPlan && (
-                      <Badge variant="secondary" className="text-xs">Current</Badge>
-                    )}
+                    {isCurrentPlan && <Badge variant="secondary" className="text-xs">Current</Badge>}
                   </div>
-                  <div className="mt-2">
-                    <span className="text-3xl font-bold" data-testid={`price-${plan.code.toLowerCase()}`}>
+                  <div className="mt-1">
+                    <span className="text-2xl font-bold" data-testid={`price-${plan.code.toLowerCase()}`}>
                       {formatPlanPrice(plan.monthlyPriceCents)}
                     </span>
-                    {plan.monthlyPriceCents && plan.monthlyPriceCents > 0 ? (
-                      <span className="text-muted-foreground text-sm">/month</span>
-                    ) : null}
+                    {plan.monthlyPriceCents && plan.monthlyPriceCents > 0 && (
+                      <span className="text-muted-foreground text-xs">/mo</span>
+                    )}
                   </div>
-                  <CardDescription className="mt-2">{plan.description || `${plan.name} plan features`}</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
+                <CardContent className="pt-0 pb-3">
+                  <div className="space-y-1.5">
                     {Object.keys(meterLabels).map((meterCode) => {
                       const limits = getLimit(planRules as PlanWithRules['meterRules'], meterCode);
                       const Icon = meterIcons[meterCode] || Zap;
                       
                       return (
-                        <div key={meterCode} className="flex items-center gap-3">
-                          <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                          <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <span className="text-sm">
-                            {meterLabels[meterCode]}: {formatLimit(limits)}
-                          </span>
+                        <div key={meterCode} className="flex items-center gap-2 text-xs">
+                          <Check className="h-3 w-3 text-primary flex-shrink-0" />
+                          <Icon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <span>{meterLabels[meterCode]}: {formatLimit(limits)}</span>
                         </div>
                       );
                     })}
                   </div>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="pt-0">
                   {isCurrentPlan ? (
-                    <Button variant="outline" className="w-full" disabled data-testid={`button-plan-${plan.code.toLowerCase()}-current`}>
-                      Current Plan
+                    <Button size="sm" variant="outline" className="w-full" disabled data-testid={`button-plan-${plan.code.toLowerCase()}-current`}>
+                      Current
                     </Button>
                   ) : (
                     <Button 
+                      size="sm"
                       className="w-full" 
                       onClick={() => setChangePlanDialog(plan)}
                       data-testid={`button-plan-${plan.code.toLowerCase()}-select`}
                     >
-                      {currentPlan && ["FREE"].includes(currentPlan.code) && plan.code !== "FREE" 
-                        ? "Upgrade" 
-                        : "Switch"} 
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                      {currentPlan && ["FREE"].includes(currentPlan.code) && plan.code !== "FREE" ? "Upgrade" : "Switch"}
                     </Button>
                   )}
                 </CardFooter>
