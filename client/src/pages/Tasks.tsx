@@ -318,13 +318,13 @@ export default function Tasks() {
                   {editingTask ? "Modify the task details below." : "Fill in the details to create a new task."}
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Project</Label>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 pt-2 text-sm">
+                <div className="space-y-1">
+                  <Label className="text-xs">Project</Label>
                   <Controller control={form.control} name="projectId" render={({field, fieldState}) => (
                     <div className="space-y-1">
                       <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value ? String(field.value) : ""}>
-                        <SelectTrigger data-testid="select-task-project" className={cn(fieldState.error && "border-destructive")}>
+                        <SelectTrigger data-testid="select-task-project" className={cn("h-8 text-sm", fieldState.error && "border-destructive")}>
                           <SelectValue placeholder="Select project" />
                         </SelectTrigger>
                         <SelectContent>
@@ -337,20 +337,21 @@ export default function Tasks() {
                     </div>
                   )} />
                 </div>
-                <div className="space-y-2">
-                  <Label>Task Name</Label>
-                  <Input {...form.register("name")} data-testid="input-task-name" className={cn(form.formState.errors.name && "border-destructive")} />
+                <div className="space-y-1">
+                  <Label className="text-xs">Task Name</Label>
+                  <Input {...form.register("name")} data-testid="input-task-name" className={cn("h-8 text-sm", form.formState.errors.name && "border-destructive")} />
                   {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Start Date</Label>
                     <Controller 
                       control={form.control} 
                       name="startDate" 
                       render={({field}) => (
                         <Input 
                           type="date" 
+                          className="h-8 text-sm"
                           value={field.value || ""}
                           onChange={(e) => {
                             const newStartDate = e.target.value;
@@ -363,12 +364,13 @@ export default function Tasks() {
                       )}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Duration (days)</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Duration (days)</Label>
                     <Input 
                       type="number" 
                       min="1" 
                       max="365" 
+                      className="h-8 text-sm"
                       value={durationDays}
                       onChange={(e) => {
                         const newDuration = Math.max(1, Number(e.target.value) || 1);
@@ -379,8 +381,8 @@ export default function Tasks() {
                       data-testid="input-task-duration" 
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>End Date</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs">End Date</Label>
                     <Controller 
                       control={form.control} 
                       name="endDate" 
@@ -389,6 +391,7 @@ export default function Tasks() {
                         return (
                           <Input 
                             type="date" 
+                            className="h-8 text-sm"
                             value={field.value || ""}
                             min={currentStartDate || undefined}
                             onChange={(e) => {
@@ -418,12 +421,12 @@ export default function Tasks() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Status</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Status</Label>
                     <Controller control={form.control} name="status" render={({field}) => (
                       <Select onValueChange={field.onChange} value={field.value || "Not Started"}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Not Started">Not Started</SelectItem>
                           <SelectItem value="In Progress">In Progress</SelectItem>
@@ -432,10 +435,10 @@ export default function Tasks() {
                       </Select>
                     )} />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label className="text-xs flex items-center justify-between">
                       Progress
-                      <span className="text-muted-foreground text-xs font-normal">{form.watch("progress") || 0}%</span>
+                      <span className="text-muted-foreground font-normal">{form.watch("progress") || 0}%</span>
                     </Label>
                     <Controller control={form.control} name="progress" render={({field}) => (
                       <Slider
@@ -444,15 +447,15 @@ export default function Tasks() {
                         min={0}
                         max={100}
                         step={5}
-                        className="py-2"
+                        className="py-1"
                         data-testid="slider-task-progress"
                       />
                     )} />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea {...form.register("description")} />
+                <div className="space-y-1">
+                  <Label className="text-xs">Description</Label>
+                  <Textarea {...form.register("description")} className="text-sm min-h-[60px]" />
                 </div>
                 <ResourceAssignment
                   organizationId={currentOrganization?.id || null}
@@ -476,16 +479,18 @@ export default function Tasks() {
                   <div className="flex-1" />
                   <Button 
                     type="submit" 
+                    size="sm"
                     data-testid="button-save-task" 
                     disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
                   >
-                    {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                     {editingTask ? "Update Task" : "Save Task"}
                   </Button>
                   {editingTask && (
                     <Button 
                       type="button" 
                       variant="destructive" 
+                      size="sm"
                       onClick={() => {
                         deleteTask.mutate({ id: editingTask.id, projectId: editingTask.projectId }, {
                           onSuccess: () => {
@@ -503,6 +508,7 @@ export default function Tasks() {
                   <Button 
                     type="button" 
                     variant="outline" 
+                    size="sm"
                     onClick={() => {
                       setIsDialogOpen(false);
                       setEditingTask(null);
