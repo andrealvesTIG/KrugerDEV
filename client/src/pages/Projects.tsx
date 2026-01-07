@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useProjects, useCreateProject, useUpdateProject } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
+import { useAllTasks } from "@/hooks/use-tasks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,7 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -27,18 +28,38 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, u
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
+
 export default function Projects() {
   const { currentOrganization } = useOrganization();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
+  const { data: allTasks } = useAllTasks();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"list" | "kanban" | "gantt">("list");
   const updateProject = useUpdateProject();
   const { toast } = useToast();
   const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
+
+  // Calculate progress per project based on tasks
+  const projectProgress = useMemo(() => {
+    const progressMap: Record<number, number> = {};
+    if (!allTasks || !projects) return progressMap;
+    
+    projects.forEach(project => {
+      const projectTasks = allTasks.filter(t => t.projectId === project.id);
+      if (projectTasks.length === 0) {
+        progressMap[project.id] = project.completionPercentage || 0;
+      } else {
+        const totalProgress = projectTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+        progressMap[project.id] = Math.round(totalProgress / projectTasks.length);
+      }
+    });
+    return progressMap;
+  }, [allTasks, projects]);
 
   const deleteProject = useMutation({
     mutationFn: async (id: number) => {
@@ -199,9 +220,26 @@ export default function Projects() {
                       <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
                         {project.name}
                       </h3>
-                      <Badge variant="outline" className="font-medium text-xs px-3 py-1 rounded-full border-slate-300 dark:border-slate-600">
-                        {project.status}
-                      </Badge>
+                      {/* Inline Status Dropdown */}
+                      <Select 
+                        value={project.status} 
+                        onValueChange={(newStatus) => {
+                          handleStatusChange(project.id, newStatus);
+                        }}
+                      >
+                        <SelectTrigger 
+                          className="h-7 w-auto min-w-[120px] text-xs font-medium border-slate-300 dark:border-slate-600"
+                          onClick={(e) => e.preventDefault()}
+                          data-testid={`select-project-status-${project.id}`}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent onClick={(e) => e.stopPropagation()}>
+                          {PROJECT_STATUS_LIST.map(status => (
+                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
@@ -218,10 +256,10 @@ export default function Projects() {
                                 project.health === 'Yellow' && "bg-amber-500",
                                 project.health === 'Red' && "bg-rose-500",
                               )}
-                              style={{ width: `${project.completionPercentage}%` }}
+                              style={{ width: `${projectProgress[project.id] || 0}%` }}
                             />
                           </div>
-                          <span className="font-medium">{project.completionPercentage}%</span>
+                          <span className="font-medium">{projectProgress[project.id] || 0}%</span>
                         </div>
                       </div>
                     </div>
