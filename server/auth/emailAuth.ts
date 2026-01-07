@@ -5,6 +5,7 @@ import { db } from "../db";
 import { users, passwordResetTokens } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import crypto from "crypto";
+import { sendPasswordResetEmail } from "../services/email";
 
 const PgSession = connectPgSimple(session);
 
@@ -221,13 +222,20 @@ export async function setupAuth(app: Express) {
         expiresAt,
       });
 
-      // Log the reset link (in production, this would be sent via email)
+      // Build reset URL and send email
       const resetUrl = `${req.protocol}://${req.get("host")}/reset-password?token=${token}`;
-      console.log(`\n===== PASSWORD RESET LINK =====`);
-      console.log(`Email: ${email}`);
-      console.log(`Reset URL: ${resetUrl}`);
-      console.log(`Expires: ${expiresAt.toISOString()}`);
-      console.log(`===============================\n`);
+      
+      // Try to send email, but always return success message to prevent enumeration
+      const emailSent = await sendPasswordResetEmail(email, resetUrl);
+      
+      if (!emailSent) {
+        // If email service not configured, log for development
+        console.log(`\n===== PASSWORD RESET LINK =====`);
+        console.log(`Email: ${email}`);
+        console.log(`Reset URL: ${resetUrl}`);
+        console.log(`Expires: ${expiresAt.toISOString()}`);
+        console.log(`===============================\n`);
+      }
 
       res.json({ message: "If an account exists with this email, a reset link has been sent." });
     } catch (error) {
