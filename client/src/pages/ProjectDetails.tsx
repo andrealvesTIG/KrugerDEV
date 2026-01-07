@@ -132,37 +132,37 @@ export default function ProjectDetails() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
+      <div className="grid gap-3 md:grid-cols-4">
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
               Budget
               {financialBudgetTotal > 0 && (
-                <Badge variant="outline" className="text-[10px] font-normal">From Financials</Badge>
+                <Badge variant="outline" className="text-[9px] font-normal py-0">From Financials</Badge>
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center"><DollarSign className="h-5 w-5 mr-1 text-slate-400" />{displayBudget.toLocaleString()}</div>
+          <CardContent className="py-1 px-4">
+            <div className="text-base font-semibold flex items-center"><DollarSign className="h-4 w-4 mr-1 text-muted-foreground" />{displayBudget.toLocaleString()}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-500">Progress</CardTitle></CardHeader>
-          <CardContent>
-             <div className="text-2xl font-bold">{project.completionPercentage}%</div>
-             <Progress value={project.completionPercentage || 0} className="h-2 mt-2" />
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Progress</CardTitle></CardHeader>
+          <CardContent className="py-1 px-4">
+             <div className="text-base font-semibold">{project.completionPercentage}%</div>
+             <Progress value={project.completionPercentage || 0} className="h-1.5 mt-1" />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-500">Start Date</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center"><CalendarIcon className="h-5 w-5 mr-2 text-slate-400" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Start Date</CardTitle></CardHeader>
+          <CardContent className="py-1 px-4">
+            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
           </CardContent>
         </Card>
-         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-500">End Date</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center"><CalendarIcon className="h-5 w-5 mr-2 text-slate-400" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">End Date</CardTitle></CardHeader>
+          <CardContent className="py-1 px-4">
+            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
           </CardContent>
         </Card>
       </div>
@@ -365,15 +365,15 @@ function ProjectTimeline({
   
   if (!projectStart || !projectEnd || !timelineRange) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <GanttChart className="h-4 w-4" />
+      <Card className="py-2">
+        <CardHeader className="py-1 px-4">
+          <CardTitle className="text-xs font-medium flex items-center gap-2">
+            <GanttChart className="h-3 w-3" />
             Timeline
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Set project start and end dates to view the timeline.</p>
+        <CardContent className="py-1 px-4">
+          <p className="text-xs text-muted-foreground">Set project start and end dates to view the timeline.</p>
         </CardContent>
       </Card>
     );
@@ -381,35 +381,35 @@ function ProjectTimeline({
   
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <Card>
+      <Card className="py-1">
         <CollapsibleTrigger asChild>
-          <CardHeader className="pb-2 cursor-pointer hover-elevate flex flex-row items-center justify-between gap-4">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              <GanttChart className="h-4 w-4" />
+          <CardHeader className="py-2 px-4 cursor-pointer hover-elevate flex flex-row items-center justify-between gap-4">
+            <CardTitle className="text-xs font-medium flex items-center gap-2">
+              {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              <GanttChart className="h-3 w-3" />
               Timeline
             </CardTitle>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
               <span className="flex items-center gap-1">
-                <Flag className="h-3 w-3 text-primary" />
+                <Flag className="h-2.5 w-2.5 text-primary" />
                 {format(projectStart, 'M/d/yyyy')}
               </span>
               <span className="flex items-center gap-1">
                 {format(projectEnd, 'M/d/yyyy')}
-                <Flag className="h-3 w-3 text-green-600" />
+                <Flag className="h-2.5 w-2.5 text-green-600" />
               </span>
             </div>
           </CardHeader>
         </CollapsibleTrigger>
         
         <CollapsibleContent>
-          <CardContent className="pt-0">
+          <CardContent className="pt-0 px-4 pb-2">
             {/* Year markers */}
-            <div className="relative h-6 mb-1">
+            <div className="relative h-4 mb-1">
               {yearMarkers.map((marker) => (
                 <span 
                   key={marker.year}
-                  className="absolute text-xs text-muted-foreground"
+                  className="absolute text-[10px] text-muted-foreground"
                   style={{ left: `${marker.position}%` }}
                 >
                   {marker.year}
@@ -418,15 +418,15 @@ function ProjectTimeline({
             </div>
             
             {/* Timeline bar */}
-            <div className="relative h-10">
+            <div className="relative h-6">
               {/* Background bar */}
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-5 bg-muted rounded-full" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-3 bg-muted rounded-full" />
               
               {/* Progress bar (from start to today if today is within range) */}
               {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
                 <div 
                   className={cn(
-                    "absolute top-1/2 -translate-y-1/2 h-5 bg-slate-400 dark:bg-slate-600",
+                    "absolute top-1/2 -translate-y-1/2 h-3 bg-slate-400 dark:bg-slate-600",
                     timelineRange.todayPosition < 100 ? "rounded-l-full" : "rounded-full"
                   )}
                   style={{ left: 0, width: `${Math.max(1, timelineRange.todayPosition)}%` }}
@@ -439,10 +439,10 @@ function ProjectTimeline({
                   className="absolute top-0 bottom-0 w-0.5 bg-green-600 z-10"
                   style={{ left: `${timelineRange.todayPosition}%` }}
                 >
-                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-green-600 font-medium whitespace-nowrap">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] text-green-600 font-medium whitespace-nowrap">
                     {format(timelineRange.today, 'MMM dd')}
                   </div>
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-green-600" />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-3 border-r-3 border-t-3 border-l-transparent border-r-transparent border-t-green-600" />
                 </div>
               )}
               
@@ -457,7 +457,7 @@ function ProjectTimeline({
                     <TooltipTrigger asChild>
                       <div 
                         className={cn(
-                          "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-sm rotate-45 cursor-pointer z-20 border",
+                          "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-sm rotate-45 cursor-pointer z-20 border",
                           event.completed 
                             ? "bg-green-600 border-green-700" 
                             : "bg-red-500 border-red-600"
@@ -479,28 +479,28 @@ function ProjectTimeline({
               
               {/* Start marker */}
               <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2">
-                <Flag className="h-4 w-4 text-primary" />
+                <Flag className="h-3 w-3 text-primary" />
               </div>
               
               {/* End marker */}
               <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2">
-                <Flag className="h-4 w-4 text-green-600" />
+                <Flag className="h-3 w-3 text-green-600" />
               </div>
             </div>
             
             {/* Legend */}
             {allEvents.length > 0 && (
-              <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-600 rounded-sm rotate-45" />
-                  <span>Completed Milestone</span>
+                  <div className="w-1.5 h-1.5 bg-green-600 rounded-sm rotate-45" />
+                  <span>Completed</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-red-500 rounded-sm rotate-45" />
-                  <span>Pending Milestone</span>
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-sm rotate-45" />
+                  <span>Pending</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-0.5 bg-green-600" />
+                  <div className="w-2 h-0.5 bg-green-600" />
                   <span>Today</span>
                 </div>
               </div>
