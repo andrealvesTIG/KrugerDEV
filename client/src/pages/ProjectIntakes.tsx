@@ -149,9 +149,10 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
         <DialogHeader>
           <DialogTitle>New Intake Request</DialogTitle>
         </DialogHeader>
+        <p className="text-xs text-muted-foreground mt-2"><span className="text-destructive">*</span> Required fields</p>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="intakeName">Intake Name *</Label>
+            <Label htmlFor="intakeName">Intake Name <span className="text-destructive">*</span></Label>
             <Input
               id="intakeName"
               value={intakeName}

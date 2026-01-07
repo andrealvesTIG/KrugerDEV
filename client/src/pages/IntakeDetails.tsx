@@ -459,12 +459,12 @@ export default function IntakeDetails() {
           <Card>
             <CardHeader>
               <CardTitle>Intake Information</CardTitle>
-              <CardDescription>Core details about this intake request</CardDescription>
+              <CardDescription>Core details about this intake request. <span className="text-destructive">*</span> Required fields</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Intake Name *</Label>
+                  <Label>Intake Name <span className="text-destructive">*</span></Label>
                   <Input
                     value={formData.projectName ?? intake.projectName}
                     onChange={(e) => handleFieldChange('projectName', e.target.value)}
