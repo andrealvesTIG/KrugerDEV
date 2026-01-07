@@ -11,7 +11,7 @@ export function useProjectComments(projectId: number) {
 
 export function useCreateProjectComment(projectId: number) {
   return useMutation({
-    mutationFn: async (data: { content: string }) => {
+    mutationFn: async (data: { content: string; parentId?: number }) => {
       const res = await apiRequest('POST', `/api/projects/${projectId}/comments`, data);
       return res.json();
     },
