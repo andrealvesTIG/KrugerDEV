@@ -301,6 +301,18 @@ export const projectDocuments = pgTable("project_documents", {
   isDemo: boolean("is_demo").default(false),
 });
 
+// Project Comments (Notes feed for project discussions)
+export const projectComments = pgTable("project_comments", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  content: text("content").notNull(),
+  authorId: varchar("author_id").references(() => users.id),
+  authorName: text("author_name"), // Stored for display even if user is deleted
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+  isDemo: boolean("is_demo").default(false),
+});
+
 // Project Financials (Budget/Plan/Actuals with CapEx/OpEx breakdown)
 export const projectFinancials = pgTable("project_financials", {
   id: serial("id").primaryKey(),
@@ -708,6 +720,8 @@ export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit
 export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
 export const insertProjectDocumentSchema = createInsertSchema(projectDocuments).omit({ id: true, createdAt: true, updatedAt: true });
 
+export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({ id: true, createdAt: true, updatedAt: true });
+
 // === TYPES ===
 
 // User types exported from models/auth
@@ -783,6 +797,9 @@ export type InsertChangeRequest = z.infer<typeof insertChangeRequestSchema>;
 
 export type ProjectDocument = typeof projectDocuments.$inferSelect;
 export type InsertProjectDocument = z.infer<typeof insertProjectDocumentSchema>;
+
+export type ProjectComment = typeof projectComments.$inferSelect;
+export type InsertProjectComment = z.infer<typeof insertProjectCommentSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
