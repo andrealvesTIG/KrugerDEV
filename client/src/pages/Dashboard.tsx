@@ -1,14 +1,20 @@
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
-import { Loader2, Briefcase, AlertTriangle, TrendingUp, CheckCircle2, FileInput, Clock, Upload, PenTool } from "lucide-react";
+import { Loader2, Briefcase, AlertTriangle, TrendingUp, CheckCircle2, FileInput, Clock, Upload, PenTool, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { ProjectIntake } from "@shared/schema";
 
 const COLORS = {
@@ -22,8 +28,40 @@ const COLORS = {
 export default function Dashboard() {
   const { currentOrganization } = useOrganization();
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  
   const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
   const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
+  
+  const generateProjectMutation = useMutation({
+    mutationFn: async (prompt: string) => {
+      const response = await apiRequest('POST', '/api/ai/generate-project', {
+        prompt,
+        organizationId: currentOrganization?.id,
+      });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Project Created",
+        description: `Created "${data.project.name}" with ${data.summary.tasksCreated} tasks, ${data.summary.issuesCreated} issues, and ${data.summary.risksCreated} risks.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      setAiDialogOpen(false);
+      setAiPrompt("");
+      setLocation(`/projects/${data.project.id}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Generation Failed",
+        description: error.message || "Failed to generate project with AI",
+        variant: "destructive",
+      });
+    },
+  });
   
   // Filter projects by source - use empty array as fallback for loading state
   const projects = (projectsData ?? []).filter(p => {
@@ -112,27 +150,93 @@ export default function Dashboard() {
           <h1 className="text-3xl font-display font-bold text-foreground">Executive Dashboard</h1>
           <p className="mt-2 text-muted-foreground">Overview of your project portfolio performance and health.</p>
         </div>
-        <div className="w-full sm:w-[180px]">
-          <Select value={sourceFilter} onValueChange={setSourceFilter}>
-            <SelectTrigger data-testid="select-dashboard-source-filter">
-              <SelectValue placeholder="Filter by Source" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              <SelectItem value="manual">
-                <span className="flex items-center gap-2">
-                  <PenTool className="h-3 w-3" />
-                  Created in App
-                </span>
-              </SelectItem>
-              <SelectItem value="imported">
-                <span className="flex items-center gap-2">
-                  <Upload className="h-3 w-3" />
-                  Imported
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-center gap-3">
+          <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-ai-generate-project" className="gap-2">
+                <Sparkles className="h-4 w-4" />
+                AI Create Project
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  Create Project with AI
+                </DialogTitle>
+                <DialogDescription>
+                  Describe your project and AI will generate a complete project plan with tasks, issues, and risks.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ai-prompt">Project Description</Label>
+                  <Textarea
+                    id="ai-prompt"
+                    data-testid="textarea-ai-prompt"
+                    placeholder="E.g., Build a mobile app for tracking fitness goals with user authentication, workout logging, and progress charts. The project should take about 3 months."
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    className="min-h-[150px]"
+                  />
+                </div>
+                {generateProjectMutation.isPending && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating project plan...
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setAiDialogOpen(false)}
+                  disabled={generateProjectMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  data-testid="button-generate-project"
+                  onClick={() => generateProjectMutation.mutate(aiPrompt)}
+                  disabled={!aiPrompt.trim() || generateProjectMutation.isPending}
+                >
+                  {generateProjectMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Project
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <div className="w-full sm:w-[180px]">
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger data-testid="select-dashboard-source-filter">
+                <SelectValue placeholder="Filter by Source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                <SelectItem value="manual">
+                  <span className="flex items-center gap-2">
+                    <PenTool className="h-3 w-3" />
+                    Created in App
+                  </span>
+                </SelectItem>
+                <SelectItem value="imported">
+                  <span className="flex items-center gap-2">
+                    <Upload className="h-3 w-3" />
+                    Imported
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 

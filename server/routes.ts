@@ -15,6 +15,12 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
 
 // Configure multer for file uploads (memory storage)
 const upload = multer({ 
@@ -2826,6 +2832,206 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error deleting document:", err);
       res.status(500).json({ message: "Error deleting document" });
+    }
+  });
+
+  // =========== AI PROJECT GENERATION ===========
+  
+  // Generate a project with tasks, issues, and risks using AI
+  app.post('/api/ai/generate-project', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      
+      // Require authentication
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const { prompt, organizationId, portfolioId } = req.body;
+      
+      if (!prompt || !organizationId) {
+        return res.status(400).json({ message: "Prompt and organizationId are required" });
+      }
+      
+      // Check user has access to the specified organization
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(Number(organizationId))) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      
+      const systemPrompt = `You are a project management expert. Based on the user's project description, generate a comprehensive project plan in JSON format.
+
+The response must be valid JSON with this exact structure:
+{
+  "project": {
+    "name": "Project name (max 100 chars)",
+    "description": "Detailed project description",
+    "status": "Initiation",
+    "priority": "Medium",
+    "health": "Green",
+    "budget": 0
+  },
+  "tasks": [
+    {
+      "name": "Task name",
+      "description": "Task description",
+      "durationDays": 5,
+      "status": "Not Started"
+    }
+  ],
+  "issues": [
+    {
+      "title": "Issue title",
+      "description": "Issue description",
+      "priority": "Medium",
+      "status": "Open",
+      "type": "Task"
+    }
+  ],
+  "risks": [
+    {
+      "title": "Risk title",
+      "description": "Risk description",
+      "probability": "Medium",
+      "impact": "Medium",
+      "status": "Open",
+      "mitigationPlan": "How to mitigate this risk"
+    }
+  ]
+}
+
+Guidelines:
+- Generate 5-10 logical tasks that form a project timeline
+- Generate 2-5 potential issues or action items
+- Generate 2-4 project risks with mitigation plans
+- Use realistic estimates based on the project scope
+- Priority can be: Low, Medium, High, Critical
+- Task status: Not Started, In Progress, Completed
+- Issue type: Bug, Enhancement, Task, Question
+- Risk probability/impact: Low, Medium, High
+
+Return ONLY valid JSON, no markdown or explanations.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Create a project plan for: ${prompt}` }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 4000,
+      });
+      
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI did not return a response" });
+      }
+      
+      let aiResult;
+      try {
+        aiResult = JSON.parse(content);
+      } catch (parseError) {
+        console.error("Failed to parse AI response:", content);
+        return res.status(500).json({ message: "Failed to parse AI response" });
+      }
+      
+      // Calculate dates for tasks
+      const today = new Date();
+      let currentDate = new Date(today);
+      
+      // Create project
+      const projectData = {
+        organizationId,
+        portfolioId: portfolioId || null,
+        name: aiResult.project.name,
+        description: aiResult.project.description,
+        status: aiResult.project.status || "Initiation",
+        priority: aiResult.project.priority || "Medium",
+        health: aiResult.project.health || "Green",
+        budget: String(aiResult.project.budget || 0),
+        startDate: today.toISOString().split('T')[0],
+        source: "ai_generated",
+      };
+      
+      const project = await storage.createProject(projectData);
+      
+      // Create tasks with sequential dates
+      const createdTasks = [];
+      for (const taskData of aiResult.tasks || []) {
+        const startDate = new Date(currentDate);
+        const durationDays = taskData.durationDays || 5;
+        const endDate = new Date(currentDate);
+        endDate.setDate(endDate.getDate() + durationDays);
+        
+        const task = await storage.createTask({
+          projectId: project.id,
+          name: taskData.name,
+          description: taskData.description,
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0],
+          durationDays,
+          status: taskData.status || "Not Started",
+          progress: 0,
+        });
+        createdTasks.push(task);
+        
+        // Move current date forward for next task
+        currentDate = new Date(endDate);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      // Update project end date based on last task
+      if (createdTasks.length > 0) {
+        const lastTask = createdTasks[createdTasks.length - 1];
+        await storage.updateProject(project.id, {
+          endDate: lastTask.endDate,
+        });
+      }
+      
+      // Create issues
+      const createdIssues = [];
+      for (const issueData of aiResult.issues || []) {
+        const issue = await storage.createIssue({
+          projectId: project.id,
+          title: issueData.title,
+          description: issueData.description,
+          priority: issueData.priority || "Medium",
+          status: issueData.status || "Open",
+          type: issueData.type || "Task",
+        });
+        createdIssues.push(issue);
+      }
+      
+      // Create risks
+      const createdRisks = [];
+      for (const riskData of aiResult.risks || []) {
+        const risk = await storage.createRisk({
+          projectId: project.id,
+          title: riskData.title,
+          description: riskData.description,
+          probability: riskData.probability || "Medium",
+          impact: riskData.impact || "Medium",
+          status: riskData.status || "Open",
+          mitigationPlan: riskData.mitigationPlan,
+        });
+        createdRisks.push(risk);
+      }
+      
+      res.json({
+        success: true,
+        project,
+        tasks: createdTasks,
+        issues: createdIssues,
+        risks: createdRisks,
+        summary: {
+          tasksCreated: createdTasks.length,
+          issuesCreated: createdIssues.length,
+          risksCreated: createdRisks.length,
+        }
+      });
+    } catch (err) {
+      console.error("Error generating AI project:", err);
+      res.status(500).json({ message: "Failed to generate project with AI" });
     }
   });
 
