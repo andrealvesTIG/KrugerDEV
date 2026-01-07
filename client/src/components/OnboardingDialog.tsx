@@ -4,7 +4,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Building2, Sparkles, Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -17,24 +16,9 @@ interface OnboardingStatus {
   hasOrganization: boolean;
 }
 
-const industries = [
-  "Technology",
-  "Healthcare",
-  "Finance",
-  "Manufacturing",
-  "Retail",
-  "Consulting",
-  "Education",
-  "Media",
-  "Real Estate",
-  "Energy",
-  "General",
-];
-
 export function OnboardingDialog() {
   const { toast } = useToast();
   const [companyName, setCompanyName] = useState("");
-  const [industry, setIndustry] = useState("");
   const [createDemoData, setCreateDemoData] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
@@ -46,9 +30,6 @@ export function OnboardingDialog() {
   if (status && !initialized && status.needsOnboarding) {
     if (status.detectedCompany && !companyName) {
       setCompanyName(status.detectedCompany);
-    }
-    if (status.detectedIndustry && !industry) {
-      setIndustry(status.detectedIndustry);
     }
     setInitialized(true);
   }
@@ -99,7 +80,7 @@ export function OnboardingDialog() {
     }
     completeMutation.mutate({
       companyName: companyName.trim(),
-      industry: industry || "General",
+      industry: status?.detectedIndustry || "General",
       createDemoData,
     });
   };
@@ -139,35 +120,13 @@ export function OnboardingDialog() {
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="industry">Industry</Label>
-            <Select value={industry} onValueChange={setIndustry}>
-              <SelectTrigger id="industry" data-testid="select-industry">
-                <SelectValue placeholder="Select your industry" />
-              </SelectTrigger>
-              <SelectContent>
-                {industries.map((ind) => (
-                  <SelectItem key={ind} value={ind} data-testid={`option-industry-${ind.toLowerCase()}`}>
-                    {ind}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {status.detectedIndustry && industry === status.detectedIndustry && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Sparkles className="h-3 w-3" />
-                Detected from your company
-              </p>
-            )}
-          </div>
-
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="createDemoData" className="text-base font-medium">
                 Create sample data
               </Label>
               <p className="text-sm text-muted-foreground">
-                Generate sample portfolios, projects, and tasks based on your industry to help you explore the platform.
+                Generate sample portfolios, projects, and tasks{status.detectedIndustry && status.detectedIndustry !== "General" ? ` tailored to the ${status.detectedIndustry} industry` : ""} to help you explore the platform.
               </p>
             </div>
             <Switch
