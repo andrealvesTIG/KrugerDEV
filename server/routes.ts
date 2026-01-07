@@ -1489,6 +1489,293 @@ export async function registerRoutes(
     }
   });
 
+  // Project Export (CSV and MSPDI/XML)
+  app.get('/api/projects/:id/export', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const format = (req.query.format as string) || 'csv';
+      
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      // Security check: verify user is authenticated and has access to project's organization
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied to this project" });
+      }
+      
+      const tasks = await storage.getTasks(projectId);
+      const milestones = await storage.getMilestones(projectId);
+      
+      const safeFileName = (project.name || 'project').replace(/[^a-z0-9]/gi, '_');
+      
+      // Helper to escape XML special characters
+      const escapeXml = (str: string) => {
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&apos;');
+      };
+      
+      if (format === 'csv') {
+        // Generate CSV
+        const headers = ['WBS', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Description'];
+        const rows: string[][] = [];
+        
+        // Add project as first row
+        rows.push([
+          '0',
+          project.name || '',
+          'Project',
+          project.startDate || '',
+          project.endDate || '',
+          project.startDate && project.endDate ? String(Math.ceil((new Date(project.endDate).getTime() - new Date(project.startDate).getTime()) / (1000 * 60 * 60 * 24))) : '',
+          String(project.completionPercentage || 0),
+          project.status || '',
+          project.priority || '',
+          '',
+          project.description || ''
+        ]);
+        
+        // Add tasks
+        tasks.forEach((task, index) => {
+          rows.push([
+            String(index + 1),
+            task.name || '',
+            task.isMilestone ? 'Milestone' : 'Task',
+            task.startDate || '',
+            task.endDate || '',
+            task.durationDays ? String(task.durationDays) : '',
+            String(task.progress || 0),
+            task.status || '',
+            '',
+            task.assignee || '',
+            task.description || ''
+          ]);
+        });
+        
+        // Add milestones
+        milestones.forEach((ms, index) => {
+          rows.push([
+            `M${index + 1}`,
+            ms.title || '',
+            'Milestone',
+            ms.dueDate || '',
+            ms.dueDate || '',
+            '0',
+            ms.completed ? '100' : '0',
+            ms.completed ? 'Completed' : 'Pending',
+            ms.priority || '',
+            ms.assignee || '',
+            ms.description || ''
+          ]);
+        });
+        
+        // Escape CSV values
+        const escapeCSV = (val: string) => {
+          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        };
+        
+        const csvContent = [
+          headers.map(escapeCSV).join(','),
+          ...rows.map(row => row.map(escapeCSV).join(','))
+        ].join('\n');
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}_export.csv"`);
+        res.send(csvContent);
+        
+      } else if (format === 'mspdi' || format === 'xml') {
+        // Generate MSPDI (Microsoft Project XML) format
+        const now = new Date().toISOString();
+        const projectStart = project.startDate ? new Date(project.startDate).toISOString() : now;
+        const projectEnd = project.endDate ? new Date(project.endDate).toISOString() : now;
+        
+        // Build task XML
+        let taskXml = '';
+        let taskUid = 0;
+        
+        // Project summary task (UID 0)
+        taskXml += `
+    <Task>
+      <UID>${taskUid}</UID>
+      <ID>${taskUid}</ID>
+      <Name>${escapeXml(project.name || 'Project')}</Name>
+      <Type>1</Type>
+      <IsNull>0</IsNull>
+      <CreateDate>${now}</CreateDate>
+      <WBS>0</WBS>
+      <OutlineNumber>0</OutlineNumber>
+      <OutlineLevel>0</OutlineLevel>
+      <Priority>500</Priority>
+      <Start>${projectStart}</Start>
+      <Finish>${projectEnd}</Finish>
+      <Duration>PT${Math.max(1, Math.ceil((new Date(projectEnd).getTime() - new Date(projectStart).getTime()) / (1000 * 60 * 60 * 24)) * 8)}H0M0S</Duration>
+      <DurationFormat>7</DurationFormat>
+      <Summary>1</Summary>
+      <Milestone>0</Milestone>
+      <PercentComplete>${project.completionPercentage || 0}</PercentComplete>
+      <PercentWorkComplete>${project.completionPercentage || 0}</PercentWorkComplete>
+    </Task>`;
+        
+        // Add tasks
+        tasks.forEach((task, index) => {
+          taskUid++;
+          const taskStart = task.startDate ? new Date(task.startDate).toISOString() : projectStart;
+          const taskEnd = task.endDate ? new Date(task.endDate).toISOString() : taskStart;
+          const duration = task.durationDays || Math.max(1, Math.ceil((new Date(taskEnd).getTime() - new Date(taskStart).getTime()) / (1000 * 60 * 60 * 24)));
+          
+          taskXml += `
+    <Task>
+      <UID>${taskUid}</UID>
+      <ID>${taskUid}</ID>
+      <Name>${escapeXml(task.name || '')}</Name>
+      <Type>0</Type>
+      <IsNull>0</IsNull>
+      <CreateDate>${task.createdAt ? new Date(task.createdAt).toISOString() : now}</CreateDate>
+      <WBS>${String(index + 1)}</WBS>
+      <OutlineNumber>${index + 1}</OutlineNumber>
+      <OutlineLevel>1</OutlineLevel>
+      <Priority>500</Priority>
+      <Start>${taskStart}</Start>
+      <Finish>${taskEnd}</Finish>
+      <Duration>PT${duration * 8}H0M0S</Duration>
+      <DurationFormat>7</DurationFormat>
+      <Summary>0</Summary>
+      <Milestone>${task.isMilestone ? 1 : 0}</Milestone>
+      <PercentComplete>${task.progress || 0}</PercentComplete>
+      <PercentWorkComplete>${task.progress || 0}</PercentWorkComplete>
+      <Notes>${escapeXml(task.description || '')}</Notes>
+    </Task>`;
+        });
+        
+        // Add milestones as tasks
+        milestones.forEach((ms, index) => {
+          taskUid++;
+          const msDate = ms.dueDate ? new Date(ms.dueDate).toISOString() : projectEnd;
+          
+          taskXml += `
+    <Task>
+      <UID>${taskUid}</UID>
+      <ID>${taskUid}</ID>
+      <Name>${escapeXml(ms.title || '')}</Name>
+      <Type>0</Type>
+      <IsNull>0</IsNull>
+      <CreateDate>${now}</CreateDate>
+      <WBS>M${index + 1}</WBS>
+      <OutlineNumber>${tasks.length + index + 1}</OutlineNumber>
+      <OutlineLevel>1</OutlineLevel>
+      <Priority>500</Priority>
+      <Start>${msDate}</Start>
+      <Finish>${msDate}</Finish>
+      <Duration>PT0H0M0S</Duration>
+      <DurationFormat>7</DurationFormat>
+      <Summary>0</Summary>
+      <Milestone>1</Milestone>
+      <PercentComplete>${ms.completed ? 100 : 0}</PercentComplete>
+      <PercentWorkComplete>${ms.completed ? 100 : 0}</PercentWorkComplete>
+      <Notes>${escapeXml(ms.description || '')}</Notes>
+    </Task>`;
+        });
+        
+        const mspdiXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <SaveVersion>14</SaveVersion>
+  <Name>${escapeXml(project.name || 'Project')}</Name>
+  <Title>${escapeXml(project.name || 'Project')}</Title>
+  <CreationDate>${now}</CreationDate>
+  <LastSaved>${now}</LastSaved>
+  <ScheduleFromStart>1</ScheduleFromStart>
+  <StartDate>${projectStart}</StartDate>
+  <FinishDate>${projectEnd}</FinishDate>
+  <FYStartDate>1</FYStartDate>
+  <CriticalSlackLimit>0</CriticalSlackLimit>
+  <CurrencyDigits>2</CurrencyDigits>
+  <CurrencySymbol>$</CurrencySymbol>
+  <CurrencySymbolPosition>0</CurrencySymbolPosition>
+  <CalendarUID>1</CalendarUID>
+  <DefaultStartTime>08:00:00</DefaultStartTime>
+  <DefaultFinishTime>17:00:00</DefaultFinishTime>
+  <MinutesPerDay>480</MinutesPerDay>
+  <MinutesPerWeek>2400</MinutesPerWeek>
+  <DaysPerMonth>20</DaysPerMonth>
+  <DefaultTaskType>0</DefaultTaskType>
+  <DefaultFixedCostAccrual>2</DefaultFixedCostAccrual>
+  <DefaultStandardRate>0</DefaultStandardRate>
+  <DefaultOvertimeRate>0</DefaultOvertimeRate>
+  <DurationFormat>7</DurationFormat>
+  <WorkFormat>2</WorkFormat>
+  <EditableActualCosts>0</EditableActualCosts>
+  <HonorConstraints>1</HonorConstraints>
+  <InsertedProjectsLikeSummary>1</InsertedProjectsLikeSummary>
+  <MultipleCriticalPaths>0</MultipleCriticalPaths>
+  <NewTasksEffortDriven>1</NewTasksEffortDriven>
+  <NewTasksEstimated>1</NewTasksEstimated>
+  <SplitsInProgressTasks>1</SplitsInProgressTasks>
+  <SpreadActualCost>0</SpreadActualCost>
+  <SpreadPercentComplete>0</SpreadPercentComplete>
+  <TaskUpdatesResource>1</TaskUpdatesResource>
+  <FiscalYearStart>0</FiscalYearStart>
+  <WeekStartDay>0</WeekStartDay>
+  <MoveCompletedEndsBack>0</MoveCompletedEndsBack>
+  <MoveRemainingStartsBack>0</MoveRemainingStartsBack>
+  <MoveRemainingStartsForward>0</MoveRemainingStartsForward>
+  <MoveCompletedEndsForward>0</MoveCompletedEndsForward>
+  <BaselineForEarnedValue>0</BaselineForEarnedValue>
+  <AutoAddNewResourcesAndTasks>1</AutoAddNewResourcesAndTasks>
+  <CurrentDate>${now}</CurrentDate>
+  <MicrosoftProjectServerURL>1</MicrosoftProjectServerURL>
+  <Autolink>1</Autolink>
+  <NewTaskStartDate>0</NewTaskStartDate>
+  <NewTasksAreManual>0</NewTasksAreManual>
+  <DefaultTaskEVMethod>0</DefaultTaskEVMethod>
+  <ProjectExternallyEdited>0</ProjectExternallyEdited>
+  <ExtendedCreationDate>${now}</ExtendedCreationDate>
+  <ActualsInSync>1</ActualsInSync>
+  <RemoveFileProperties>0</RemoveFileProperties>
+  <AdminProject>0</AdminProject>
+  <Calendars>
+    <Calendar>
+      <UID>1</UID>
+      <Name>Standard</Name>
+      <IsBaseCalendar>1</IsBaseCalendar>
+      <BaseCalendarUID>-1</BaseCalendarUID>
+      <WeekDays>
+        <WeekDay><DayType>1</DayType><DayWorking>0</DayWorking></WeekDay>
+        <WeekDay><DayType>2</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>3</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>4</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>5</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>6</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>7</DayType><DayWorking>0</DayWorking></WeekDay>
+      </WeekDays>
+    </Calendar>
+  </Calendars>
+  <Tasks>${taskXml}
+  </Tasks>
+</Project>`;
+        
+        res.setHeader('Content-Type', 'application/xml');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}_export.xml"`);
+        res.send(mspdiXml);
+        
+      } else {
+        res.status(400).json({ message: "Invalid format. Use 'csv' or 'mspdi'" });
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      res.status(500).json({ message: "Error exporting project" });
+    }
+  });
+
   // --- Risks ---
   app.get(api.risks.list.path, async (req, res) => {
     const risks = await storage.getRisks(Number(req.params.projectId));
