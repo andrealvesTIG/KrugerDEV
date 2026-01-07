@@ -5,7 +5,7 @@ import {
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks,
-  changeRequests, projectDocuments,
+  changeRequests, projectDocuments, projectComments,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -31,6 +31,7 @@ import {
   type MppImportTask, type InsertMppImportTask,
   type ChangeRequest, type InsertChangeRequest, type UpdateChangeRequestRequest,
   type ProjectDocument, type InsertProjectDocument, type UpdateProjectDocumentRequest,
+  type ProjectComment, type InsertProjectComment,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
@@ -221,6 +222,11 @@ export interface IStorage {
   createProjectDocument(document: InsertProjectDocument): Promise<ProjectDocument>;
   updateProjectDocument(id: number, updates: UpdateProjectDocumentRequest): Promise<ProjectDocument>;
   deleteProjectDocument(id: number): Promise<void>;
+
+  // Project Comments
+  getProjectComments(projectId: number): Promise<ProjectComment[]>;
+  createProjectComment(comment: InsertProjectComment): Promise<ProjectComment>;
+  deleteProjectComment(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1681,6 +1687,22 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProjectDocument(id: number): Promise<void> {
     await db.delete(projectDocuments).where(eq(projectDocuments.id, id));
+  }
+
+  // Project Comments
+  async getProjectComments(projectId: number): Promise<ProjectComment[]> {
+    return await db.select().from(projectComments)
+      .where(eq(projectComments.projectId, projectId))
+      .orderBy(desc(projectComments.createdAt));
+  }
+
+  async createProjectComment(comment: InsertProjectComment): Promise<ProjectComment> {
+    const [created] = await db.insert(projectComments).values(comment).returning();
+    return created;
+  }
+
+  async deleteProjectComment(id: number): Promise<void> {
+    await db.delete(projectComments).where(eq(projectComments.id, id));
   }
 }
 
