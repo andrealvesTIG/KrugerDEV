@@ -1,32 +1,18 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-const SMTP_HOST = "smtp.office365.com";
-const SMTP_PORT = 587;
+let resend: Resend | null = null;
 
-let transporter: nodemailer.Transporter | null = null;
-
-function getTransporter() {
-  if (!process.env.SMTP_EMAIL || !process.env.SMTP_PASSWORD) {
-    console.warn("Email not configured: SMTP_EMAIL and SMTP_PASSWORD environment variables required");
+function getResendClient(): Resend | null {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("Email not configured: RESEND_API_KEY environment variable required");
     return null;
   }
 
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: false,
-      auth: {
-        user: process.env.SMTP_EMAIL,
-        pass: process.env.SMTP_PASSWORD,
-      },
-      tls: {
-        ciphers: "SSLv3",
-      },
-    });
+  if (!resend) {
+    resend = new Resend(process.env.RESEND_API_KEY);
   }
 
-  return transporter;
+  return resend;
 }
 
 export async function sendEmail({
@@ -34,15 +20,17 @@ export async function sendEmail({
   subject,
   text,
   html,
+  from,
 }: {
   to: string;
   subject: string;
   text: string;
   html?: string;
+  from?: string;
 }): Promise<boolean> {
-  const transport = getTransporter();
+  const client = getResendClient();
   
-  if (!transport) {
+  if (!client) {
     console.log("Email would be sent to:", to);
     console.log("Subject:", subject);
     console.log("Body:", text);
@@ -50,14 +38,22 @@ export async function sendEmail({
   }
 
   try {
-    await transport.sendMail({
-      from: process.env.SMTP_EMAIL,
-      to,
+    const fromAddress = from || process.env.RESEND_FROM_EMAIL || "Friday Report <onboarding@resend.dev>";
+    
+    const { data, error } = await client.emails.send({
+      from: fromAddress,
+      to: [to],
       subject,
       text,
       html: html || text,
     });
-    console.log(`Email sent successfully to ${to}`);
+
+    if (error) {
+      console.error("Failed to send email:", error);
+      return false;
+    }
+
+    console.log(`Email sent successfully to ${to}, ID: ${data?.id}`);
     return true;
   } catch (error) {
     console.error("Failed to send email:", error);
@@ -123,18 +119,22 @@ If you didn't request this, you can safely ignore this email.
 }
 
 export async function verifyEmailConnection(): Promise<boolean> {
-  const transport = getTransporter();
+  const client = getResendClient();
   
-  if (!transport) {
+  if (!client) {
     return false;
   }
 
   try {
-    await transport.verify();
-    console.log("SMTP connection verified successfully");
+    const { data, error } = await client.domains.list();
+    if (error) {
+      console.error("Resend connection failed:", error);
+      return false;
+    }
+    console.log("Resend connection verified successfully");
     return true;
   } catch (error) {
-    console.error("SMTP connection failed:", error);
+    console.error("Resend connection failed:", error);
     return false;
   }
 }
