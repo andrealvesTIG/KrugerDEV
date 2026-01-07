@@ -3546,7 +3546,52 @@ Return ONLY valid JSON, no markdown or explanations.`;
     
     try {
       const subscription = await billingProvider.ensureUserHasSubscription(userId);
-      const usage = await billingProvider.getUsageSummary(subscription.id);
+      
+      // Get the user's organizations
+      const userOrgMemberships = await storage.getUserOrganizations(userId);
+      const orgIds = userOrgMemberships.map(m => m.organizationId);
+      
+      // Count actual objects from the database
+      let projectCount = 0;
+      let taskCount = 0;
+      let documentCount = 0;
+      
+      if (orgIds.length > 0) {
+        // Count projects (excluding deleted)
+        const projectResult = await db.execute(
+          sql`SELECT COUNT(*) as count FROM projects WHERE organization_id = ANY(${orgIds}) AND deleted_at IS NULL`
+        );
+        projectCount = parseInt(projectResult.rows[0]?.count as string || '0');
+        
+        // Count tasks (excluding deleted)
+        const taskResult = await db.execute(
+          sql`SELECT COUNT(*) as count FROM tasks 
+              WHERE project_id IN (SELECT id FROM projects WHERE organization_id = ANY(${orgIds}) AND deleted_at IS NULL) 
+              AND deleted_at IS NULL`
+        );
+        taskCount = parseInt(taskResult.rows[0]?.count as string || '0');
+        
+        // Count documents (excluding deleted)
+        const docResult = await db.execute(
+          sql`SELECT COUNT(*) as count FROM project_documents 
+              WHERE project_id IN (SELECT id FROM projects WHERE organization_id = ANY(${orgIds}) AND deleted_at IS NULL) 
+              AND deleted_at IS NULL`
+        );
+        documentCount = parseInt(docResult.rows[0]?.count as string || '0');
+      }
+      
+      // Get AI runs from usage rollups (these are event-based, not stored entities)
+      const usageRollupsData = await billingProvider.getUsageSummary(subscription.id);
+      const aiRunsCount = usageRollupsData['ai_runs']?.usedUnits || 0;
+      
+      // Build the usage response with actual counts
+      const usage: Record<string, { usedUnits: number }> = {
+        ai_runs: { usedUnits: aiRunsCount },
+        documents: { usedUnits: documentCount },
+        projects: { usedUnits: projectCount },
+        tasks: { usedUnits: taskCount },
+      };
+      
       res.json(usage);
     } catch (err) {
       console.error("Error fetching usage:", err);
