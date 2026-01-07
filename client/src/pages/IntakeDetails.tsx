@@ -107,21 +107,26 @@ export default function IntakeDetails() {
   const [, navigate] = useLocation();
   const id = parseInt(params?.id || "0");
   const { toast } = useToast();
-  const { currentOrganization, organizations, setCurrentOrganization } = useOrganization();
+  const { currentOrganization } = useOrganization();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
   
-  const { data: intake, isLoading } = useQuery<ProjectIntake>({
-    queryKey: ['/api/project-intakes', id],
+  const { data: intake, isLoading, error } = useQuery<ProjectIntake>({
+    queryKey: ['/api/project-intakes', id, currentOrganization?.id],
     queryFn: async () => {
-      const res = await fetch(`/api/project-intakes/${id}`);
-      if (!res.ok) throw new Error('Failed to fetch intake');
+      const res = await fetch(`/api/project-intakes/${id}?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new Error('Intake not found in this organization');
+        }
+        throw new Error('Failed to fetch intake');
+      }
       return res.json();
     },
-    enabled: !!id,
+    enabled: !!id && !!currentOrganization?.id,
   });
 
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
@@ -275,48 +280,15 @@ export default function IntakeDetails() {
     );
   }
 
-  if (!intake) {
+  if (!intake || error) {
     return (
       <div className="flex h-96 items-center justify-center flex-col gap-4">
         <AlertTriangle className="h-12 w-12 text-muted-foreground" />
-        <p className="text-muted-foreground">Intake not found</p>
+        <p className="text-muted-foreground">Intake not found in this organization</p>
         <Button variant="outline" onClick={() => navigate('/intakes')}>
           <ChevronLeft className="h-4 w-4 mr-2" />
           Back to Intakes
         </Button>
-      </div>
-    );
-  }
-
-  // Show prompt to switch organization if intake belongs to a different org
-  if (currentOrganization && intake.organizationId !== currentOrganization.id) {
-    const targetOrg = organizations.find(o => o.id === intake.organizationId);
-    return (
-      <div className="flex h-96 items-center justify-center">
-        <Card className="max-w-md">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center gap-4 text-center">
-              <AlertTriangle className="h-12 w-12 text-amber-500" />
-              <div>
-                <h3 className="text-lg font-semibold">Different Organization</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  This intake belongs to "{targetOrg?.name || 'another organization'}".
-                  {targetOrg ? " Would you like to switch?" : " You may not have access to view it."}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => navigate('/intakes')}>
-                  Go Back
-                </Button>
-                {targetOrg && (
-                  <Button onClick={() => setCurrentOrganization(targetOrg)}>
-                    Switch to {targetOrg.name}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     );
   }

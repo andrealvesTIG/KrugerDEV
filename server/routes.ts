@@ -2421,8 +2421,15 @@ export async function registerRoutes(
   // Get a single project intake
   app.get('/api/project-intakes/:id', async (req, res) => {
     try {
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
       const intake = await storage.getProjectIntake(Number(req.params.id));
       if (!intake) return res.status(404).json({ message: "Project intake not found" });
+      
+      // If organizationId is provided, validate the intake belongs to that organization
+      if (organizationId && intake.organizationId !== organizationId) {
+        return res.status(404).json({ message: "Project intake not found in this organization" });
+      }
+      
       res.json(intake);
     } catch (err) {
       console.error("Error fetching project intake:", err);
