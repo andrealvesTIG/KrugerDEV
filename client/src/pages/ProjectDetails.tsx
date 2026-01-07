@@ -127,6 +127,7 @@ export default function ProjectDetails() {
   const id = parseInt(params?.id || "0");
   const { data: project, isLoading } = useProject(id);
   const { data: financials } = useProjectFinancials(id);
+  const { data: projectTasks } = useTasks(id);
   const { mutate: updateProject } = useUpdateProject();
   const { toast } = useToast();
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
@@ -153,6 +154,15 @@ export default function ProjectDetails() {
 
   // Use financial budget total if available, otherwise use project budget
   const displayBudget = financialBudgetTotal > 0 ? financialBudgetTotal : Number(project?.budget || 0);
+
+  // Calculate progress based on task averages (or fall back to manual completionPercentage)
+  const calculatedProgress = useMemo(() => {
+    if (!projectTasks || projectTasks.length === 0) {
+      return project?.completionPercentage || 0;
+    }
+    const totalProgress = projectTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+    return Math.round(totalProgress / projectTasks.length);
+  }, [projectTasks, project?.completionPercentage]);
 
   if (isLoading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!project) return <div>Project not found</div>;
@@ -241,10 +251,17 @@ export default function ProjectDetails() {
           </CardContent>
         </Card>
         <Card className="py-2">
-          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Progress</CardTitle></CardHeader>
+          <CardHeader className="py-1 px-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+              Progress
+              {projectTasks && projectTasks.length > 0 && (
+                <Badge variant="outline" className="text-[9px] font-normal py-0">From Tasks</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
           <CardContent className="py-1 px-4">
-             <div className="text-base font-semibold">{project.completionPercentage}%</div>
-             <Progress value={project.completionPercentage || 0} className="h-1.5 mt-1" />
+             <div className="text-base font-semibold">{calculatedProgress}%</div>
+             <Progress value={calculatedProgress} className="h-1.5 mt-1" />
           </CardContent>
         </Card>
         <Card className="py-2">
