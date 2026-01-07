@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar, text } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, timestamp, varchar, text, boolean } from "drizzle-orm/pg-core";
 
 // Session storage table for express-session
 export const sessions = pgTable(
@@ -25,6 +25,11 @@ export const users = pgTable("users", {
   role: varchar("role").default("user"), // 'super_admin', 'user' (org-level roles are in organization_members)
   username: varchar("username").unique(),
   avatarUrl: varchar("avatar_url"),
+  
+  // Onboarding state
+  onboardingCompleted: boolean("onboarding_completed").default(false),
+  detectedCompany: varchar("detected_company"),
+  detectedIndustry: varchar("detected_industry"),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

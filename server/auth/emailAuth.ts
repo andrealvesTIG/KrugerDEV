@@ -6,6 +6,7 @@ import { users, passwordResetTokens } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "../services/email";
+import { lookupCompanyByEmail } from "../services/companyLookup";
 
 const PgSession = connectPgSimple(session);
 
@@ -86,6 +87,20 @@ export async function setupAuth(app: Express) {
       }
 
       const passwordHash = await hashPassword(password);
+      
+      // Lookup company info from email domain
+      let detectedCompany: string | null = null;
+      let detectedIndustry: string | null = null;
+      
+      try {
+        const companyInfo = await lookupCompanyByEmail(email);
+        if (!companyInfo.isPersonalEmail && companyInfo.companyName) {
+          detectedCompany = companyInfo.companyName;
+          detectedIndustry = companyInfo.industry;
+        }
+      } catch (err) {
+        console.error("Company lookup error:", err);
+      }
 
       const [newUser] = await db.insert(users).values({
         email,
@@ -93,6 +108,9 @@ export async function setupAuth(app: Express) {
         firstName: firstName || null,
         lastName: lastName || null,
         role: "user",
+        onboardingCompleted: false,
+        detectedCompany,
+        detectedIndustry,
       }).returning();
 
       // Regenerate session to prevent session fixation

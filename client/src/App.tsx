@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
 import { ThemeProvider } from "@/components/theme-provider";
+import { OnboardingDialog } from "@/components/OnboardingDialog";
 import NotFound from "@/pages/not-found";
 import { ReactNode, useEffect } from "react";
 import { Loader2 } from "lucide-react";
@@ -74,6 +75,7 @@ function GuardedRoute({ path, component: Component, moduleKey }: { path: string;
 function Router() {
   return (
     <AppLayout>
+      <OnboardingDialog />
       <Switch>
         <GuardedRoute path="/" component={Dashboard} moduleKey="dashboard" />
         <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />

@@ -325,25 +325,33 @@ function OrganizationsTab() {
       </Dialog>
 
       <Dialog open={editingOrg !== null} onOpenChange={() => setEditingOrg(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Organization</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Organization Name</Label>
-              <Input 
-                value={editingOrg?.name || ''} 
-                onChange={e => setEditingOrg(prev => prev ? {...prev, name: e.target.value} : null)}
-              />
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Organization Name</Label>
+                <Input 
+                  value={editingOrg?.name || ''} 
+                  onChange={e => setEditingOrg(prev => prev ? {...prev, name: e.target.value} : null)}
+                  data-testid="input-edit-org-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea 
+                  value={editingOrg?.description || ''} 
+                  onChange={e => setEditingOrg(prev => prev ? {...prev, description: e.target.value} : null)}
+                  data-testid="input-edit-org-description"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea 
-                value={editingOrg?.description || ''} 
-                onChange={e => setEditingOrg(prev => prev ? {...prev, description: e.target.value} : null)}
-              />
-            </div>
+            
+            {editingOrg && (
+              <OrgMembersEditor orgId={editingOrg.id} allUsers={users || []} />
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingOrg(null)}>Cancel</Button>
@@ -934,6 +942,175 @@ function PlansTab() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+interface OrgMember {
+  id: number;
+  organizationId: number;
+  userId: string;
+  role: string;
+  user?: {
+    id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+  };
+}
+
+function OrgMembersEditor({ orgId, allUsers }: { orgId: number; allUsers: User[] }) {
+  const { toast } = useToast();
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [selectedRole, setSelectedRole] = useState<string>("member");
+
+  const { data: members, isLoading } = useQuery<OrgMember[]>({
+    queryKey: ['/api/organizations', orgId, 'members'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${orgId}/members`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const addMember = useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+      return apiRequest('POST', `/api/organizations/${orgId}/members`, { userId, role });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'members'] });
+      toast({ title: "Success", description: "Member added to organization" });
+      setSelectedUserId("");
+      setSelectedRole("member");
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to add member", variant: "destructive" });
+    },
+  });
+
+  const updateRole = useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+      return apiRequest('PUT', `/api/organizations/${orgId}/members/${userId}`, { role });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'members'] });
+      toast({ title: "Success", description: "Role updated" });
+    },
+  });
+
+  const removeMember = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest('DELETE', `/api/organizations/${orgId}/members/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'members'] });
+      toast({ title: "Success", description: "Member removed" });
+    },
+  });
+
+  const existingMemberIds = members?.map(m => m.userId) || [];
+  const availableUsers = allUsers.filter(u => !existingMemberIds.includes(u.id));
+
+  return (
+    <div className="space-y-4 border-t pt-4">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-base font-medium flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          Organization Members
+        </Label>
+        <Badge variant="secondary">{members?.length || 0} members</Badge>
+      </div>
+
+      <div className="flex items-end gap-2">
+        <div className="flex-1 space-y-1">
+          <Label className="text-xs text-muted-foreground">Add User</Label>
+          <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+            <SelectTrigger data-testid="select-add-member-user">
+              <SelectValue placeholder="Select a user..." />
+            </SelectTrigger>
+            <SelectContent>
+              {availableUsers.length === 0 ? (
+                <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                  All users are already members
+                </div>
+              ) : (
+                availableUsers.map(u => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.firstName} {u.lastName} ({u.email})
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-32 space-y-1">
+          <Label className="text-xs text-muted-foreground">Role</Label>
+          <Select value={selectedRole} onValueChange={setSelectedRole}>
+            <SelectTrigger data-testid="select-add-member-role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="org_admin">Admin</SelectItem>
+              <SelectItem value="member">Member</SelectItem>
+              <SelectItem value="viewer">Viewer</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          size="default"
+          onClick={() => selectedUserId && addMember.mutate({ userId: selectedUserId, role: selectedRole })}
+          disabled={!selectedUserId || addMember.isPending}
+          data-testid="button-add-org-member"
+        >
+          {addMember.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : members && members.length > 0 ? (
+        <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+          {members.map(member => (
+            <div key={member.id} className="flex items-center justify-between gap-2 p-2" data-testid={`org-member-row-${member.userId}`}>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm truncate">
+                  {member.user?.firstName} {member.user?.lastName}
+                </div>
+                <div className="text-xs text-muted-foreground truncate">{member.user?.email}</div>
+              </div>
+              <Select 
+                value={member.role} 
+                onValueChange={(role) => updateRole.mutate({ userId: member.userId, role })}
+              >
+                <SelectTrigger className="w-24 h-8" data-testid={`select-member-role-${member.userId}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="org_admin">Admin</SelectItem>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => removeMember.mutate(member.userId)}
+                disabled={removeMember.isPending}
+                data-testid={`button-remove-member-${member.userId}`}
+              >
+                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg">
+          No members yet. Add users above.
+        </div>
+      )}
     </div>
   );
 }

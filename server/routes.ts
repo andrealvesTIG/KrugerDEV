@@ -3569,5 +3569,71 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // === ONBOARDING API ROUTES ===
+  const { getUserOnboardingStatus, completeOnboarding } = await import("./services/onboarding");
+  
+  app.get('/api/onboarding/status', async (req, res) => {
+    const userId = (req as any).session?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const status = await getUserOnboardingStatus(userId);
+      res.json(status);
+    } catch (err) {
+      console.error("Error getting onboarding status:", err);
+      res.status(500).json({ message: "Failed to get onboarding status" });
+    }
+  });
+  
+  app.post('/api/onboarding/complete', async (req, res) => {
+    const userId = (req as any).session?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const { companyName, industry, createDemoData } = req.body;
+    
+    if (!companyName) {
+      return res.status(400).json({ message: "Company name is required" });
+    }
+    
+    try {
+      const result = await completeOnboarding(userId, {
+        companyName,
+        industry: industry || 'General',
+        createDemoData: createDemoData === true,
+      });
+      
+      res.json({
+        success: true,
+        organization: result.organization,
+        demoDataCreated: !!result.portfolio,
+      });
+    } catch (err) {
+      console.error("Error completing onboarding:", err);
+      res.status(500).json({ message: "Failed to complete onboarding" });
+    }
+  });
+  
+  app.post('/api/onboarding/skip', async (req, res) => {
+    const userId = (req as any).session?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      await db.update(users)
+        .set({ onboardingCompleted: true })
+        .where(eq(users.id, userId));
+      
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error skipping onboarding:", err);
+      res.status(500).json({ message: "Failed to skip onboarding" });
+    }
+  });
+
   return httpServer;
 }
