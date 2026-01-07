@@ -39,6 +39,7 @@ export const plans = pgTable("plans", {
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
+  monthlyPriceCents: integer("monthly_price_cents").default(0),
   isActive: boolean("is_active").default(true),
   stripePriceId: text("stripe_price_id"),
   stripeProductId: text("stripe_product_id"),

@@ -11,9 +11,9 @@ async function seedBilling() {
   }
 
   const [freePlan, basicPlan, teamPlan] = await db.insert(plans).values([
-    { code: "FREE", name: "Free", description: "Basic access with limited usage" },
-    { code: "BASIC", name: "Basic", description: "For individuals and small teams", maxSeats: 1 },
-    { code: "TEAM", name: "Team", description: "For organizations with shared usage pools", maxSeats: 25 },
+    { code: "FREE", name: "Free", description: "Get started with basic features. Perfect for trying out Friday Report.", monthlyPriceCents: 0 },
+    { code: "BASIC", name: "Basic", description: "For individuals and small teams who need more power. Includes overage billing for flexible usage.", maxSeats: 1, monthlyPriceCents: 500 },
+    { code: "TEAM", name: "Team", description: "For growing organizations with shared usage pools. Full feature access with team collaboration.", maxSeats: 25, monthlyPriceCents: 1500 },
   ]).returning();
 
   console.log("Created plans:", { freePlan, basicPlan, teamPlan });
