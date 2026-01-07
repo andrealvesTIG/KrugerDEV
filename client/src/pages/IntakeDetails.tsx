@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -107,7 +107,7 @@ export default function IntakeDetails() {
   const [, navigate] = useLocation();
   const id = parseInt(params?.id || "0");
   const { toast } = useToast();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizations, setCurrentOrganization } = useOrganization();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
@@ -174,17 +174,6 @@ export default function IntakeDetails() {
     }
   });
 
-  // Redirect if intake doesn't belong to current organization
-  useEffect(() => {
-    if (intake && currentOrganization && intake.organizationId !== currentOrganization.id) {
-      toast({
-        title: "Organization Changed",
-        description: "Redirecting to dashboard - this intake belongs to a different organization.",
-        variant: "default"
-      });
-      navigate("/");
-    }
-  }, [intake, currentOrganization, navigate, toast]);
 
   const handleSave = () => {
     updateIntake.mutate({ ...formData });
@@ -299,9 +288,37 @@ export default function IntakeDetails() {
     );
   }
 
-  // Don't render if intake doesn't match current organization (will redirect)
+  // Show prompt to switch organization if intake belongs to a different org
   if (currentOrganization && intake.organizationId !== currentOrganization.id) {
-    return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    const targetOrg = organizations.find(o => o.id === intake.organizationId);
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-4 text-center">
+              <AlertTriangle className="h-12 w-12 text-amber-500" />
+              <div>
+                <h3 className="text-lg font-semibold">Different Organization</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This intake belongs to "{targetOrg?.name || 'another organization'}".
+                  {targetOrg ? " Would you like to switch?" : " You may not have access to view it."}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => navigate('/intakes')}>
+                  Go Back
+                </Button>
+                {targetOrg && (
+                  <Button onClick={() => setCurrentOrganization(targetOrg)}>
+                    Switch to {targetOrg.name}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const currentStepIndex = getStepIndex(intake.currentStep || "intake_capture");
