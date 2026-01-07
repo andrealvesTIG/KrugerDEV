@@ -5,7 +5,8 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./auth/emailAuth";
 import { db } from "./db";
-import { users, plans, meters, planMeterRules, features, planFeatures, organizationMembers, subscriptions } from "@shared/schema";
+import { users, plans, meters, planMeterRules, features, planFeatures, organizationMembers } from "@shared/schema";
+import { subscriptions, billingCycles, usageEvents, usageRollups, invoiceRecords, seatAssignments, billingAuditLogs } from "@shared/models/billing";
 import { eq } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
@@ -1109,11 +1110,39 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'You cannot delete yourself' });
       }
 
-      // Delete user's organization memberships first
-      await db.delete(organizationMembers).where(eq(organizationMembers.userId, userIdToDelete));
+      // Get user's subscriptions first
+      const userSubscriptions = await db.select().from(subscriptions).where(eq(subscriptions.userId, userIdToDelete));
+      
+      // Delete billing data in correct order (respecting foreign keys)
+      for (const subscription of userSubscriptions) {
+        // Get billing cycles for this subscription
+        const cycles = await db.select().from(billingCycles).where(eq(billingCycles.subscriptionId, subscription.id));
+        
+        for (const cycle of cycles) {
+          // Delete usage events for this billing cycle
+          await db.delete(usageEvents).where(eq(usageEvents.billingCycleId, cycle.id));
+          // Delete usage rollups for this billing cycle
+          await db.delete(usageRollups).where(eq(usageRollups.billingCycleId, cycle.id));
+        }
+        
+        // Delete invoice records for this subscription
+        await db.delete(invoiceRecords).where(eq(invoiceRecords.subscriptionId, subscription.id));
+        
+        // Delete billing cycles for this subscription
+        await db.delete(billingCycles).where(eq(billingCycles.subscriptionId, subscription.id));
+      }
+
+      // Delete user's seat assignments
+      await db.delete(seatAssignments).where(eq(seatAssignments.userId, userIdToDelete));
+
+      // Delete billing audit logs where user is the actor
+      await db.delete(billingAuditLogs).where(eq(billingAuditLogs.actorUserId, userIdToDelete));
 
       // Delete user's subscriptions
       await db.delete(subscriptions).where(eq(subscriptions.userId, userIdToDelete));
+
+      // Delete user's organization memberships
+      await db.delete(organizationMembers).where(eq(organizationMembers.userId, userIdToDelete));
 
       // Delete the user
       const [deleted] = await db.delete(users).where(eq(users.id, userIdToDelete)).returning();
