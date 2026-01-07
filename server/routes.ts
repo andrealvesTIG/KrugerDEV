@@ -3073,6 +3073,99 @@ export async function registerRoutes(
     }
   });
 
+  // =========== INTAKE WORKFLOW CONFIGURATION ===========
+
+  // Get intake workflow steps for an organization
+  app.get('/api/organizations/:orgId/intake-workflow', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const orgId = Number(req.params.orgId);
+      
+      // Check user has access to the organization
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      
+      let steps = await storage.getIntakeWorkflowSteps(orgId);
+      
+      // If no steps exist, initialize with defaults
+      if (steps.length === 0) {
+        steps = await storage.resetIntakeWorkflowToDefaults(orgId);
+      }
+      
+      res.json(steps);
+    } catch (err) {
+      console.error("Error fetching intake workflow:", err);
+      res.status(500).json({ message: "Error fetching intake workflow configuration" });
+    }
+  });
+
+  // Update intake workflow steps for an organization
+  app.put('/api/organizations/:orgId/intake-workflow', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const orgId = Number(req.params.orgId);
+      
+      // Check user has access to the organization
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      
+      // Validate the steps array
+      const { steps } = req.body;
+      if (!Array.isArray(steps)) {
+        return res.status(400).json({ message: "Steps must be an array" });
+      }
+      
+      // Validate each step has required fields
+      for (const step of steps) {
+        if (!step.stepKey || !step.label || step.position === undefined) {
+          return res.status(400).json({ message: "Each step must have stepKey, label, and position" });
+        }
+      }
+      
+      const updatedSteps = await storage.upsertIntakeWorkflowSteps(orgId, steps);
+      res.json(updatedSteps);
+    } catch (err) {
+      console.error("Error updating intake workflow:", err);
+      res.status(500).json({ message: "Error updating intake workflow configuration" });
+    }
+  });
+
+  // Reset intake workflow to defaults
+  app.post('/api/organizations/:orgId/intake-workflow/reset', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const orgId = Number(req.params.orgId);
+      
+      // Check user has access to the organization
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      
+      const steps = await storage.resetIntakeWorkflowToDefaults(orgId);
+      res.json(steps);
+    } catch (err) {
+      console.error("Error resetting intake workflow:", err);
+      res.status(500).json({ message: "Error resetting intake workflow configuration" });
+    }
+  });
+
   // =========== AI PROJECT GENERATION ===========
   
   // Generate a project with tasks, issues, and risks using AI
