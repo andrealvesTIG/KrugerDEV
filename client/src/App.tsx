@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,7 +7,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
 import { ThemeProvider } from "@/components/theme-provider";
 import NotFound from "@/pages/not-found";
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
 // Pages
 import Dashboard from "@/pages/Dashboard";
@@ -29,26 +30,29 @@ import ProjectIntakes from "@/pages/ProjectIntakes";
 import IntakeDetails from "@/pages/IntakeDetails";
 import Integrations from "@/pages/Integrations";
 
-const moduleRouteMap: Record<string, string> = {
-  "/": "dashboard",
-  "/portfolios": "portfolios",
-  "/projects": "projects",
-  "/intakes": "intakes",
-  "/tasks": "tasks",
-  "/issues": "issues",
-  "/resources": "resources",
-  "/calendar": "calendar",
-  "/integrations": "integrations",
-};
-
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
-  
-  if (isLoading) return null;
+  const [, setLocation] = useLocation();
   
   const hiddenModules = currentOrganization?.hiddenModules || [];
-  if (hiddenModules.includes(moduleKey)) {
-    return <Redirect to="/org-settings" />;
+  const isHidden = hiddenModules.includes(moduleKey);
+  
+  useEffect(() => {
+    if (!isLoading && isHidden) {
+      setLocation("/org-settings");
+    }
+  }, [isLoading, isHidden, setLocation]);
+  
+  if (isLoading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  if (isHidden) {
+    return null;
   }
   
   return <>{children}</>;
