@@ -111,6 +111,11 @@ function OrganizationsTab() {
     enabled: user?.role === 'super_admin',
   });
 
+  const { data: users } = useQuery<User[]>({
+    queryKey: ['/api/users'],
+    enabled: user?.role === 'super_admin',
+  });
+
   const createOrg = useMutation({
     mutationFn: async (data: { name: string; slug: string; description: string }) => {
       return apiRequest('POST', '/api/organizations', { ...data, ownerId: user?.id });
