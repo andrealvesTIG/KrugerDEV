@@ -474,7 +474,7 @@ export default function IntakeDetails() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Target Portfolio</Label>
+                  <Label>Target Portfolio <span className="text-destructive text-xs">(required for Triage)</span></Label>
                   <Select 
                     value={String(formData.portfolioId ?? intake.portfolioId ?? "")}
                     onValueChange={(v) => handleFieldChange('portfolioId', v ? parseInt(v) : null)}
@@ -493,7 +493,7 @@ export default function IntakeDetails() {
               </div>
               
               <div className="space-y-2">
-                <Label>Description / Problem Statement</Label>
+                <Label>Description / Problem Statement <span className="text-destructive">*</span></Label>
                 <Textarea
                   value={formData.description ?? intake.description ?? ""}
                   onChange={(e) => handleFieldChange('description', e.target.value)}
@@ -506,7 +506,7 @@ export default function IntakeDetails() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Funding Source</Label>
+                  <Label>Funding Source <span className="text-destructive text-xs">(required for Triage)</span></Label>
                   <Select 
                     value={formData.fundingSource ?? intake.fundingSource ?? ""}
                     onValueChange={(v) => handleFieldChange('fundingSource', v)}
@@ -565,12 +565,12 @@ export default function IntakeDetails() {
           <Card>
             <CardHeader>
               <CardTitle>Business Case & Financial Justification</CardTitle>
-              <CardDescription>Document the business value, expected benefits, and budget requirements</CardDescription>
+              <CardDescription>Document the business value, expected benefits, and budget requirements. <span className="text-destructive">*</span> Required for this gate</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Estimated Total Budget</Label>
+                  <Label>Estimated Total Budget <span className="text-destructive">*</span></Label>
                   <Input
                     type="number"
                     value={formData.estimatedBudget ?? intake.estimatedBudget ?? ""}
@@ -605,7 +605,7 @@ export default function IntakeDetails() {
               </div>
 
               <div className="space-y-2">
-                <Label>Business Justification & Expected Benefits</Label>
+                <Label>Business Justification & Expected Benefits <span className="text-destructive">*</span></Label>
                 <Textarea
                   value={formData.financialJustification ?? intake.financialJustification ?? ""}
                   onChange={(e) => handleFieldChange('financialJustification', e.target.value)}
@@ -635,11 +635,11 @@ export default function IntakeDetails() {
           <Card>
             <CardHeader>
               <CardTitle>Technical Evaluation</CardTitle>
-              <CardDescription>Assess technical feasibility, resource requirements, and implementation approach</CardDescription>
+              <CardDescription>Assess technical feasibility, resource requirements, and implementation approach. <span className="text-destructive">*</span> Required for this gate</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>IT Cost Estimate</Label>
+                <Label>IT Cost Estimate <span className="text-destructive">*</span></Label>
                 <Input
                   type="number"
                   value={formData.itCostEstimate ?? intake.itCostEstimate ?? ""}
@@ -651,7 +651,7 @@ export default function IntakeDetails() {
               </div>
 
               <div className="space-y-2">
-                <Label>Resource Requirements</Label>
+                <Label>Resource Requirements <span className="text-destructive">*</span></Label>
                 <Textarea
                   value={formData.resourceRequirements ?? intake.resourceRequirements ?? ""}
                   onChange={(e) => handleFieldChange('resourceRequirements', e.target.value)}
@@ -693,11 +693,11 @@ export default function IntakeDetails() {
           <Card>
             <CardHeader>
               <CardTitle>Governance & Compliance Review</CardTitle>
-              <CardDescription>Security assessment, compliance requirements, and approval tracking</CardDescription>
+              <CardDescription>Security assessment, compliance requirements, and approval tracking. <span className="text-destructive">*</span> Required for this gate</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Cybersecurity Risk Assessment</Label>
+                <Label>Cybersecurity Risk Assessment <span className="text-destructive">*</span></Label>
                 <Textarea
                   value={formData.cyberRiskAssessment ?? intake.cyberRiskAssessment ?? ""}
                   onChange={(e) => handleFieldChange('cyberRiskAssessment', e.target.value)}
