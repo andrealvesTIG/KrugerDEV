@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -566,7 +566,7 @@ function ProjectKanbanColumn({
   column: { id: string; label: string; color: string }; 
   projects: Project[];
 }) {
-  const { setNodeRef, isOver } = useSortable({
+  const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
 
@@ -601,16 +601,14 @@ function DraggableProjectCard({ project }: { project: Project }) {
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
-  } = useSortable({
+  } = useDraggable({
     id: project.id,
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+  } : undefined;
 
   return (
     <div
