@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
 import Papa from "papaparse";
+import { sendEmail, verifyEmailConnection } from "./services/email";
 
 import { execSync } from "child_process";
 import * as fs from "fs";
@@ -899,6 +900,50 @@ export async function registerRoutes(
   
   // Set up email authentication
   await setupAuth(app);
+
+  // Test email endpoint (admin only)
+  app.post('/api/test-email', async (req, res) => {
+    try {
+      const { to } = req.body;
+      if (!to) {
+        return res.status(400).json({ success: false, message: "Email address required" });
+      }
+
+      // First verify connection
+      const connected = await verifyEmailConnection();
+      if (!connected) {
+        return res.status(500).json({ 
+          success: false, 
+          message: "SMTP connection failed. Check SMTP_EMAIL and SMTP_PASSWORD environment variables." 
+        });
+      }
+
+      // Send test email
+      const sent = await sendEmail({
+        to,
+        subject: "Test Email - Friday Report",
+        text: "This is a test email from Friday Report. Your email configuration is working correctly!",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #f97316;">Friday Report - Test Email</h2>
+            <p>This is a test email from Friday Report.</p>
+            <p style="color: #22c55e; font-weight: bold;">Your email configuration is working correctly!</p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+            <p style="font-size: 12px; color: #6b7280;">Sent from Friday Report Email Service</p>
+          </div>
+        `
+      });
+
+      if (sent) {
+        res.json({ success: true, message: `Test email sent successfully to ${to}` });
+      } else {
+        res.status(500).json({ success: false, message: "Failed to send email" });
+      }
+    } catch (error) {
+      console.error("Test email error:", error);
+      res.status(500).json({ success: false, message: String(error) });
+    }
+  });
 
   // Seed DB on startup
   seedDatabase().catch(err => console.error("Error seeding database:", err));
