@@ -991,8 +991,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      const { name, description } = req.body;
-      const updated = await storage.updateOrganization(orgId, { name, description });
+      const { name, description, hiddenModules } = req.body;
+      const updated = await storage.updateOrganization(orgId, { name, description, hiddenModules });
       res.json(updated);
     } catch (err) {
       res.status(500).json({ message: 'Failed to update organization' });
