@@ -852,6 +852,16 @@ async function seedDatabase() {
   }
 }
 
+// Helper to get current user ID from request (supports both session and OAuth)
+function getCurrentUserId(req: any): string | undefined {
+  // First check session (email auth)
+  if (req.session?.userId) {
+    return req.session.userId;
+  }
+  // Fallback to OAuth claims
+  return (req.user as any)?.claims?.sub;
+}
+
 // Helper to check if user has access to an organization
 async function userHasOrgAccess(userId: string | undefined, orgId: number): Promise<boolean> {
   if (!userId) return false;
@@ -1002,7 +1012,7 @@ export async function registerRoutes(
 
   app.get('/api/organizations/:id', async (req, res) => {
     const orgId = Number(req.params.id);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     
     // Check access
     if (!await userHasOrgAccess(userId, orgId)) {
@@ -1035,7 +1045,7 @@ export async function registerRoutes(
   app.put('/api/organizations/:id', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1051,7 +1061,7 @@ export async function registerRoutes(
 
   app.delete('/api/organizations/:id', async (req, res) => {
     const orgId = Number(req.params.id);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     
     if (!await userHasOrgAccess(userId, orgId)) {
       return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1065,7 +1075,7 @@ export async function registerRoutes(
   app.get('/api/organizations/:id/members', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1096,7 +1106,7 @@ export async function registerRoutes(
   app.post('/api/organizations/:id/members', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const currentUserId = (req.user as any)?.claims?.sub;
+      const currentUserId = getCurrentUserId(req);
       
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1117,7 +1127,7 @@ export async function registerRoutes(
   app.put('/api/organizations/:id/members/:userId', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const currentUserId = (req.user as any)?.claims?.sub;
+      const currentUserId = getCurrentUserId(req);
       
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1137,7 +1147,7 @@ export async function registerRoutes(
 
   app.delete('/api/organizations/:id/members/:userId', async (req, res) => {
     const orgId = Number(req.params.id);
-    const currentUserId = (req.user as any)?.claims?.sub;
+    const currentUserId = getCurrentUserId(req);
     
     if (!await userHasOrgAccess(currentUserId, orgId)) {
       return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1151,7 +1161,7 @@ export async function registerRoutes(
   app.get('/api/organizations/:id/recycle-bin', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1168,7 +1178,7 @@ export async function registerRoutes(
   app.post('/api/organizations/:id/recycle-bin/restore', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1193,7 +1203,7 @@ export async function registerRoutes(
   app.delete('/api/organizations/:id/recycle-bin/:type/:itemId', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1214,7 +1224,7 @@ export async function registerRoutes(
   // --- Global Search ---
   app.get('/api/search', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       const query = req.query.q as string;
       if (!query || query.length < 2) {
         return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
@@ -1236,7 +1246,7 @@ export async function registerRoutes(
 
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1304,7 +1314,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.portfolios.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     await storage.softDeleteItem('portfolio', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1394,7 +1404,7 @@ export async function registerRoutes(
 
   // --- Projects ---
   app.get(api.projects.list.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1430,7 +1440,7 @@ export async function registerRoutes(
 
   app.post(api.projects.create.path, async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       // Check billing limits before creating project
       if (userId) {
@@ -1510,7 +1520,7 @@ export async function registerRoutes(
       }
       
       if (changes.length > 0) {
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = getCurrentUserId(req);
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createProjectChangeLog({
           projectId,
@@ -1533,7 +1543,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.projects.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     await storage.softDeleteItem('project', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1564,7 +1574,7 @@ export async function registerRoutes(
       const risk = await storage.createRisk(input);
       
       // Log change
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createRiskChangeLog({
         riskId: risk.id,
@@ -1611,7 +1621,7 @@ export async function registerRoutes(
       }
       
       if (changes.length > 0) {
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = getCurrentUserId(req);
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createRiskChangeLog({
           riskId,
@@ -1632,7 +1642,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.risks.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     await storage.softDeleteItem('risk', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1680,7 +1690,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.milestones.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     await storage.softDeleteItem('milestone', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1692,7 +1702,7 @@ export async function registerRoutes(
   });
 
   app.get(api.issues.listAll.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1721,7 +1731,7 @@ export async function registerRoutes(
       const issue = await storage.createIssue(input);
       
       // Log change
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createIssueChangeLog({
         issueId: issue.id,
@@ -1766,7 +1776,7 @@ export async function registerRoutes(
       }
       
       if (changes.length > 0) {
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = getCurrentUserId(req);
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createIssueChangeLog({
           issueId,
@@ -1787,7 +1797,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.issues.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     await storage.softDeleteItem('issue', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1813,7 +1823,7 @@ export async function registerRoutes(
   });
 
   app.get(api.tasks.listAll.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1838,7 +1848,7 @@ export async function registerRoutes(
 
   app.post(api.tasks.create.path, async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       // Check billing limits before creating task
       if (userId) {
@@ -1929,7 +1939,7 @@ export async function registerRoutes(
       }
       
       if (changes.length > 0) {
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = getCurrentUserId(req);
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createTaskChangeLog({
           taskId,
@@ -1950,7 +1960,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.tasks.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     await storage.softDeleteItem('task', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -2295,7 +2305,7 @@ export async function registerRoutes(
 
   // Demo Data Generation (Super Admin Only)
   app.get('/api/demo-data/industries', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -2313,7 +2323,7 @@ export async function registerRoutes(
   });
 
   app.post('/api/demo-data/generate', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -2576,7 +2586,7 @@ export async function registerRoutes(
   app.post('/api/project-intakes/:id/approve', async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -2604,7 +2614,7 @@ export async function registerRoutes(
   app.post('/api/project-intakes/:id/reject', async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       const { reason } = req.body;
       
       if (!userId) {
@@ -2660,7 +2670,7 @@ export async function registerRoutes(
   // Upload and parse MPP file (XML or CSV)
   app.post('/api/mpp-imports/upload', upload.single('file'), async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       const organizationId = Number(req.body.organizationId);
       
       if (isNaN(organizationId)) {
@@ -2813,7 +2823,7 @@ export async function registerRoutes(
   app.post('/api/projects/:projectId/change-requests', async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       const changeRequest = await storage.createChangeRequest({
         ...req.body,
         projectId,
@@ -2830,7 +2840,7 @@ export async function registerRoutes(
   app.patch('/api/change-requests/:id', async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       const updates = { ...req.body };
       
       // Track who reviewed/approved if status is changing to those states
@@ -2880,7 +2890,7 @@ export async function registerRoutes(
   app.post('/api/projects/:projectId/documents', async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       // Record document usage for billing
       if (userId) {
@@ -2941,7 +2951,7 @@ export async function registerRoutes(
   // Generate a project with tasks, issues, and risks using AI
   app.post('/api/ai/generate-project', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getCurrentUserId(req);
       
       // Require authentication
       if (!userId) {
@@ -3154,7 +3164,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
   // Delete all demo data for an organization (SuperAdmin only)
   app.delete('/api/demo-data/:organizationId', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -3246,7 +3256,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   app.get('/api/billing/subscription', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -3279,7 +3289,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   app.post('/api/billing/subscription', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -3303,7 +3313,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   app.patch('/api/billing/subscription/:id/plan', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -3327,7 +3337,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   app.post('/api/billing/subscription/:id/cancel', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -3345,7 +3355,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   app.get('/api/billing/usage', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -3361,7 +3371,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   app.get('/api/billing/usage/check/:meterCode', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -3379,7 +3389,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   app.post('/api/billing/usage', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -3411,7 +3421,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   app.get('/api/billing/invoices', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -3439,7 +3449,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   });
 
   app.get('/api/billing/audit-log', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -3459,7 +3469,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
   // SuperAdmin: Update plan details (pricing, description)
   app.put('/api/admin/plans/:id', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -3502,7 +3512,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
   // SuperAdmin: Get plan meter rules
   app.get('/api/admin/plans/:id/rules', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -3529,7 +3539,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
   // SuperAdmin: Update plan meter rule
   app.put('/api/admin/plans/:planId/rules/:ruleId', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getCurrentUserId(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
