@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import type { Organization, OrganizationMember, User, RecycleBinItem, RecycleBinItemType } from "@shared/schema";
+import { AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
+import type { Organization, OrganizationMember, User, RecycleBinItem, RecycleBinItemType, IntakeWorkflowStep } from "@shared/schema";
 
 interface EnrichedMember extends OrganizationMember {
   user?: User;
@@ -121,6 +124,7 @@ export default function OrgSettings() {
       </div>
 
       {orgId && currentOrg && <ModuleVisibilitySection organization={currentOrg} />}
+      {orgId && <IntakeWorkflowSection organizationId={orgId} />}
       {orgId && <MembersSection organizationId={orgId} orgName={currentOrg?.name || ''} />}
       {orgId && <RecycleBinSection organizationId={orgId} />}
     </div>
@@ -216,6 +220,282 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
           })}
         </div>
       </CardContent>
+    </Card>
+  );
+}
+
+function IntakeWorkflowSection({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [editingStep, setEditingStep] = useState<IntakeWorkflowStep | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editHelpText, setEditHelpText] = useState("");
+  const [editRequiredFields, setEditRequiredFields] = useState<string[]>([]);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const { data: workflowSteps, isLoading } = useQuery<IntakeWorkflowStep[]>({
+    queryKey: ['/api/organizations', organizationId, 'intake-workflow'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${organizationId}/intake-workflow`);
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  const updateWorkflowMutation = useMutation({
+    mutationFn: async (steps: Partial<IntakeWorkflowStep>[]) => {
+      return apiRequest('PUT', `/api/organizations/${organizationId}/intake-workflow`, { steps });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'intake-workflow'] });
+      toast({ title: "Saved", description: "Workflow configuration updated" });
+      setEditingStep(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update workflow", variant: "destructive" });
+    }
+  });
+
+  const resetWorkflowMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', `/api/organizations/${organizationId}/intake-workflow/reset`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'intake-workflow'] });
+      toast({ title: "Reset", description: "Workflow restored to default configuration" });
+      setShowResetConfirm(false);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to reset workflow", variant: "destructive" });
+    }
+  });
+
+  const openEditDialog = (step: IntakeWorkflowStep) => {
+    setEditingStep(step);
+    setEditLabel(step.label);
+    setEditDescription(step.description || "");
+    setEditHelpText(step.helpText || "");
+    setEditRequiredFields(step.requiredFields || []);
+  };
+
+  const handleSaveStep = () => {
+    if (!editingStep || !workflowSteps) return;
+    
+    const updatedSteps = workflowSteps.map(s => {
+      if (s.stepKey === editingStep.stepKey) {
+        return {
+          stepKey: s.stepKey,
+          position: s.position,
+          label: editLabel,
+          description: editDescription,
+          helpText: editHelpText,
+          requiredFields: editRequiredFields,
+        };
+      }
+      return {
+        stepKey: s.stepKey,
+        position: s.position,
+        label: s.label,
+        description: s.description,
+        helpText: s.helpText,
+        requiredFields: s.requiredFields,
+      };
+    });
+    
+    updateWorkflowMutation.mutate(updatedSteps);
+  };
+
+  const toggleRequiredField = (fieldKey: string) => {
+    setEditRequiredFields(prev => 
+      prev.includes(fieldKey) 
+        ? prev.filter(f => f !== fieldKey)
+        : [...prev, fieldKey]
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8 flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const sortedSteps = [...(workflowSteps || [])].sort((a, b) => a.position - b.position);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <GitBranch className="h-5 w-5" />
+            Intake Workflow Configuration
+          </CardTitle>
+          <CardDescription>
+            Customize the intake workflow steps and required fields for your organization
+          </CardDescription>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowResetConfirm(true)}
+          data-testid="button-reset-workflow"
+        >
+          <RotateCw className="h-4 w-4 mr-2" />
+          Reset to Defaults
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {sortedSteps.map((step, index) => (
+            <div
+              key={step.stepKey}
+              className="flex items-center justify-between p-4 rounded-lg border hover-elevate"
+              data-testid={`workflow-step-${step.stepKey}`}
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-medium text-sm">
+                  {index + 1}
+                </div>
+                <div>
+                  <div className="font-medium">{step.label}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {step.description || "No description"}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {step.requiredFields && step.requiredFields.length > 0 ? (
+                      step.requiredFields.map(field => {
+                        const fieldInfo = AVAILABLE_INTAKE_FIELDS.find(f => f.key === field);
+                        return (
+                          <Badge key={field} variant="secondary" className="text-xs">
+                            {fieldInfo?.label || field}
+                          </Badge>
+                        );
+                      })
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No required fields</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => openEditDialog(step)}
+                data-testid={`button-edit-step-${step.stepKey}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+
+      <Dialog open={editingStep !== null} onOpenChange={() => setEditingStep(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Workflow Step</DialogTitle>
+            <DialogDescription>
+              Customize the step name and required fields. Step key: {editingStep?.stepKey}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Step Name</Label>
+              <Input
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                placeholder="Enter step name"
+                data-testid="input-step-label"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Brief description of this step"
+                className="resize-none"
+                data-testid="input-step-description"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Help Text</Label>
+              <Textarea
+                value={editHelpText}
+                onChange={(e) => setEditHelpText(e.target.value)}
+                placeholder="Additional guidance for users"
+                className="resize-none"
+                data-testid="input-step-helptext"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Required Fields</Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Select which fields must be completed before advancing past this step
+              </p>
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                {AVAILABLE_INTAKE_FIELDS.map(field => (
+                  <div 
+                    key={field.key} 
+                    className="flex items-center space-x-2"
+                    data-testid={`checkbox-field-${field.key}`}
+                  >
+                    <Checkbox
+                      id={`field-${field.key}`}
+                      checked={editRequiredFields.includes(field.key)}
+                      onCheckedChange={() => toggleRequiredField(field.key)}
+                    />
+                    <label
+                      htmlFor={`field-${field.key}`}
+                      className="text-sm cursor-pointer"
+                    >
+                      {field.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingStep(null)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveStep} 
+              disabled={updateWorkflowMutation.isPending}
+              data-testid="button-save-step"
+            >
+              {updateWorkflowMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Workflow to Defaults?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will restore all workflow steps to their default names and required fields. 
+              Your customizations will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => resetWorkflowMutation.mutate()}
+              disabled={resetWorkflowMutation.isPending}
+            >
+              {resetWorkflowMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Reset to Defaults
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
