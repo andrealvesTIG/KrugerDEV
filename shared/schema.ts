@@ -5,6 +5,7 @@ import { relations } from "drizzle-orm";
 import { users } from "./models/auth";
 
 export * from "./models/auth";
+export * from "./models/chat";
 
 // === TABLE DEFINITIONS ===
 
