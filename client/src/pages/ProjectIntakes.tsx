@@ -264,18 +264,20 @@ export default function ProjectIntakes() {
     }
   });
 
-  const filteredIntakes = intakes?.filter(intake => {
+  const intakesList = Array.isArray(intakes) ? intakes : [];
+  
+  const filteredIntakes = intakesList.filter(intake => {
     const matchesSearch = intake.projectName.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || intake.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const stats = {
-    total: intakes?.length || 0,
-    draft: intakes?.filter(i => i.status === "draft").length || 0,
-    inProgress: intakes?.filter(i => i.status === "in_progress").length || 0,
-    approved: intakes?.filter(i => i.status === "approved").length || 0,
-    rejected: intakes?.filter(i => i.status === "rejected").length || 0,
+    total: intakesList.length,
+    draft: intakesList.filter(i => i.status === "draft").length,
+    inProgress: intakesList.filter(i => i.status === "in_progress").length,
+    approved: intakesList.filter(i => i.status === "approved").length,
+    rejected: intakesList.filter(i => i.status === "rejected").length,
   };
 
   const getStepLabel = (stepId: string) => {
