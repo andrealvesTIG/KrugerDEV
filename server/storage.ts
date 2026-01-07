@@ -4,7 +4,7 @@ import {
   organizations, organizationMembers, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
-  costItems, projectIntakes, mppImports, mppImportTasks,
+  costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
   changeRequests, projectDocuments, projectComments, notifications,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
@@ -33,6 +33,7 @@ import {
   type ProjectDocument, type InsertProjectDocument, type UpdateProjectDocumentRequest,
   type ProjectComment, type InsertProjectComment,
   type Notification, type InsertNotification,
+  type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
@@ -236,6 +237,11 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: number): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
+
+  // Intake Workflow Steps
+  getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]>;
+  upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]>;
+  resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1748,6 +1754,92 @@ export class DatabaseStorage implements IStorage {
     await db.update(notifications)
       .set({ isRead: true })
       .where(eq(notifications.userId, userId));
+  }
+
+  // Intake Workflow Steps
+  async getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]> {
+    return await db.select().from(intakeWorkflowSteps)
+      .where(eq(intakeWorkflowSteps.organizationId, organizationId))
+      .orderBy(intakeWorkflowSteps.position);
+  }
+
+  async upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]> {
+    // Delete existing steps for this organization
+    await db.delete(intakeWorkflowSteps).where(eq(intakeWorkflowSteps.organizationId, organizationId));
+    
+    // Insert new steps
+    if (steps.length === 0) {
+      return [];
+    }
+    
+    const stepsWithOrg = steps.map(step => ({
+      ...step,
+      organizationId,
+    }));
+    
+    const inserted = await db.insert(intakeWorkflowSteps).values(stepsWithOrg).returning();
+    return inserted;
+  }
+
+  async resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]> {
+    const defaultSteps: InsertIntakeWorkflowStep[] = [
+      {
+        organizationId,
+        stepKey: "intake_capture",
+        position: 0,
+        label: "Intake Capture",
+        description: "Capture the initial idea and basic information",
+        helpText: "Document the initial request, problem statement, and desired outcome.",
+        requiredFields: ["projectName", "description"],
+      },
+      {
+        organizationId,
+        stepKey: "triage",
+        position: 1,
+        label: "Triage",
+        description: "Classify and prioritize the intake request",
+        helpText: "Determine if this is a new initiative or backlog item, and assign to appropriate portfolio.",
+        requiredFields: ["portfolioId", "fundingSource"],
+      },
+      {
+        organizationId,
+        stepKey: "business_case",
+        position: 2,
+        label: "Business Case",
+        description: "Define business justification and expected benefits",
+        helpText: "Document the business case including ROI, benefits, and stakeholder alignment.",
+        requiredFields: ["estimatedBudget", "financialJustification"],
+      },
+      {
+        organizationId,
+        stepKey: "technical_evaluation",
+        position: 3,
+        label: "Technical Evaluation",
+        description: "Assess technical feasibility and resource requirements",
+        helpText: "Evaluate technical requirements, architecture impact, and resource availability.",
+        requiredFields: ["itCostEstimate", "resourceRequirements"],
+      },
+      {
+        organizationId,
+        stepKey: "governance_review",
+        position: 4,
+        label: "Governance Review",
+        description: "Security, compliance, and architecture approval",
+        helpText: "Complete security assessment, compliance review, and architecture sign-off.",
+        requiredFields: ["cyberRiskAssessment"],
+      },
+      {
+        organizationId,
+        stepKey: "decision",
+        position: 5,
+        label: "Decision",
+        description: "Final PMO review and approval decision",
+        helpText: "PMO reviews the complete intake and makes approval, deferral, or rejection decision.",
+        requiredFields: [],
+      },
+    ];
+    
+    return this.upsertIntakeWorkflowSteps(organizationId, defaultSteps);
   }
 }
 
