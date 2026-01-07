@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./auth/emailAuth";
 import { db } from "./db";
-import { users, plans, meters, planMeterRules, features, planFeatures } from "@shared/schema";
+import { users, plans, meters, planMeterRules, features, planFeatures, organizationMembers, subscriptions } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
@@ -1085,6 +1085,47 @@ export async function registerRoutes(
       res.json(updated);
     } catch (err) {
       res.status(500).json({ message: 'Failed to update user profile' });
+    }
+  });
+
+  // Delete user (super_admin only)
+  app.delete('/api/users/:userId', async (req, res) => {
+    try {
+      const currentUserId = getCurrentUserId(req);
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      // Check if current user is super_admin
+      const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+      if (currentUser?.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Only super admins can delete users' });
+      }
+
+      const userIdToDelete = req.params.userId;
+
+      // Prevent self-deletion
+      if (userIdToDelete === currentUserId) {
+        return res.status(400).json({ message: 'You cannot delete yourself' });
+      }
+
+      // Delete user's organization memberships first
+      await db.delete(organizationMembers).where(eq(organizationMembers.userId, userIdToDelete));
+
+      // Delete user's subscriptions
+      await db.delete(subscriptions).where(eq(subscriptions.userId, userIdToDelete));
+
+      // Delete the user
+      const [deleted] = await db.delete(users).where(eq(users.id, userIdToDelete)).returning();
+
+      if (!deleted) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      res.json({ message: 'User deleted successfully', user: deleted });
+    } catch (err) {
+      console.error('Delete user error:', err);
+      res.status(500).json({ message: 'Failed to delete user' });
     }
   });
 

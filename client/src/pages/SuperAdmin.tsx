@@ -513,7 +513,10 @@ function OrganizationsTab() {
 }
 
 function AllUsersTab() {
+  const { user: currentUser } = useAuth();
   const { toast } = useToast();
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
   
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ['/api/users']
@@ -528,6 +531,27 @@ function AllUsersTab() {
       toast({ title: "Success", description: "User role updated" });
     }
   });
+
+  const deleteUser = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest('DELETE', `/api/users/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      toast({ title: "Success", description: "User deleted successfully" });
+      setDeleteUserId(null);
+      setUserToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to delete user", variant: "destructive" });
+    }
+  });
+
+  const handleDeleteClick = (user: User) => {
+    setUserToDelete(user);
+    setDeleteUserId(user.id);
+  };
 
   if (isLoading) return <Loader2 className="animate-spin" />;
 
@@ -545,6 +569,7 @@ function AllUsersTab() {
               <TableHead>Email</TableHead>
               <TableHead>System Role</TableHead>
               <TableHead>Joined</TableHead>
+              <TableHead className="w-[80px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -571,6 +596,17 @@ function AllUsersTab() {
                 <TableCell>
                   {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}
                 </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteClick(user)}
+                    disabled={user.id === currentUser?.id}
+                    data-testid={`button-delete-user-${user.id}`}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -579,6 +615,41 @@ function AllUsersTab() {
           <div className="text-center py-8 text-slate-500">No users found.</div>
         )}
       </CardContent>
+
+      <Dialog open={!!deleteUserId} onOpenChange={(open) => !open && setDeleteUserId(null)}>
+        <DialogContent data-testid="dialog-delete-user">
+          <DialogHeader>
+            <DialogTitle>Delete User</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {userToDelete?.firstName} {userToDelete?.lastName} ({userToDelete?.email})? 
+              This will remove the user and all their organization memberships. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeleteUserId(null)} data-testid="button-cancel-delete-user">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteUserId && deleteUser.mutate(deleteUserId)}
+              disabled={deleteUser.isPending}
+              data-testid="button-confirm-delete-user"
+            >
+              {deleteUser.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete User
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
