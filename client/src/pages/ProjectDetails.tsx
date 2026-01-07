@@ -1441,45 +1441,48 @@ function TasksTab({ projectId }: { projectId: number }) {
                   Mark as Milestone (show on project timeline)
                 </Label>
               </div>
-              <DialogFooter className="flex items-center gap-2">
-                {editingTask && (
+              <DialogFooter className="sm:justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {editingTask && (
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIsHistoryOpen(true)}
+                      data-testid="button-view-history"
+                    >
+                      <History className="mr-2 h-4 w-4" />
+                      History
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {editingTask && (
+                    <Button 
+                      type="button" 
+                      variant="destructive" 
+                      onClick={() => {
+                        deleteTask.mutate({ id: editingTask.id, projectId: editingTask.projectId }, {
+                          onSuccess: () => {
+                            toast({ title: "Deleted", description: "Task deleted" });
+                            setIsDialogOpen(false);
+                            setEditingTask(null);
+                          }
+                        });
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
                   <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setIsHistoryOpen(true)}
-                    data-testid="button-view-history"
+                    type="submit" 
+                    data-testid="button-save-task" 
+                    disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
                   >
-                    <History className="mr-2 h-4 w-4" />
-                    History
+                    {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {editingTask ? "Update Task" : "Save Task"}
                   </Button>
-                )}
-                <div className="flex-1" />
-                {editingTask && (
-                  <Button 
-                    type="button" 
-                    variant="destructive" 
-                    onClick={() => {
-                      deleteTask.mutate({ id: editingTask.id, projectId: editingTask.projectId }, {
-                        onSuccess: () => {
-                          toast({ title: "Deleted", description: "Task deleted" });
-                          setIsDialogOpen(false);
-                          setEditingTask(null);
-                        }
-                      });
-                    }}
-                  >
-                    Delete
-                  </Button>
-                )}
-                <Button 
-                  type="submit" 
-                  data-testid="button-save-task" 
-                  disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
-                >
-                  {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingTask ? "Update Task" : "Save Task"}
-                </Button>
+                </div>
               </DialogFooter>
             </form>
           </DialogContent>
