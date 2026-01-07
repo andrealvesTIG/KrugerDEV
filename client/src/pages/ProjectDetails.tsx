@@ -25,6 +25,7 @@ import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSi
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useTaskHistory } from "@/hooks/use-tasks";
 import { Textarea } from "@/components/ui/textarea";
 import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
@@ -388,12 +389,13 @@ function ProjectTimeline({
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const { data: milestones } = useMilestones(projectId);
+  const { data: tasks } = useTasks(projectId);
   
   // Parse project dates
   const projectStart = startDate ? parseISO(startDate) : null;
   const projectEnd = endDate ? parseISO(endDate) : null;
   
-  // Get milestones from milestones table
+  // Get milestones from milestones table AND tasks marked as milestones
   const allEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
     
@@ -408,9 +410,20 @@ function ProjectTimeline({
       });
     });
     
+    // Add tasks marked as milestones (use end date as the milestone date)
+    tasks?.filter(t => t.isMilestone).forEach((t) => {
+      events.push({
+        id: t.id,
+        type: 'task-milestone',
+        title: t.name,
+        date: parseISO(t.endDate),
+        completed: t.status === 'Completed',
+      });
+    });
+    
     // Sort by date
     return events.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [milestones]);
+  }, [milestones, tasks]);
   
   // Calculate timeline range
   const timelineRange = useMemo(() => {
@@ -1149,6 +1162,7 @@ function TasksTab({ projectId }: { projectId: number }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [durationDays, setDurationDays] = useState(7);
+  const [isMilestone, setIsMilestone] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
@@ -1209,6 +1223,7 @@ function TasksTab({ projectId }: { projectId: number }) {
       ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
       : 7);
     setDurationDays(taskDuration);
+    setIsMilestone(task.isMilestone || false);
     form.reset({
       projectId: task.projectId,
       name: task.name,
@@ -1226,6 +1241,7 @@ function TasksTab({ projectId }: { projectId: number }) {
   const openCreateDialog = () => {
     setEditingTask(null);
     setDurationDays(7);
+    setIsMilestone(false);
     setSelectedResourceIds([]);
     form.reset({
       projectId: projectId,
@@ -1252,6 +1268,7 @@ function TasksTab({ projectId }: { projectId: number }) {
       progress: data.progress || 0,
       status: data.status || "Not Started",
       assignee: data.assignee || null,
+      isMilestone: isMilestone,
     };
 
     if (editingTask) {
@@ -1395,6 +1412,18 @@ function TasksTab({ projectId }: { projectId: number }) {
                 onSelectionChange={setSelectedResourceIds}
                 label="Assigned Resources"
               />
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="isMilestone" 
+                  checked={isMilestone}
+                  onCheckedChange={(checked) => setIsMilestone(checked === true)}
+                  data-testid="checkbox-task-milestone"
+                />
+                <Label htmlFor="isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
+                  <MilestoneIcon className="h-4 w-4 text-primary" />
+                  Mark as Milestone (show on project timeline)
+                </Label>
+              </div>
               <DialogFooter className="flex items-center gap-2">
                 {editingTask && (
                   <Button 
@@ -1641,7 +1670,10 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
                   data-testid={`gantt-task-${task.id}`}
                 >
                   <div className="w-64 flex-shrink-0 border-r p-3">
-                    <div className="font-medium text-sm truncate">{task.name}</div>
+                    <div className="font-medium text-sm truncate flex items-center gap-1.5">
+                      {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                      {task.name}
+                    </div>
                     <div className="text-xs text-muted-foreground truncate">{task.assignee || "Unassigned"}</div>
                   </div>
                   <div className="flex-1 relative p-2">
@@ -1836,7 +1868,10 @@ function ProjectDraggableTaskCard({
         data-testid={`kanban-task-${task.id}`}
       >
         <CardContent className="p-4">
-          <div className="font-medium text-sm">{task.name}</div>
+          <div className="font-medium text-sm flex items-center gap-1.5">
+            {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+            {task.name}
+          </div>
           <div className="text-xs text-muted-foreground mt-1">{task.assignee || "Unassigned"}</div>
           <div className="flex items-center justify-between mt-3">
             <Badge variant="outline" className="text-xs">

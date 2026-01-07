@@ -129,6 +129,7 @@ export const tasks = pgTable("tasks", {
   status: text("status").default("Not Started"), // Not Started, In Progress, Completed
   assignee: text("assignee"),
   parentId: integer("parent_id"), // For subtasks/dependencies
+  isMilestone: boolean("is_milestone").default(false), // Show task on project timeline
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
