@@ -474,6 +474,14 @@ export default function Tasks() {
                     </Button>
                   )}
                   <div className="flex-1" />
+                  <Button 
+                    type="submit" 
+                    data-testid="button-save-task" 
+                    disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
+                  >
+                    {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {editingTask ? "Update Task" : "Save Task"}
+                  </Button>
                   {editingTask && (
                     <Button 
                       type="button" 
@@ -487,17 +495,21 @@ export default function Tasks() {
                           }
                         });
                       }}
+                      data-testid="button-delete-task"
                     >
-                      Delete
+                      Delete Task
                     </Button>
                   )}
                   <Button 
-                    type="submit" 
-                    data-testid="button-save-task" 
-                    disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsDialogOpen(false);
+                      setEditingTask(null);
+                    }}
+                    data-testid="button-cancel-task"
                   >
-                    {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {editingTask ? "Update Task" : "Save Task"}
+                    Cancel
                   </Button>
                 </DialogFooter>
               </form>
