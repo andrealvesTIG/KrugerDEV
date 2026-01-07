@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
 import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory } from "@/hooks/use-risks";
@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -33,7 +33,8 @@ import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOf
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
-import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument } from "@shared/schema";
+import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User } from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
@@ -815,9 +816,70 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
   const [newComment, setNewComment] = useState("");
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState("");
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState("");
+  const [mentionTarget, setMentionTarget] = useState<'new' | 'reply'>('new');
   const { data: comments, isLoading } = useProjectComments(projectId);
+  const { data: users } = useQuery<User[]>({ queryKey: ['/api/users'] });
   const createComment = useCreateProjectComment(projectId);
   const deleteComment = useDeleteProjectComment(projectId);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const replyInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter users based on mention search
+  const filteredUsers = users?.filter(u => {
+    const searchLower = mentionSearch.toLowerCase();
+    return (
+      u.username?.toLowerCase().includes(searchLower) ||
+      u.email?.toLowerCase().includes(searchLower) ||
+      u.firstName?.toLowerCase().includes(searchLower) ||
+      u.lastName?.toLowerCase().includes(searchLower)
+    );
+  }).slice(0, 5) || [];
+
+  const handleInputChange = (value: string, target: 'new' | 'reply') => {
+    if (target === 'new') {
+      setNewComment(value);
+    } else {
+      setReplyContent(value);
+    }
+    
+    // Check if user is typing a mention
+    const cursorPos = target === 'new' ? inputRef.current?.selectionStart : replyInputRef.current?.selectionStart;
+    if (cursorPos !== undefined && cursorPos !== null) {
+      const textBeforeCursor = value.slice(0, cursorPos);
+      const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+      if (mentionMatch) {
+        setShowMentions(true);
+        setMentionSearch(mentionMatch[1]);
+        setMentionTarget(target);
+      } else {
+        setShowMentions(false);
+      }
+    }
+  };
+
+  const insertMention = (user: User) => {
+    const mentionText = user.username || user.email || '';
+    const currentValue = mentionTarget === 'new' ? newComment : replyContent;
+    const inputElement = mentionTarget === 'new' ? inputRef.current : replyInputRef.current;
+    const cursorPos = inputElement?.selectionStart || currentValue.length;
+    
+    // Find the @ symbol position
+    const textBeforeCursor = currentValue.slice(0, cursorPos);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+    
+    if (atIndex !== -1) {
+      const newValue = currentValue.slice(0, atIndex) + '@' + mentionText + ' ' + currentValue.slice(cursorPos);
+      if (mentionTarget === 'new') {
+        setNewComment(newValue);
+      } else {
+        setReplyContent(newValue);
+      }
+    }
+    setShowMentions(false);
+    inputElement?.focus();
+  };
 
   // Group comments by parent - top level first, then replies
   const topLevelComments = comments?.filter(c => !c.parentId) || [];
@@ -903,7 +965,7 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
       data-testid={`comment-${comment.id}`}
     >
       <div className={`${isReply ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0`}>
-        <User className={`${isReply ? 'h-3 w-3' : 'h-4 w-4'} text-primary`} />
+        <UserIcon className={`${isReply ? 'h-3 w-3' : 'h-4 w-4'} text-primary`} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -950,22 +1012,47 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add a comment... (use @username to mention)"
-            className="flex-1"
-            data-testid="input-new-comment"
-          />
-          <Button 
-            type="submit" 
-            size="icon" 
-            disabled={!newComment.trim() || createComment.isPending}
-            data-testid="button-submit-comment"
-          >
-            {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
+        <form onSubmit={handleSubmit} className="relative">
+          <div className="flex gap-2">
+            <Input
+              ref={inputRef}
+              value={newComment}
+              onChange={(e) => handleInputChange(e.target.value, 'new')}
+              placeholder="Add a comment... (type @ to mention someone)"
+              className="flex-1"
+              data-testid="input-new-comment"
+            />
+            <Button 
+              type="submit" 
+              size="icon" 
+              disabled={!newComment.trim() || createComment.isPending}
+              data-testid="button-submit-comment"
+            >
+              {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
+          {showMentions && mentionTarget === 'new' && filteredUsers.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 bg-popover border rounded-md shadow-md z-50 max-h-40 overflow-y-auto">
+              {filteredUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="px-3 py-2 cursor-pointer hover-elevate flex items-center gap-2"
+                  onClick={() => insertMention(user)}
+                  data-testid={`mention-user-${user.id}`}
+                >
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <UserIcon className="h-3 w-3 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email}
+                    </p>
+                    {user.email && <p className="text-xs text-muted-foreground truncate">{user.email}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </form>
 
         {isLoading ? (
@@ -980,31 +1067,56 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
                 
                 {/* Reply form */}
                 {replyingTo === comment.id && (
-                  <div className="ml-8 mt-2 flex gap-2">
-                    <Input
-                      value={replyContent}
-                      onChange={(e) => setReplyContent(e.target.value)}
-                      placeholder="Write a reply... (use @username to mention)"
-                      className="flex-1"
-                      autoFocus
-                      data-testid={`input-reply-${comment.id}`}
-                    />
-                    <Button
-                      size="icon"
-                      onClick={() => handleReplySubmit(comment.id)}
-                      disabled={!replyContent.trim() || createComment.isPending}
-                      data-testid={`button-submit-reply-${comment.id}`}
-                    >
-                      {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => { setReplyingTo(null); setReplyContent(""); }}
-                      data-testid={`button-cancel-reply-${comment.id}`}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                  <div className="ml-8 mt-2 relative">
+                    <div className="flex gap-2">
+                      <Input
+                        ref={replyInputRef}
+                        value={replyContent}
+                        onChange={(e) => handleInputChange(e.target.value, 'reply')}
+                        placeholder="Write a reply... (type @ to mention someone)"
+                        className="flex-1"
+                        autoFocus
+                        data-testid={`input-reply-${comment.id}`}
+                      />
+                      <Button
+                        size="icon"
+                        onClick={() => handleReplySubmit(comment.id)}
+                        disabled={!replyContent.trim() || createComment.isPending}
+                        data-testid={`button-submit-reply-${comment.id}`}
+                      >
+                        {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { setReplyingTo(null); setReplyContent(""); setShowMentions(false); }}
+                        data-testid={`button-cancel-reply-${comment.id}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {showMentions && mentionTarget === 'reply' && filteredUsers.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-popover border rounded-md shadow-md z-50 max-h-40 overflow-y-auto">
+                        {filteredUsers.map((user) => (
+                          <div
+                            key={user.id}
+                            className="px-3 py-2 cursor-pointer hover-elevate flex items-center gap-2"
+                            onClick={() => insertMention(user)}
+                            data-testid={`mention-reply-user-${user.id}`}
+                          >
+                            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <UserIcon className="h-3 w-3 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email}
+                              </p>
+                              {user.email && <p className="text-xs text-muted-foreground truncate">{user.email}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 
