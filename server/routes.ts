@@ -2847,7 +2847,22 @@ export async function registerRoutes(
   // Get all comments for a project
   app.get('/api/projects/:projectId/comments', async (req, res) => {
     try {
+      const userId = (req.user as any)?.claims?.sub;
       const projectId = Number(req.params.projectId);
+      
+      // Verify project exists and user has access
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      if (userId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(project.organizationId)) {
+          return res.status(404).json({ message: "Project not found" });
+        }
+      }
+      
       const comments = await storage.getProjectComments(projectId);
       res.json(comments);
     } catch (err) {
@@ -2866,14 +2881,31 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Authentication required" });
       }
       
+      // Verify project exists and user has access
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Validate content
+      const content = req.body.content?.trim();
+      if (!content || content.length === 0) {
+        return res.status(400).json({ message: "Comment content is required" });
+      }
+      
       const user = await storage.getUser(userId);
       const comment = await storage.createProjectComment({
         projectId,
-        userId,
-        userName: user?.firstName && user?.lastName 
+        authorId: userId,
+        authorName: user?.firstName && user?.lastName 
           ? `${user.firstName} ${user.lastName}` 
           : user?.username || 'Unknown',
-        content: req.body.content,
+        content,
       });
       res.status(201).json(comment);
     } catch (err) {
@@ -2885,7 +2917,29 @@ export async function registerRoutes(
   // Delete a comment
   app.delete('/api/comments/:id', async (req, res) => {
     try {
+      const userId = (req.user as any)?.claims?.sub;
       const id = Number(req.params.id);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      // Get the comment and verify org access through the project
+      const comment = await storage.getProjectComment(id);
+      if (!comment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+      
+      const project = await storage.getProject(comment.projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
       await storage.deleteProjectComment(id);
       res.json({ success: true });
     } catch (err) {
