@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
+import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,62 +19,6 @@ import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, File
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
-
-const WORKFLOW_STEPS = [
-  { 
-    id: "intake_capture", 
-    label: "Intake Capture", 
-    description: "Capture the initial idea and basic information",
-    icon: Lightbulb,
-    requiredFields: ["projectName", "description"],
-    helpText: "Document the initial request, problem statement, and desired outcome."
-  },
-  { 
-    id: "triage", 
-    label: "Triage", 
-    description: "Classify and prioritize the intake request",
-    icon: Filter,
-    requiredFields: ["portfolioId", "fundingSource"],
-    helpText: "Determine if this is a new initiative or backlog item, and assign to appropriate portfolio."
-  },
-  { 
-    id: "business_case", 
-    label: "Business Case", 
-    description: "Define business justification and expected benefits",
-    icon: FileText,
-    requiredFields: ["estimatedBudget", "financialJustification"],
-    helpText: "Document the business case including ROI, benefits, and stakeholder alignment."
-  },
-  { 
-    id: "technical_evaluation", 
-    label: "Technical Evaluation", 
-    description: "Assess technical feasibility and resource requirements",
-    icon: Calculator,
-    requiredFields: ["itCostEstimate", "resourceRequirements"],
-    helpText: "Evaluate technical requirements, architecture impact, and resource availability."
-  },
-  { 
-    id: "governance_review", 
-    label: "Governance Review", 
-    description: "Security, compliance, and architecture approval",
-    icon: Shield,
-    requiredFields: ["cyberRiskAssessment"],
-    helpText: "Complete security assessment, compliance review, and architecture sign-off."
-  },
-  { 
-    id: "decision", 
-    label: "Decision", 
-    description: "Final PMO review and approval decision",
-    icon: Gavel,
-    requiredFields: [],
-    helpText: "PMO reviews the complete intake and makes approval, deferral, or rejection decision."
-  },
-];
-
-function getStepIndex(stepId: string): number {
-  const index = WORKFLOW_STEPS.findIndex(s => s.id === stepId);
-  return index >= 0 ? index : 0;
-}
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -109,6 +54,7 @@ export default function IntakeDetails() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
+  const { steps: workflowSteps, isLoading: workflowLoading, getStepByKey, getStepIndex, isFieldRequired } = useIntakeWorkflow();
   
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
@@ -188,36 +134,24 @@ export default function IntakeDetails() {
     const errors: string[] = [];
     const currentData = { ...intake, ...formData };
     
-    switch (gateId) {
-      case "intake_capture":
-        if (!currentData.projectName?.trim()) errors.push("Intake Name is required");
-        if (!currentData.description?.trim()) errors.push("Description / Problem Statement is required");
-        break;
-      case "triage":
-        if (!currentData.portfolioId) errors.push("Target Portfolio is required for classification");
-        if (!currentData.fundingSource) errors.push("Funding Source must be identified");
-        break;
-      case "business_case":
-        if (!currentData.estimatedBudget || parseFloat(String(currentData.estimatedBudget)) <= 0) {
-          errors.push("Estimated Budget is required");
-        }
-        if (!currentData.financialJustification?.trim()) {
-          errors.push("Business Justification is required");
-        }
-        break;
-      case "technical_evaluation":
-        if (!currentData.itCostEstimate || parseFloat(String(currentData.itCostEstimate)) <= 0) {
-          errors.push("IT Cost Estimate is required");
-        }
-        if (!currentData.resourceRequirements?.trim()) {
-          errors.push("Resource Requirements must be documented");
-        }
-        break;
-      case "governance_review":
-        if (!currentData.cyberRiskAssessment?.trim()) {
-          errors.push("Cybersecurity Risk Assessment is required");
-        }
-        break;
+    // Get required fields from dynamic configuration
+    const step = getStepByKey(gateId);
+    const requiredFields = step?.requiredFields || [];
+    
+    // Check each required field
+    for (const field of requiredFields) {
+      const value = currentData[field as keyof typeof currentData];
+      const fieldInfo = AVAILABLE_INTAKE_FIELDS.find(f => f.key === field);
+      const fieldLabel = fieldInfo?.label || field;
+      
+      // Check for empty values based on field type
+      if (typeof value === 'string' && !value.trim()) {
+        errors.push(`${fieldLabel} is required`);
+      } else if (typeof value === 'number' && value <= 0) {
+        errors.push(`${fieldLabel} is required`);
+      } else if (value === null || value === undefined) {
+        errors.push(`${fieldLabel} is required`);
+      }
     }
     
     return { valid: errors.length === 0, errors };
@@ -238,8 +172,8 @@ export default function IntakeDetails() {
       return;
     }
     
-    if (currentIndex < WORKFLOW_STEPS.length - 1) {
-      const nextStep = WORKFLOW_STEPS[currentIndex + 1].id;
+    if (currentIndex < workflowSteps.length - 1) {
+      const nextStep = workflowSteps[currentIndex + 1].stepKey;
       
       const stepCompletionUpdate: Partial<ProjectIntake> = {};
       if (currentStepId === "intake_capture") stepCompletionUpdate.isBacklogComplete = true;
@@ -261,7 +195,7 @@ export default function IntakeDetails() {
     if (!intake) return;
     const currentIndex = getStepIndex(intake.currentStep || "intake_capture");
     if (currentIndex > 0) {
-      const prevStep = WORKFLOW_STEPS[currentIndex - 1].id;
+      const prevStep = workflowSteps[currentIndex - 1].stepKey;
       updateIntake.mutate({
         currentStep: prevStep,
       });
@@ -272,7 +206,7 @@ export default function IntakeDetails() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  if (isLoading) {
+  if (isLoading || workflowLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -294,9 +228,9 @@ export default function IntakeDetails() {
   }
 
   const currentStepIndex = getStepIndex(intake.currentStep || "intake_capture");
-  const currentStep = WORKFLOW_STEPS[currentStepIndex];
+  const currentStep = workflowSteps[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
-  const isLastStep = currentStepIndex === WORKFLOW_STEPS.length - 1;
+  const isLastStep = currentStepIndex === workflowSteps.length - 1;
   const isApproved = intake.status === "approved";
   const isRejected = intake.status === "rejected";
   const isLocked = isApproved || isRejected;
@@ -334,14 +268,14 @@ export default function IntakeDetails() {
           </div>
 
           <div className="flex items-center justify-between mb-2 overflow-x-auto pb-2">
-            {WORKFLOW_STEPS.map((step, index) => {
-              const isCompleted = completedSteps.includes(step.id) || (isApproved && index <= currentStepIndex);
+            {workflowSteps.map((step, index) => {
+              const isCompleted = completedSteps.includes(step.stepKey) || (isApproved && index <= currentStepIndex);
               const isCurrent = index === currentStepIndex && !isApproved && !isRejected;
               const isClickable = index <= currentStepIndex && !isLocked;
               const Icon = step.icon;
               
               return (
-                <div key={step.id} className="flex items-center flex-1">
+                <div key={step.stepKey} className="flex items-center flex-1">
                   <div 
                     className={cn(
                       "flex flex-col items-center text-center min-w-[80px]",
@@ -350,7 +284,7 @@ export default function IntakeDetails() {
                     )}
                     onClick={() => {
                       if (isClickable) {
-                        updateIntake.mutate({ currentStep: step.id });
+                        updateIntake.mutate({ currentStep: step.stepKey });
                       }
                     }}
                   >
@@ -373,7 +307,7 @@ export default function IntakeDetails() {
                       {step.label}
                     </span>
                   </div>
-                  {index < WORKFLOW_STEPS.length - 1 && (
+                  {index < workflowSteps.length - 1 && (
                     <div className={cn(
                       "flex-1 h-0.5 mx-2 min-w-[20px]",
                       isCompleted ? "bg-primary" : "bg-muted-foreground/30"
