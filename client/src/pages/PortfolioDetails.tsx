@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useState, useEffect } from "react";
+import { useRoute, Link, useLocation } from "wouter";
+import { useOrganization } from "@/hooks/use-organization";
+import { useToast } from "@/hooks/use-toast";
 import { 
   usePortfolioOverview, 
   usePortfolioProjects, 
@@ -32,6 +34,21 @@ export default function PortfolioDetails() {
   const id = parseInt(params?.id || "0");
   const { data: overview, isLoading } = usePortfolioOverview(id);
   const [activeTab, setActiveTab] = useState("summary");
+  const { currentOrganization } = useOrganization();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  // Redirect if portfolio doesn't belong to current organization
+  useEffect(() => {
+    if (overview?.portfolio && currentOrganization && overview.portfolio.organizationId !== currentOrganization.id) {
+      toast({
+        title: "Organization Changed",
+        description: "Redirecting to dashboard - this portfolio belongs to a different organization.",
+        variant: "default"
+      });
+      setLocation("/");
+    }
+  }, [overview, currentOrganization, setLocation, toast]);
 
   if (isLoading) {
     return (
@@ -46,6 +63,11 @@ export default function PortfolioDetails() {
   }
 
   const { portfolio, metrics } = overview;
+
+  // Don't render if portfolio doesn't match current organization (will redirect)
+  if (currentOrganization && portfolio.organizationId !== currentOrganization.id) {
+    return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
 
   return (
     <div className="space-y-6">
