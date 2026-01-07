@@ -7,7 +7,7 @@ import { setupAuth, isAuthenticated } from "./auth/emailAuth";
 import { db } from "./db";
 import { users, plans, meters, planMeterRules, features, planFeatures, organizationMembers } from "@shared/schema";
 import { subscriptions, billingCycles, usageEvents, usageRollups, invoiceRecords, seatAssignments, billingAuditLogs } from "@shared/models/billing";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
 import Papa from "papaparse";
@@ -1143,6 +1143,32 @@ export async function registerRoutes(
 
       // Delete user's organization memberships
       await db.delete(organizationMembers).where(eq(organizationMembers.userId, userIdToDelete));
+
+      // Null out references in other tables (these should not cascade delete the data)
+      await db.execute(sql`UPDATE organizations SET owner_id = NULL WHERE owner_id = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE portfolios SET manager_id = NULL WHERE manager_id = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE portfolios SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE projects SET manager_id = NULL WHERE manager_id = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE projects SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE risks SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE milestones SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE issues SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE tasks SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE resources SET user_id = NULL WHERE user_id = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE resources SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE change_requests SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE project_documents SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE project_intakes SET submitter_id = NULL WHERE submitter_id = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE project_intakes SET security_approver_id = NULL WHERE security_approver_id = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE project_intakes SET approved_by = NULL WHERE approved_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE project_intakes SET rejected_by = NULL WHERE rejected_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE project_intakes SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE mpp_imports SET imported_by = NULL WHERE imported_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE task_change_logs SET changed_by = NULL WHERE changed_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE project_change_logs SET changed_by = NULL WHERE changed_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE risk_change_logs SET changed_by = NULL WHERE changed_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE issue_change_logs SET changed_by = NULL WHERE changed_by = ${userIdToDelete}`);
+      await db.execute(sql`UPDATE usage_events SET actor_user_id = NULL WHERE actor_user_id = ${userIdToDelete}`);
 
       // Delete the user
       const [deleted] = await db.delete(users).where(eq(users.id, userIdToDelete)).returning();
