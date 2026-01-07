@@ -1363,16 +1363,13 @@ function TasksTab({ projectId }: { projectId: number }) {
                 <Input {...form.register("name")} data-testid="input-task-name" className={cn(form.formState.errors.name && "border-destructive")} />
                 {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-4 items-end">
                 <div className="space-y-2">
                   <Label>Start Date</Label>
                   <Input type="date" {...form.register("startDate")} data-testid="input-task-start" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    Duration (days)
-                  </Label>
+                  <Label>Duration (days)</Label>
                   <Input 
                     type="number" 
                     min="1" 
@@ -1387,7 +1384,7 @@ function TasksTab({ projectId }: { projectId: number }) {
                   <Input type="date" {...form.register("endDate")} data-testid="input-task-end" disabled className="bg-muted" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 items-end">
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Controller control={form.control} name="status" render={({field}) => (
@@ -1407,15 +1404,17 @@ function TasksTab({ projectId }: { projectId: number }) {
                     <span className="text-muted-foreground text-xs font-normal">{form.watch("progress") || 0}%</span>
                   </Label>
                   <Controller control={form.control} name="progress" render={({field}) => (
-                    <Slider
-                      value={[field.value || 0]}
-                      onValueChange={(v) => field.onChange(v[0])}
-                      min={0}
-                      max={100}
-                      step={5}
-                      className="py-2"
-                      data-testid="slider-task-progress"
-                    />
+                    <div className="h-9 flex items-center">
+                      <Slider
+                        value={[field.value || 0]}
+                        onValueChange={(v) => field.onChange(v[0])}
+                        min={0}
+                        max={100}
+                        step={5}
+                        className="w-full"
+                        data-testid="slider-task-progress"
+                      />
+                    </div>
                   )} />
                 </div>
               </div>
