@@ -364,10 +364,7 @@ export default function Tasks() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Duration (days)
-                    </Label>
+                    <Label>Duration (days)</Label>
                     <Input 
                       type="number" 
                       min="1" 
