@@ -1386,6 +1386,26 @@ export async function registerRoutes(
 
   app.post(api.projects.create.path, async (req, res) => {
     try {
+      const userId = (req.user as any)?.claims?.sub;
+      
+      // Check billing limits before creating project
+      if (userId) {
+        const { checkAndRecordUsage } = await import("./services/usage-tracker");
+        const usageCheck = await checkAndRecordUsage({
+          userId,
+          meterCode: "projects",
+          units: 1,
+          action: "create_project",
+        });
+        
+        if (!usageCheck.allowed) {
+          return res.status(403).json({ 
+            message: usageCheck.error || "Project limit reached. Please upgrade your plan.",
+            limitReached: true
+          });
+        }
+      }
+      
       const input = api.projects.create.input.parse(req.body);
       const sanitizedInput = {
         ...input,
@@ -1395,7 +1415,6 @@ export async function registerRoutes(
       const project = await storage.createProject(sanitizedInput);
       
       // Log change
-      const userId = (req.user as any)?.claims?.sub;
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createProjectChangeLog({
         projectId: project.id,
@@ -1775,6 +1794,26 @@ export async function registerRoutes(
 
   app.post(api.tasks.create.path, async (req, res) => {
     try {
+      const userId = (req.user as any)?.claims?.sub;
+      
+      // Check billing limits before creating task
+      if (userId) {
+        const { checkAndRecordUsage } = await import("./services/usage-tracker");
+        const usageCheck = await checkAndRecordUsage({
+          userId,
+          meterCode: "tasks",
+          units: 1,
+          action: "create_task",
+        });
+        
+        if (!usageCheck.allowed) {
+          return res.status(403).json({ 
+            message: usageCheck.error || "Task limit reached. Please upgrade your plan.",
+            limitReached: true
+          });
+        }
+      }
+      
       const input = api.tasks.create.input.parse(req.body);
       
       // Calculate endDate from duration if provided
@@ -1788,7 +1827,6 @@ export async function registerRoutes(
       const task = await storage.createTask(input);
       
       // Log the creation
-      const userId = (req.user as any)?.claims?.sub;
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createTaskChangeLog({
         taskId: task.id,
@@ -2799,6 +2837,25 @@ export async function registerRoutes(
     try {
       const projectId = Number(req.params.projectId);
       const userId = (req.user as any)?.claims?.sub;
+      
+      // Record document usage for billing
+      if (userId) {
+        const { checkAndRecordUsage } = await import("./services/usage-tracker");
+        const usageCheck = await checkAndRecordUsage({
+          userId,
+          meterCode: "documents",
+          units: 1,
+          action: "create_document",
+        });
+        
+        if (!usageCheck.allowed) {
+          return res.status(403).json({ 
+            message: usageCheck.error || "Document limit reached. Please upgrade your plan.",
+            limitReached: true
+          });
+        }
+      }
+      
       const document = await storage.createProjectDocument({
         ...req.body,
         projectId,
@@ -2857,6 +2914,22 @@ export async function registerRoutes(
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(Number(organizationId))) {
         return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      
+      // Check and record AI usage for billing
+      const { checkAndRecordUsage } = await import("./services/usage-tracker");
+      const usageCheck = await checkAndRecordUsage({
+        userId,
+        meterCode: "ai_runs",
+        units: 1,
+        action: "ai_generate_project",
+      });
+      
+      if (!usageCheck.allowed) {
+        return res.status(403).json({ 
+          message: usageCheck.error || "AI usage limit reached. Please upgrade your plan.",
+          limitReached: true
+        });
       }
       
       const systemPrompt = `You are a project management expert. Based on the user's project description, generate a comprehensive project plan in JSON format.
@@ -3066,6 +3139,241 @@ Return ONLY valid JSON, no markdown or explanations.`;
     } catch (err) {
       console.error('Error deleting demo data:', err);
       res.status(500).json({ message: 'Failed to delete demo data' });
+    }
+  });
+
+  // === BILLING API ROUTES ===
+  const { billingProvider } = await import("./services/billing");
+  const { plans, meters, planMeterRules, features, planFeatures, subscriptions, billingCycles, usageRollups, invoiceRecords, billingAuditLogs } = await import("@shared/schema");
+
+  app.get('/api/billing/plans', async (req, res) => {
+    try {
+      const allPlans = await db.select().from(plans).where(eq(plans.isActive, true));
+      res.json(allPlans);
+    } catch (err) {
+      console.error("Error fetching plans:", err);
+      res.status(500).json({ message: "Failed to fetch plans" });
+    }
+  });
+
+  app.get('/api/billing/plans/:planCode', async (req, res) => {
+    try {
+      const [plan] = await db.select().from(plans).where(eq(plans.code, req.params.planCode)).limit(1);
+      if (!plan) {
+        return res.status(404).json({ message: "Plan not found" });
+      }
+      
+      const rules = await db.select().from(planMeterRules)
+        .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
+        .where(eq(planMeterRules.planId, plan.id));
+      
+      const planFeaturesData = await db.select().from(planFeatures)
+        .innerJoin(features, eq(planFeatures.featureId, features.id))
+        .where(eq(planFeatures.planId, plan.id));
+      
+      res.json({
+        ...plan,
+        meterRules: rules.map(r => ({ ...r.plan_meter_rules, meter: r.meters })),
+        features: planFeaturesData.map(f => ({ ...f.plan_features, feature: f.features })),
+      });
+    } catch (err) {
+      console.error("Error fetching plan:", err);
+      res.status(500).json({ message: "Failed to fetch plan" });
+    }
+  });
+
+  app.get('/api/billing/subscription', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const subscription = await billingProvider.ensureUserHasSubscription(userId);
+      const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
+      res.json({ ...subscription, plan });
+    } catch (err) {
+      console.error("Error fetching subscription:", err);
+      res.status(500).json({ message: "Failed to fetch subscription" });
+    }
+  });
+
+  app.post('/api/billing/subscription', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const { planCode, orgId } = req.body;
+    if (!planCode) {
+      return res.status(400).json({ message: "planCode is required" });
+    }
+    
+    try {
+      const subscription = await billingProvider.createSubscription({
+        planCode,
+        userId: orgId ? undefined : userId,
+        orgId,
+      });
+      res.json(subscription);
+    } catch (err) {
+      console.error("Error creating subscription:", err);
+      res.status(500).json({ message: "Failed to create subscription" });
+    }
+  });
+
+  app.patch('/api/billing/subscription/:id/plan', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const { planCode } = req.body;
+    if (!planCode) {
+      return res.status(400).json({ message: "planCode is required" });
+    }
+    
+    try {
+      const subscription = await billingProvider.changePlan(
+        parseInt(req.params.id),
+        planCode,
+        userId
+      );
+      res.json(subscription);
+    } catch (err) {
+      console.error("Error changing plan:", err);
+      res.status(500).json({ message: "Failed to change plan" });
+    }
+  });
+
+  app.post('/api/billing/subscription/:id/cancel', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const subscription = await billingProvider.cancelSubscription(
+        parseInt(req.params.id),
+        userId
+      );
+      res.json(subscription);
+    } catch (err) {
+      console.error("Error canceling subscription:", err);
+      res.status(500).json({ message: "Failed to cancel subscription" });
+    }
+  });
+
+  app.get('/api/billing/usage', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const subscription = await billingProvider.ensureUserHasSubscription(userId);
+      const usage = await billingProvider.getUsageSummary(subscription.id);
+      res.json(usage);
+    } catch (err) {
+      console.error("Error fetching usage:", err);
+      res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
+  app.get('/api/billing/usage/check/:meterCode', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const units = parseInt(req.query.units as string) || 1;
+    
+    try {
+      const subscription = await billingProvider.ensureUserHasSubscription(userId);
+      const check = await billingProvider.checkLimit(subscription.id, req.params.meterCode, units);
+      res.json(check);
+    } catch (err) {
+      console.error("Error checking limit:", err);
+      res.status(500).json({ message: "Failed to check limit" });
+    }
+  });
+
+  app.post('/api/billing/usage', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const { meterCode, units, requestId } = req.body;
+    if (!meterCode || !requestId) {
+      return res.status(400).json({ message: "meterCode and requestId are required" });
+    }
+    
+    try {
+      const subscription = await billingProvider.ensureUserHasSubscription(userId);
+      const result = await billingProvider.recordUsage({
+        subscriptionId: subscription.id,
+        meterCode,
+        units: units || 1,
+        actorUserId: userId,
+        requestId,
+      });
+      
+      if (!result.success) {
+        return res.status(403).json({ message: result.error, allowed: false });
+      }
+      
+      res.json(result);
+    } catch (err) {
+      console.error("Error recording usage:", err);
+      res.status(500).json({ message: "Failed to record usage" });
+    }
+  });
+
+  app.get('/api/billing/invoices', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const subscription = await billingProvider.ensureUserHasSubscription(userId);
+      const invoices = await db.select().from(invoiceRecords)
+        .where(eq(invoiceRecords.subscriptionId, subscription.id))
+        .orderBy(invoiceRecords.createdAt);
+      res.json(invoices);
+    } catch (err) {
+      console.error("Error fetching invoices:", err);
+      res.status(500).json({ message: "Failed to fetch invoices" });
+    }
+  });
+
+  app.get('/api/billing/meters', async (req, res) => {
+    try {
+      const allMeters = await db.select().from(meters);
+      res.json(allMeters);
+    } catch (err) {
+      console.error("Error fetching meters:", err);
+      res.status(500).json({ message: "Failed to fetch meters" });
+    }
+  });
+
+  app.get('/api/billing/audit-log', async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    const user = userId ? await storage.getUser(userId) : null;
+    
+    if (!user || user.role !== 'super_admin') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    
+    try {
+      const logs = await db.select().from(billingAuditLogs)
+        .orderBy(billingAuditLogs.createdAt)
+        .limit(100);
+      res.json(logs);
+    } catch (err) {
+      console.error("Error fetching audit log:", err);
+      res.status(500).json({ message: "Failed to fetch audit log" });
     }
   });
 
