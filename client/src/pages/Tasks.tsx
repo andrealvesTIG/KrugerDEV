@@ -144,16 +144,14 @@ export default function Tasks() {
     }
   });
 
-  const startDate = form.watch("startDate");
-  
-  useEffect(() => {
-    if (startDate && durationDays > 0) {
-      const start = parseISO(startDate);
-      const end = addDays(start, durationDays - 1);
-      form.setValue("endDate", format(end, 'yyyy-MM-dd'));
-      form.setValue("durationDays", durationDays);
+  const recalculateEndDate = (newStartDate: string, newDuration: number) => {
+    if (newStartDate && newDuration > 0) {
+      const start = parseISO(newStartDate);
+      const end = addDays(start, newDuration - 1);
+      form.setValue("endDate", format(end, 'yyyy-MM-dd'), { shouldDirty: true, shouldValidate: true });
+      form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
     }
-  }, [startDate, durationDays, form]);
+  };
 
   const openEditDialog = (task: Task) => {
     setEditingTask(task);
@@ -347,7 +345,23 @@ export default function Tasks() {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Start Date</Label>
-                    <Input type="date" {...form.register("startDate")} data-testid="input-task-start" />
+                    <Controller 
+                      control={form.control} 
+                      name="startDate" 
+                      render={({field}) => (
+                        <Input 
+                          type="date" 
+                          value={field.value || ""}
+                          onChange={(e) => {
+                            const newStartDate = e.target.value;
+                            field.onChange(newStartDate);
+                            recalculateEndDate(newStartDate, durationDays);
+                          }}
+                          onBlur={field.onBlur}
+                          data-testid="input-task-start" 
+                        />
+                      )}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1">
@@ -359,13 +373,48 @@ export default function Tasks() {
                       min="1" 
                       max="365" 
                       value={durationDays}
-                      onChange={(e) => setDurationDays(Math.max(1, Number(e.target.value) || 1))}
+                      onChange={(e) => {
+                        const newDuration = Math.max(1, Number(e.target.value) || 1);
+                        setDurationDays(newDuration);
+                        const currentStartDate = form.getValues("startDate");
+                        recalculateEndDate(currentStartDate, newDuration);
+                      }}
                       data-testid="input-task-duration" 
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>End Date</Label>
-                    <Input type="date" {...form.register("endDate")} data-testid="input-task-end" disabled className="bg-muted" />
+                    <Controller 
+                      control={form.control} 
+                      name="endDate" 
+                      render={({field}) => {
+                        const currentStartDate = form.getValues("startDate");
+                        return (
+                          <Input 
+                            type="date" 
+                            value={field.value || ""}
+                            min={currentStartDate || undefined}
+                            onChange={(e) => {
+                              const newEndDate = e.target.value;
+                              if (currentStartDate && newEndDate) {
+                                const start = parseISO(currentStartDate);
+                                const end = parseISO(newEndDate);
+                                const newDuration = differenceInDays(end, start) + 1;
+                                if (newDuration >= 1) {
+                                  field.onChange(newEndDate);
+                                  setDurationDays(newDuration);
+                                  form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
+                                }
+                              } else {
+                                field.onChange(newEndDate);
+                              }
+                            }}
+                            onBlur={field.onBlur}
+                            data-testid="input-task-end" 
+                          />
+                        );
+                      }}
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
