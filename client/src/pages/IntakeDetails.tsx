@@ -147,6 +147,7 @@ export default function IntakeDetails() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       toast({ title: "Intake Approved", description: "A new project has been created from this intake" });
       if (data.project?.id) {
         navigate(`/projects/${data.project.id}`);
