@@ -2842,6 +2842,58 @@ export async function registerRoutes(
     }
   });
 
+  // =========== PROJECT COMMENTS ===========
+  
+  // Get all comments for a project
+  app.get('/api/projects/:projectId/comments', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const comments = await storage.getProjectComments(projectId);
+      res.json(comments);
+    } catch (err) {
+      console.error("Error fetching project comments:", err);
+      res.status(500).json({ message: "Error fetching comments" });
+    }
+  });
+
+  // Create a comment for a project
+  app.post('/api/projects/:projectId/comments', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const userId = (req.user as any)?.claims?.sub;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const user = await storage.getUser(userId);
+      const comment = await storage.createProjectComment({
+        projectId,
+        userId,
+        userName: user?.firstName && user?.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user?.username || 'Unknown',
+        content: req.body.content,
+      });
+      res.status(201).json(comment);
+    } catch (err) {
+      console.error("Error creating project comment:", err);
+      res.status(500).json({ message: "Error creating comment" });
+    }
+  });
+
+  // Delete a comment
+  app.delete('/api/comments/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteProjectComment(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting comment:", err);
+      res.status(500).json({ message: "Error deleting comment" });
+    }
+  });
+
   // =========== AI PROJECT GENERATION ===========
   
   // Generate a project with tasks, issues, and risks using AI
