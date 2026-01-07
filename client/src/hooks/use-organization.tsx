@@ -52,6 +52,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   }, [currentOrganization]);
 
+  // Sync currentOrganization with fresh data from organizations list
+  useEffect(() => {
+    if (currentOrganization && organizations.length > 0) {
+      const updatedOrg = organizations.find(o => o.id === currentOrganization.id);
+      if (updatedOrg && JSON.stringify(updatedOrg) !== JSON.stringify(currentOrganization)) {
+        setCurrentOrganization(updatedOrg);
+      }
+    }
+  }, [organizations, currentOrganization]);
+
   return (
     <OrganizationContext.Provider value={{
       currentOrganization,

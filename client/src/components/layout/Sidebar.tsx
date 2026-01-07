@@ -52,15 +52,15 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 export { logoIcon };
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Portfolios", href: "/portfolios", icon: Briefcase },
-  { name: "Projects", href: "/projects", icon: FolderKanban },
-  { name: "Intakes", href: "/intakes", icon: FileInput },
-  { name: "Tasks", href: "/tasks", icon: CheckSquare },
-  { name: "Issues", href: "/issues", icon: CircleDot },
-  { name: "Resources", href: "/resources", icon: Users },
-  { name: "Calendar", href: "/calendar", icon: Calendar },
-  { name: "Integrations", href: "/integrations", icon: Plug },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, key: "dashboard" },
+  { name: "Portfolios", href: "/portfolios", icon: Briefcase, key: "portfolios" },
+  { name: "Projects", href: "/projects", icon: FolderKanban, key: "projects" },
+  { name: "Intakes", href: "/intakes", icon: FileInput, key: "intakes" },
+  { name: "Tasks", href: "/tasks", icon: CheckSquare, key: "tasks" },
+  { name: "Issues", href: "/issues", icon: CircleDot, key: "issues" },
+  { name: "Resources", href: "/resources", icon: Users, key: "resources" },
+  { name: "Calendar", href: "/calendar", icon: Calendar, key: "calendar" },
+  { name: "Integrations", href: "/integrations", icon: Plug, key: "integrations" },
 ];
 
 const helpNavigation = [
@@ -145,7 +145,9 @@ export function Sidebar() {
             Menu
           </p>
         )}
-        {navigation.map((item) => {
+        {navigation
+          .filter((item) => !(currentOrganization?.hiddenModules || []).includes(item.key))
+          .map((item) => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           
           const navItem = (
