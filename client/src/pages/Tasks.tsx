@@ -393,17 +393,21 @@ export default function Tasks() {
                             min={currentStartDate || undefined}
                             onChange={(e) => {
                               const newEndDate = e.target.value;
-                              if (currentStartDate && newEndDate) {
-                                const start = parseISO(currentStartDate);
-                                const end = parseISO(newEndDate);
-                                const newDuration = differenceInDays(end, start) + 1;
-                                if (newDuration >= 1) {
-                                  field.onChange(newEndDate);
-                                  setDurationDays(newDuration);
-                                  form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
+                              field.onChange(newEndDate);
+                              if (currentStartDate && newEndDate && newEndDate.length === 10) {
+                                try {
+                                  const start = parseISO(currentStartDate);
+                                  const end = parseISO(newEndDate);
+                                  if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                                    const newDuration = differenceInDays(end, start) + 1;
+                                    if (newDuration >= 1) {
+                                      setDurationDays(newDuration);
+                                      form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
+                                    }
+                                  }
+                                } catch {
+                                  // Ignore parse errors during typing
                                 }
-                              } else {
-                                field.onChange(newEndDate);
                               }
                             }}
                             onBlur={field.onBlur}
