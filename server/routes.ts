@@ -864,7 +864,7 @@ async function ensureBillingData() {
   console.log("Seeding billing data...");
 
   const [freePlan, basicPlan, teamPlan] = await db.insert(plans).values([
-    { code: "FREE", name: "Free", description: "Get started with basic features. Perfect for trying out Friday Report.", monthlyPriceCents: 0 },
+    { code: "FREE", name: "Free", description: "Get started with basic features. Perfect for trying out FridayReport.AI.", monthlyPriceCents: 0 },
     { code: "BASIC", name: "Basic", description: "For individuals and small teams who need more power. Includes overage billing for flexible usage.", maxSeats: 1, monthlyPriceCents: 500 },
     { code: "TEAM", name: "Team", description: "For growing organizations with shared usage pools. Full feature access with team collaboration.", maxSeats: 25, monthlyPriceCents: 1500 },
   ]).returning();
@@ -1017,15 +1017,15 @@ export async function registerRoutes(
       // Send test email
       const sent = await sendEmail({
         to,
-        subject: "Test Email - Friday Report",
-        text: "This is a test email from Friday Report. Your email configuration is working correctly!",
+        subject: "Test Email - FridayReport.AI",
+        text: "This is a test email from FridayReport.AI. Your email configuration is working correctly!",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #f97316;">Friday Report - Test Email</h2>
-            <p>This is a test email from Friday Report.</p>
+            <h2 style="color: #f97316;">FridayReport.AI - Test Email</h2>
+            <p>This is a test email from FridayReport.AI.</p>
             <p style="color: #22c55e; font-weight: bold;">Your email configuration is working correctly!</p>
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-            <p style="font-size: 12px; color: #6b7280;">Sent from Friday Report Email Service</p>
+            <p style="font-size: 12px; color: #6b7280;">Sent from FridayReport.AI Email Service</p>
           </div>
         `
       });

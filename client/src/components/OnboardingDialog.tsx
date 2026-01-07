@@ -95,7 +95,7 @@ export function OnboardingDialog() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Building2 className="h-6 w-6 text-primary" />
-            Welcome to Friday Report
+            Welcome to FridayReport.AI
           </DialogTitle>
           <DialogDescription className="text-base">
             Let's set up your organization to get started. We detected some information from your email.

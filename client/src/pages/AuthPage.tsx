@@ -114,8 +114,8 @@ export default function AuthPage() {
 
   const getDescription = () => {
     switch (mode) {
-      case "login": return "Sign in to your Friday Report account";
-      case "register": return "Get started with Friday Report";
+      case "login": return "Sign in to your FridayReport.AI account";
+      case "register": return "Get started with FridayReport.AI";
       case "forgot-password": return "Enter your email to receive a password reset link";
     }
   };
@@ -135,7 +135,7 @@ export default function AuthPage() {
             </button>
           )}
           <div className="flex justify-center mb-4">
-            <img src={logoIcon} alt="Friday Report" className="h-16 w-16" />
+            <img src={logoIcon} alt="FridayReport.AI" className="h-16 w-16" />
           </div>
           <CardTitle className="text-2xl font-display">
             {getTitle()}

@@ -38,7 +38,7 @@ export async function sendEmail({
   }
 
   try {
-    const fromAddress = from || process.env.RESEND_FROM_EMAIL || "Friday Report <onboarding@resend.dev>";
+    const fromAddress = from || process.env.RESEND_FROM_EMAIL || "FridayReport.AI <onboarding@resend.dev>";
     
     const { data, error } = await client.emails.send({
       from: fromAddress,
@@ -62,10 +62,10 @@ export async function sendEmail({
 }
 
 export async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<boolean> {
-  const subject = "Reset Your Password - Friday Report";
+  const subject = "Reset Your Password - FridayReport.AI";
   
   const text = `
-You requested a password reset for your Friday Report account.
+You requested a password reset for your FridayReport.AI account.
 
 Click the link below to reset your password:
 ${resetUrl}
@@ -74,7 +74,7 @@ This link will expire in 1 hour.
 
 If you didn't request this, you can safely ignore this email.
 
-- The Friday Report Team
+- The FridayReport.AI Team
 `;
 
   const html = `
@@ -86,13 +86,13 @@ If you didn't request this, you can safely ignore this email.
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
   <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0; font-size: 24px;">Friday Report</h1>
+    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
   </div>
   
   <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <h2 style="margin-top: 0; color: #1f2937;">Reset Your Password</h2>
     
-    <p>You requested a password reset for your Friday Report account.</p>
+    <p>You requested a password reset for your FridayReport.AI account.</p>
     
     <p>Click the button below to set a new password:</p>
     

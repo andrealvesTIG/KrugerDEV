@@ -135,8 +135,8 @@ export function Sidebar() {
       {/* Logo Area */}
       <div className={cn("flex h-20 items-center", isCollapsed ? "justify-center px-2" : "px-6")}>
         <div className="flex items-center gap-3">
-          <img src={logoIcon} alt="Friday Report" className="h-10 w-10 flex-shrink-0" />
-          {!isCollapsed && <span className="text-xl font-display font-bold tracking-tight">Friday Report</span>}
+          <img src={logoIcon} alt="FridayReport.AI" className="h-10 w-10 flex-shrink-0" />
+          {!isCollapsed && <span className="text-xl font-display font-bold tracking-tight">FridayReport.AI</span>}
         </div>
       </div>
       {/* Navigation */}

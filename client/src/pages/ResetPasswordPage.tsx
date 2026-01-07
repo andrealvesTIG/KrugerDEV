@@ -141,7 +141,7 @@ export default function ResetPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src={logoIcon} alt="Friday Report" className="h-16 w-16" />
+            <img src={logoIcon} alt="FridayReport.AI" className="h-16 w-16" />
           </div>
           <CardTitle className="text-2xl font-display">Set New Password</CardTitle>
           <CardDescription>
