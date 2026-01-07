@@ -23,7 +23,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    window.location.href = "/api/login";
+    window.location.href = "/auth";
     return null;
   }
 

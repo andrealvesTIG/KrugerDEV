@@ -30,6 +30,7 @@ import ProjectIntakes from "@/pages/ProjectIntakes";
 import IntakeDetails from "@/pages/IntakeDetails";
 import Integrations from "@/pages/Integrations";
 import Billing from "@/pages/Billing";
+import AuthPage from "@/pages/AuthPage";
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -111,7 +112,12 @@ function App() {
         <TooltipProvider>
           <OrganizationProvider>
             <Toaster />
-            <Router />
+            <Switch>
+              <Route path="/auth" component={AuthPage} />
+              <Route>
+                <Router />
+              </Route>
+            </Switch>
           </OrganizationProvider>
         </TooltipProvider>
       </QueryClientProvider>
