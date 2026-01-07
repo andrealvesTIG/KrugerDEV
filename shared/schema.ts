@@ -460,6 +460,21 @@ export const projectIntakes = pgTable("project_intakes", {
   isDemo: boolean("is_demo").default(false),
 });
 
+// Intake Workflow Steps - Configurable workflow steps per organization
+export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  stepKey: text("step_key").notNull(), // Canonical step identifier: intake_capture, triage, business_case, technical_evaluation, governance_review, decision
+  position: integer("position").notNull(), // Order in workflow (0-5)
+  label: text("label").notNull(), // Display name (can be customized per org)
+  description: text("description"), // Short description
+  helpText: text("help_text"), // Detailed help text shown during step
+  requiredFields: text("required_fields").array(), // Array of field names required at this step
+  isActive: boolean("is_active").default(true), // Whether step is active
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // MPP Imports - Store imported Microsoft Project data
 export const mppImports = pgTable("mpp_imports", {
   id: serial("id").primaryKey(),
@@ -739,6 +754,7 @@ export const insertProjectDocumentSchema = createInsertSchema(projectDocuments).
 
 export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -821,6 +837,9 @@ export type InsertProjectComment = z.infer<typeof insertProjectCommentSchema>;
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
+export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
