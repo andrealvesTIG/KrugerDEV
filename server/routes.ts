@@ -3025,21 +3025,28 @@ export async function registerRoutes(
   // Sync MPP import to an existing project (update tasks)
   app.post('/api/mpp-imports/:id/sync', async (req, res) => {
     try {
+      console.log("MPP Sync request:", { params: req.params, body: req.body });
+      
       const userId = (req.user as any)?.claims?.sub;
       if (!userId) {
+        console.log("MPP Sync: No userId");
         return res.status(401).json({ message: "Authentication required" });
       }
 
       const id = Number(req.params.id);
       const { projectId, syncMode } = req.body;
       
+      console.log("MPP Sync: parsed values", { id, projectId, syncMode });
+      
       if (!projectId) {
+        console.log("MPP Sync: No projectId");
         return res.status(400).json({ message: "projectId is required" });
       }
 
       // Get the import to verify it exists
       const mppImport = await storage.getMppImport(id);
       if (!mppImport) {
+        console.log("MPP Sync: Import not found");
         return res.status(404).json({ message: "Import not found" });
       }
 
@@ -3069,21 +3076,30 @@ export async function registerRoutes(
         return res.status(400).json({ message: "syncMode must be 'merge' or 'replace'" });
       }
 
+      console.log("MPP Sync: Starting sync operation");
       const result = await storage.syncMppImportToProject(id, Number(projectId), {
         syncMode: syncMode || 'merge',
       });
 
-      res.json({
+      console.log("MPP Sync: Completed", { 
+        projectName: result.project?.name, 
+        tasksAdded: result.tasksAdded, 
+        tasksUpdated: result.tasksUpdated 
+      });
+
+      const response = {
         success: true,
         project: result.project,
         tasksAdded: result.tasksAdded,
         tasksUpdated: result.tasksUpdated,
         tasksRemoved: result.tasksRemoved,
         message: `Synced to "${result.project.name}": ${result.tasksAdded} added, ${result.tasksUpdated} updated, ${result.tasksRemoved} removed`,
-      });
-    } catch (err) {
-      console.error("Error syncing MPP import to project:", err);
-      res.status(500).json({ message: "Error syncing import to project" });
+      };
+      
+      return res.json(response);
+    } catch (err: any) {
+      console.error("Error syncing MPP import to project:", err?.message || err);
+      return res.status(500).json({ message: err?.message || "Error syncing import to project" });
     }
   });
 
