@@ -3714,5 +3714,445 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // ==================== ANALYTICS API (Power BI Integration) ====================
+
+  // Analytics: Projects flat data for Power BI
+  app.get('/api/analytics/projects', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      
+      // Get user's accessible organizations
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      // If specific org requested, validate access
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      // Fetch projects for all accessible organizations
+      const allProjects: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const projects = await storage.getProjects(orgId);
+        const portfolios = await storage.getPortfolios(orgId);
+        const org = await storage.getOrganization(orgId);
+        
+        for (const project of projects) {
+          const portfolio = portfolios.find(p => p.id === project.portfolioId);
+          const tasks = await storage.getTasks(project.id);
+          const risks = await storage.getRisks(project.id);
+          const issues = await storage.getIssues(project.id);
+          const milestones = await storage.getMilestones(project.id);
+          
+          allProjects.push({
+            projectId: project.id,
+            projectName: project.name,
+            description: project.description,
+            status: project.status,
+            health: project.health,
+            completionPercentage: project.completionPercentage || 0,
+            budget: Number(project.budget) || 0,
+            startDate: project.startDate,
+            endDate: project.endDate,
+            projectManager: project.projectManager,
+            portfolioId: project.portfolioId,
+            portfolioName: portfolio?.name || null,
+            organizationId: orgId,
+            organizationName: org?.name || null,
+            taskCount: tasks.length,
+            completedTaskCount: tasks.filter(t => t.status === 'Done').length,
+            riskCount: risks.length,
+            openRiskCount: risks.filter(r => r.status === 'Open').length,
+            highRiskCount: risks.filter(r => r.probability === 'High' || r.impact === 'High').length,
+            issueCount: issues.length,
+            openIssueCount: issues.filter(i => i.status === 'Open').length,
+            milestoneCount: milestones.length,
+            completedMilestoneCount: milestones.filter(m => m.completed).length,
+            source: project.source || 'manual',
+            createdAt: project.createdAt,
+          });
+        }
+      }
+
+      res.json(allProjects);
+    } catch (err) {
+      console.error("Error fetching analytics projects:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
+  // Analytics: Portfolios summary for Power BI
+  app.get('/api/analytics/portfolios', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      const allPortfolios: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const portfolios = await storage.getPortfolios(orgId);
+        const projects = await storage.getProjects(orgId);
+        const org = await storage.getOrganization(orgId);
+        
+        for (const portfolio of portfolios) {
+          const portfolioProjects = projects.filter(p => p.portfolioId === portfolio.id);
+          const totalBudget = portfolioProjects.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);
+          const avgCompletion = portfolioProjects.length > 0 
+            ? Math.round(portfolioProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / portfolioProjects.length)
+            : 0;
+          
+          allPortfolios.push({
+            portfolioId: portfolio.id,
+            portfolioName: portfolio.name,
+            description: portfolio.description,
+            strategy: portfolio.strategy,
+            organizationId: orgId,
+            organizationName: org?.name || null,
+            projectCount: portfolioProjects.length,
+            healthyProjectCount: portfolioProjects.filter(p => p.health === 'Green').length,
+            atRiskProjectCount: portfolioProjects.filter(p => p.health === 'Yellow').length,
+            criticalProjectCount: portfolioProjects.filter(p => p.health === 'Red').length,
+            totalBudget,
+            avgCompletion,
+            createdAt: portfolio.createdAt,
+          });
+        }
+      }
+
+      res.json(allPortfolios);
+    } catch (err) {
+      console.error("Error fetching analytics portfolios:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
+  // Analytics: Risks flat data for Power BI
+  app.get('/api/analytics/risks', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      const allRisks: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const projects = await storage.getProjects(orgId);
+        const org = await storage.getOrganization(orgId);
+        
+        for (const project of projects) {
+          const risks = await storage.getRisks(project.id);
+          
+          for (const risk of risks) {
+            allRisks.push({
+              riskId: risk.id,
+              title: risk.title,
+              description: risk.description,
+              probability: risk.probability,
+              impact: risk.impact,
+              status: risk.status,
+              mitigationPlan: risk.mitigationPlan,
+              owner: risk.owner,
+              projectId: project.id,
+              projectName: project.name,
+              organizationId: orgId,
+              organizationName: org?.name || null,
+              createdAt: risk.createdAt,
+            });
+          }
+        }
+      }
+
+      res.json(allRisks);
+    } catch (err) {
+      console.error("Error fetching analytics risks:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
+  // Analytics: Issues flat data for Power BI
+  app.get('/api/analytics/issues', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      const allIssues: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const projects = await storage.getProjects(orgId);
+        const org = await storage.getOrganization(orgId);
+        
+        for (const project of projects) {
+          const issues = await storage.getIssues(project.id);
+          
+          for (const issue of issues) {
+            allIssues.push({
+              issueId: issue.id,
+              title: issue.title,
+              description: issue.description,
+              type: issue.type,
+              priority: issue.priority,
+              status: issue.status,
+              assignee: issue.assignee,
+              projectId: project.id,
+              projectName: project.name,
+              organizationId: orgId,
+              organizationName: org?.name || null,
+              createdAt: issue.createdAt,
+            });
+          }
+        }
+      }
+
+      res.json(allIssues);
+    } catch (err) {
+      console.error("Error fetching analytics issues:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
+  // Analytics: Milestones flat data for Power BI
+  app.get('/api/analytics/milestones', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      const allMilestones: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const projects = await storage.getProjects(orgId);
+        const org = await storage.getOrganization(orgId);
+        
+        for (const project of projects) {
+          const milestones = await storage.getMilestones(project.id);
+          
+          for (const milestone of milestones) {
+            allMilestones.push({
+              milestoneId: milestone.id,
+              title: milestone.title,
+              description: milestone.description,
+              dueDate: milestone.dueDate,
+              completed: milestone.completed,
+              projectId: project.id,
+              projectName: project.name,
+              organizationId: orgId,
+              organizationName: org?.name || null,
+            });
+          }
+        }
+      }
+
+      res.json(allMilestones);
+    } catch (err) {
+      console.error("Error fetching analytics milestones:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
+  // Analytics: Intakes flat data for Power BI
+  app.get('/api/analytics/intakes', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      const allIntakes: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const intakes = await storage.getProjectIntakes(orgId);
+        const org = await storage.getOrganization(orgId);
+        
+        for (const intake of intakes) {
+          allIntakes.push({
+            intakeId: intake.id,
+            projectName: intake.projectName,
+            description: intake.description,
+            status: intake.status,
+            currentStep: intake.currentStep,
+            businessUnit: intake.businessUnit,
+            programName: intake.programName,
+            fundingSource: intake.fundingSource,
+            estimatedBudget: intake.estimatedBudget,
+            strategicAlignment: intake.strategicAlignment,
+            organizationId: orgId,
+            organizationName: org?.name || null,
+            submitterId: intake.submitterId,
+            createdAt: intake.createdAt,
+          });
+        }
+      }
+
+      res.json(allIntakes);
+    } catch (err) {
+      console.error("Error fetching analytics intakes:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
+  // Analytics: Summary metrics for Power BI dashboards
+  app.get('/api/analytics/summary', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      
+      if (accessibleOrgIds.length === 0) {
+        return res.json({ organizations: [] });
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      const summaries: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const org = await storage.getOrganization(orgId);
+        const projects = await storage.getProjects(orgId);
+        const portfolios = await storage.getPortfolios(orgId);
+        const intakes = await storage.getProjectIntakes(orgId);
+        
+        let totalRisks = 0, openRisks = 0, highRisks = 0;
+        let totalIssues = 0, openIssues = 0;
+        let totalMilestones = 0, completedMilestones = 0;
+        let totalTasks = 0, completedTasks = 0;
+        
+        for (const project of projects) {
+          const risks = await storage.getRisks(project.id);
+          const issues = await storage.getIssues(project.id);
+          const milestones = await storage.getMilestones(project.id);
+          const tasks = await storage.getTasks(project.id);
+          
+          totalRisks += risks.length;
+          openRisks += risks.filter(r => r.status === 'Open').length;
+          highRisks += risks.filter(r => r.probability === 'High' || r.impact === 'High').length;
+          totalIssues += issues.length;
+          openIssues += issues.filter(i => i.status === 'Open').length;
+          totalMilestones += milestones.length;
+          completedMilestones += milestones.filter(m => m.completed).length;
+          totalTasks += tasks.length;
+          completedTasks += tasks.filter(t => t.status === 'Done').length;
+        }
+        
+        const totalBudget = projects.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);
+        const avgCompletion = projects.length > 0 
+          ? Math.round(projects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / projects.length)
+          : 0;
+        
+        summaries.push({
+          organizationId: orgId,
+          organizationName: org?.name || null,
+          portfolioCount: portfolios.length,
+          projectCount: projects.length,
+          healthyProjectCount: projects.filter(p => p.health === 'Green').length,
+          atRiskProjectCount: projects.filter(p => p.health === 'Yellow').length,
+          criticalProjectCount: projects.filter(p => p.health === 'Red').length,
+          totalBudget,
+          avgCompletion,
+          totalRisks,
+          openRisks,
+          highRisks,
+          totalIssues,
+          openIssues,
+          totalMilestones,
+          completedMilestones,
+          totalTasks,
+          completedTasks,
+          intakeCount: intakes.length,
+          pendingIntakes: intakes.filter(i => i.status === 'draft' || i.status === 'in_progress').length,
+          approvedIntakes: intakes.filter(i => i.status === 'approved').length,
+          rejectedIntakes: intakes.filter(i => i.status === 'rejected').length,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({ organizations: summaries });
+    } catch (err) {
+      console.error("Error fetching analytics summary:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
   return httpServer;
 }
