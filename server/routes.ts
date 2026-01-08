@@ -3,7 +3,8 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -897,8 +898,9 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  // Set up authentication first
-  await setupAuth(app);
+  // Set up authentication first - both Replit OAuth and Email/Password auth
+  await setupReplitAuth(app);
+  await setupEmailAuth(app);
   registerAuthRoutes(app);
 
   // Seed DB on startup

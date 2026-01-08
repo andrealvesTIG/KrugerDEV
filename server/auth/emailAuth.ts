@@ -64,8 +64,8 @@ export function getSession() {
 }
 
 export async function setupAuth(app: Express) {
-  app.set("trust proxy", 1);
-  app.use(getSession());
+  // NOTE: Session middleware is already set up by Replit Auth
+  // We only register the email/password auth endpoints here
 
   // Register new user
   app.post("/api/auth/register", async (req, res) => {
