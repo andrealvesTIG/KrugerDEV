@@ -4,8 +4,8 @@ import {
   organizations, organizationMembers, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
-  costItems, projectIntakes, mppImports, mppImportTasks,
-  changeRequests, projectDocuments,
+  costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
+  changeRequests, projectDocuments, projectComments, notifications,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -31,6 +31,9 @@ import {
   type MppImportTask, type InsertMppImportTask,
   type ChangeRequest, type InsertChangeRequest, type UpdateChangeRequestRequest,
   type ProjectDocument, type InsertProjectDocument, type UpdateProjectDocumentRequest,
+  type ProjectComment, type InsertProjectComment,
+  type Notification, type InsertNotification,
+  type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
@@ -221,6 +224,24 @@ export interface IStorage {
   createProjectDocument(document: InsertProjectDocument): Promise<ProjectDocument>;
   updateProjectDocument(id: number, updates: UpdateProjectDocumentRequest): Promise<ProjectDocument>;
   deleteProjectDocument(id: number): Promise<void>;
+
+  // Project Comments
+  getProjectComments(projectId: number): Promise<ProjectComment[]>;
+  getProjectComment(id: number): Promise<ProjectComment | undefined>;
+  createProjectComment(comment: InsertProjectComment): Promise<ProjectComment>;
+  deleteProjectComment(id: number): Promise<void>;
+
+  // Notifications
+  getNotifications(userId: string): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: number): Promise<void>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+
+  // Intake Workflow Steps
+  getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]>;
+  upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]>;
+  resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1625,6 +1646,173 @@ export class DatabaseStorage implements IStorage {
     return { project: newProject, taskCount: importedTasks.length };
   }
 
+  // Sync MPP Import to Existing Project (update tasks)
+  async syncMppImportToProject(
+    importId: number,
+    projectId: number,
+    options?: {
+      syncMode?: 'merge' | 'replace'; // merge = add/update, replace = delete existing first
+    }
+  ): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number }> {
+    const mppImport = await this.getMppImport(importId);
+    if (!mppImport) {
+      throw new Error("Import not found");
+    }
+
+    const project = await this.getProject(projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    const importedTasks = await this.getMppImportTasks(importId);
+    const existingTasks = await this.getTasks(projectId);
+    
+    const syncMode = options?.syncMode || 'merge';
+    let tasksAdded = 0;
+    let tasksUpdated = 0;
+    let tasksRemoved = 0;
+
+    const today = new Date().toISOString().split('T')[0];
+    const defaultEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Build lookup map for existing tasks by name (case-insensitive) or WBS
+    const existingByName = new Map<string, typeof existingTasks[0]>();
+    const existingByWbs = new Map<string, typeof existingTasks[0]>();
+    
+    for (const task of existingTasks) {
+      existingByName.set(task.name.toLowerCase().trim(), task);
+      if (task.description?.startsWith('WBS: ')) {
+        const wbs = task.description.replace('WBS: ', '').split('\n')[0].trim();
+        existingByWbs.set(wbs, task);
+      }
+    }
+
+    if (syncMode === 'replace') {
+      // Delete all existing tasks first
+      for (const task of existingTasks) {
+        await db.delete(tasks).where(eq(tasks.id, task.id));
+        tasksRemoved++;
+      }
+      existingByName.clear();
+      existingByWbs.clear();
+    }
+
+    // Track which existing tasks we've matched (for merge mode)
+    const matchedExistingIds = new Set<number>();
+    const taskIdMapping = new Map<number, number>();
+
+    // First pass: create or update tasks
+    for (const importedTask of importedTasks) {
+      const startDate = importedTask.startDate || today;
+      const endDate = importedTask.finishDate || 
+        (importedTask.durationDays 
+          ? new Date(new Date(startDate).getTime() + importedTask.durationDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          : defaultEndDate);
+
+      const taskData = {
+        name: importedTask.taskName,
+        description: importedTask.notes || (importedTask.wbs ? `WBS: ${importedTask.wbs}` : undefined),
+        startDate,
+        endDate,
+        durationDays: importedTask.durationDays,
+        progress: importedTask.percentComplete || 0,
+        status: importedTask.percentComplete === 100 ? "Completed" : 
+                importedTask.percentComplete && importedTask.percentComplete > 0 ? "In Progress" : "Not Started",
+      };
+
+      // Try to match by WBS first, then by name
+      let existingTask = importedTask.wbs ? existingByWbs.get(importedTask.wbs) : undefined;
+      if (!existingTask) {
+        existingTask = existingByName.get(importedTask.taskName.toLowerCase().trim());
+      }
+
+      if (existingTask && syncMode === 'merge') {
+        // Update existing task
+        await db.update(tasks)
+          .set(taskData)
+          .where(eq(tasks.id, existingTask.id));
+        matchedExistingIds.add(existingTask.id);
+        tasksUpdated++;
+        if (importedTask.taskId) {
+          taskIdMapping.set(importedTask.taskId, existingTask.id);
+        }
+      } else {
+        // Create new task
+        const [newTask] = await db.insert(tasks).values({
+          projectId,
+          ...taskData,
+          parentId: null,
+        }).returning();
+        tasksAdded++;
+        if (importedTask.taskId) {
+          taskIdMapping.set(importedTask.taskId, newTask.id);
+        }
+      }
+    }
+
+    // Second pass: update parent references
+    for (const importedTask of importedTasks) {
+      if (importedTask.parentTaskId && importedTask.taskId) {
+        const newTaskId = taskIdMapping.get(importedTask.taskId);
+        const newParentId = taskIdMapping.get(importedTask.parentTaskId);
+        
+        if (newTaskId && newParentId) {
+          await db.update(tasks)
+            .set({ parentId: newParentId })
+            .where(eq(tasks.id, newTaskId));
+        }
+      }
+    }
+
+    // Update the import record to link to this project
+    await db.update(mppImports)
+      .set({ 
+        projectId, 
+        status: "synced", 
+        taskCount: importedTasks.length,
+        lastSyncedAt: new Date()
+      })
+      .where(eq(mppImports.id, importId));
+
+    // Update project dates from imported tasks
+    const validStartDates = importedTasks
+      .filter(t => t.startDate)
+      .map(t => t.startDate as string);
+    const validEndDates = importedTasks
+      .filter(t => t.finishDate)
+      .map(t => t.finishDate as string);
+    
+    const projectUpdates: any = {};
+    if (validStartDates.length > 0) {
+      projectUpdates.startDate = validStartDates.sort()[0];
+    }
+    if (validEndDates.length > 0) {
+      projectUpdates.endDate = validEndDates.sort().reverse()[0];
+    }
+
+    // Calculate and update project completion percentage
+    const avgProgress = importedTasks.length > 0
+      ? Math.round(importedTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / importedTasks.length)
+      : project.completionPercentage || 0;
+    
+    projectUpdates.completionPercentage = avgProgress;
+
+    if (Object.keys(projectUpdates).length > 0) {
+      await db.update(projects)
+        .set(projectUpdates)
+        .where(eq(projects.id, projectId));
+    }
+
+    const updatedProject = await this.getProject(projectId);
+
+    return { 
+      project: updatedProject!, 
+      tasksAdded, 
+      tasksUpdated, 
+      tasksRemoved 
+    };
+  }
+
   // Change Requests
   async getChangeRequests(projectId: number): Promise<ChangeRequest[]> {
     return await db.select().from(changeRequests)
@@ -1681,6 +1869,144 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProjectDocument(id: number): Promise<void> {
     await db.delete(projectDocuments).where(eq(projectDocuments.id, id));
+  }
+
+  // Project Comments
+  async getProjectComments(projectId: number): Promise<ProjectComment[]> {
+    return await db.select().from(projectComments)
+      .where(eq(projectComments.projectId, projectId))
+      .orderBy(desc(projectComments.createdAt));
+  }
+
+  async getProjectComment(id: number): Promise<ProjectComment | undefined> {
+    const [comment] = await db.select().from(projectComments).where(eq(projectComments.id, id));
+    return comment;
+  }
+
+  async createProjectComment(comment: InsertProjectComment): Promise<ProjectComment> {
+    const [created] = await db.insert(projectComments).values(comment).returning();
+    return created;
+  }
+
+  async deleteProjectComment(id: number): Promise<void> {
+    await db.delete(projectComments).where(eq(projectComments.id, id));
+  }
+
+  // Notifications
+  async getNotifications(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)::int` })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    return result[0]?.count || 0;
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [created] = await db.insert(notifications).values(notification).returning();
+    return created;
+  }
+
+  async markNotificationRead(id: number): Promise<void> {
+    await db.update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.id, id));
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.userId, userId));
+  }
+
+  // Intake Workflow Steps
+  async getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]> {
+    return await db.select().from(intakeWorkflowSteps)
+      .where(eq(intakeWorkflowSteps.organizationId, organizationId))
+      .orderBy(intakeWorkflowSteps.position);
+  }
+
+  async upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]> {
+    // Delete existing steps for this organization
+    await db.delete(intakeWorkflowSteps).where(eq(intakeWorkflowSteps.organizationId, organizationId));
+    
+    // Insert new steps
+    if (steps.length === 0) {
+      return [];
+    }
+    
+    const stepsWithOrg = steps.map(step => ({
+      ...step,
+      organizationId,
+    }));
+    
+    const inserted = await db.insert(intakeWorkflowSteps).values(stepsWithOrg).returning();
+    return inserted;
+  }
+
+  async resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]> {
+    const defaultSteps: InsertIntakeWorkflowStep[] = [
+      {
+        organizationId,
+        stepKey: "intake_capture",
+        position: 0,
+        label: "Intake Capture",
+        description: "Capture the initial idea and basic information",
+        helpText: "Document the initial request, problem statement, and desired outcome.",
+        requiredFields: ["projectName", "description"],
+      },
+      {
+        organizationId,
+        stepKey: "triage",
+        position: 1,
+        label: "Triage",
+        description: "Classify and prioritize the intake request",
+        helpText: "Determine if this is a new initiative or backlog item, and assign to appropriate portfolio.",
+        requiredFields: ["portfolioId", "fundingSource"],
+      },
+      {
+        organizationId,
+        stepKey: "business_case",
+        position: 2,
+        label: "Business Case",
+        description: "Define business justification and expected benefits",
+        helpText: "Document the business case including ROI, benefits, and stakeholder alignment.",
+        requiredFields: ["estimatedBudget", "financialJustification"],
+      },
+      {
+        organizationId,
+        stepKey: "technical_evaluation",
+        position: 3,
+        label: "Technical Evaluation",
+        description: "Assess technical feasibility and resource requirements",
+        helpText: "Evaluate technical requirements, architecture impact, and resource availability.",
+        requiredFields: ["itCostEstimate", "resourceRequirements"],
+      },
+      {
+        organizationId,
+        stepKey: "governance_review",
+        position: 4,
+        label: "Governance Review",
+        description: "Security, compliance, and architecture approval",
+        helpText: "Complete security assessment, compliance review, and architecture sign-off.",
+        requiredFields: ["cyberRiskAssessment"],
+      },
+      {
+        organizationId,
+        stepKey: "decision",
+        position: 5,
+        label: "Decision",
+        description: "Final PMO review and approval decision",
+        helpText: "PMO reviews the complete intake and makes approval, deferral, or rejection decision.",
+        requiredFields: [],
+      },
+    ];
+    
+    return this.upsertIntakeWorkflowSteps(organizationId, defaultSteps);
   }
 }
 

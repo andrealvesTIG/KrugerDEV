@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
 import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory } from "@/hooks/use-risks";
@@ -7,11 +7,11 @@ import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/u
 import { useMilestones } from "@/hooks/use-milestones";
 import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useDeleteChangeRequest } from "@/hooks/use-change-requests";
 import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument, useDeleteProjectDocument } from "@/hooks/use-project-documents";
+import { useProjectComments, useCreateProjectComment, useDeleteProjectComment } from "@/hooks/use-project-comments";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
-import ProjectFinancialGrid from "@/components/ProjectFinancialGrid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,17 +21,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useTaskHistory } from "@/hooks/use-tasks";
 import { Textarea } from "@/components/ui/textarea";
 import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
-import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument } from "@shared/schema";
+import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User } from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
@@ -39,15 +41,111 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useLocation } from "wouter";
+
+const PROJECT_STAGES = [
+  { value: "Initiation", label: "Initiation", description: "Project kickoff" },
+  { value: "Planning", label: "Planning", description: "Define scope & schedule" },
+  { value: "Execution", label: "Execution", description: "Active development" },
+  { value: "Monitoring", label: "Monitoring", description: "Track & control" },
+  { value: "Closing", label: "Closing", description: "Project completion" },
+];
+
+function BusinessProcessFlow({ 
+  currentStatus, 
+  onStatusChange 
+}: { 
+  currentStatus: string; 
+  onStatusChange: (status: string) => void;
+}) {
+  const currentIndex = PROJECT_STAGES.findIndex(s => s.value === currentStatus);
+  
+  return (
+    <div className="bg-muted/50 border border-border rounded-lg p-4">
+      <div className="flex items-center justify-between">
+        {PROJECT_STAGES.map((stage, index) => {
+          const isCompleted = index < currentIndex;
+          const isCurrent = index === currentIndex;
+          const isUpcoming = index > currentIndex;
+          
+          return (
+            <div key={stage.value} className="flex items-center flex-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => onStatusChange(stage.value)}
+                    className={cn(
+                      "flex flex-col items-center gap-1 group cursor-pointer transition-all",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md p-2"
+                    )}
+                    data-testid={`status-stage-${stage.value.toLowerCase()}`}
+                  >
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center transition-all border-2",
+                      isCompleted && "bg-primary border-primary text-primary-foreground",
+                      isCurrent && "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
+                      isUpcoming && "bg-muted border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50 group-hover:bg-muted/80"
+                    )}>
+                      {isCompleted ? (
+                        <CheckCircle2 className="h-5 w-5" />
+                      ) : isCurrent ? (
+                        <span className="text-sm font-bold">{index + 1}</span>
+                      ) : (
+                        <Circle className="h-5 w-5" />
+                      )}
+                    </div>
+                    <span className={cn(
+                      "text-xs font-medium transition-colors",
+                      (isCompleted || isCurrent) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                    )}>
+                      {stage.label}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="font-medium">{stage.label}</p>
+                  <p className="text-xs text-muted-foreground">{stage.description}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Click to set status</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              {index < PROJECT_STAGES.length - 1 && (
+                <div className={cn(
+                  "flex-1 h-1 mx-2 rounded-full transition-colors",
+                  index < currentIndex ? "bg-primary" : "bg-muted-foreground/20"
+                )} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function ProjectDetails() {
   const [, params] = useRoute("/projects/:id");
   const id = parseInt(params?.id || "0");
   const { data: project, isLoading } = useProject(id);
   const { data: financials } = useProjectFinancials(id);
+  const { data: projectTasks } = useTasks(id);
   const { mutate: updateProject } = useUpdateProject();
   const { toast } = useToast();
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
+  const { currentOrganization } = useOrganization();
+  const [, setLocation] = useLocation();
+
+  // Redirect if project doesn't belong to current organization
+  useEffect(() => {
+    if (project && currentOrganization && project.organizationId !== currentOrganization.id) {
+      toast({
+        title: "Organization Changed",
+        description: "Redirecting to dashboard - this project belongs to a different organization.",
+        variant: "default"
+      });
+      setLocation("/");
+    }
+  }, [project, currentOrganization, setLocation, toast]);
 
   // Calculate financial budget total if financials exist
   const financialBudgetTotal = useMemo(() => {
@@ -58,8 +156,22 @@ export default function ProjectDetails() {
   // Use financial budget total if available, otherwise use project budget
   const displayBudget = financialBudgetTotal > 0 ? financialBudgetTotal : Number(project?.budget || 0);
 
+  // Calculate progress based on task averages (or fall back to manual completionPercentage)
+  const calculatedProgress = useMemo(() => {
+    if (!projectTasks || projectTasks.length === 0) {
+      return project?.completionPercentage || 0;
+    }
+    const totalProgress = projectTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+    return Math.round(totalProgress / projectTasks.length);
+  }, [projectTasks, project?.completionPercentage]);
+
   if (isLoading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   if (!project) return <div>Project not found</div>;
+  
+  // Don't render if project doesn't match current organization (will redirect)
+  if (currentOrganization && project.organizationId !== currentOrganization.id) {
+    return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
 
   const handleStatusChange = (status: string) => {
     updateProject({ id: project.id, status }, {
@@ -91,20 +203,7 @@ export default function ProjectDetails() {
           </div>
           <p className="mt-2 max-w-2xl text-slate-500">{project.description}</p>
         </div>
-        <div className="flex gap-3">
-           <Select value={project.status} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Initiation">Initiation</SelectItem>
-              <SelectItem value="Planning">Planning</SelectItem>
-              <SelectItem value="Execution">Execution</SelectItem>
-              <SelectItem value="Monitoring">Monitoring</SelectItem>
-              <SelectItem value="Closing">Closing</SelectItem>
-            </SelectContent>
-          </Select>
-          
+        <div className="flex items-center gap-3">
            <Select value={project.health || "Green"} onValueChange={handleHealthChange}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Health" />
@@ -115,6 +214,39 @@ export default function ProjectDetails() {
               <SelectItem value="Red">Red</SelectItem>
             </SelectContent>
           </Select>
+          
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" data-testid="button-download-project">
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Download Project</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={() => {
+                  window.open(`/api/projects/${project.id}/export?format=csv`, '_blank');
+                }}
+                data-testid="menu-download-csv"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Download as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => {
+                  window.open(`/api/projects/${project.id}/export?format=mspdi`, '_blank');
+                }}
+                data-testid="menu-download-mspdi"
+              >
+                <GanttChart className="h-4 w-4 mr-2" />
+                Download as MS Project XML
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           <Tooltip>
             <TooltipTrigger asChild>
@@ -132,37 +264,50 @@ export default function ProjectDetails() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
+      {/* Business Process Flow */}
+      <BusinessProcessFlow 
+        currentStatus={project.status} 
+        onStatusChange={handleStatusChange} 
+      />
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
               Budget
               {financialBudgetTotal > 0 && (
-                <Badge variant="outline" className="text-[10px] font-normal">From Financials</Badge>
+                <Badge variant="outline" className="text-[9px] font-normal py-0">From Financials</Badge>
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center"><DollarSign className="h-5 w-5 mr-1 text-slate-400" />{displayBudget.toLocaleString()}</div>
+          <CardContent className="py-1 px-4">
+            <div className="text-base font-semibold flex items-center"><DollarSign className="h-4 w-4 mr-1 text-muted-foreground" />{displayBudget.toLocaleString()}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-500">Progress</CardTitle></CardHeader>
-          <CardContent>
-             <div className="text-2xl font-bold">{project.completionPercentage}%</div>
-             <Progress value={project.completionPercentage || 0} className="h-2 mt-2" />
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+              Progress
+              {projectTasks && projectTasks.length > 0 && (
+                <Badge variant="outline" className="text-[9px] font-normal py-0">From Tasks</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="py-1 px-4">
+             <div className="text-base font-semibold">{calculatedProgress}%</div>
+             <Progress value={calculatedProgress} className="h-1.5 mt-1" />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-500">Start Date</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center"><CalendarIcon className="h-5 w-5 mr-2 text-slate-400" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Start Date</CardTitle></CardHeader>
+          <CardContent className="py-1 px-4">
+            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
           </CardContent>
         </Card>
-         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-slate-500">End Date</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center"><CalendarIcon className="h-5 w-5 mr-2 text-slate-400" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
+        <Card className="py-2">
+          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">End Date</CardTitle></CardHeader>
+          <CardContent className="py-1 px-4">
+            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
           </CardContent>
         </Card>
       </div>
@@ -175,14 +320,14 @@ export default function ProjectDetails() {
       />
 
       <Tabs defaultValue="summary" className="w-full">
-        <TabsList className="bg-muted p-1 rounded-xl flex-wrap">
-          <TabsTrigger value="summary" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Project Summary</TabsTrigger>
-          <TabsTrigger value="tasks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Tasks</TabsTrigger>
-          <TabsTrigger value="risks" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Risks Log</TabsTrigger>
-          <TabsTrigger value="issues" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Issues</TabsTrigger>
-          <TabsTrigger value="financials" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Financials</TabsTrigger>
-          <TabsTrigger value="change-requests" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Change Requests</TabsTrigger>
-          <TabsTrigger value="documents" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">Documents</TabsTrigger>
+        <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl flex-wrap gap-1 h-auto">
+          <TabsTrigger value="summary" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-summary">Project Summary</TabsTrigger>
+          <TabsTrigger value="tasks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="risks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-risks">Risks Log</TabsTrigger>
+          <TabsTrigger value="issues" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-issues">Issues</TabsTrigger>
+          <TabsTrigger value="financials" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-financials">Financials</TabsTrigger>
+          <TabsTrigger value="change-requests" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-change-requests">Change Requests</TabsTrigger>
+          <TabsTrigger value="documents" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-documents">Documents</TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
@@ -295,12 +440,13 @@ function ProjectTimeline({
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const { data: milestones } = useMilestones(projectId);
+  const { data: tasks } = useTasks(projectId);
   
   // Parse project dates
   const projectStart = startDate ? parseISO(startDate) : null;
   const projectEnd = endDate ? parseISO(endDate) : null;
   
-  // Get milestones from milestones table
+  // Get milestones from milestones table AND tasks marked as milestones
   const allEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
     
@@ -315,9 +461,20 @@ function ProjectTimeline({
       });
     });
     
+    // Add tasks marked as milestones (use end date as the milestone date)
+    tasks?.filter(t => t.isMilestone).forEach((t) => {
+      events.push({
+        id: t.id,
+        type: 'task-milestone',
+        title: t.name,
+        date: parseISO(t.endDate),
+        completed: t.status === 'Completed',
+      });
+    });
+    
     // Sort by date
     return events.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [milestones]);
+  }, [milestones, tasks]);
   
   // Calculate timeline range
   const timelineRange = useMemo(() => {
@@ -365,15 +522,15 @@ function ProjectTimeline({
   
   if (!projectStart || !projectEnd || !timelineRange) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <GanttChart className="h-4 w-4" />
+      <Card className="py-2">
+        <CardHeader className="py-1 px-4">
+          <CardTitle className="text-xs font-medium flex items-center gap-2">
+            <GanttChart className="h-3 w-3" />
             Timeline
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Set project start and end dates to view the timeline.</p>
+        <CardContent className="py-1 px-4">
+          <p className="text-xs text-muted-foreground">Set project start and end dates to view the timeline.</p>
         </CardContent>
       </Card>
     );
@@ -381,35 +538,35 @@ function ProjectTimeline({
   
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <Card>
+      <Card className="py-2">
         <CollapsibleTrigger asChild>
-          <CardHeader className="pb-2 cursor-pointer hover-elevate flex flex-row items-center justify-between gap-4">
+          <CardHeader className="py-2 px-4 cursor-pointer hover-elevate flex flex-row items-center justify-between gap-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               <GanttChart className="h-4 w-4" />
               Timeline
             </CardTitle>
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Flag className="h-3 w-3 text-primary" />
-                {format(projectStart, 'M/d/yyyy')}
+              <span className="flex items-center gap-1.5">
+                <Flag className="h-3.5 w-3.5 text-primary" />
+                {format(projectStart, 'MMM d, yyyy')}
               </span>
-              <span className="flex items-center gap-1">
-                {format(projectEnd, 'M/d/yyyy')}
-                <Flag className="h-3 w-3 text-green-600" />
+              <span className="flex items-center gap-1.5">
+                {format(projectEnd, 'MMM d, yyyy')}
+                <Flag className="h-3.5 w-3.5 text-green-600" />
               </span>
             </div>
           </CardHeader>
         </CollapsibleTrigger>
         
         <CollapsibleContent>
-          <CardContent className="pt-0">
+          <CardContent className="pt-2 px-4 pb-3">
             {/* Year markers */}
-            <div className="relative h-6 mb-1">
+            <div className="relative h-5 mb-2">
               {yearMarkers.map((marker) => (
                 <span 
                   key={marker.year}
-                  className="absolute text-xs text-muted-foreground"
+                  className="absolute text-xs font-medium text-muted-foreground -translate-x-1/2"
                   style={{ left: `${marker.position}%` }}
                 >
                   {marker.year}
@@ -417,16 +574,16 @@ function ProjectTimeline({
               ))}
             </div>
             
-            {/* Timeline bar */}
-            <div className="relative h-10">
+            {/* Timeline bar with padding for markers */}
+            <div className="relative h-10 mx-4">
               {/* Background bar */}
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-5 bg-muted rounded-full" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-4 bg-muted rounded-full" />
               
               {/* Progress bar (from start to today if today is within range) */}
               {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
                 <div 
                   className={cn(
-                    "absolute top-1/2 -translate-y-1/2 h-5 bg-slate-400 dark:bg-slate-600",
+                    "absolute top-1/2 -translate-y-1/2 h-4 bg-slate-400 dark:bg-slate-600",
                     timelineRange.todayPosition < 100 ? "rounded-l-full" : "rounded-full"
                   )}
                   style={{ left: 0, width: `${Math.max(1, timelineRange.todayPosition)}%` }}
@@ -439,10 +596,9 @@ function ProjectTimeline({
                   className="absolute top-0 bottom-0 w-0.5 bg-green-600 z-10"
                   style={{ left: `${timelineRange.todayPosition}%` }}
                 >
-                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-green-600 font-medium whitespace-nowrap">
+                  <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-green-600 font-medium whitespace-nowrap bg-background px-1 rounded">
                     {format(timelineRange.today, 'MMM dd')}
                   </div>
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-green-600" />
                 </div>
               )}
               
@@ -457,7 +613,7 @@ function ProjectTimeline({
                     <TooltipTrigger asChild>
                       <div 
                         className={cn(
-                          "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-sm rotate-45 cursor-pointer z-20 border",
+                          "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-sm rotate-45 cursor-pointer z-20 border-2",
                           event.completed 
                             ? "bg-green-600 border-green-700" 
                             : "bg-red-500 border-red-600"
@@ -478,33 +634,36 @@ function ProjectTimeline({
               })}
               
               {/* Start marker */}
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2">
+              <div className="absolute -left-4 top-1/2 -translate-y-1/2">
                 <Flag className="h-4 w-4 text-primary" />
               </div>
               
               {/* End marker */}
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2">
+              <div className="absolute -right-4 top-1/2 -translate-y-1/2">
                 <Flag className="h-4 w-4 text-green-600" />
               </div>
             </div>
             
             {/* Legend */}
-            {allEvents.length > 0 && (
-              <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between mt-6 text-xs text-muted-foreground">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 bg-green-600 rounded-sm rotate-45" />
-                  <span>Completed Milestone</span>
+                  <span>Completed</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 bg-red-500 rounded-sm rotate-45" />
-                  <span>Pending Milestone</span>
+                  <span>Pending</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <div className="w-3 h-0.5 bg-green-600" />
                   <span>Today</span>
                 </div>
               </div>
-            )}
+              <span className="text-muted-foreground/70">
+                {allEvents.length} milestone{allEvents.length !== 1 ? 's' : ''}
+              </span>
+            </div>
           </CardContent>
         </CollapsibleContent>
       </Card>
@@ -540,6 +699,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
   };
 
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div>
@@ -674,6 +834,341 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               <p className="mt-1 text-slate-600">{project.description || 'No description provided.'}</p>
             </div>
           </div>
+        )}
+      </CardContent>
+    </Card>
+    
+    <ProjectCommentsFeed projectId={project.id} />
+  </>
+  );
+}
+
+function ProjectCommentsFeed({ projectId }: { projectId: number }) {
+  const { toast } = useToast();
+  const [newComment, setNewComment] = useState("");
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState("");
+  const [mentionTarget, setMentionTarget] = useState<'new' | 'reply'>('new');
+  const { data: comments, isLoading } = useProjectComments(projectId);
+  const { data: users } = useQuery<User[]>({ queryKey: ['/api/users'] });
+  const createComment = useCreateProjectComment(projectId);
+  const deleteComment = useDeleteProjectComment(projectId);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const replyInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter users based on mention search
+  const filteredUsers = users?.filter(u => {
+    const searchLower = mentionSearch.toLowerCase();
+    return (
+      u.username?.toLowerCase().includes(searchLower) ||
+      u.email?.toLowerCase().includes(searchLower) ||
+      u.firstName?.toLowerCase().includes(searchLower) ||
+      u.lastName?.toLowerCase().includes(searchLower)
+    );
+  }).slice(0, 5) || [];
+
+  const handleInputChange = (value: string, target: 'new' | 'reply') => {
+    if (target === 'new') {
+      setNewComment(value);
+    } else {
+      setReplyContent(value);
+    }
+    
+    // Check if user is typing a mention
+    const cursorPos = target === 'new' ? inputRef.current?.selectionStart : replyInputRef.current?.selectionStart;
+    if (cursorPos !== undefined && cursorPos !== null) {
+      const textBeforeCursor = value.slice(0, cursorPos);
+      const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+      if (mentionMatch) {
+        setShowMentions(true);
+        setMentionSearch(mentionMatch[1]);
+        setMentionTarget(target);
+      } else {
+        setShowMentions(false);
+      }
+    }
+  };
+
+  const insertMention = (user: User) => {
+    const mentionText = user.username || user.email || '';
+    const currentValue = mentionTarget === 'new' ? newComment : replyContent;
+    const inputElement = mentionTarget === 'new' ? inputRef.current : replyInputRef.current;
+    const cursorPos = inputElement?.selectionStart || currentValue.length;
+    
+    // Find the @ symbol position
+    const textBeforeCursor = currentValue.slice(0, cursorPos);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+    
+    if (atIndex !== -1) {
+      const insertedMention = '@' + mentionText + ' ';
+      const newValue = currentValue.slice(0, atIndex) + insertedMention + currentValue.slice(cursorPos);
+      const newCursorPos = atIndex + insertedMention.length;
+      
+      if (mentionTarget === 'new') {
+        setNewComment(newValue);
+      } else {
+        setReplyContent(newValue);
+      }
+      
+      // Restore cursor position after React updates
+      requestAnimationFrame(() => {
+        if (inputElement) {
+          inputElement.focus();
+          inputElement.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      });
+    }
+    setShowMentions(false);
+  };
+
+  // Group comments by parent - top level first, then replies
+  const topLevelComments = comments?.filter(c => !c.parentId) || [];
+  const repliesByParent = comments?.reduce((acc, c) => {
+    if (c.parentId) {
+      if (!acc[c.parentId]) acc[c.parentId] = [];
+      acc[c.parentId].push(c);
+    }
+    return acc;
+  }, {} as Record<number, typeof comments>) || {};
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    
+    createComment.mutate({ content: newComment.trim() }, {
+      onSuccess: () => {
+        setNewComment("");
+        toast({ title: "Comment added" });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to add comment", variant: "destructive" });
+      }
+    });
+  };
+
+  const handleReplySubmit = (parentId: number) => {
+    if (!replyContent.trim()) return;
+    
+    createComment.mutate({ content: replyContent.trim(), parentId }, {
+      onSuccess: () => {
+        setReplyContent("");
+        setReplyingTo(null);
+        toast({ title: "Reply added" });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to add reply", variant: "destructive" });
+      }
+    });
+  };
+
+  const handleDelete = (id: number) => {
+    deleteComment.mutate(id, {
+      onSuccess: () => {
+        toast({ title: "Comment deleted" });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to delete comment", variant: "destructive" });
+      }
+    });
+  };
+
+  // Highlight @mentions in comment text
+  const renderContent = (content: string) => {
+    const mentionRegex = /@(\w+(?:\.\w+)*(?:@[\w.-]+)?)/g;
+    const result: (string | JSX.Element)[] = [];
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = mentionRegex.exec(content)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        result.push(content.slice(lastIndex, match.index));
+      }
+      // Add the highlighted mention (match[0] includes the @)
+      result.push(
+        <span key={match.index} className="text-primary font-medium">{match[0]}</span>
+      );
+      lastIndex = mentionRegex.lastIndex;
+    }
+    // Add remaining text after last match
+    if (lastIndex < content.length) {
+      result.push(content.slice(lastIndex));
+    }
+    
+    return result.length > 0 ? result : content;
+  };
+
+  const renderComment = (comment: typeof topLevelComments[0], isReply = false) => (
+    <div 
+      key={comment.id} 
+      className={`flex items-start gap-3 group p-2 rounded-md hover-elevate ${isReply ? 'ml-8 border-l-2 border-muted' : ''}`} 
+      data-testid={`comment-${comment.id}`}
+    >
+      <div className={`${isReply ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0`}>
+        <UserIcon className={`${isReply ? 'h-3 w-3' : 'h-4 w-4'} text-primary`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium">{comment.authorName}</span>
+          <span className="text-xs text-muted-foreground">
+            {format(new Date(comment.createdAt!), 'MMM d, yyyy h:mm a')}
+          </span>
+        </div>
+        <p className="text-sm text-muted-foreground mt-0.5 break-words">{renderContent(comment.content)}</p>
+        {!isReply && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 mt-1 text-xs text-muted-foreground"
+            onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+            data-testid={`button-reply-${comment.id}`}
+          >
+            <Reply className="h-3 w-3 mr-1" />
+            Reply
+          </Button>
+        )}
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={() => handleDelete(comment.id)}
+        data-testid={`button-delete-comment-${comment.id}`}
+      >
+        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+      </Button>
+    </div>
+  );
+
+  return (
+    <Card className="mt-4">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-base">Comments</CardTitle>
+          {comments && comments.length > 0 && (
+            <Badge variant="secondary" className="text-xs">{comments.length}</Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form onSubmit={handleSubmit} className="relative">
+          <div className="flex gap-2">
+            <Input
+              ref={inputRef}
+              value={newComment}
+              onChange={(e) => handleInputChange(e.target.value, 'new')}
+              placeholder="Add a comment... (type @ to mention someone)"
+              className="flex-1"
+              data-testid="input-new-comment"
+            />
+            <Button 
+              type="submit" 
+              size="icon" 
+              disabled={!newComment.trim() || createComment.isPending}
+              data-testid="button-submit-comment"
+            >
+              {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
+          {showMentions && mentionTarget === 'new' && filteredUsers.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 bg-popover border rounded-md shadow-md z-50 max-h-40 overflow-y-auto">
+              {filteredUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="px-3 py-2 cursor-pointer hover-elevate flex items-center gap-2"
+                  onClick={() => insertMention(user)}
+                  data-testid={`mention-user-${user.id}`}
+                >
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <UserIcon className="h-3 w-3 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email}
+                    </p>
+                    {user.email && <p className="text-xs text-muted-foreground truncate">{user.email}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </form>
+
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : topLevelComments.length > 0 ? (
+          <div className="space-y-3">
+            {topLevelComments.map((comment) => (
+              <div key={comment.id}>
+                {renderComment(comment)}
+                
+                {/* Reply form */}
+                {replyingTo === comment.id && (
+                  <div className="ml-8 mt-2 relative">
+                    <div className="flex gap-2">
+                      <Input
+                        ref={replyInputRef}
+                        value={replyContent}
+                        onChange={(e) => handleInputChange(e.target.value, 'reply')}
+                        placeholder="Write a reply... (type @ to mention someone)"
+                        className="flex-1"
+                        autoFocus
+                        data-testid={`input-reply-${comment.id}`}
+                      />
+                      <Button
+                        size="icon"
+                        onClick={() => handleReplySubmit(comment.id)}
+                        disabled={!replyContent.trim() || createComment.isPending}
+                        data-testid={`button-submit-reply-${comment.id}`}
+                      >
+                        {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { setReplyingTo(null); setReplyContent(""); setShowMentions(false); }}
+                        data-testid={`button-cancel-reply-${comment.id}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {showMentions && mentionTarget === 'reply' && filteredUsers.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-popover border rounded-md shadow-md z-50 max-h-40 overflow-y-auto">
+                        {filteredUsers.map((user) => (
+                          <div
+                            key={user.id}
+                            className="px-3 py-2 cursor-pointer hover-elevate flex items-center gap-2"
+                            onClick={() => insertMention(user)}
+                            data-testid={`mention-reply-user-${user.id}`}
+                          >
+                            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              <UserIcon className="h-3 w-3 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email}
+                              </p>
+                              {user.email && <p className="text-xs text-muted-foreground truncate">{user.email}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Replies */}
+                {repliesByParent[comment.id]?.map((reply) => renderComment(reply, true))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-4">No comments yet. Be the first to add one!</p>
         )}
       </CardContent>
     </Card>
@@ -1054,6 +1549,7 @@ function TasksTab({ projectId }: { projectId: number }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [durationDays, setDurationDays] = useState(7);
+  const [isMilestone, setIsMilestone] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
@@ -1114,6 +1610,7 @@ function TasksTab({ projectId }: { projectId: number }) {
       ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
       : 7);
     setDurationDays(taskDuration);
+    setIsMilestone(task.isMilestone || false);
     form.reset({
       projectId: task.projectId,
       name: task.name,
@@ -1131,6 +1628,7 @@ function TasksTab({ projectId }: { projectId: number }) {
   const openCreateDialog = () => {
     setEditingTask(null);
     setDurationDays(7);
+    setIsMilestone(false);
     setSelectedResourceIds([]);
     form.reset({
       projectId: projectId,
@@ -1157,6 +1655,7 @@ function TasksTab({ projectId }: { projectId: number }) {
       progress: data.progress || 0,
       status: data.status || "Not Started",
       assignee: data.assignee || null,
+      isMilestone: isMilestone,
     };
 
     if (editingTask) {
@@ -1234,16 +1733,13 @@ function TasksTab({ projectId }: { projectId: number }) {
                 <Input {...form.register("name")} data-testid="input-task-name" className={cn(form.formState.errors.name && "border-destructive")} />
                 {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-4 items-end">
                 <div className="space-y-2">
                   <Label>Start Date</Label>
                   <Input type="date" {...form.register("startDate")} data-testid="input-task-start" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    Duration (days)
-                  </Label>
+                  <Label>Duration (days)</Label>
                   <Input 
                     type="number" 
                     min="1" 
@@ -1258,7 +1754,7 @@ function TasksTab({ projectId }: { projectId: number }) {
                   <Input type="date" {...form.register("endDate")} data-testid="input-task-end" disabled className="bg-muted" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 items-end">
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Controller control={form.control} name="status" render={({field}) => (
@@ -1278,15 +1774,17 @@ function TasksTab({ projectId }: { projectId: number }) {
                     <span className="text-muted-foreground text-xs font-normal">{form.watch("progress") || 0}%</span>
                   </Label>
                   <Controller control={form.control} name="progress" render={({field}) => (
-                    <Slider
-                      value={[field.value || 0]}
-                      onValueChange={(v) => field.onChange(v[0])}
-                      min={0}
-                      max={100}
-                      step={5}
-                      className="py-2"
-                      data-testid="slider-task-progress"
-                    />
+                    <div className="h-9 flex items-center">
+                      <Slider
+                        value={[field.value || 0]}
+                        onValueChange={(v) => field.onChange(v[0])}
+                        min={0}
+                        max={100}
+                        step={5}
+                        className="w-full"
+                        data-testid="slider-task-progress"
+                      />
+                    </div>
                   )} />
                 </div>
               </div>
@@ -1300,45 +1798,60 @@ function TasksTab({ projectId }: { projectId: number }) {
                 onSelectionChange={setSelectedResourceIds}
                 label="Assigned Resources"
               />
-              <DialogFooter className="flex items-center gap-2">
-                {editingTask && (
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="isMilestone" 
+                  checked={isMilestone}
+                  onCheckedChange={(checked) => setIsMilestone(checked === true)}
+                  data-testid="checkbox-task-milestone"
+                />
+                <Label htmlFor="isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
+                  <MilestoneIcon className="h-4 w-4 text-primary" />
+                  Mark as Milestone (show on project timeline)
+                </Label>
+              </div>
+              <DialogFooter className="sm:justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {editingTask && (
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIsHistoryOpen(true)}
+                      data-testid="button-view-history"
+                    >
+                      <History className="mr-2 h-4 w-4" />
+                      History
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {editingTask && (
+                    <Button 
+                      type="button" 
+                      variant="destructive" 
+                      onClick={() => {
+                        deleteTask.mutate({ id: editingTask.id, projectId: editingTask.projectId }, {
+                          onSuccess: () => {
+                            toast({ title: "Deleted", description: "Task deleted" });
+                            setIsDialogOpen(false);
+                            setEditingTask(null);
+                          }
+                        });
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
                   <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setIsHistoryOpen(true)}
-                    data-testid="button-view-history"
+                    type="submit" 
+                    data-testid="button-save-task" 
+                    disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
                   >
-                    <History className="mr-2 h-4 w-4" />
-                    History
+                    {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {editingTask ? "Update Task" : "Save Task"}
                   </Button>
-                )}
-                <div className="flex-1" />
-                {editingTask && (
-                  <Button 
-                    type="button" 
-                    variant="destructive" 
-                    onClick={() => {
-                      deleteTask.mutate({ id: editingTask.id, projectId: editingTask.projectId }, {
-                        onSuccess: () => {
-                          toast({ title: "Deleted", description: "Task deleted" });
-                          setIsDialogOpen(false);
-                          setEditingTask(null);
-                        }
-                      });
-                    }}
-                  >
-                    Delete
-                  </Button>
-                )}
-                <Button 
-                  type="submit" 
-                  data-testid="button-save-task" 
-                  disabled={createTask.isPending || updateTask.isPending || !form.formState.isValid}
-                >
-                  {(createTask.isPending || updateTask.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingTask ? "Update Task" : "Save Task"}
-                </Button>
+                </div>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -1546,7 +2059,10 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
                   data-testid={`gantt-task-${task.id}`}
                 >
                   <div className="w-64 flex-shrink-0 border-r p-3">
-                    <div className="font-medium text-sm truncate">{task.name}</div>
+                    <div className="font-medium text-sm truncate flex items-center gap-1.5">
+                      {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                      {task.name}
+                    </div>
                     <div className="text-xs text-muted-foreground truncate">{task.assignee || "Unassigned"}</div>
                   </div>
                   <div className="flex-1 relative p-2">
@@ -1741,7 +2257,10 @@ function ProjectDraggableTaskCard({
         data-testid={`kanban-task-${task.id}`}
       >
         <CardContent className="p-4">
-          <div className="font-medium text-sm">{task.name}</div>
+          <div className="font-medium text-sm flex items-center gap-1.5">
+            {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+            {task.name}
+          </div>
           <div className="text-xs text-muted-foreground mt-1">{task.assignee || "Unassigned"}</div>
           <div className="flex items-center justify-between mt-3">
             <Badge variant="outline" className="text-xs">
@@ -2512,10 +3031,6 @@ function FinancialsTab({ projectId }: { projectId: number }) {
             </tfoot>
           </table>
         </div>
-      </CardContent>
-
-      <CardContent className="pt-8 border-t">
-        <ProjectFinancialGrid projectId={projectId} />
       </CardContent>
     </Card>
   );

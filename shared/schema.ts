@@ -130,6 +130,7 @@ export const tasks = pgTable("tasks", {
   status: text("status").default("Not Started"), // Not Started, In Progress, Completed
   assignee: text("assignee"),
   parentId: integer("parent_id"), // For subtasks/dependencies
+  isMilestone: boolean("is_milestone").default(false), // Show task on project timeline
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
@@ -301,6 +302,35 @@ export const projectDocuments = pgTable("project_documents", {
   isDemo: boolean("is_demo").default(false),
 });
 
+// Project Comments (Notes feed for project discussions)
+export const projectComments = pgTable("project_comments", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  parentId: integer("parent_id"), // For threaded replies - references another comment
+  content: text("content").notNull(),
+  authorId: varchar("author_id").references(() => users.id),
+  authorName: text("author_name"), // Stored for display even if user is deleted
+  mentions: text("mentions").array(), // Array of user IDs mentioned with @
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+  isDemo: boolean("is_demo").default(false),
+});
+
+// Notifications for @mentions and other events
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  type: text("type").notNull(), // "mention", "comment_reply", etc.
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  projectId: integer("project_id").references(() => projects.id),
+  commentId: integer("comment_id"),
+  fromUserId: varchar("from_user_id").references(() => users.id),
+  fromUserName: text("from_user_name"),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Project Financials (Budget/Plan/Actuals with CapEx/OpEx breakdown)
 export const projectFinancials = pgTable("project_financials", {
   id: serial("id").primaryKey(),
@@ -429,6 +459,21 @@ export const projectIntakes = pgTable("project_intakes", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false),
+});
+
+// Intake Workflow Steps - Configurable workflow steps per organization
+export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  stepKey: text("step_key").notNull(), // Canonical step identifier: intake_capture, triage, business_case, technical_evaluation, governance_review, decision
+  position: integer("position").notNull(), // Order in workflow (0-5)
+  label: text("label").notNull(), // Display name (can be customized per org)
+  description: text("description"), // Short description
+  helpText: text("help_text"), // Detailed help text shown during step
+  requiredFields: text("required_fields").array(), // Array of field names required at this step
+  isActive: boolean("is_active").default(true), // Whether step is active
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // MPP Imports - Store imported Microsoft Project data
@@ -708,6 +753,10 @@ export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit
 export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
 export const insertProjectDocumentSchema = createInsertSchema(projectDocuments).omit({ id: true, createdAt: true, updatedAt: true });
 
+export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
+
 // === TYPES ===
 
 // User types exported from models/auth
@@ -783,6 +832,15 @@ export type InsertChangeRequest = z.infer<typeof insertChangeRequestSchema>;
 
 export type ProjectDocument = typeof projectDocuments.$inferSelect;
 export type InsertProjectDocument = z.infer<typeof insertProjectDocumentSchema>;
+
+export type ProjectComment = typeof projectComments.$inferSelect;
+export type InsertProjectComment = z.infer<typeof insertProjectCommentSchema>;
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
+export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;

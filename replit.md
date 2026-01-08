@@ -88,3 +88,24 @@ The `shared/` directory contains code used by both frontend and backend:
 - Located in `lib/` directory with compiled Java parser
 - Supports MPP (native), XML (MSPDI), and CSV formats
 - Parsed fields: Task Name, WBS, Start/Finish Date, Duration, % Complete, Outline Level, Summary/Milestone flags
+
+### Analytics API (Power BI Integration)
+The application exposes REST API endpoints for external analytics tools like Power BI:
+
+**Endpoints** (all require authentication):
+- `GET /api/analytics/projects` - Flat project data with aggregated metrics
+- `GET /api/analytics/portfolios` - Portfolio summaries with project counts
+- `GET /api/analytics/risks` - All risks with project/org context
+- `GET /api/analytics/issues` - All issues with project/org context
+- `GET /api/analytics/milestones` - All milestones with project/org context
+- `GET /api/analytics/intakes` - Project intake pipeline data
+- `GET /api/analytics/summary` - Organization-level KPI summaries
+
+**Query Parameters**:
+- `organizationId` (optional) - Filter to specific organization
+
+**Power BI Connection**:
+1. Use Web connector in Power BI Desktop
+2. Set URL to `https://your-app.replit.app/api/analytics/projects`
+3. Configure authentication (requires session cookie from logged-in user)
+4. Schedule refresh as needed

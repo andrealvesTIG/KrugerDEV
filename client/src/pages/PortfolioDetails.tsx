@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useState, useEffect } from "react";
+import { useRoute, Link, useLocation } from "wouter";
+import { useOrganization } from "@/hooks/use-organization";
+import { useToast } from "@/hooks/use-toast";
 import { 
   usePortfolioOverview, 
   usePortfolioProjects, 
@@ -32,6 +34,21 @@ export default function PortfolioDetails() {
   const id = parseInt(params?.id || "0");
   const { data: overview, isLoading } = usePortfolioOverview(id);
   const [activeTab, setActiveTab] = useState("summary");
+  const { currentOrganization } = useOrganization();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  // Redirect if portfolio doesn't belong to current organization
+  useEffect(() => {
+    if (overview?.portfolio && currentOrganization && overview.portfolio.organizationId !== currentOrganization.id) {
+      toast({
+        title: "Organization Changed",
+        description: "Redirecting to dashboard - this portfolio belongs to a different organization.",
+        variant: "default"
+      });
+      setLocation("/");
+    }
+  }, [overview, currentOrganization, setLocation, toast]);
 
   if (isLoading) {
     return (
@@ -46,6 +63,11 @@ export default function PortfolioDetails() {
   }
 
   const { portfolio, metrics } = overview;
+
+  // Don't render if portfolio doesn't match current organization (will redirect)
+  if (currentOrganization && portfolio.organizationId !== currentOrganization.id) {
+    return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -793,6 +815,34 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
     { name: "Critical", value: metrics.healthCounts.red, color: "#ef4444" },
   ].filter(d => d.value > 0);
 
+  // Build heat map data: Status x Health matrix
+  const statuses = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
+  const healths = ["Green", "Yellow", "Red"];
+  const healthLabels: Record<string, string> = { Green: "Healthy", Yellow: "At Risk", Red: "Critical" };
+  
+  const heatMapData = statuses.map(status => {
+    const row: Record<string, number | string> = { status };
+    healths.forEach(health => {
+      row[health] = projects?.filter(p => p.status === status && p.health === health).length || 0;
+    });
+    return row;
+  });
+
+  const getHeatMapCellColor = (value: number, health: string) => {
+    if (value === 0) return "bg-muted/30 dark:bg-muted/20";
+    const intensity = Math.min(value, 5); // Cap intensity at 5 for color calculation
+    if (health === "Green") {
+      return intensity >= 3 ? "bg-emerald-500 text-white" : intensity >= 2 ? "bg-emerald-400 text-white" : "bg-emerald-200 text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100";
+    }
+    if (health === "Yellow") {
+      return intensity >= 3 ? "bg-amber-500 text-white" : intensity >= 2 ? "bg-amber-400 text-amber-900" : "bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100";
+    }
+    if (health === "Red") {
+      return intensity >= 3 ? "bg-rose-600 text-white" : intensity >= 2 ? "bg-rose-500 text-white" : "bg-rose-200 text-rose-900 dark:bg-rose-800 dark:text-rose-100";
+    }
+    return "bg-muted/50";
+  };
+
   const projectBudgetData = projects?.slice(0, 5).map(p => ({
     name: p.name.length > 15 ? p.name.substring(0, 15) + "..." : p.name,
     budget: Number(p.budget),
@@ -926,6 +976,74 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onNavigate("projects")} data-testid="dashboard-heat-map">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Project Status Heat Map
+          </CardTitle>
+          <CardDescription>Distribution of projects by lifecycle stage and health</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="p-2 text-left text-xs font-medium text-muted-foreground">Status</th>
+                  {healths.map(health => (
+                    <th key={health} className="p-2 text-center text-xs font-medium text-muted-foreground">
+                      {healthLabels[health]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {heatMapData.map(row => (
+                  <tr key={row.status as string} data-testid={`heatmap-row-${row.status}`}>
+                    <td className="p-2 text-sm font-medium">{row.status}</td>
+                    {healths.map(health => {
+                      const value = row[health] as number;
+                      return (
+                        <td key={health} className="p-1">
+                          <div 
+                            className={cn(
+                              "rounded-md p-3 text-center text-sm font-semibold transition-colors",
+                              getHeatMapCellColor(value, health)
+                            )}
+                            data-testid={`heatmap-cell-${row.status}-${health}`}
+                          >
+                            {value}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+            <span className="font-medium">Intensity:</span>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-muted/30 dark:bg-muted/20" />
+              <span>None</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-slate-300 dark:bg-slate-600" />
+              <span>Low (1-2)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-slate-400 dark:bg-slate-500" />
+              <span>Medium (3-4)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-slate-600 dark:bg-slate-300" />
+              <span>High (5+)</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onNavigate("risks")} data-testid="dashboard-risk-matrix">

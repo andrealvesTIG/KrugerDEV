@@ -9,13 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink, Files, X } from "lucide-react";
+import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink, Files, X, Link2 } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
-import type { MppImport, MppImportTask, Portfolio } from "@shared/schema";
+import type { MppImport, MppImportTask, Portfolio, Project } from "@shared/schema";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface MppImportWithTasks extends MppImport {
@@ -47,6 +47,12 @@ export default function Integrations() {
   const [batchPortfolio, setBatchPortfolio] = useState("");
   const [batchStatus, setBatchStatus] = useState("Initiation");
   const [batchPriority, setBatchPriority] = useState("Medium");
+
+  // Sync to existing project states
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [syncingImport, setSyncingImport] = useState<MppImportWithTasks | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [syncMode, setSyncMode] = useState<'merge' | 'replace'>('merge');
 
   const { data: imports, isLoading, refetch } = useQuery<MppImportWithTasks[]>({
     queryKey: ['/api/mpp-imports', currentOrganization?.id],
@@ -167,6 +173,16 @@ export default function Integrations() {
     enabled: !!currentOrganization?.id,
   });
 
+  const { data: orgProjects } = useQuery<Project[]>({
+    queryKey: ['/api/projects', currentOrganization?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) throw new Error('Failed to fetch projects');
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   const convertMutation = useMutation({
     mutationFn: async (data: { importId: number; name: string; portfolioId?: number; status: string; priority: string }) => {
       const res = await apiRequest('POST', `/api/mpp-imports/${data.importId}/convert`, {
@@ -192,6 +208,31 @@ export default function Integrations() {
     },
   });
 
+  const syncMutation = useMutation({
+    mutationFn: async (data: { importId: number; projectId: number; syncMode: 'merge' | 'replace' }) => {
+      const res = await apiRequest('POST', `/api/mpp-imports/${data.importId}/sync`, {
+        projectId: data.projectId,
+        syncMode: data.syncMode,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "Project Updated", 
+        description: data.message || `Tasks synced: ${data.tasksAdded} added, ${data.tasksUpdated} updated`,
+      });
+      setSyncModalOpen(false);
+      setSyncingImport(null);
+      setSelectedProjectId("");
+      queryClient.invalidateQueries({ queryKey: ['/api/mpp-imports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Sync Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const openConvertModal = (imp: MppImportWithTasks) => {
     setConvertingImport(imp);
     setProjectName(imp.fileName.replace(/\.(mpp|xml|csv)$/i, ''));
@@ -199,6 +240,22 @@ export default function Integrations() {
     setProjectStatus("Initiation");
     setProjectPriority("Medium");
     setConvertModalOpen(true);
+  };
+
+  const openSyncModal = (imp: MppImportWithTasks) => {
+    setSyncingImport(imp);
+    setSelectedProjectId("");
+    setSyncMode('merge');
+    setSyncModalOpen(true);
+  };
+
+  const handleSync = () => {
+    if (!syncingImport || !selectedProjectId) return;
+    syncMutation.mutate({
+      importId: syncingImport.id,
+      projectId: Number(selectedProjectId),
+      syncMode,
+    });
   };
 
   const handleConvert = () => {
@@ -588,32 +645,60 @@ export default function Integrations() {
                           Converted
                         </Badge>
                       ) : (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openConvertModal(imp);
-                          }}
-                          data-testid={`button-create-project-${imp.id}`}
-                        >
-                          <FolderPlus className="mr-2 h-4 w-4" />
-                          Create Project
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openConvertModal(imp);
+                            }}
+                            data-testid={`button-create-project-${imp.id}`}
+                          >
+                            <FolderPlus className="mr-2 h-4 w-4" />
+                            Create Project
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openSyncModal(imp);
+                            }}
+                            data-testid={`button-sync-project-${imp.id}`}
+                          >
+                            <Link2 className="mr-2 h-4 w-4" />
+                            Update Existing
+                          </Button>
+                        </div>
                       )}
                       {imp.projectId && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/projects/${imp.projectId}`);
-                          }}
-                          data-testid={`button-view-project-${imp.id}`}
-                        >
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          View
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/projects/${imp.projectId}`);
+                            }}
+                            data-testid={`button-view-project-${imp.id}`}
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            View
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openSyncModal(imp);
+                            }}
+                            data-testid={`button-resync-project-${imp.id}`}
+                          >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Re-sync
+                          </Button>
+                        </div>
                       )}
                       <Button 
                         variant="ghost" 
@@ -872,6 +957,78 @@ export default function Integrations() {
             >
               <FolderPlus className="mr-2 h-4 w-4" />
               Create {selectedUnconvertedCount} Project(s)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sync to Existing Project Modal */}
+      <Dialog open={syncModalOpen} onOpenChange={setSyncModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Existing Project</DialogTitle>
+            <DialogDescription>
+              Sync {syncingImport?.taskCount || 0} tasks from "{syncingImport?.fileName}" to an existing project.
+              Tasks will be matched by name or WBS code.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="targetProject">Select Project to Update</Label>
+              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                <SelectTrigger data-testid="select-target-project">
+                  <SelectValue placeholder="Choose a project..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {orgProjects?.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Sync Mode</Label>
+              <Select value={syncMode} onValueChange={(v) => setSyncMode(v as 'merge' | 'replace')}>
+                <SelectTrigger data-testid="select-sync-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="merge">
+                    Merge - Add new tasks and update existing by name
+                  </SelectItem>
+                  <SelectItem value="replace">
+                    Replace - Remove all existing tasks first
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {syncMode === 'merge' ? (
+                <p className="text-xs text-muted-foreground">
+                  Existing tasks with matching names will be updated. New tasks will be added.
+                </p>
+              ) : (
+                <p className="text-xs text-destructive font-medium">
+                  Warning: All existing tasks in the selected project will be permanently deleted and replaced with imported tasks.
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSyncModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSync} 
+              disabled={syncMutation.isPending || !selectedProjectId}
+              data-testid="button-confirm-sync"
+            >
+              {syncMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Link2 className="mr-2 h-4 w-4" />
+              )}
+              Sync Tasks
             </Button>
           </DialogFooter>
         </DialogContent>
