@@ -71,6 +71,7 @@ export async function setupAuth(app: Express) {
   app.post("/api/auth/register", async (req, res) => {
     try {
       const { email, password, firstName, lastName } = req.body;
+      console.log("Register attempt for:", email);
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -113,25 +114,30 @@ export async function setupAuth(app: Express) {
         detectedIndustry,
       }).returning();
 
-      // Regenerate session to prevent session fixation
-      req.session.regenerate((err) => {
-        if (err) {
-          console.error("Session regeneration error:", err);
-          return res.status(500).json({ message: "Registration failed" });
-        }
-        req.session.userId = newUser.id;
-        req.session.save((saveErr) => {
-          if (saveErr) {
-            console.error("Session save error:", saveErr);
-            return res.status(500).json({ message: "Registration failed" });
+      console.log("User created:", newUser.id);
+
+      // Set session directly without regenerate (simpler approach)
+      req.session.userId = newUser.id;
+      
+      // Use promisified save
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error:", err);
+            reject(err);
+          } else {
+            console.log("Session saved for user:", newUser.id);
+            resolve();
           }
-          const { passwordHash: _, ...userWithoutPassword } = newUser;
-          res.json(userWithoutPassword);
         });
       });
+
+      const { passwordHash: _, ...userWithoutPassword } = newUser;
+      console.log("Sending response for user:", newUser.id);
+      return res.json(userWithoutPassword);
     } catch (error) {
       console.error("Registration error:", error);
-      res.status(500).json({ message: "Registration failed" });
+      return res.status(500).json({ message: "Registration failed" });
     }
   });
 
@@ -157,27 +163,28 @@ export async function setupAuth(app: Express) {
 
       console.log("Password verified for user:", user.id);
 
-      // Regenerate session to prevent session fixation
-      req.session.regenerate((err) => {
-        if (err) {
-          console.error("Session regeneration error:", err);
-          return res.status(500).json({ message: "Login failed" });
-        }
-        console.log("Session regenerated, setting userId:", user.id);
-        req.session.userId = user.id;
-        req.session.save((saveErr) => {
-          if (saveErr) {
-            console.error("Session save error:", saveErr);
-            return res.status(500).json({ message: "Login failed" });
+      // Set session directly without regenerate (simpler approach)
+      req.session.userId = user.id;
+      
+      // Use promisified save
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error:", err);
+            reject(err);
+          } else {
+            console.log("Session saved for user:", user.id, "sessionId:", req.sessionID);
+            resolve();
           }
-          console.log("Session saved successfully, sessionId:", req.sessionID);
-          const { passwordHash: _, ...userWithoutPassword } = user;
-          res.json(userWithoutPassword);
         });
       });
+
+      const { passwordHash: _, ...userWithoutPassword } = user;
+      console.log("Sending login response for user:", user.id);
+      return res.json(userWithoutPassword);
     } catch (error) {
       console.error("Login error:", error);
-      res.status(500).json({ message: "Login failed" });
+      return res.status(500).json({ message: "Login failed" });
     }
   });
 
