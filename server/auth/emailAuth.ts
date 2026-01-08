@@ -139,6 +139,7 @@ export async function setupAuth(app: Express) {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
+      console.log("Login attempt for:", email);
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -154,18 +155,22 @@ export async function setupAuth(app: Express) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
+      console.log("Password verified for user:", user.id);
+
       // Regenerate session to prevent session fixation
       req.session.regenerate((err) => {
         if (err) {
           console.error("Session regeneration error:", err);
           return res.status(500).json({ message: "Login failed" });
         }
+        console.log("Session regenerated, setting userId:", user.id);
         req.session.userId = user.id;
         req.session.save((saveErr) => {
           if (saveErr) {
             console.error("Session save error:", saveErr);
             return res.status(500).json({ message: "Login failed" });
           }
+          console.log("Session saved successfully, sessionId:", req.sessionID);
           const { passwordHash: _, ...userWithoutPassword } = user;
           res.json(userWithoutPassword);
         });
@@ -189,6 +194,7 @@ export async function setupAuth(app: Express) {
 
   // Get current user
   app.get("/api/auth/user", async (req, res) => {
+    console.log("Auth check - sessionID:", req.sessionID, "userId:", req.session.userId);
     if (!req.session.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
