@@ -1646,6 +1646,173 @@ export class DatabaseStorage implements IStorage {
     return { project: newProject, taskCount: importedTasks.length };
   }
 
+  // Sync MPP Import to Existing Project (update tasks)
+  async syncMppImportToProject(
+    importId: number,
+    projectId: number,
+    options?: {
+      syncMode?: 'merge' | 'replace'; // merge = add/update, replace = delete existing first
+    }
+  ): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number }> {
+    const mppImport = await this.getMppImport(importId);
+    if (!mppImport) {
+      throw new Error("Import not found");
+    }
+
+    const project = await this.getProject(projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    const importedTasks = await this.getMppImportTasks(importId);
+    const existingTasks = await this.getTasks(projectId);
+    
+    const syncMode = options?.syncMode || 'merge';
+    let tasksAdded = 0;
+    let tasksUpdated = 0;
+    let tasksRemoved = 0;
+
+    const today = new Date().toISOString().split('T')[0];
+    const defaultEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Build lookup map for existing tasks by name (case-insensitive) or WBS
+    const existingByName = new Map<string, typeof existingTasks[0]>();
+    const existingByWbs = new Map<string, typeof existingTasks[0]>();
+    
+    for (const task of existingTasks) {
+      existingByName.set(task.name.toLowerCase().trim(), task);
+      if (task.description?.startsWith('WBS: ')) {
+        const wbs = task.description.replace('WBS: ', '').split('\n')[0].trim();
+        existingByWbs.set(wbs, task);
+      }
+    }
+
+    if (syncMode === 'replace') {
+      // Delete all existing tasks first
+      for (const task of existingTasks) {
+        await db.delete(tasks).where(eq(tasks.id, task.id));
+        tasksRemoved++;
+      }
+      existingByName.clear();
+      existingByWbs.clear();
+    }
+
+    // Track which existing tasks we've matched (for merge mode)
+    const matchedExistingIds = new Set<number>();
+    const taskIdMapping = new Map<number, number>();
+
+    // First pass: create or update tasks
+    for (const importedTask of importedTasks) {
+      const startDate = importedTask.startDate || today;
+      const endDate = importedTask.finishDate || 
+        (importedTask.durationDays 
+          ? new Date(new Date(startDate).getTime() + importedTask.durationDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          : defaultEndDate);
+
+      const taskData = {
+        name: importedTask.taskName,
+        description: importedTask.notes || (importedTask.wbs ? `WBS: ${importedTask.wbs}` : undefined),
+        startDate,
+        endDate,
+        durationDays: importedTask.durationDays,
+        progress: importedTask.percentComplete || 0,
+        status: importedTask.percentComplete === 100 ? "Completed" : 
+                importedTask.percentComplete && importedTask.percentComplete > 0 ? "In Progress" : "Not Started",
+      };
+
+      // Try to match by WBS first, then by name
+      let existingTask = importedTask.wbs ? existingByWbs.get(importedTask.wbs) : undefined;
+      if (!existingTask) {
+        existingTask = existingByName.get(importedTask.taskName.toLowerCase().trim());
+      }
+
+      if (existingTask && syncMode === 'merge') {
+        // Update existing task
+        await db.update(tasks)
+          .set(taskData)
+          .where(eq(tasks.id, existingTask.id));
+        matchedExistingIds.add(existingTask.id);
+        tasksUpdated++;
+        if (importedTask.taskId) {
+          taskIdMapping.set(importedTask.taskId, existingTask.id);
+        }
+      } else {
+        // Create new task
+        const [newTask] = await db.insert(tasks).values({
+          projectId,
+          ...taskData,
+          parentId: null,
+        }).returning();
+        tasksAdded++;
+        if (importedTask.taskId) {
+          taskIdMapping.set(importedTask.taskId, newTask.id);
+        }
+      }
+    }
+
+    // Second pass: update parent references
+    for (const importedTask of importedTasks) {
+      if (importedTask.parentTaskId && importedTask.taskId) {
+        const newTaskId = taskIdMapping.get(importedTask.taskId);
+        const newParentId = taskIdMapping.get(importedTask.parentTaskId);
+        
+        if (newTaskId && newParentId) {
+          await db.update(tasks)
+            .set({ parentId: newParentId })
+            .where(eq(tasks.id, newTaskId));
+        }
+      }
+    }
+
+    // Update the import record to link to this project
+    await db.update(mppImports)
+      .set({ 
+        projectId, 
+        status: "synced", 
+        taskCount: importedTasks.length,
+        lastSyncedAt: new Date()
+      })
+      .where(eq(mppImports.id, importId));
+
+    // Update project dates from imported tasks
+    const validStartDates = importedTasks
+      .filter(t => t.startDate)
+      .map(t => t.startDate as string);
+    const validEndDates = importedTasks
+      .filter(t => t.finishDate)
+      .map(t => t.finishDate as string);
+    
+    const projectUpdates: any = {};
+    if (validStartDates.length > 0) {
+      projectUpdates.startDate = validStartDates.sort()[0];
+    }
+    if (validEndDates.length > 0) {
+      projectUpdates.endDate = validEndDates.sort().reverse()[0];
+    }
+
+    // Calculate and update project completion percentage
+    const avgProgress = importedTasks.length > 0
+      ? Math.round(importedTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / importedTasks.length)
+      : project.completionPercentage || 0;
+    
+    projectUpdates.completionPercentage = avgProgress;
+
+    if (Object.keys(projectUpdates).length > 0) {
+      await db.update(projects)
+        .set(projectUpdates)
+        .where(eq(projects.id, projectId));
+    }
+
+    const updatedProject = await this.getProject(projectId);
+
+    return { 
+      project: updatedProject!, 
+      tasksAdded, 
+      tasksUpdated, 
+      tasksRemoved 
+    };
+  }
+
   // Change Requests
   async getChangeRequests(projectId: number): Promise<ChangeRequest[]> {
     return await db.select().from(changeRequests)

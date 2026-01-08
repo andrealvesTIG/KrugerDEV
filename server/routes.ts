@@ -3022,6 +3022,71 @@ export async function registerRoutes(
     }
   });
 
+  // Sync MPP import to an existing project (update tasks)
+  app.post('/api/mpp-imports/:id/sync', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const id = Number(req.params.id);
+      const { projectId, syncMode } = req.body;
+      
+      if (!projectId) {
+        return res.status(400).json({ message: "projectId is required" });
+      }
+
+      // Get the import to verify it exists
+      const mppImport = await storage.getMppImport(id);
+      if (!mppImport) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+
+      // Get the target project to verify it exists and user has access
+      const project = await storage.getProject(Number(projectId));
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Verify user has access to both the import's org and the project's org
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(mppImport.organizationId)) {
+        return res.status(403).json({ message: "Access denied to import's organization" });
+      }
+      if (project.organizationId && !accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied to project's organization" });
+      }
+
+      // Ensure import and project belong to the same organization
+      if (project.organizationId && mppImport.organizationId !== project.organizationId) {
+        return res.status(400).json({ message: "Import and project must belong to the same organization" });
+      }
+
+      // Validate syncMode
+      const validSyncModes = ['merge', 'replace'];
+      if (syncMode && !validSyncModes.includes(syncMode)) {
+        return res.status(400).json({ message: "syncMode must be 'merge' or 'replace'" });
+      }
+
+      const result = await storage.syncMppImportToProject(id, Number(projectId), {
+        syncMode: syncMode || 'merge',
+      });
+
+      res.json({
+        success: true,
+        project: result.project,
+        tasksAdded: result.tasksAdded,
+        tasksUpdated: result.tasksUpdated,
+        tasksRemoved: result.tasksRemoved,
+        message: `Synced to "${result.project.name}": ${result.tasksAdded} added, ${result.tasksUpdated} updated, ${result.tasksRemoved} removed`,
+      });
+    } catch (err) {
+      console.error("Error syncing MPP import to project:", err);
+      res.status(500).json({ message: "Error syncing import to project" });
+    }
+  });
+
   // Delete an MPP import
   app.delete('/api/mpp-imports/:id', async (req, res) => {
     try {
