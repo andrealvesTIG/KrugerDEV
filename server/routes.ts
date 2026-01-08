@@ -3,15 +3,13 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { setupAuth, isAuthenticated } from "./auth/emailAuth";
+import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { db } from "./db";
-import { users, plans, meters, planMeterRules, features, planFeatures, organizationMembers } from "@shared/schema";
-import { subscriptions, billingCycles, usageEvents, usageRollups, invoiceRecords, seatAssignments, billingAuditLogs } from "@shared/models/billing";
-import { eq, sql } from "drizzle-orm";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
 import Papa from "papaparse";
-import { sendEmail, verifyEmailConnection } from "./services/email";
 
 import { execSync } from "child_process";
 import * as fs from "fs";
@@ -853,101 +851,6 @@ async function seedDatabase() {
   }
 }
 
-// Ensure billing data exists (plans, meters, rules) - runs on every startup
-async function ensureBillingData() {
-  const existingPlans = await db.select().from(plans);
-  if (existingPlans.length > 0) {
-    console.log("Billing data already exists. Skipping seed.");
-    return;
-  }
-
-  console.log("Seeding billing data...");
-
-  const [freePlan, basicPlan, teamPlan] = await db.insert(plans).values([
-    { code: "FREE", name: "Free", description: "Get started with basic features. Perfect for trying out FridayReport.AI.", monthlyPriceCents: 0 },
-    { code: "BASIC", name: "Basic", description: "For individuals and small teams who need more power. Includes overage billing for flexible usage.", maxSeats: 1, monthlyPriceCents: 500 },
-    { code: "TEAM", name: "Team", description: "For growing organizations with shared usage pools. Full feature access with team collaboration.", maxSeats: 25, monthlyPriceCents: 1500 },
-  ]).returning();
-
-  console.log("Created plans:", freePlan.code, basicPlan.code, teamPlan.code);
-
-  const [aiRunsMeter, documentsMeter, projectsMeter, tasksMeter] = await db.insert(meters).values([
-    { code: "ai_runs", name: "AI Runs", unitLabel: "run", aggregationType: "COUNT" },
-    { code: "documents", name: "Documents", unitLabel: "document", aggregationType: "COUNT" },
-    { code: "projects", name: "Projects", unitLabel: "project", aggregationType: "GAUGE" },
-    { code: "tasks", name: "Tasks", unitLabel: "task", aggregationType: "COUNT" },
-  ]).returning();
-
-  console.log("Created meters:", aiRunsMeter.code, documentsMeter.code, projectsMeter.code, tasksMeter.code);
-
-  await db.insert(planMeterRules).values([
-    { planId: freePlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 25 },
-    { planId: freePlan.id, meterId: aiRunsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 25 },
-    { planId: freePlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 50 },
-    { planId: freePlan.id, meterId: documentsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 50 },
-    { planId: freePlan.id, meterId: projectsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 3 },
-    { planId: freePlan.id, meterId: tasksMeter.id, ruleType: "HARD_CAP", hardCapUnits: 200 },
-
-    { planId: basicPlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 500 },
-    { planId: basicPlan.id, meterId: aiRunsMeter.id, ruleType: "METERED_OVERAGE", overageUnitPriceMicrocents: 20000 },
-    { planId: basicPlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 1000 },
-    { planId: basicPlan.id, meterId: documentsMeter.id, ruleType: "METERED_OVERAGE", overageUnitPriceMicrocents: 5000 },
-    { planId: basicPlan.id, meterId: projectsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 20 },
-    { planId: basicPlan.id, meterId: tasksMeter.id, ruleType: "HARD_CAP", hardCapUnits: 10000 },
-
-    { planId: teamPlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 2500, isSharedPool: true },
-    { planId: teamPlan.id, meterId: aiRunsMeter.id, ruleType: "METERED_OVERAGE", overageUnitPriceMicrocents: 15000, isSharedPool: true },
-    { planId: teamPlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 5000, isSharedPool: true },
-    { planId: teamPlan.id, meterId: documentsMeter.id, ruleType: "METERED_OVERAGE", overageUnitPriceMicrocents: 4000, isSharedPool: true },
-    { planId: teamPlan.id, meterId: projectsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 100, isSharedPool: true },
-    { planId: teamPlan.id, meterId: tasksMeter.id, ruleType: "HARD_CAP", hardCapUnits: 50000, isSharedPool: true },
-  ]);
-
-  console.log("Created plan meter rules");
-
-  const [orgsFeature, invitesFeature, advancedFeature, apiAccessFeature, customBrandingFeature] = await db.insert(features).values([
-    { code: "ORGS_ENABLED", name: "Organizations", description: "Create and manage organizations" },
-    { code: "INVITES_ENABLED", name: "Team Invites", description: "Invite team members" },
-    { code: "ADVANCED_ANALYTICS", name: "Advanced Analytics", description: "Access to advanced analytics dashboards" },
-    { code: "API_ACCESS", name: "API Access", description: "Programmatic API access" },
-    { code: "CUSTOM_BRANDING", name: "Custom Branding", description: "White-label and custom branding options" },
-  ]).returning();
-
-  console.log("Created features");
-
-  await db.insert(planFeatures).values([
-    { planId: freePlan.id, featureId: orgsFeature.id, isEnabled: false },
-    { planId: freePlan.id, featureId: invitesFeature.id, isEnabled: false },
-    { planId: freePlan.id, featureId: advancedFeature.id, isEnabled: false },
-    { planId: freePlan.id, featureId: apiAccessFeature.id, isEnabled: false },
-    { planId: freePlan.id, featureId: customBrandingFeature.id, isEnabled: false },
-
-    { planId: basicPlan.id, featureId: orgsFeature.id, isEnabled: false },
-    { planId: basicPlan.id, featureId: invitesFeature.id, isEnabled: false },
-    { planId: basicPlan.id, featureId: advancedFeature.id, isEnabled: true },
-    { planId: basicPlan.id, featureId: apiAccessFeature.id, isEnabled: true },
-    { planId: basicPlan.id, featureId: customBrandingFeature.id, isEnabled: false },
-
-    { planId: teamPlan.id, featureId: orgsFeature.id, isEnabled: true },
-    { planId: teamPlan.id, featureId: invitesFeature.id, isEnabled: true },
-    { planId: teamPlan.id, featureId: advancedFeature.id, isEnabled: true },
-    { planId: teamPlan.id, featureId: apiAccessFeature.id, isEnabled: true },
-    { planId: teamPlan.id, featureId: customBrandingFeature.id, isEnabled: true },
-  ]);
-
-  console.log("Billing seed completed successfully!");
-}
-
-// Helper to get current user ID from request (supports both session and OAuth)
-function getCurrentUserId(req: any): string | undefined {
-  // First check session (email auth)
-  if (req.session?.userId) {
-    return req.session.userId;
-  }
-  // Fallback to OAuth claims
-  return (req.user as any)?.claims?.sub;
-}
-
 // Helper to check if user has access to an organization
 async function userHasOrgAccess(userId: string | undefined, orgId: number): Promise<boolean> {
   if (!userId) return false;
@@ -994,58 +897,12 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  // Set up email authentication
+  // Set up authentication first
   await setupAuth(app);
-
-  // Test email endpoint (admin only)
-  app.post('/api/test-email', async (req, res) => {
-    try {
-      const { to } = req.body;
-      if (!to) {
-        return res.status(400).json({ success: false, message: "Email address required" });
-      }
-
-      // First verify connection
-      const connected = await verifyEmailConnection();
-      if (!connected) {
-        return res.status(500).json({ 
-          success: false, 
-          message: "SMTP connection failed. Check SMTP_EMAIL and SMTP_PASSWORD environment variables." 
-        });
-      }
-
-      // Send test email
-      const sent = await sendEmail({
-        to,
-        subject: "Test Email - FridayReport.AI",
-        text: "This is a test email from FridayReport.AI. Your email configuration is working correctly!",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #f97316;">FridayReport.AI - Test Email</h2>
-            <p>This is a test email from FridayReport.AI.</p>
-            <p style="color: #22c55e; font-weight: bold;">Your email configuration is working correctly!</p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-            <p style="font-size: 12px; color: #6b7280;">Sent from FridayReport.AI Email Service</p>
-          </div>
-        `
-      });
-
-      if (sent) {
-        res.json({ success: true, message: `Test email sent successfully to ${to}` });
-      } else {
-        res.status(500).json({ success: false, message: "Failed to send email" });
-      }
-    } catch (error) {
-      console.error("Test email error:", error);
-      res.status(500).json({ success: false, message: String(error) });
-    }
-  });
+  registerAuthRoutes(app);
 
   // Seed DB on startup
   seedDatabase().catch(err => console.error("Error seeding database:", err));
-  
-  // Ensure billing data exists (runs on every startup, idempotent)
-  ensureBillingData().catch(err => console.error("Error seeding billing data:", err));
 
   // --- Users (Admin) ---
   app.get('/api/users', async (req, res) => {
@@ -1089,101 +946,6 @@ export async function registerRoutes(
     }
   });
 
-  // Delete user (super_admin only)
-  app.delete('/api/users/:userId', async (req, res) => {
-    try {
-      const currentUserId = getCurrentUserId(req);
-      if (!currentUserId) {
-        return res.status(401).json({ message: 'Unauthorized' });
-      }
-
-      // Check if current user is super_admin
-      const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
-      if (currentUser?.role !== 'super_admin') {
-        return res.status(403).json({ message: 'Only super admins can delete users' });
-      }
-
-      const userIdToDelete = req.params.userId;
-
-      // Prevent self-deletion
-      if (userIdToDelete === currentUserId) {
-        return res.status(400).json({ message: 'You cannot delete yourself' });
-      }
-
-      // Get user's subscriptions first
-      const userSubscriptions = await db.select().from(subscriptions).where(eq(subscriptions.userId, userIdToDelete));
-      
-      // Delete billing data in correct order (respecting foreign keys)
-      for (const subscription of userSubscriptions) {
-        // Get billing cycles for this subscription
-        const cycles = await db.select().from(billingCycles).where(eq(billingCycles.subscriptionId, subscription.id));
-        
-        for (const cycle of cycles) {
-          // Delete usage events for this billing cycle
-          await db.delete(usageEvents).where(eq(usageEvents.billingCycleId, cycle.id));
-          // Delete usage rollups for this billing cycle
-          await db.delete(usageRollups).where(eq(usageRollups.billingCycleId, cycle.id));
-        }
-        
-        // Delete invoice records for this subscription
-        await db.delete(invoiceRecords).where(eq(invoiceRecords.subscriptionId, subscription.id));
-        
-        // Delete billing cycles for this subscription
-        await db.delete(billingCycles).where(eq(billingCycles.subscriptionId, subscription.id));
-      }
-
-      // Delete user's seat assignments
-      await db.delete(seatAssignments).where(eq(seatAssignments.userId, userIdToDelete));
-
-      // Delete billing audit logs where user is the actor
-      await db.delete(billingAuditLogs).where(eq(billingAuditLogs.actorUserId, userIdToDelete));
-
-      // Delete user's subscriptions
-      await db.delete(subscriptions).where(eq(subscriptions.userId, userIdToDelete));
-
-      // Delete user's organization memberships
-      await db.delete(organizationMembers).where(eq(organizationMembers.userId, userIdToDelete));
-
-      // Null out references in other tables (these should not cascade delete the data)
-      await db.execute(sql`UPDATE organizations SET owner_id = NULL WHERE owner_id = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE portfolios SET manager_id = NULL WHERE manager_id = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE portfolios SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE projects SET manager_id = NULL WHERE manager_id = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE projects SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE risks SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE milestones SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE issues SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE tasks SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE resources SET user_id = NULL WHERE user_id = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE resources SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE change_requests SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE project_documents SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE project_intakes SET submitter_id = NULL WHERE submitter_id = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE project_intakes SET security_approver_id = NULL WHERE security_approver_id = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE project_intakes SET approved_by = NULL WHERE approved_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE project_intakes SET rejected_by = NULL WHERE rejected_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE project_intakes SET deleted_by = NULL WHERE deleted_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE mpp_imports SET imported_by = NULL WHERE imported_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE task_change_logs SET changed_by = NULL WHERE changed_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE project_change_logs SET changed_by = NULL WHERE changed_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE risk_change_logs SET changed_by = NULL WHERE changed_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE issue_change_logs SET changed_by = NULL WHERE changed_by = ${userIdToDelete}`);
-      await db.execute(sql`UPDATE usage_events SET actor_user_id = NULL WHERE actor_user_id = ${userIdToDelete}`);
-
-      // Delete the user
-      const [deleted] = await db.delete(users).where(eq(users.id, userIdToDelete)).returning();
-
-      if (!deleted) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      res.json({ message: 'User deleted successfully', user: deleted });
-    } catch (err) {
-      console.error('Delete user error:', err);
-      res.status(500).json({ message: 'Failed to delete user' });
-    }
-  });
-
   // --- Organizations ---
   app.get('/api/organizations', async (req, res) => {
     try {
@@ -1196,7 +958,7 @@ export async function registerRoutes(
 
   app.get('/api/organizations/:id', async (req, res) => {
     const orgId = Number(req.params.id);
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     
     // Check access
     if (!await userHasOrgAccess(userId, orgId)) {
@@ -1229,7 +991,7 @@ export async function registerRoutes(
   app.put('/api/organizations/:id', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1245,7 +1007,7 @@ export async function registerRoutes(
 
   app.delete('/api/organizations/:id', async (req, res) => {
     const orgId = Number(req.params.id);
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     
     if (!await userHasOrgAccess(userId, orgId)) {
       return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1259,7 +1021,7 @@ export async function registerRoutes(
   app.get('/api/organizations/:id/members', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1290,7 +1052,7 @@ export async function registerRoutes(
   app.post('/api/organizations/:id/members', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const currentUserId = getCurrentUserId(req);
+      const currentUserId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1311,7 +1073,7 @@ export async function registerRoutes(
   app.put('/api/organizations/:id/members/:userId', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const currentUserId = getCurrentUserId(req);
+      const currentUserId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1331,7 +1093,7 @@ export async function registerRoutes(
 
   app.delete('/api/organizations/:id/members/:userId', async (req, res) => {
     const orgId = Number(req.params.id);
-    const currentUserId = getCurrentUserId(req);
+    const currentUserId = (req.user as any)?.claims?.sub;
     
     if (!await userHasOrgAccess(currentUserId, orgId)) {
       return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1345,7 +1107,7 @@ export async function registerRoutes(
   app.get('/api/organizations/:id/recycle-bin', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1362,7 +1124,7 @@ export async function registerRoutes(
   app.post('/api/organizations/:id/recycle-bin/restore', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1387,7 +1149,7 @@ export async function registerRoutes(
   app.delete('/api/organizations/:id/recycle-bin/:type/:itemId', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1408,7 +1170,7 @@ export async function registerRoutes(
   // --- Global Search ---
   app.get('/api/search', async (req, res) => {
     try {
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       const query = req.query.q as string;
       if (!query || query.length < 2) {
         return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
@@ -1430,7 +1192,7 @@ export async function registerRoutes(
 
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1498,7 +1260,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.portfolios.delete.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     await storage.softDeleteItem('portfolio', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1588,7 +1350,7 @@ export async function registerRoutes(
 
   // --- Projects ---
   app.get(api.projects.list.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1624,26 +1386,6 @@ export async function registerRoutes(
 
   app.post(api.projects.create.path, async (req, res) => {
     try {
-      const userId = getCurrentUserId(req);
-      
-      // Check billing limits before creating project
-      if (userId) {
-        const { checkAndRecordUsage } = await import("./services/usage-tracker");
-        const usageCheck = await checkAndRecordUsage({
-          userId,
-          meterCode: "projects",
-          units: 1,
-          action: "create_project",
-        });
-        
-        if (!usageCheck.allowed) {
-          return res.status(403).json({ 
-            message: usageCheck.error || "Project limit reached. Please upgrade your plan.",
-            limitReached: true
-          });
-        }
-      }
-      
       const input = api.projects.create.input.parse(req.body);
       const sanitizedInput = {
         ...input,
@@ -1653,6 +1395,7 @@ export async function registerRoutes(
       const project = await storage.createProject(sanitizedInput);
       
       // Log change
+      const userId = (req.user as any)?.claims?.sub;
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createProjectChangeLog({
         projectId: project.id,
@@ -1704,7 +1447,7 @@ export async function registerRoutes(
       }
       
       if (changes.length > 0) {
-        const userId = getCurrentUserId(req);
+        const userId = (req.user as any)?.claims?.sub;
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createProjectChangeLog({
           projectId,
@@ -1727,7 +1470,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.projects.delete.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     await storage.softDeleteItem('project', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1746,6 +1489,293 @@ export async function registerRoutes(
     }
   });
 
+  // Project Export (CSV and MSPDI/XML)
+  app.get('/api/projects/:id/export', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const format = (req.query.format as string) || 'csv';
+      
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      // Security check: verify user is authenticated and has access to project's organization
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied to this project" });
+      }
+      
+      const tasks = await storage.getTasks(projectId);
+      const milestones = await storage.getMilestones(projectId);
+      
+      const safeFileName = (project.name || 'project').replace(/[^a-z0-9]/gi, '_');
+      
+      // Helper to escape XML special characters
+      const escapeXml = (str: string) => {
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&apos;');
+      };
+      
+      if (format === 'csv') {
+        // Generate CSV
+        const headers = ['WBS', 'Name', 'Type', 'Start Date', 'End Date', 'Duration (days)', '% Complete', 'Status', 'Priority', 'Assigned To', 'Description'];
+        const rows: string[][] = [];
+        
+        // Add project as first row
+        rows.push([
+          '0',
+          project.name || '',
+          'Project',
+          project.startDate || '',
+          project.endDate || '',
+          project.startDate && project.endDate ? String(Math.ceil((new Date(project.endDate).getTime() - new Date(project.startDate).getTime()) / (1000 * 60 * 60 * 24))) : '',
+          String(project.completionPercentage || 0),
+          project.status || '',
+          project.priority || '',
+          '',
+          project.description || ''
+        ]);
+        
+        // Add tasks
+        tasks.forEach((task, index) => {
+          rows.push([
+            String(index + 1),
+            task.name || '',
+            task.isMilestone ? 'Milestone' : 'Task',
+            task.startDate || '',
+            task.endDate || '',
+            task.durationDays ? String(task.durationDays) : '',
+            String(task.progress || 0),
+            task.status || '',
+            '',
+            task.assignee || '',
+            task.description || ''
+          ]);
+        });
+        
+        // Add milestones
+        milestones.forEach((ms, index) => {
+          rows.push([
+            `M${index + 1}`,
+            ms.title || '',
+            'Milestone',
+            ms.dueDate || '',
+            ms.dueDate || '',
+            '0',
+            ms.completed ? '100' : '0',
+            ms.completed ? 'Completed' : 'Pending',
+            ms.priority || '',
+            ms.assignee || '',
+            ms.description || ''
+          ]);
+        });
+        
+        // Escape CSV values
+        const escapeCSV = (val: string) => {
+          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        };
+        
+        const csvContent = [
+          headers.map(escapeCSV).join(','),
+          ...rows.map(row => row.map(escapeCSV).join(','))
+        ].join('\n');
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}_export.csv"`);
+        res.send(csvContent);
+        
+      } else if (format === 'mspdi' || format === 'xml') {
+        // Generate MSPDI (Microsoft Project XML) format
+        const now = new Date().toISOString();
+        const projectStart = project.startDate ? new Date(project.startDate).toISOString() : now;
+        const projectEnd = project.endDate ? new Date(project.endDate).toISOString() : now;
+        
+        // Build task XML
+        let taskXml = '';
+        let taskUid = 0;
+        
+        // Project summary task (UID 0)
+        taskXml += `
+    <Task>
+      <UID>${taskUid}</UID>
+      <ID>${taskUid}</ID>
+      <Name>${escapeXml(project.name || 'Project')}</Name>
+      <Type>1</Type>
+      <IsNull>0</IsNull>
+      <CreateDate>${now}</CreateDate>
+      <WBS>0</WBS>
+      <OutlineNumber>0</OutlineNumber>
+      <OutlineLevel>0</OutlineLevel>
+      <Priority>500</Priority>
+      <Start>${projectStart}</Start>
+      <Finish>${projectEnd}</Finish>
+      <Duration>PT${Math.max(1, Math.ceil((new Date(projectEnd).getTime() - new Date(projectStart).getTime()) / (1000 * 60 * 60 * 24)) * 8)}H0M0S</Duration>
+      <DurationFormat>7</DurationFormat>
+      <Summary>1</Summary>
+      <Milestone>0</Milestone>
+      <PercentComplete>${project.completionPercentage || 0}</PercentComplete>
+      <PercentWorkComplete>${project.completionPercentage || 0}</PercentWorkComplete>
+    </Task>`;
+        
+        // Add tasks
+        tasks.forEach((task, index) => {
+          taskUid++;
+          const taskStart = task.startDate ? new Date(task.startDate).toISOString() : projectStart;
+          const taskEnd = task.endDate ? new Date(task.endDate).toISOString() : taskStart;
+          const duration = task.durationDays || Math.max(1, Math.ceil((new Date(taskEnd).getTime() - new Date(taskStart).getTime()) / (1000 * 60 * 60 * 24)));
+          
+          taskXml += `
+    <Task>
+      <UID>${taskUid}</UID>
+      <ID>${taskUid}</ID>
+      <Name>${escapeXml(task.name || '')}</Name>
+      <Type>0</Type>
+      <IsNull>0</IsNull>
+      <CreateDate>${task.createdAt ? new Date(task.createdAt).toISOString() : now}</CreateDate>
+      <WBS>${String(index + 1)}</WBS>
+      <OutlineNumber>${index + 1}</OutlineNumber>
+      <OutlineLevel>1</OutlineLevel>
+      <Priority>500</Priority>
+      <Start>${taskStart}</Start>
+      <Finish>${taskEnd}</Finish>
+      <Duration>PT${duration * 8}H0M0S</Duration>
+      <DurationFormat>7</DurationFormat>
+      <Summary>0</Summary>
+      <Milestone>${task.isMilestone ? 1 : 0}</Milestone>
+      <PercentComplete>${task.progress || 0}</PercentComplete>
+      <PercentWorkComplete>${task.progress || 0}</PercentWorkComplete>
+      <Notes>${escapeXml(task.description || '')}</Notes>
+    </Task>`;
+        });
+        
+        // Add milestones as tasks
+        milestones.forEach((ms, index) => {
+          taskUid++;
+          const msDate = ms.dueDate ? new Date(ms.dueDate).toISOString() : projectEnd;
+          
+          taskXml += `
+    <Task>
+      <UID>${taskUid}</UID>
+      <ID>${taskUid}</ID>
+      <Name>${escapeXml(ms.title || '')}</Name>
+      <Type>0</Type>
+      <IsNull>0</IsNull>
+      <CreateDate>${now}</CreateDate>
+      <WBS>M${index + 1}</WBS>
+      <OutlineNumber>${tasks.length + index + 1}</OutlineNumber>
+      <OutlineLevel>1</OutlineLevel>
+      <Priority>500</Priority>
+      <Start>${msDate}</Start>
+      <Finish>${msDate}</Finish>
+      <Duration>PT0H0M0S</Duration>
+      <DurationFormat>7</DurationFormat>
+      <Summary>0</Summary>
+      <Milestone>1</Milestone>
+      <PercentComplete>${ms.completed ? 100 : 0}</PercentComplete>
+      <PercentWorkComplete>${ms.completed ? 100 : 0}</PercentWorkComplete>
+      <Notes>${escapeXml(ms.description || '')}</Notes>
+    </Task>`;
+        });
+        
+        const mspdiXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <SaveVersion>14</SaveVersion>
+  <Name>${escapeXml(project.name || 'Project')}</Name>
+  <Title>${escapeXml(project.name || 'Project')}</Title>
+  <CreationDate>${now}</CreationDate>
+  <LastSaved>${now}</LastSaved>
+  <ScheduleFromStart>1</ScheduleFromStart>
+  <StartDate>${projectStart}</StartDate>
+  <FinishDate>${projectEnd}</FinishDate>
+  <FYStartDate>1</FYStartDate>
+  <CriticalSlackLimit>0</CriticalSlackLimit>
+  <CurrencyDigits>2</CurrencyDigits>
+  <CurrencySymbol>$</CurrencySymbol>
+  <CurrencySymbolPosition>0</CurrencySymbolPosition>
+  <CalendarUID>1</CalendarUID>
+  <DefaultStartTime>08:00:00</DefaultStartTime>
+  <DefaultFinishTime>17:00:00</DefaultFinishTime>
+  <MinutesPerDay>480</MinutesPerDay>
+  <MinutesPerWeek>2400</MinutesPerWeek>
+  <DaysPerMonth>20</DaysPerMonth>
+  <DefaultTaskType>0</DefaultTaskType>
+  <DefaultFixedCostAccrual>2</DefaultFixedCostAccrual>
+  <DefaultStandardRate>0</DefaultStandardRate>
+  <DefaultOvertimeRate>0</DefaultOvertimeRate>
+  <DurationFormat>7</DurationFormat>
+  <WorkFormat>2</WorkFormat>
+  <EditableActualCosts>0</EditableActualCosts>
+  <HonorConstraints>1</HonorConstraints>
+  <InsertedProjectsLikeSummary>1</InsertedProjectsLikeSummary>
+  <MultipleCriticalPaths>0</MultipleCriticalPaths>
+  <NewTasksEffortDriven>1</NewTasksEffortDriven>
+  <NewTasksEstimated>1</NewTasksEstimated>
+  <SplitsInProgressTasks>1</SplitsInProgressTasks>
+  <SpreadActualCost>0</SpreadActualCost>
+  <SpreadPercentComplete>0</SpreadPercentComplete>
+  <TaskUpdatesResource>1</TaskUpdatesResource>
+  <FiscalYearStart>0</FiscalYearStart>
+  <WeekStartDay>0</WeekStartDay>
+  <MoveCompletedEndsBack>0</MoveCompletedEndsBack>
+  <MoveRemainingStartsBack>0</MoveRemainingStartsBack>
+  <MoveRemainingStartsForward>0</MoveRemainingStartsForward>
+  <MoveCompletedEndsForward>0</MoveCompletedEndsForward>
+  <BaselineForEarnedValue>0</BaselineForEarnedValue>
+  <AutoAddNewResourcesAndTasks>1</AutoAddNewResourcesAndTasks>
+  <CurrentDate>${now}</CurrentDate>
+  <MicrosoftProjectServerURL>1</MicrosoftProjectServerURL>
+  <Autolink>1</Autolink>
+  <NewTaskStartDate>0</NewTaskStartDate>
+  <NewTasksAreManual>0</NewTasksAreManual>
+  <DefaultTaskEVMethod>0</DefaultTaskEVMethod>
+  <ProjectExternallyEdited>0</ProjectExternallyEdited>
+  <ExtendedCreationDate>${now}</ExtendedCreationDate>
+  <ActualsInSync>1</ActualsInSync>
+  <RemoveFileProperties>0</RemoveFileProperties>
+  <AdminProject>0</AdminProject>
+  <Calendars>
+    <Calendar>
+      <UID>1</UID>
+      <Name>Standard</Name>
+      <IsBaseCalendar>1</IsBaseCalendar>
+      <BaseCalendarUID>-1</BaseCalendarUID>
+      <WeekDays>
+        <WeekDay><DayType>1</DayType><DayWorking>0</DayWorking></WeekDay>
+        <WeekDay><DayType>2</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>3</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>4</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>5</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>6</DayType><DayWorking>1</DayWorking><WorkingTimes><WorkingTime><FromTime>08:00:00</FromTime><ToTime>12:00:00</ToTime></WorkingTime><WorkingTime><FromTime>13:00:00</FromTime><ToTime>17:00:00</ToTime></WorkingTime></WorkingTimes></WeekDay>
+        <WeekDay><DayType>7</DayType><DayWorking>0</DayWorking></WeekDay>
+      </WeekDays>
+    </Calendar>
+  </Calendars>
+  <Tasks>${taskXml}
+  </Tasks>
+</Project>`;
+        
+        res.setHeader('Content-Type', 'application/xml');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}_export.xml"`);
+        res.send(mspdiXml);
+        
+      } else {
+        res.status(400).json({ message: "Invalid format. Use 'csv' or 'mspdi'" });
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      res.status(500).json({ message: "Error exporting project" });
+    }
+  });
+
   // --- Risks ---
   app.get(api.risks.list.path, async (req, res) => {
     const risks = await storage.getRisks(Number(req.params.projectId));
@@ -1758,7 +1788,7 @@ export async function registerRoutes(
       const risk = await storage.createRisk(input);
       
       // Log change
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createRiskChangeLog({
         riskId: risk.id,
@@ -1805,7 +1835,7 @@ export async function registerRoutes(
       }
       
       if (changes.length > 0) {
-        const userId = getCurrentUserId(req);
+        const userId = (req.user as any)?.claims?.sub;
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createRiskChangeLog({
           riskId,
@@ -1826,7 +1856,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.risks.delete.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     await storage.softDeleteItem('risk', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1874,7 +1904,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.milestones.delete.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     await storage.softDeleteItem('milestone', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1886,7 +1916,7 @@ export async function registerRoutes(
   });
 
   app.get(api.issues.listAll.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1915,7 +1945,7 @@ export async function registerRoutes(
       const issue = await storage.createIssue(input);
       
       // Log change
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createIssueChangeLog({
         issueId: issue.id,
@@ -1960,7 +1990,7 @@ export async function registerRoutes(
       }
       
       if (changes.length > 0) {
-        const userId = getCurrentUserId(req);
+        const userId = (req.user as any)?.claims?.sub;
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createIssueChangeLog({
           issueId,
@@ -1981,7 +2011,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.issues.delete.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     await storage.softDeleteItem('issue', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -2007,7 +2037,7 @@ export async function registerRoutes(
   });
 
   app.get(api.tasks.listAll.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -2032,26 +2062,6 @@ export async function registerRoutes(
 
   app.post(api.tasks.create.path, async (req, res) => {
     try {
-      const userId = getCurrentUserId(req);
-      
-      // Check billing limits before creating task
-      if (userId) {
-        const { checkAndRecordUsage } = await import("./services/usage-tracker");
-        const usageCheck = await checkAndRecordUsage({
-          userId,
-          meterCode: "tasks",
-          units: 1,
-          action: "create_task",
-        });
-        
-        if (!usageCheck.allowed) {
-          return res.status(403).json({ 
-            message: usageCheck.error || "Task limit reached. Please upgrade your plan.",
-            limitReached: true
-          });
-        }
-      }
-      
       const input = api.tasks.create.input.parse(req.body);
       
       // Calculate endDate from duration if provided
@@ -2065,6 +2075,7 @@ export async function registerRoutes(
       const task = await storage.createTask(input);
       
       // Log the creation
+      const userId = (req.user as any)?.claims?.sub;
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createTaskChangeLog({
         taskId: task.id,
@@ -2123,7 +2134,7 @@ export async function registerRoutes(
       }
       
       if (changes.length > 0) {
-        const userId = getCurrentUserId(req);
+        const userId = (req.user as any)?.claims?.sub;
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createTaskChangeLog({
           taskId,
@@ -2144,7 +2155,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.tasks.delete.path, async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     await storage.softDeleteItem('task', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -2489,7 +2500,7 @@ export async function registerRoutes(
 
   // Demo Data Generation (Super Admin Only)
   app.get('/api/demo-data/industries', async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -2507,7 +2518,7 @@ export async function registerRoutes(
   });
 
   app.post('/api/demo-data/generate', async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -2697,8 +2708,15 @@ export async function registerRoutes(
   // Get a single project intake
   app.get('/api/project-intakes/:id', async (req, res) => {
     try {
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
       const intake = await storage.getProjectIntake(Number(req.params.id));
       if (!intake) return res.status(404).json({ message: "Project intake not found" });
+      
+      // If organizationId is provided, validate the intake belongs to that organization
+      if (organizationId && intake.organizationId !== organizationId) {
+        return res.status(404).json({ message: "Project intake not found in this organization" });
+      }
+      
       res.json(intake);
     } catch (err) {
       console.error("Error fetching project intake:", err);
@@ -2740,9 +2758,22 @@ export async function registerRoutes(
   // Update a project intake
   app.put('/api/project-intakes/:id', async (req, res) => {
     try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const id = Number(req.params.id);
       const existing = await storage.getProjectIntake(id);
       if (!existing) return res.status(404).json({ message: "Project intake not found" });
+      
+      // Check user has access to the organization this intake belongs to
+      if (existing.organizationId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(existing.organizationId)) {
+          return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+      }
       
       const updated = await storage.updateProjectIntake(id, req.body);
       res.json(updated);
@@ -2755,9 +2786,23 @@ export async function registerRoutes(
   // Delete a project intake
   app.delete('/api/project-intakes/:id', async (req, res) => {
     try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const id = Number(req.params.id);
       const existing = await storage.getProjectIntake(id);
       if (!existing) return res.status(404).json({ message: "Project intake not found" });
+      
+      // Check user has access to the organization this intake belongs to
+      if (existing.organizationId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(existing.organizationId)) {
+          return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+      }
+      
       await storage.deleteProjectIntake(id);
       res.status(204).send();
     } catch (err) {
@@ -2770,7 +2815,7 @@ export async function registerRoutes(
   app.post('/api/project-intakes/:id/approve', async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -2798,7 +2843,7 @@ export async function registerRoutes(
   app.post('/api/project-intakes/:id/reject', async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       const { reason } = req.body;
       
       if (!userId) {
@@ -2854,7 +2899,7 @@ export async function registerRoutes(
   // Upload and parse MPP file (XML or CSV)
   app.post('/api/mpp-imports/upload', upload.single('file'), async (req, res) => {
     try {
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       const organizationId = Number(req.body.organizationId);
       
       if (isNaN(organizationId)) {
@@ -2977,6 +3022,87 @@ export async function registerRoutes(
     }
   });
 
+  // Sync MPP import to an existing project (update tasks)
+  app.post('/api/mpp-imports/:id/sync', async (req, res) => {
+    try {
+      console.log("MPP Sync request:", { params: req.params, body: req.body });
+      
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        console.log("MPP Sync: No userId");
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const id = Number(req.params.id);
+      const { projectId, syncMode } = req.body;
+      
+      console.log("MPP Sync: parsed values", { id, projectId, syncMode });
+      
+      if (!projectId) {
+        console.log("MPP Sync: No projectId");
+        return res.status(400).json({ message: "projectId is required" });
+      }
+
+      // Get the import to verify it exists
+      const mppImport = await storage.getMppImport(id);
+      if (!mppImport) {
+        console.log("MPP Sync: Import not found");
+        return res.status(404).json({ message: "Import not found" });
+      }
+
+      // Get the target project to verify it exists and user has access
+      const project = await storage.getProject(Number(projectId));
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Verify user has access to both the import's org and the project's org
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(mppImport.organizationId)) {
+        return res.status(403).json({ message: "Access denied to import's organization" });
+      }
+      if (project.organizationId && !accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied to project's organization" });
+      }
+
+      // Ensure import and project belong to the same organization
+      if (project.organizationId && mppImport.organizationId !== project.organizationId) {
+        return res.status(400).json({ message: "Import and project must belong to the same organization" });
+      }
+
+      // Validate syncMode
+      const validSyncModes = ['merge', 'replace'];
+      if (syncMode && !validSyncModes.includes(syncMode)) {
+        return res.status(400).json({ message: "syncMode must be 'merge' or 'replace'" });
+      }
+
+      console.log("MPP Sync: Starting sync operation");
+      const result = await storage.syncMppImportToProject(id, Number(projectId), {
+        syncMode: syncMode || 'merge',
+      });
+
+      console.log("MPP Sync: Completed", { 
+        projectName: result.project?.name, 
+        tasksAdded: result.tasksAdded, 
+        tasksUpdated: result.tasksUpdated 
+      });
+
+      const response = {
+        success: true,
+        project: result.project,
+        tasksAdded: result.tasksAdded,
+        tasksUpdated: result.tasksUpdated,
+        tasksRemoved: result.tasksRemoved,
+        message: `Synced to "${result.project.name}": ${result.tasksAdded} added, ${result.tasksUpdated} updated, ${result.tasksRemoved} removed`,
+      };
+      
+      return res.json(response);
+    } catch (err: any) {
+      console.error("Error syncing MPP import to project:", err?.message || err);
+      return res.status(500).json({ message: err?.message || "Error syncing import to project" });
+    }
+  });
+
   // Delete an MPP import
   app.delete('/api/mpp-imports/:id', async (req, res) => {
     try {
@@ -3007,7 +3133,7 @@ export async function registerRoutes(
   app.post('/api/projects/:projectId/change-requests', async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       const changeRequest = await storage.createChangeRequest({
         ...req.body,
         projectId,
@@ -3024,7 +3150,7 @@ export async function registerRoutes(
   app.patch('/api/change-requests/:id', async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       const updates = { ...req.body };
       
       // Track who reviewed/approved if status is changing to those states
@@ -3074,26 +3200,7 @@ export async function registerRoutes(
   app.post('/api/projects/:projectId/documents', async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
-      const userId = getCurrentUserId(req);
-      
-      // Record document usage for billing
-      if (userId) {
-        const { checkAndRecordUsage } = await import("./services/usage-tracker");
-        const usageCheck = await checkAndRecordUsage({
-          userId,
-          meterCode: "documents",
-          units: 1,
-          action: "create_document",
-        });
-        
-        if (!usageCheck.allowed) {
-          return res.status(403).json({ 
-            message: usageCheck.error || "Document limit reached. Please upgrade your plan.",
-            limitReached: true
-          });
-        }
-      }
-      
+      const userId = (req.user as any)?.claims?.sub;
       const document = await storage.createProjectDocument({
         ...req.body,
         projectId,
@@ -3130,12 +3237,336 @@ export async function registerRoutes(
     }
   });
 
+  // =========== PROJECT COMMENTS ===========
+  
+  // Get all comments for a project
+  app.get('/api/projects/:projectId/comments', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const projectId = Number(req.params.projectId);
+      
+      // Verify project exists and user has access
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      if (userId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(project.organizationId)) {
+          return res.status(404).json({ message: "Project not found" });
+        }
+      }
+      
+      const comments = await storage.getProjectComments(projectId);
+      res.json(comments);
+    } catch (err) {
+      console.error("Error fetching project comments:", err);
+      res.status(500).json({ message: "Error fetching comments" });
+    }
+  });
+
+  // Create a comment for a project (supports replies via parentId and @mentions)
+  app.post('/api/projects/:projectId/comments', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const userId = (req.user as any)?.claims?.sub;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      // Verify project exists and user has access
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Validate content
+      const content = req.body.content?.trim();
+      if (!content || content.length === 0) {
+        return res.status(400).json({ message: "Comment content is required" });
+      }
+      
+      const parentId = req.body.parentId ? Number(req.body.parentId) : null;
+      
+      // Parse @mentions from content (match @username patterns)
+      const mentionRegex = /@(\w+(?:\.\w+)*(?:@[\w.-]+)?)/g;
+      const mentionMatches = content.match(mentionRegex) || [];
+      const mentionedUsernames = mentionMatches.map((m: string) => m.substring(1)); // Remove @ prefix
+      
+      // Find mentioned users by username or email
+      const allUsers = await storage.getAllUsers();
+      const mentionedUsers = allUsers.filter(u => 
+        mentionedUsernames.some((mention: string) => 
+          u.username?.toLowerCase() === mention.toLowerCase() ||
+          u.email?.toLowerCase() === mention.toLowerCase()
+        )
+      );
+      const mentionedUserIds = mentionedUsers.map(u => u.id);
+      
+      const user = await storage.getUser(userId);
+      const authorName = user?.firstName && user?.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user?.username || user?.email || 'Unknown';
+      
+      const comment = await storage.createProjectComment({
+        projectId,
+        parentId,
+        authorId: userId,
+        authorName,
+        content,
+        mentions: mentionedUserIds.length > 0 ? mentionedUserIds : null,
+      });
+      
+      // Create notifications for mentioned users
+      for (const mentionedUser of mentionedUsers) {
+        if (mentionedUser.id !== userId) { // Don't notify self
+          await storage.createNotification({
+            userId: mentionedUser.id,
+            type: 'mention',
+            title: 'You were mentioned in a comment',
+            message: `${authorName} mentioned you in a comment on "${project.name}"`,
+            projectId,
+            commentId: comment.id,
+            fromUserId: userId,
+            fromUserName: authorName,
+          });
+        }
+      }
+      
+      // If this is a reply, also notify the parent comment author
+      if (parentId) {
+        const parentComment = await storage.getProjectComment(parentId);
+        if (parentComment && parentComment.authorId && parentComment.authorId !== userId) {
+          // Check if we already notified this user via mention
+          if (!mentionedUserIds.includes(parentComment.authorId)) {
+            await storage.createNotification({
+              userId: parentComment.authorId,
+              type: 'comment_reply',
+              title: 'Someone replied to your comment',
+              message: `${authorName} replied to your comment on "${project.name}"`,
+              projectId,
+              commentId: comment.id,
+              fromUserId: userId,
+              fromUserName: authorName,
+            });
+          }
+        }
+      }
+      
+      res.status(201).json(comment);
+    } catch (err) {
+      console.error("Error creating project comment:", err);
+      res.status(500).json({ message: "Error creating comment" });
+    }
+  });
+
+  // Delete a comment
+  app.delete('/api/comments/:id', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      const id = Number(req.params.id);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      // Get the comment and verify org access through the project
+      const comment = await storage.getProjectComment(id);
+      if (!comment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+      
+      const project = await storage.getProject(comment.projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.deleteProjectComment(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting comment:", err);
+      res.status(500).json({ message: "Error deleting comment" });
+    }
+  });
+
+  // =========== NOTIFICATIONS ===========
+  
+  // Get all notifications for the current user
+  app.get('/api/notifications', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const notifications = await storage.getNotifications(userId);
+      res.json(notifications);
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+      res.status(500).json({ message: "Error fetching notifications" });
+    }
+  });
+
+  // Get unread notification count
+  app.get('/api/notifications/unread-count', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const count = await storage.getUnreadNotificationCount(userId);
+      res.json({ count });
+    } catch (err) {
+      console.error("Error fetching notification count:", err);
+      res.status(500).json({ message: "Error fetching notification count" });
+    }
+  });
+
+  // Mark a notification as read
+  app.patch('/api/notifications/:id/read', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const id = Number(req.params.id);
+      await storage.markNotificationRead(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error marking notification as read:", err);
+      res.status(500).json({ message: "Error marking notification as read" });
+    }
+  });
+
+  // Mark all notifications as read
+  app.patch('/api/notifications/read-all', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      await storage.markAllNotificationsRead(userId);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error marking all notifications as read:", err);
+      res.status(500).json({ message: "Error marking all notifications as read" });
+    }
+  });
+
+  // =========== INTAKE WORKFLOW CONFIGURATION ===========
+
+  // Get intake workflow steps for an organization
+  app.get('/api/organizations/:orgId/intake-workflow', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const orgId = Number(req.params.orgId);
+      
+      // Check user has access to the organization
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      
+      let steps = await storage.getIntakeWorkflowSteps(orgId);
+      
+      // If no steps exist, initialize with defaults
+      if (steps.length === 0) {
+        steps = await storage.resetIntakeWorkflowToDefaults(orgId);
+      }
+      
+      res.json(steps);
+    } catch (err) {
+      console.error("Error fetching intake workflow:", err);
+      res.status(500).json({ message: "Error fetching intake workflow configuration" });
+    }
+  });
+
+  // Update intake workflow steps for an organization
+  app.put('/api/organizations/:orgId/intake-workflow', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const orgId = Number(req.params.orgId);
+      
+      // Check user has access to the organization
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      
+      // Validate the steps array
+      const { steps } = req.body;
+      if (!Array.isArray(steps)) {
+        return res.status(400).json({ message: "Steps must be an array" });
+      }
+      
+      // Validate each step has required fields
+      for (const step of steps) {
+        if (!step.stepKey || !step.label || step.position === undefined) {
+          return res.status(400).json({ message: "Each step must have stepKey, label, and position" });
+        }
+      }
+      
+      const updatedSteps = await storage.upsertIntakeWorkflowSteps(orgId, steps);
+      res.json(updatedSteps);
+    } catch (err) {
+      console.error("Error updating intake workflow:", err);
+      res.status(500).json({ message: "Error updating intake workflow configuration" });
+    }
+  });
+
+  // Reset intake workflow to defaults
+  app.post('/api/organizations/:orgId/intake-workflow/reset', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const orgId = Number(req.params.orgId);
+      
+      // Check user has access to the organization
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      
+      const steps = await storage.resetIntakeWorkflowToDefaults(orgId);
+      res.json(steps);
+    } catch (err) {
+      console.error("Error resetting intake workflow:", err);
+      res.status(500).json({ message: "Error resetting intake workflow configuration" });
+    }
+  });
+
   // =========== AI PROJECT GENERATION ===========
   
   // Generate a project with tasks, issues, and risks using AI
   app.post('/api/ai/generate-project', async (req, res) => {
     try {
-      const userId = getCurrentUserId(req);
+      const userId = (req.user as any)?.claims?.sub;
       
       // Require authentication
       if (!userId) {
@@ -3152,22 +3583,6 @@ export async function registerRoutes(
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(Number(organizationId))) {
         return res.status(403).json({ message: "You don't have access to this organization" });
-      }
-      
-      // Check and record AI usage for billing
-      const { checkAndRecordUsage } = await import("./services/usage-tracker");
-      const usageCheck = await checkAndRecordUsage({
-        userId,
-        meterCode: "ai_runs",
-        units: 1,
-        action: "ai_generate_project",
-      });
-      
-      if (!usageCheck.allowed) {
-        return res.status(403).json({ 
-          message: usageCheck.error || "AI usage limit reached. Please upgrade your plan.",
-          limitReached: true
-        });
       }
       
       const systemPrompt = `You are a project management expert. Based on the user's project description, generate a comprehensive project plan in JSON format.
@@ -3348,7 +3763,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
   // Delete all demo data for an organization (SuperAdmin only)
   app.delete('/api/demo-data/:organizationId', async (req, res) => {
-    const userId = getCurrentUserId(req);
+    const userId = (req.user as any)?.claims?.sub;
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -3380,514 +3795,443 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
-  // === BILLING API ROUTES ===
-  const { billingProvider } = await import("./services/billing");
-  const { plans, meters, planMeterRules, features, planFeatures, subscriptions, billingCycles, usageRollups, invoiceRecords, billingAuditLogs } = await import("@shared/schema");
+  // ==================== ANALYTICS API (Power BI Integration) ====================
 
-  app.get('/api/billing/plans', async (req, res) => {
+  // Analytics: Projects flat data for Power BI
+  app.get('/api/analytics/projects', async (req, res) => {
     try {
-      const allPlans = await db.select().from(plans).where(eq(plans.isActive, true));
-      
-      const plansWithRules = await Promise.all(allPlans.map(async (plan) => {
-        const rules = await db.select().from(planMeterRules)
-          .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
-          .where(eq(planMeterRules.planId, plan.id));
-        
-        return {
-          ...plan,
-          meterRules: rules.map(r => ({
-            meterCode: r.meters.code,
-            meterName: r.meters.name,
-            ruleType: r.plan_meter_rules.ruleType,
-            includedUnitsMonthly: r.plan_meter_rules.includedUnitsMonthly,
-            hardCapUnits: r.plan_meter_rules.hardCapUnits,
-            overageUnitPriceMicrocents: r.plan_meter_rules.overageUnitPriceMicrocents,
-          })),
-        };
-      }));
-      
-      res.json(plansWithRules);
-    } catch (err) {
-      console.error("Error fetching plans:", err);
-      res.status(500).json({ message: "Failed to fetch plans" });
-    }
-  });
-
-  app.get('/api/billing/plans/:planCode', async (req, res) => {
-    try {
-      const [plan] = await db.select().from(plans).where(eq(plans.code, req.params.planCode)).limit(1);
-      if (!plan) {
-        return res.status(404).json({ message: "Plan not found" });
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
       }
-      
-      const rules = await db.select().from(planMeterRules)
-        .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
-        .where(eq(planMeterRules.planId, plan.id));
-      
-      const planFeaturesData = await db.select().from(planFeatures)
-        .innerJoin(features, eq(planFeatures.featureId, features.id))
-        .where(eq(planFeatures.planId, plan.id));
-      
-      res.json({
-        ...plan,
-        meterRules: rules.map(r => ({ ...r.plan_meter_rules, meter: r.meters })),
-        features: planFeaturesData.map(f => ({ ...f.plan_features, feature: f.features })),
-      });
-    } catch (err) {
-      console.error("Error fetching plan:", err);
-      res.status(500).json({ message: "Failed to fetch plan" });
-    }
-  });
 
-  app.get('/api/billing/subscription', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    try {
-      const subscription = await billingProvider.ensureUserHasSubscription(userId);
-      const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
       
-      const rules = await db.select().from(planMeterRules)
-        .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
-        .where(eq(planMeterRules.planId, plan.id));
-      
-      const planWithRules = {
-        ...plan,
-        meterRules: rules.map(r => ({
-          meterCode: r.meters.code,
-          meterName: r.meters.name,
-          ruleType: r.plan_meter_rules.ruleType,
-          includedUnitsMonthly: r.plan_meter_rules.includedUnitsMonthly,
-          hardCapUnits: r.plan_meter_rules.hardCapUnits,
-          overageUnitPriceMicrocents: r.plan_meter_rules.overageUnitPriceMicrocents,
-        })),
-      };
-      
-      res.json({ ...subscription, plan: planWithRules });
-    } catch (err) {
-      console.error("Error fetching subscription:", err);
-      res.status(500).json({ message: "Failed to fetch subscription" });
-    }
-  });
+      // Get user's accessible organizations
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
 
-  app.post('/api/billing/subscription', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    const { planCode, orgId } = req.body;
-    if (!planCode) {
-      return res.status(400).json({ message: "planCode is required" });
-    }
-    
-    try {
-      const subscription = await billingProvider.createSubscription({
-        planCode,
-        userId: orgId ? undefined : userId,
-        orgId,
-      });
-      res.json(subscription);
-    } catch (err) {
-      console.error("Error creating subscription:", err);
-      res.status(500).json({ message: "Failed to create subscription" });
-    }
-  });
+      // If specific org requested, validate access
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
 
-  app.patch('/api/billing/subscription/:id/plan', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    const { planCode } = req.body;
-    if (!planCode) {
-      return res.status(400).json({ message: "planCode is required" });
-    }
-    
-    try {
-      const subscription = await billingProvider.changePlan(
-        parseInt(req.params.id),
-        planCode,
-        userId
-      );
-      res.json(subscription);
-    } catch (err) {
-      console.error("Error changing plan:", err);
-      res.status(500).json({ message: "Failed to change plan" });
-    }
-  });
-
-  app.post('/api/billing/subscription/:id/cancel', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    try {
-      const subscription = await billingProvider.cancelSubscription(
-        parseInt(req.params.id),
-        userId
-      );
-      res.json(subscription);
-    } catch (err) {
-      console.error("Error canceling subscription:", err);
-      res.status(500).json({ message: "Failed to cancel subscription" });
-    }
-  });
-
-  app.get('/api/billing/usage', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    try {
-      const subscription = await billingProvider.ensureUserHasSubscription(userId);
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
       
-      // Get the specific org ID from query params, or use user's organizations
-      const requestedOrgId = req.query.orgId ? parseInt(req.query.orgId as string) : null;
-      
-      let orgIds: number[] = [];
-      if (requestedOrgId) {
-        // Verify user has access to this organization
-        const userOrgMemberships = await storage.getUserOrganizations(userId);
-        const user = await storage.getUser(userId);
-        const hasAccess = user?.role === 'super_admin' || userOrgMemberships.some(m => m.organizationId === requestedOrgId);
-        if (hasAccess) {
-          orgIds = [requestedOrgId];
+      // Fetch projects for all accessible organizations
+      const allProjects: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const projects = await storage.getProjects(orgId);
+        const portfolios = await storage.getPortfolios(orgId);
+        const org = await storage.getOrganization(orgId);
+        
+        for (const project of projects) {
+          const portfolio = portfolios.find(p => p.id === project.portfolioId);
+          const tasks = await storage.getTasks(project.id);
+          const risks = await storage.getRisks(project.id);
+          const issues = await storage.getIssues(project.id);
+          const milestones = await storage.getMilestones(project.id);
+          
+          allProjects.push({
+            projectId: project.id,
+            projectName: project.name,
+            description: project.description,
+            status: project.status,
+            health: project.health,
+            completionPercentage: project.completionPercentage || 0,
+            budget: Number(project.budget) || 0,
+            startDate: project.startDate,
+            endDate: project.endDate,
+            projectManager: project.projectManager,
+            portfolioId: project.portfolioId,
+            portfolioName: portfolio?.name || null,
+            organizationId: orgId,
+            organizationName: org?.name || null,
+            taskCount: tasks.length,
+            completedTaskCount: tasks.filter(t => t.status === 'Done').length,
+            riskCount: risks.length,
+            openRiskCount: risks.filter(r => r.status === 'Open').length,
+            highRiskCount: risks.filter(r => r.probability === 'High' || r.impact === 'High').length,
+            issueCount: issues.length,
+            openIssueCount: issues.filter(i => i.status === 'Open').length,
+            milestoneCount: milestones.length,
+            completedMilestoneCount: milestones.filter(m => m.completed).length,
+            source: project.source || 'manual',
+            createdAt: project.createdAt,
+          });
         }
-      } else {
-        // Fallback to all user's organizations
-        const userOrgMemberships = await storage.getUserOrganizations(userId);
-        orgIds = userOrgMemberships.map(m => m.organizationId);
       }
+
+      res.json(allProjects);
+    } catch (err) {
+      console.error("Error fetching analytics projects:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
+  // Analytics: Portfolios summary for Power BI
+  app.get('/api/analytics/portfolios', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
       
-      // Count actual objects from the database
-      let projectCount = 0;
-      let taskCount = 0;
-      let documentCount = 0;
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
       
-      if (orgIds.length > 0) {
-        // Convert JS array to PostgreSQL array format
-        const orgIdsArray = `{${orgIds.join(',')}}`;
+      const allPortfolios: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const portfolios = await storage.getPortfolios(orgId);
+        const projects = await storage.getProjects(orgId);
+        const org = await storage.getOrganization(orgId);
         
-        // Count projects (excluding deleted)
-        const projectResult = await db.execute(
-          sql`SELECT COUNT(*) as count FROM projects WHERE organization_id = ANY(${orgIdsArray}::int[]) AND deleted_at IS NULL`
-        );
-        projectCount = parseInt(projectResult.rows[0]?.count as string || '0');
+        for (const portfolio of portfolios) {
+          const portfolioProjects = projects.filter(p => p.portfolioId === portfolio.id);
+          const totalBudget = portfolioProjects.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);
+          const avgCompletion = portfolioProjects.length > 0 
+            ? Math.round(portfolioProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / portfolioProjects.length)
+            : 0;
+          
+          allPortfolios.push({
+            portfolioId: portfolio.id,
+            portfolioName: portfolio.name,
+            description: portfolio.description,
+            strategy: portfolio.strategy,
+            organizationId: orgId,
+            organizationName: org?.name || null,
+            projectCount: portfolioProjects.length,
+            healthyProjectCount: portfolioProjects.filter(p => p.health === 'Green').length,
+            atRiskProjectCount: portfolioProjects.filter(p => p.health === 'Yellow').length,
+            criticalProjectCount: portfolioProjects.filter(p => p.health === 'Red').length,
+            totalBudget,
+            avgCompletion,
+            createdAt: portfolio.createdAt,
+          });
+        }
+      }
+
+      res.json(allPortfolios);
+    } catch (err) {
+      console.error("Error fetching analytics portfolios:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
+  // Analytics: Risks flat data for Power BI
+  app.get('/api/analytics/risks', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      const allRisks: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const projects = await storage.getProjects(orgId);
+        const org = await storage.getOrganization(orgId);
         
-        // Count tasks (excluding deleted)
-        const taskResult = await db.execute(
-          sql`SELECT COUNT(*) as count FROM tasks 
-              WHERE project_id IN (SELECT id FROM projects WHERE organization_id = ANY(${orgIdsArray}::int[]) AND deleted_at IS NULL) 
-              AND deleted_at IS NULL`
-        );
-        taskCount = parseInt(taskResult.rows[0]?.count as string || '0');
+        for (const project of projects) {
+          const risks = await storage.getRisks(project.id);
+          
+          for (const risk of risks) {
+            allRisks.push({
+              riskId: risk.id,
+              title: risk.title,
+              description: risk.description,
+              probability: risk.probability,
+              impact: risk.impact,
+              status: risk.status,
+              mitigationPlan: risk.mitigationPlan,
+              owner: risk.owner,
+              projectId: project.id,
+              projectName: project.name,
+              organizationId: orgId,
+              organizationName: org?.name || null,
+              createdAt: risk.createdAt,
+            });
+          }
+        }
+      }
+
+      res.json(allRisks);
+    } catch (err) {
+      console.error("Error fetching analytics risks:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
+    }
+  });
+
+  // Analytics: Issues flat data for Power BI
+  app.get('/api/analytics/issues', async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      const allIssues: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const projects = await storage.getProjects(orgId);
+        const org = await storage.getOrganization(orgId);
         
-        // Count documents (excluding deleted)
-        const docResult = await db.execute(
-          sql`SELECT COUNT(*) as count FROM project_documents 
-              WHERE project_id IN (SELECT id FROM projects WHERE organization_id = ANY(${orgIdsArray}::int[]) AND deleted_at IS NULL) 
-              AND deleted_at IS NULL`
-        );
-        documentCount = parseInt(docResult.rows[0]?.count as string || '0');
+        for (const project of projects) {
+          const issues = await storage.getIssues(project.id);
+          
+          for (const issue of issues) {
+            allIssues.push({
+              issueId: issue.id,
+              title: issue.title,
+              description: issue.description,
+              type: issue.type,
+              priority: issue.priority,
+              status: issue.status,
+              assignee: issue.assignee,
+              projectId: project.id,
+              projectName: project.name,
+              organizationId: orgId,
+              organizationName: org?.name || null,
+              createdAt: issue.createdAt,
+            });
+          }
+        }
       }
-      
-      // Get AI runs from usage rollups (these are event-based, not stored entities)
-      const usageRollupsData = await billingProvider.getUsageSummary(subscription.id);
-      const aiRunsCount = usageRollupsData['ai_runs']?.usedUnits || 0;
-      
-      // Build the usage response with actual counts
-      const usage: Record<string, { usedUnits: number }> = {
-        ai_runs: { usedUnits: aiRunsCount },
-        documents: { usedUnits: documentCount },
-        projects: { usedUnits: projectCount },
-        tasks: { usedUnits: taskCount },
-      };
-      
-      res.json(usage);
+
+      res.json(allIssues);
     } catch (err) {
-      console.error("Error fetching usage:", err);
-      res.status(500).json({ message: "Failed to fetch usage" });
+      console.error("Error fetching analytics issues:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
     }
   });
 
-  app.get('/api/billing/usage/check/:meterCode', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    const units = parseInt(req.query.units as string) || 1;
-    
+  // Analytics: Milestones flat data for Power BI
+  app.get('/api/analytics/milestones', async (req, res) => {
     try {
-      const subscription = await billingProvider.ensureUserHasSubscription(userId);
-      const check = await billingProvider.checkLimit(subscription.id, req.params.meterCode, units);
-      res.json(check);
-    } catch (err) {
-      console.error("Error checking limit:", err);
-      res.status(500).json({ message: "Failed to check limit" });
-    }
-  });
-
-  app.post('/api/billing/usage', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    const { meterCode, units, requestId } = req.body;
-    if (!meterCode || !requestId) {
-      return res.status(400).json({ message: "meterCode and requestId are required" });
-    }
-    
-    try {
-      const subscription = await billingProvider.ensureUserHasSubscription(userId);
-      const result = await billingProvider.recordUsage({
-        subscriptionId: subscription.id,
-        meterCode,
-        units: units || 1,
-        actorUserId: userId,
-        requestId,
-      });
-      
-      if (!result.success) {
-        return res.status(403).json({ message: result.error, allowed: false });
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
       }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
       
-      res.json(result);
-    } catch (err) {
-      console.error("Error recording usage:", err);
-      res.status(500).json({ message: "Failed to record usage" });
-    }
-  });
-
-  app.get('/api/billing/invoices', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    try {
-      const subscription = await billingProvider.ensureUserHasSubscription(userId);
-      const invoices = await db.select().from(invoiceRecords)
-        .where(eq(invoiceRecords.subscriptionId, subscription.id))
-        .orderBy(invoiceRecords.createdAt);
-      res.json(invoices);
-    } catch (err) {
-      console.error("Error fetching invoices:", err);
-      res.status(500).json({ message: "Failed to fetch invoices" });
-    }
-  });
-
-  app.get('/api/billing/meters', async (req, res) => {
-    try {
-      const allMeters = await db.select().from(meters);
-      res.json(allMeters);
-    } catch (err) {
-      console.error("Error fetching meters:", err);
-      res.status(500).json({ message: "Failed to fetch meters" });
-    }
-  });
-
-  app.get('/api/billing/audit-log', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    const user = userId ? await storage.getUser(userId) : null;
-    
-    if (!user || user.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Super Admin access required' });
-    }
-    
-    try {
-      const logs = await db.select().from(billingAuditLogs)
-        .orderBy(billingAuditLogs.createdAt)
-        .limit(100);
-      res.json(logs);
-    } catch (err) {
-      console.error("Error fetching audit log:", err);
-      res.status(500).json({ message: "Failed to fetch audit log" });
-    }
-  });
-
-  // SuperAdmin: Update plan details (pricing, description)
-  app.put('/api/admin/plans/:id', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    const user = userId ? await storage.getUser(userId) : null;
-    
-    if (!user || user.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Super Admin access required' });
-    }
-    
-    const planId = parseInt(req.params.id);
-    const { name, description, monthlyPriceCents, maxSeats, isActive } = req.body;
-    
-    try {
-      const [updated] = await db.update(plans)
-        .set({
-          ...(name !== undefined && { name }),
-          ...(description !== undefined && { description }),
-          ...(monthlyPriceCents !== undefined && { monthlyPriceCents }),
-          ...(maxSeats !== undefined && { maxSeats }),
-          ...(isActive !== undefined && { isActive }),
-        })
-        .where(eq(plans.id, planId))
-        .returning();
-      
-      if (!updated) {
-        return res.status(404).json({ message: 'Plan not found' });
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
       }
-      
-      await db.insert(billingAuditLogs).values({
-        actorUserId: userId,
-        action: 'PLAN_UPDATED',
-        entityType: 'plan',
-        entityId: planId.toString(),
-        metadataJson: { changes: req.body },
-      });
-      
-      res.json(updated);
-    } catch (err) {
-      console.error("Error updating plan:", err);
-      res.status(500).json({ message: "Failed to update plan" });
-    }
-  });
 
-  // SuperAdmin: Get plan meter rules
-  app.get('/api/admin/plans/:id/rules', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    const user = userId ? await storage.getUser(userId) : null;
-    
-    if (!user || user.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Super Admin access required' });
-    }
-    
-    const planId = parseInt(req.params.id);
-    
-    try {
-      const rules = await db.select()
-        .from(planMeterRules)
-        .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
-        .where(eq(planMeterRules.planId, planId));
-      
-      res.json(rules.map(r => ({
-        ...r.plan_meter_rules,
-        meter: r.meters
-      })));
-    } catch (err) {
-      console.error("Error fetching plan rules:", err);
-      res.status(500).json({ message: "Failed to fetch plan rules" });
-    }
-  });
-
-  // SuperAdmin: Update plan meter rule
-  app.put('/api/admin/plans/:planId/rules/:ruleId', async (req, res) => {
-    const userId = getCurrentUserId(req);
-    const user = userId ? await storage.getUser(userId) : null;
-    
-    if (!user || user.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Super Admin access required' });
-    }
-    
-    const ruleId = parseInt(req.params.ruleId);
-    const { includedUnitsMonthly, hardCapUnits, overageUnitPriceMicrocents, isSharedPool } = req.body;
-    
-    try {
-      const [updated] = await db.update(planMeterRules)
-        .set({
-          ...(includedUnitsMonthly !== undefined && { includedUnitsMonthly }),
-          ...(hardCapUnits !== undefined && { hardCapUnits }),
-          ...(overageUnitPriceMicrocents !== undefined && { overageUnitPriceMicrocents }),
-          ...(isSharedPool !== undefined && { isSharedPool }),
-        })
-        .where(eq(planMeterRules.id, ruleId))
-        .returning();
-      
-      if (!updated) {
-        return res.status(404).json({ message: 'Rule not found' });
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
       }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
       
-      await db.insert(billingAuditLogs).values({
-        actorUserId: userId,
-        action: 'PLAN_RULE_UPDATED',
-        entityType: 'plan_meter_rule',
-        entityId: ruleId.toString(),
-        metadataJson: { changes: req.body },
-      });
-      
-      res.json(updated);
+      const allMilestones: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const projects = await storage.getProjects(orgId);
+        const org = await storage.getOrganization(orgId);
+        
+        for (const project of projects) {
+          const milestones = await storage.getMilestones(project.id);
+          
+          for (const milestone of milestones) {
+            allMilestones.push({
+              milestoneId: milestone.id,
+              title: milestone.title,
+              description: milestone.description,
+              dueDate: milestone.dueDate,
+              completed: milestone.completed,
+              projectId: project.id,
+              projectName: project.name,
+              organizationId: orgId,
+              organizationName: org?.name || null,
+            });
+          }
+        }
+      }
+
+      res.json(allMilestones);
     } catch (err) {
-      console.error("Error updating plan rule:", err);
-      res.status(500).json({ message: "Failed to update plan rule" });
+      console.error("Error fetching analytics milestones:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
     }
   });
 
-  // === ONBOARDING API ROUTES ===
-  const { getUserOnboardingStatus, completeOnboarding } = await import("./services/onboarding");
-  
-  app.get('/api/onboarding/status', async (req, res) => {
-    const userId = (req as any).session?.userId;
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
+  // Analytics: Intakes flat data for Power BI
+  app.get('/api/analytics/intakes', async (req, res) => {
     try {
-      const status = await getUserOnboardingStatus(userId);
-      res.json(status);
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      
+      if (accessibleOrgIds.length === 0) {
+        return res.json([]);
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
+      
+      const allIntakes: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const intakes = await storage.getProjectIntakes(orgId);
+        const org = await storage.getOrganization(orgId);
+        
+        for (const intake of intakes) {
+          allIntakes.push({
+            intakeId: intake.id,
+            projectName: intake.projectName,
+            description: intake.description,
+            status: intake.status,
+            currentStep: intake.currentStep,
+            businessUnit: intake.businessUnit,
+            programName: intake.programName,
+            fundingSource: intake.fundingSource,
+            estimatedBudget: intake.estimatedBudget,
+            strategicAlignment: intake.strategicAlignment,
+            organizationId: orgId,
+            organizationName: org?.name || null,
+            submitterId: intake.submitterId,
+            createdAt: intake.createdAt,
+          });
+        }
+      }
+
+      res.json(allIntakes);
     } catch (err) {
-      console.error("Error getting onboarding status:", err);
-      res.status(500).json({ message: "Failed to get onboarding status" });
+      console.error("Error fetching analytics intakes:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
     }
   });
-  
-  app.post('/api/onboarding/complete', async (req, res) => {
-    const userId = (req as any).session?.userId;
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    const { companyName, industry, createDemoData } = req.body;
-    
-    if (!companyName) {
-      return res.status(400).json({ message: "Company name is required" });
-    }
-    
+
+  // Analytics: Summary metrics for Power BI dashboards
+  app.get('/api/analytics/summary', async (req, res) => {
     try {
-      const result = await completeOnboarding(userId, {
-        companyName,
-        industry: industry || 'General',
-        createDemoData: createDemoData === true,
-      });
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+      const accessibleOrgIds = await getUserOrgIds(userId);
       
-      res.json({
-        success: true,
-        organization: result.organization,
-        demoDataCreated: !!result.portfolio,
-      });
-    } catch (err) {
-      console.error("Error completing onboarding:", err);
-      res.status(500).json({ message: "Failed to complete onboarding" });
-    }
-  });
-  
-  app.post('/api/onboarding/skip', async (req, res) => {
-    const userId = (req as any).session?.userId;
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    
-    try {
-      await db.update(users)
-        .set({ onboardingCompleted: true })
-        .where(eq(users.id, userId));
+      if (accessibleOrgIds.length === 0) {
+        return res.json({ organizations: [] });
+      }
+
+      if (organizationId && !accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+
+      const targetOrgIds = organizationId ? [organizationId] : accessibleOrgIds;
       
-      res.json({ success: true });
+      const summaries: any[] = [];
+      for (const orgId of targetOrgIds) {
+        const org = await storage.getOrganization(orgId);
+        const projects = await storage.getProjects(orgId);
+        const portfolios = await storage.getPortfolios(orgId);
+        const intakes = await storage.getProjectIntakes(orgId);
+        
+        let totalRisks = 0, openRisks = 0, highRisks = 0;
+        let totalIssues = 0, openIssues = 0;
+        let totalMilestones = 0, completedMilestones = 0;
+        let totalTasks = 0, completedTasks = 0;
+        
+        for (const project of projects) {
+          const risks = await storage.getRisks(project.id);
+          const issues = await storage.getIssues(project.id);
+          const milestones = await storage.getMilestones(project.id);
+          const tasks = await storage.getTasks(project.id);
+          
+          totalRisks += risks.length;
+          openRisks += risks.filter(r => r.status === 'Open').length;
+          highRisks += risks.filter(r => r.probability === 'High' || r.impact === 'High').length;
+          totalIssues += issues.length;
+          openIssues += issues.filter(i => i.status === 'Open').length;
+          totalMilestones += milestones.length;
+          completedMilestones += milestones.filter(m => m.completed).length;
+          totalTasks += tasks.length;
+          completedTasks += tasks.filter(t => t.status === 'Done').length;
+        }
+        
+        const totalBudget = projects.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);
+        const avgCompletion = projects.length > 0 
+          ? Math.round(projects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / projects.length)
+          : 0;
+        
+        summaries.push({
+          organizationId: orgId,
+          organizationName: org?.name || null,
+          portfolioCount: portfolios.length,
+          projectCount: projects.length,
+          healthyProjectCount: projects.filter(p => p.health === 'Green').length,
+          atRiskProjectCount: projects.filter(p => p.health === 'Yellow').length,
+          criticalProjectCount: projects.filter(p => p.health === 'Red').length,
+          totalBudget,
+          avgCompletion,
+          totalRisks,
+          openRisks,
+          highRisks,
+          totalIssues,
+          openIssues,
+          totalMilestones,
+          completedMilestones,
+          totalTasks,
+          completedTasks,
+          intakeCount: intakes.length,
+          pendingIntakes: intakes.filter(i => i.status === 'draft' || i.status === 'in_progress').length,
+          approvedIntakes: intakes.filter(i => i.status === 'approved').length,
+          rejectedIntakes: intakes.filter(i => i.status === 'rejected').length,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({ organizations: summaries });
     } catch (err) {
-      console.error("Error skipping onboarding:", err);
-      res.status(500).json({ message: "Failed to skip onboarding" });
+      console.error("Error fetching analytics summary:", err);
+      res.status(500).json({ message: "Error fetching analytics data" });
     }
   });
 
