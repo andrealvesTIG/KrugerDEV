@@ -5,6 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
+import { sendEmail } from "./services/email";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -1775,6 +1776,305 @@ export async function registerRoutes(
     } catch (err) {
       console.error('Export error:', err);
       res.status(500).json({ message: "Error exporting project" });
+    }
+  });
+
+  // Project Status Report Email
+  app.post('/api/projects/:id/status-report/email', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const { recipientEmail, executiveSummary } = req.body;
+      
+      if (!recipientEmail) {
+        return res.status(400).json({ message: "Recipient email is required" });
+      }
+      
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied to this project" });
+      }
+      
+      const tasks = await storage.getTasks(projectId);
+      const risks = await storage.getRisks(projectId);
+      const issues = await storage.getIssues(projectId);
+      const milestones = await storage.getMilestones(projectId);
+      const financials = await storage.getProjectFinancials(projectId);
+      
+      const completed = tasks.filter(t => t.status === "Completed" || t.progress === 100).length;
+      const inProgress = tasks.filter(t => t.status === "In Progress").length;
+      const notStarted = tasks.filter(t => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
+      const total = tasks.length || 1;
+      
+      const budget = financials.reduce((sum, f) => sum + parseFloat(f.budgetAmount || "0"), 0);
+      const actual = financials.reduce((sum, f) => sum + parseFloat(f.actualAmount || "0"), 0);
+      const planned = financials.reduce((sum, f) => sum + parseFloat(f.plannedAmount || "0"), 0);
+      const projectBudget = parseFloat(project.budget?.toString() || "0");
+      const totalBudget = budget > 0 ? budget : projectBudget;
+      const forecast = planned > 0 ? planned : totalBudget;
+      
+      const openRisks = risks.filter(r => r.status === "Open" && !r.deletedAt).slice(0, 3);
+      const openIssues = issues.filter(i => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt).slice(0, 3);
+      
+      const majorMilestones = milestones
+        .filter(m => !m.deletedAt)
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+        .slice(0, 4);
+      
+      const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
+        }).format(value);
+      };
+      
+      const formatDate = (date: string | null | Date) => {
+        if (!date) return 'Not set';
+        return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      };
+      
+      const getHealthColor = (value: string | null) => {
+        switch (value) {
+          case "Green": return "#22c55e";
+          case "Yellow": return "#eab308";
+          case "Red": return "#ef4444";
+          default: return "#22c55e";
+        }
+      };
+      
+      const getMilestoneStatus = (ms: typeof milestones[0]) => {
+        if (ms.completed || ms.status === "Done") return { text: "Complete", color: "#16a34a" };
+        const dueDate = new Date(ms.dueDate);
+        const today = new Date();
+        if (dueDate < today) return { text: "At Risk", color: "#dc2626" };
+        return { text: "On Track", color: "#6b7280" };
+      };
+      
+      const reportDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Status Report - ${project.name}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 0; background: #f3f4f6;">
+  <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">PROJECT STATUS REPORT</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0; font-size: 14px;">${reportDate}</p>
+    <p style="color: rgba(255,255,255,0.8); margin: 4px 0 0 0; font-size: 16px; font-weight: 600;">${project.name}</p>
+  </div>
+  
+  <div style="background: #ffffff; padding: 30px;">
+    
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+      <tr>
+        <td width="50%" style="vertical-align: top; padding-right: 15px;">
+          
+          <h2 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Executive Summary</h2>
+          <p style="margin: 0 0 24px 0; color: #4b5563; font-size: 13px;">${executiveSummary || project.description || 'No executive summary provided.'}</p>
+          
+          <h2 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Project Schedule</h2>
+          <div style="margin-bottom: 24px;">
+            <div style="margin-bottom: 10px;">
+              <span style="font-size: 12px; color: #374151;">Complete (${Math.round((completed / total) * 100)}%)</span>
+              <div style="background: #e5e7eb; border-radius: 4px; height: 8px; margin-top: 4px;">
+                <div style="background: #3b82f6; border-radius: 4px; height: 8px; width: ${(completed / total) * 100}%;"></div>
+              </div>
+            </div>
+            <div style="margin-bottom: 10px;">
+              <span style="font-size: 12px; color: #374151;">In Progress (${Math.round((inProgress / total) * 100)}%)</span>
+              <div style="background: #e5e7eb; border-radius: 4px; height: 8px; margin-top: 4px;">
+                <div style="background: #3b82f6; border-radius: 4px; height: 8px; width: ${(inProgress / total) * 100}%;"></div>
+              </div>
+            </div>
+            <div>
+              <span style="font-size: 12px; color: #374151;">Not Started (${Math.round((notStarted / total) * 100)}%)</span>
+              <div style="background: #e5e7eb; border-radius: 4px; height: 8px; margin-top: 4px;">
+                <div style="background: #3b82f6; border-radius: 4px; height: 8px; width: ${(notStarted / total) * 100}%;"></div>
+              </div>
+            </div>
+          </div>
+          
+          <h2 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Financials</h2>
+          <table width="100%" style="margin-bottom: 24px; font-size: 13px;">
+            <tr>
+              <td style="padding: 4px 0; color: #374151;">Budget</td>
+              <td style="padding: 4px 0; text-align: right; font-weight: 600; color: #1f2937;">${formatCurrency(totalBudget)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; color: #374151;">Actual</td>
+              <td style="padding: 4px 0; text-align: right; font-weight: 600; color: #1f2937;">${formatCurrency(actual)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 4px 0; color: #374151;">Forecast</td>
+              <td style="padding: 4px 0; text-align: right; font-weight: 600; color: #1f2937;">${formatCurrency(forecast)}</td>
+            </tr>
+          </table>
+          
+        </td>
+        <td width="50%" style="vertical-align: top; padding-left: 15px;">
+          
+          <h2 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Project Health</h2>
+          <table width="100%" style="margin-bottom: 24px; text-align: center;">
+            <tr>
+              <td style="padding: 8px;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: ${getHealthColor(project.health)}; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center;">
+                  <span style="color: white; font-size: 16px;">✓</span>
+                </div>
+                <span style="font-size: 11px; color: #6b7280;">Overall</span>
+              </td>
+              <td style="padding: 8px;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: ${getHealthColor(project.health)}; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center;">
+                  <span style="color: white; font-size: 16px;">✓</span>
+                </div>
+                <span style="font-size: 11px; color: #6b7280;">Schedule</span>
+              </td>
+              <td style="padding: 8px;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: ${actual > totalBudget ? '#ef4444' : '#22c55e'}; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center;">
+                  <span style="color: white; font-size: 16px;">✓</span>
+                </div>
+                <span style="font-size: 11px; color: #6b7280;">Budget</span>
+              </td>
+              <td style="padding: 8px;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: #22c55e; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center;">
+                  <span style="color: white; font-size: 16px;">✓</span>
+                </div>
+                <span style="font-size: 11px; color: #6b7280;">Resources</span>
+              </td>
+            </tr>
+          </table>
+          
+          <h2 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Key Risks & Issues</h2>
+          <div style="margin-bottom: 24px;">
+            ${openRisks.length === 0 && openIssues.length === 0 
+              ? '<p style="color: #6b7280; font-size: 13px; margin: 0;">No open risks or issues</p>'
+              : [...openRisks, ...openIssues].map(item => `
+                <div style="display: flex; align-items: flex-start; margin-bottom: 6px;">
+                  <span style="color: #f59e0b; margin-right: 8px; font-size: 10px;">▲</span>
+                  <span style="font-size: 12px; color: #374151;">${'title' in item ? item.title : ''}</span>
+                </div>
+              `).join('')
+            }
+          </div>
+          
+          <h2 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Major Milestones</h2>
+          ${majorMilestones.length === 0 
+            ? '<p style="color: #6b7280; font-size: 13px; margin: 0 0 24px 0;">No milestones defined</p>'
+            : `<table width="100%" style="margin-bottom: 24px; font-size: 12px;">
+                ${majorMilestones.map(ms => {
+                  const status = getMilestoneStatus(ms);
+                  return `
+                    <tr style="border-bottom: 1px solid #e5e7eb;">
+                      <td style="padding: 6px 0; color: #374151;">${ms.title}</td>
+                      <td style="padding: 6px 0; color: #6b7280;">${formatDate(ms.dueDate)}</td>
+                      <td style="padding: 6px 0; text-align: right; color: ${status.color};">${status.text}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </table>`
+          }
+          
+        </td>
+      </tr>
+    </table>
+    
+    <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+      <h3 style="margin: 0 0 8px 0; color: #1f2937; font-size: 14px;">Project Timeline</h3>
+      <p style="margin: 0 0 8px 0; font-size: 13px; color: #4b5563;">
+        ${formatDate(project.startDate)} → ${formatDate(project.endDate)}
+      </p>
+      <div style="background: #e5e7eb; border-radius: 4px; height: 12px;">
+        <div style="background: #3b82f6; border-radius: 4px; height: 12px; width: ${project.completionPercentage || 0}%;"></div>
+      </div>
+      <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;">${project.completionPercentage || 0}% Complete</p>
+    </div>
+    
+    <div style="display: flex; gap: 8px;">
+      <span style="background: #e5e7eb; color: #374151; padding: 4px 12px; border-radius: 4px; font-size: 12px;">${project.status}</span>
+      <span style="background: ${project.priority === 'Critical' ? '#fef2f2' : '#e5e7eb'}; color: ${project.priority === 'Critical' ? '#dc2626' : '#374151'}; padding: 4px 12px; border-radius: 4px; font-size: 12px;">${project.priority}</span>
+    </div>
+    
+  </div>
+  
+  <div style="padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+    <p style="color: #9ca3af; font-size: 11px; margin: 0;">Generated by FridayReport.AI on ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>
+  </div>
+</body>
+</html>
+`;
+      
+      const textContent = `
+PROJECT STATUS REPORT
+${project.name}
+${reportDate}
+
+EXECUTIVE SUMMARY
+${executiveSummary || project.description || 'No executive summary provided.'}
+
+PROJECT SCHEDULE
+- Complete: ${Math.round((completed / total) * 100)}%
+- In Progress: ${Math.round((inProgress / total) * 100)}%
+- Not Started: ${Math.round((notStarted / total) * 100)}%
+
+FINANCIALS
+- Budget: ${formatCurrency(totalBudget)}
+- Actual: ${formatCurrency(actual)}
+- Forecast: ${formatCurrency(forecast)}
+
+PROJECT HEALTH
+- Overall: ${project.health || 'Green'}
+- Budget Status: ${actual > totalBudget ? 'Over Budget' : 'On Budget'}
+
+KEY RISKS & ISSUES
+${openRisks.length === 0 && openIssues.length === 0 
+  ? '- No open risks or issues'
+  : [...openRisks, ...openIssues].map(item => `- ${'title' in item ? item.title : ''}`).join('\n')
+}
+
+MAJOR MILESTONES
+${majorMilestones.length === 0 
+  ? '- No milestones defined'
+  : majorMilestones.map(ms => {
+      const status = getMilestoneStatus(ms);
+      return `- ${ms.title} (${formatDate(ms.dueDate)}) - ${status.text}`;
+    }).join('\n')
+}
+
+PROJECT TIMELINE
+${formatDate(project.startDate)} → ${formatDate(project.endDate)}
+${project.completionPercentage || 0}% Complete
+
+Status: ${project.status} | Priority: ${project.priority}
+
+---
+Generated by FridayReport.AI
+`;
+
+      const success = await sendEmail({
+        to: recipientEmail,
+        subject: `Project Status Report: ${project.name} - ${reportDate}`,
+        text: textContent,
+        html: htmlContent,
+      });
+      
+      if (success) {
+        res.json({ success: true, message: `Status report sent to ${recipientEmail}` });
+      } else {
+        res.status(500).json({ message: "Failed to send email. Please check email configuration." });
+      }
+    } catch (err) {
+      console.error('Error sending status report email:', err);
+      res.status(500).json({ message: "Error sending status report" });
     }
   });
 
