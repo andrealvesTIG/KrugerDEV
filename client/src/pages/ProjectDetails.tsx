@@ -12,6 +12,7 @@ import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinanc
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
+import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -129,9 +130,13 @@ export default function ProjectDetails() {
   const { data: project, isLoading } = useProject(id);
   const { data: financials } = useProjectFinancials(id);
   const { data: projectTasks } = useTasks(id);
+  const { data: projectRisks } = useRisks(id);
+  const { data: projectIssues } = useIssues(id);
+  const { data: projectMilestones } = useMilestones(id);
   const { mutate: updateProject } = useUpdateProject();
   const { toast } = useToast();
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
+  const [isStatusReportOpen, setIsStatusReportOpen] = useState(false);
   const { currentOrganization } = useOrganization();
   const [, setLocation] = useLocation();
 
@@ -214,6 +219,20 @@ export default function ProjectDetails() {
               <SelectItem value="Red">Red</SelectItem>
             </SelectContent>
           </Select>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => setIsStatusReportOpen(true)}
+                data-testid="button-status-report"
+              >
+                <ClipboardList className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Status Report</TooltipContent>
+          </Tooltip>
           
           <DropdownMenu>
             <Tooltip>
@@ -358,6 +377,17 @@ export default function ProjectDetails() {
         projectId={project.id} 
         open={isProjectHistoryOpen} 
         onOpenChange={setIsProjectHistoryOpen} 
+      />
+
+      <StatusReportDialog
+        open={isStatusReportOpen}
+        onOpenChange={setIsStatusReportOpen}
+        project={project}
+        risks={projectRisks || []}
+        issues={projectIssues || []}
+        milestones={projectMilestones || []}
+        financials={financials || []}
+        tasks={projectTasks || []}
       />
     </div>
   );
