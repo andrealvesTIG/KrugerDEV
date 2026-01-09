@@ -28,7 +28,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    window.location.href = "/api/login";
+    window.location.href = "/auth";
     return null;
   }
 
@@ -59,13 +59,13 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             </button>
             {/* Logo - show on mobile always, on desktop only when collapsed */}
             <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity md:hidden">
-              <img src={logoIcon} alt="Friday Report" className="h-8 w-8" />
-              <span className="font-display font-bold text-lg text-foreground">Friday Report</span>
+              <img src={logoIcon} alt="FridayReport.AI" className="h-8 w-8" />
+              <span className="font-display font-bold text-lg text-foreground">FridayReport.AI</span>
             </Link>
             {isCollapsed && (
               <Link href="/" className="hidden md:flex items-center gap-3 hover:opacity-80 transition-opacity">
-                <img src={logoIcon} alt="Friday Report" className="h-8 w-8" />
-                <span className="font-display font-bold text-lg text-foreground">Friday Report</span>
+                <img src={logoIcon} alt="FridayReport.AI" className="h-8 w-8" />
+                <span className="font-display font-bold text-lg text-foreground">FridayReport.AI</span>
               </Link>
             )}
             {organizations.length > 0 && (

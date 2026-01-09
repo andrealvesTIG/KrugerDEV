@@ -1,0 +1,93 @@
+You are a senior SaaS billing engineer. Build a consumption-based subscription system for my SAAP app.
+CRITICAL REQUIREMENT: Store EVERYTHING in the database. No hardcoded plan quotas, limits, prices, meters, features, or Stripe price IDs.
+
+## App pricing model
+Plans: FREE, BASIC, TEAM
+Meters: ai_runs, documents, projects, tasks
+
+Billing rules (configurable via DB):
+- ai_runs + documents = metered monthly usage with included quota + overage pricing
+- projects + tasks = limit-based caps by default (can later switch to metered overage without code changes)
+
+Team plan supports organizations + members with shared usage pool and seat limits.
+
+## Tech stack
+TypeScript + Node.js (Express or Next.js API routes)
+PostgreSQL + Prisma
+Stripe Billing preferred; if not configured, use a mock BillingProvider (still persist everything to DB)
+
+## Database schema (Prisma) — implement these models
+1) User (id, email, name, createdAt)
+
+2) Organization (id, name, ownerId, createdAt)
+3) OrganizationMember (id, orgId, userId, role OWNER|ADMIN|MEMBER, status INVITED|ACTIVE, createdAt)
+4) SeatAssignment (id, orgId, userId, createdAt)
+
+5) Plan (id, code FREE|BASIC|TEAM, name, description, isActive, createdAt)
+6) Meter (id, code ai_runs|documents|projects|tasks, name, unitLabel, aggregationType COUNT|GAUGE, createdAt)
+7) PlanMeterRule (id, planId, meterId,
+   ruleType INCLUDED_QUOTA|HARD_CAP|METERED_OVERAGE,
+   includedUnitsMonthly nullable,
+   hardCapUnits nullable,
+   overageUnitPriceCents nullable,
+   isSharedPool boolean default false,  // true for TEAM shared usage
+   createdAt)
+
+8) Feature (id, code e.g. ORGS_ENABLED, INVITES_ENABLED, ADVANCED_FEATURE_A, createdAt)
+9) PlanFeature (id, planId, featureId, isEnabled boolean, limitsJson nullable, createdAt)
+
+10) Subscription (id, planId, status ACTIVE|PAST_DUE|CANCELED|TRIALING,
+    subjectType USER|ORG,
+    userId nullable, orgId nullable,
+    hardCapEnabled boolean default false,
+    currentPeriodStart, currentPeriodEnd,
+    provider CUSTOMER/SUBSCRIPTION fields nullable,
+    createdAt)
+
+11) BillingCycle (id, subscriptionId, periodStart, periodEnd, status OPEN|CLOSED, createdAt)
+12) UsageEvent (id, subscriptionId, billingCycleId,
+    meterId, units,
+    actorUserId nullable, orgId nullable,
+    requestId unique, occurredAt, createdAt)
+
+13) UsageRollup (id, billingCycleId, meterId,
+    includedUnits, usedUnits, remainingUnits,
+    overageUnits, overageCostCents,
+    hardCapHit boolean,
+    updatedAt)
+
+14) InvoiceRecord (id, subscriptionId, billingCycleId nullable,
+    providerInvoiceId nullable,
+    subtotalCents, totalCents, currency,
+    status DRAFT|OPEN|PAID|VOID|UNCOLLECTIBLE,
+    hostedInvoiceUrl nullable,
+    createdAt)
+
+15) PaymentEvent (id, providerEventId unique, type, payloadJson, receivedAt)  // store ALL webhook events
+
+16) AuditLog (id, actorUserId nullable, orgId nullable,
+    action, entityType, entityId, metadataJson, createdAt)
+
+IMPORTANT:
+- All plan limits, included quotas, overage prices, seat limits, enabled features, and Stripe price IDs must be stored in DB.
+- Seed script must insert initial meters, plans, plan-meter rules, features, plan-features.
+
+## Seed defaults (in DB, via prisma/seed.ts)
+Meters:
+- ai_runs, documents, projects, tasks
+
+Plans + rules (store in PlanMeterRule):
+FREE:
+- ai_runs: INCLUDED_QUOTA 25, HARD_CAP 25, METERED_OVERAGE disabled (null overage)
+- documents: INCLUDED_QUOTA 50, HARD_CAP 50
+- projects: HARD_CAP 3 (active projects)
+- tasks: HARD_CAP 200 (tasks created per cycle)
+BASIC:
+- ai_runs: INCLUDED_QUOTA 500, METERED_OVERAGE $0.02 => 2 cents
+- documents: INCLUDED_QUOTA 1000, METERED_OVERAGE $0.005 => 0.5 cents (store as 1/2 cent not allowed -> store mills or use integer microcents)
+- projects: HARD_CAP 20
+- tasks: HARD_CAP 10000
+TEAM (shared pool):
+- ai_runs: INCLUDED_QUOTA 2500, METERED_OVERAGE 1.5 cents, isSharedPool true
+- documents: INCLUDED_QUOTA 5000, METERED_OVERAGE 0.4 cents, isSharedPool true
+- project

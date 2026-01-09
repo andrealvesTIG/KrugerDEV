@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
 import { ThemeProvider } from "@/components/theme-provider";
+import { OnboardingDialog } from "@/components/OnboardingDialog";
 import NotFound from "@/pages/not-found";
 import { ReactNode, useEffect } from "react";
 import { Loader2 } from "lucide-react";
@@ -29,6 +30,9 @@ import Resources from "@/pages/Resources";
 import ProjectIntakes from "@/pages/ProjectIntakes";
 import IntakeDetails from "@/pages/IntakeDetails";
 import Integrations from "@/pages/Integrations";
+import Billing from "@/pages/Billing";
+import AuthPage from "@/pages/AuthPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -71,6 +75,7 @@ function GuardedRoute({ path, component: Component, moduleKey }: { path: string;
 function Router() {
   return (
     <AppLayout>
+      <OnboardingDialog />
       <Switch>
         <GuardedRoute path="/" component={Dashboard} moduleKey="dashboard" />
         <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
@@ -90,6 +95,7 @@ function Router() {
         <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
         <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
         <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
+        <Route path="/billing" component={Billing} />
         <Route path="/admin" component={Admin} />
         <Route path="/super-admin" component={SuperAdmin} />
         <Route path="/org-settings" component={OrgSettings} />
@@ -109,7 +115,13 @@ function App() {
         <TooltipProvider>
           <OrganizationProvider>
             <Toaster />
-            <Router />
+            <Switch>
+              <Route path="/auth" component={AuthPage} />
+              <Route path="/reset-password" component={ResetPasswordPage} />
+              <Route>
+                <Router />
+              </Route>
+            </Switch>
           </OrganizationProvider>
         </TooltipProvider>
       </QueryClientProvider>

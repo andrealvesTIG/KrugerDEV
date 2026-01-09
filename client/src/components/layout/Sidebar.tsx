@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -70,6 +70,7 @@ const helpNavigation = [
 const userMenuItems = [
   { name: "Profile", href: "/profile", icon: User },
   { name: "User Settings", href: "/user-settings", icon: UserCog },
+  { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Org Settings", href: "/org-settings", icon: Building2 },
   { name: "Super Admin", href: "/super-admin", icon: Crown, superAdminOnly: true },
 ];
@@ -134,8 +135,8 @@ export function Sidebar() {
       {/* Logo Area */}
       <div className={cn("flex h-20 items-center", isCollapsed ? "justify-center px-2" : "px-6")}>
         <div className="flex items-center gap-3">
-          <img src={logoIcon} alt="Friday Report" className="h-10 w-10 flex-shrink-0" />
-          {!isCollapsed && <span className="text-xl font-display font-bold tracking-tight">Friday Report</span>}
+          <img src={logoIcon} alt="FridayReport.AI" className="h-10 w-10 flex-shrink-0" />
+          {!isCollapsed && <span className="text-xl font-display font-bold tracking-tight">FridayReport.AI</span>}
         </div>
       </div>
       {/* Navigation */}

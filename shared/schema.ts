@@ -6,6 +6,7 @@ import { users } from "./models/auth";
 
 export * from "./models/auth";
 export * from "./models/chat";
+export * from "./models/billing";
 
 // === TABLE DEFINITIONS ===
 
