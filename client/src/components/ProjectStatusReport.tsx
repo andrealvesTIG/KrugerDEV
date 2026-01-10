@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { format } from "date-fns";
+import { format, differenceInDays, isAfter, isBefore } from "date-fns";
 import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Circle, Clock } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
 interface ProjectStatusReportProps {
   project: Project;
@@ -16,7 +17,7 @@ interface ProjectStatusReportProps {
   executiveSummary?: string;
 }
 
-function HealthIndicator({ value, label }: { value: "Green" | "Yellow" | "Red" | string; label: string }) {
+function HealthIndicator({ value, label, icon: Icon }: { value: "Green" | "Yellow" | "Red" | string; label: string; icon?: React.ElementType }) {
   const getColor = () => {
     switch (value) {
       case "Green": return "bg-green-500";
@@ -27,6 +28,7 @@ function HealthIndicator({ value, label }: { value: "Green" | "Yellow" | "Red" |
   };
 
   const getIcon = () => {
+    if (Icon) return <Icon className="h-5 w-5 text-white" />;
     switch (value) {
       case "Green": return <CheckCircle2 className="h-5 w-5 text-white" />;
       case "Yellow": return <Clock className="h-5 w-5 text-white" />;
@@ -44,6 +46,14 @@ function HealthIndicator({ value, label }: { value: "Green" | "Yellow" | "Red" |
     </div>
   );
 }
+
+const COLORS = {
+  completed: "#22c55e",
+  inProgress: "#3b82f6",
+  notStarted: "#94a3b8",
+  atRisk: "#ef4444",
+  onTrack: "#22c55e"
+};
 
 export function ProjectStatusReport({
   project,
@@ -63,11 +73,18 @@ export function ProjectStatusReport({
       completed,
       inProgress,
       notStarted,
+      total: tasks.length,
       completedPercent: (completed / total) * 100,
       inProgressPercent: (inProgress / total) * 100,
       notStartedPercent: (notStarted / total) * 100
     };
   }, [tasks]);
+
+  const taskChartData = useMemo(() => [
+    { name: "Completed", value: taskStats.completed, color: COLORS.completed },
+    { name: "In Progress", value: taskStats.inProgress, color: COLORS.inProgress },
+    { name: "Not Started", value: taskStats.notStarted, color: COLORS.notStarted }
+  ].filter(d => d.value > 0), [taskStats]);
 
   const financialSummary = useMemo(() => {
     const budget = financials.reduce((sum, f) => sum + parseFloat(f.budgetAmount || "0"), 0);
@@ -79,11 +96,34 @@ export function ProjectStatusReport({
       budget: totalBudget,
       actual,
       forecast: planned > 0 ? planned : totalBudget,
+      variance: totalBudget - actual,
       budgetPercent: totalBudget > 0 ? Math.min((actual / totalBudget) * 100, 100) : 0,
       actualPercent: totalBudget > 0 ? Math.min((actual / totalBudget) * 100, 100) : 0,
       forecastPercent: totalBudget > 0 ? Math.min((planned / totalBudget) * 100, 100) : 0
     };
   }, [financials, project.budget]);
+
+  const financialChartData = useMemo(() => [
+    { name: "Budget", value: financialSummary.budget, fill: "#3b82f6" },
+    { name: "Actual", value: financialSummary.actual, fill: financialSummary.actual > financialSummary.budget ? "#ef4444" : "#22c55e" },
+    { name: "Forecast", value: financialSummary.forecast, fill: "#f59e0b" }
+  ], [financialSummary]);
+
+  const riskStats = useMemo(() => {
+    const openRisks = risks.filter(r => r.status === "Open" && !r.deletedAt);
+    const high = openRisks.filter(r => r.impact === "High" || r.probability === "High").length;
+    const medium = openRisks.filter(r => r.impact === "Medium" && r.probability !== "High").length;
+    const low = openRisks.filter(r => r.impact === "Low" && r.probability === "Low").length;
+    return { total: openRisks.length, high, medium, low, openRisks };
+  }, [risks]);
+
+  const issueStats = useMemo(() => {
+    const openIssues = issues.filter(i => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt);
+    const critical = openIssues.filter(i => i.priority === "Critical").length;
+    const high = openIssues.filter(i => i.priority === "High").length;
+    const medium = openIssues.filter(i => i.priority === "Medium").length;
+    return { total: openIssues.length, critical, high, medium, openIssues };
+  }, [issues]);
 
   const topRisksAndIssues = useMemo(() => {
     const openRisks = risks
@@ -100,8 +140,39 @@ export function ProjectStatusReport({
     return milestones
       .filter(m => !m.deletedAt)
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-      .slice(0, 4);
+      .slice(0, 6);
   }, [milestones]);
+
+  const timelineData = useMemo(() => {
+    if (!project.startDate || !project.endDate) return null;
+    
+    const start = new Date(project.startDate);
+    const end = new Date(project.endDate);
+    const today = new Date();
+    const totalDays = differenceInDays(end, start) || 1;
+    const elapsedDays = Math.max(0, differenceInDays(today, start));
+    const progressPercent = Math.min((elapsedDays / totalDays) * 100, 100);
+    
+    const milestonesOnTimeline = majorMilestones.map(m => {
+      const mDate = new Date(m.dueDate);
+      const position = Math.max(0, Math.min(100, (differenceInDays(mDate, start) / totalDays) * 100));
+      const isComplete = m.completed || m.status === "Done";
+      const isPast = isBefore(mDate, today);
+      const isAtRisk = isPast && !isComplete;
+      return { ...m, position, isComplete, isAtRisk };
+    });
+
+    return {
+      start,
+      end,
+      today,
+      totalDays,
+      elapsedDays,
+      progressPercent,
+      daysRemaining: Math.max(0, differenceInDays(end, today)),
+      milestones: milestonesOnTimeline
+    };
+  }, [project.startDate, project.endDate, majorMilestones]);
 
   const getMilestoneStatus = (milestone: Milestone) => {
     if (milestone.completed || milestone.status === "Done") return "Complete";
@@ -128,116 +199,281 @@ export function ProjectStatusReport({
     }).format(value);
   };
 
+  const budgetHealth = financialSummary.actual > financialSummary.budget ? "Red" : 
+                       financialSummary.actual > financialSummary.budget * 0.9 ? "Yellow" : "Green";
+  
+  const scheduleHealth = timelineData && timelineData.progressPercent > (project.completionPercentage || 0) + 10 ? "Yellow" : 
+                         project.health || "Green";
+
   return (
     <div className="bg-background" data-testid="project-status-report">
       <div className="bg-primary text-primary-foreground p-6 rounded-t-lg">
-        <h1 className="text-2xl font-bold">PROJECT STATUS REPORT</h1>
-        <p className="text-primary-foreground/80">{format(new Date(), "MMMM d, yyyy")}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">PROJECT STATUS REPORT</h1>
+            <p className="text-primary-foreground/80 text-lg mt-1">{project.name}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-primary-foreground/80">{format(new Date(), "MMMM d, yyyy")}</p>
+            <div className="flex items-center gap-2 mt-1 justify-end">
+              <Badge variant="secondary" className="bg-primary-foreground/20 text-primary-foreground border-0">
+                {project.status}
+              </Badge>
+              <Badge variant="secondary" className={cn(
+                "border-0",
+                project.priority === "Critical" ? "bg-red-500/20 text-red-100" : "bg-primary-foreground/20 text-primary-foreground"
+              )}>
+                {project.priority}
+              </Badge>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-6">
+      <div className="p-6 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h2 className="text-lg font-semibold mb-2">Executive Summary</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              Executive Summary
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
               {executiveSummary || project.description || "No executive summary provided for this project."}
             </p>
           </div>
 
           <div>
-            <h2 className="text-lg font-semibold mb-3">Project Schedule</h2>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span className="text-sm w-24">Complete</span>
-                <div className="flex-1">
-                  <Progress value={taskStats.completedPercent} className="h-3" />
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm w-24">In progress</span>
-                <div className="flex-1">
-                  <Progress value={taskStats.inProgressPercent} className="h-3" />
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm w-24">Not started</span>
-                <div className="flex-1">
-                  <Progress value={taskStats.notStartedPercent} className="h-3" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-lg font-semibold mb-3">Financials</h2>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Budget</span>
-                <span className="text-sm font-medium">{formatCurrency(financialSummary.budget)}</span>
-              </div>
-              <Progress value={100} className="h-3" />
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Actual</span>
-                <span className="text-sm font-medium">{formatCurrency(financialSummary.actual)}</span>
-              </div>
-              <Progress value={financialSummary.actualPercent} className="h-3" />
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Forecast</span>
-                <span className="text-sm font-medium">{formatCurrency(financialSummary.forecast)}</span>
-              </div>
-              <Progress value={financialSummary.forecastPercent} className="h-3" />
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-lg font-semibold mb-2">Project Timeline</h2>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{project.startDate ? format(new Date(project.startDate), "MMM d, yyyy") : "Not set"}</span>
-              <span>→</span>
-              <span>{project.endDate ? format(new Date(project.endDate), "MMM d, yyyy") : "Not set"}</span>
-            </div>
-            <div className="mt-2">
-              <Progress value={project.completionPercentage || 0} className="h-4" />
-              <p className="text-xs text-muted-foreground mt-1">{project.completionPercentage || 0}% Complete</p>
+            <h2 className="text-lg font-semibold mb-3">Project Health</h2>
+            <div className="flex items-center justify-around">
+              <HealthIndicator value={project.health || "Green"} label="Overall" icon={Target} />
+              <HealthIndicator value={scheduleHealth} label="Schedule" icon={Calendar} />
+              <HealthIndicator value={budgetHealth} label="Budget" icon={DollarSign} />
+              <HealthIndicator value={riskStats.high > 2 ? "Red" : riskStats.high > 0 ? "Yellow" : "Green"} label="Risk" icon={AlertTriangle} />
             </div>
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold mb-3">Project Health</h2>
-            <div className="flex items-center justify-around">
-              <HealthIndicator value={project.health || "Green"} label="Overall" />
-              <HealthIndicator value={project.health || "Green"} label="Schedule" />
-              <HealthIndicator value={financialSummary.actual > financialSummary.budget ? "Red" : "Green"} label="Budget" />
-              <HealthIndicator value="Green" label="Resources" />
+        {timelineData && (
+          <div className="border rounded-lg p-4 bg-muted/30">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Project Timeline
+            </h2>
+            
+            <div className="flex items-center justify-between text-sm mb-2">
+              <span className="font-medium">{format(timelineData.start, "MMM d, yyyy")}</span>
+              <span className="text-muted-foreground">{timelineData.daysRemaining} days remaining</span>
+              <span className="font-medium">{format(timelineData.end, "MMM d, yyyy")}</span>
             </div>
-          </div>
 
-          <div>
-            <h2 className="text-lg font-semibold mb-3">Key Risks & Issues</h2>
-            <div className="space-y-2">
-              {topRisksAndIssues.length > 0 ? (
-                topRisksAndIssues.map((item, index) => (
-                  <div key={index} className="flex items-start gap-2">
-                    <AlertTriangle className={cn(
-                      "h-4 w-4 mt-0.5 flex-shrink-0",
-                      item.priority === "High" || item.priority === "Critical" ? "text-red-500" : 
-                      item.priority === "Medium" ? "text-yellow-500" : "text-muted-foreground"
+            <div className="relative h-12 bg-muted rounded-lg overflow-hidden">
+              <div 
+                className="absolute top-0 left-0 h-full bg-primary/30 transition-all"
+                style={{ width: `${timelineData.progressPercent}%` }}
+              />
+              <div 
+                className="absolute top-0 left-0 h-full bg-primary transition-all"
+                style={{ width: `${project.completionPercentage || 0}%` }}
+              />
+              
+              <div 
+                className="absolute top-0 w-0.5 h-full bg-red-500 z-10"
+                style={{ left: `${timelineData.progressPercent}%` }}
+              />
+
+              {timelineData.milestones.map((m, idx) => (
+                <div
+                  key={m.id}
+                  className="absolute top-1/2 -translate-y-1/2 z-20"
+                  style={{ left: `${m.position}%` }}
+                >
+                  <div 
+                    className={cn(
+                      "w-4 h-4 rounded-full border-2 border-background",
+                      m.isComplete ? "bg-green-500" : m.isAtRisk ? "bg-red-500" : "bg-yellow-500"
+                    )}
+                    title={m.title}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-primary rounded" /> Completed
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-primary/30 rounded" /> Elapsed Time
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-0.5 h-3 bg-red-500" /> Today
+                </span>
+              </div>
+              <span>{project.completionPercentage || 0}% Complete</span>
+            </div>
+
+            {timelineData.milestones.length > 0 && (
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
+                {timelineData.milestones.slice(0, 6).map(m => (
+                  <div key={m.id} className="flex items-center gap-2 text-xs">
+                    <Flag className={cn(
+                      "h-3 w-3",
+                      m.isComplete ? "text-green-500" : m.isAtRisk ? "text-red-500" : "text-yellow-500"
                     )} />
-                    <span className="text-sm">{item.title}</span>
+                    <span className="truncate">{m.title}</span>
                   </div>
-                ))
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="border rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Task Progress
+            </h2>
+            
+            <div className="flex items-center justify-center">
+              {taskStats.total > 0 ? (
+                <div className="relative">
+                  <ResponsiveContainer width={160} height={160}>
+                    <PieChart>
+                      <Pie
+                        data={taskChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={70}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {taskChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => [`${value} tasks`, '']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <span className="text-2xl font-bold">{taskStats.total}</span>
+                      <span className="text-xs text-muted-foreground block">Tasks</span>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No open risks or issues</p>
+                <p className="text-sm text-muted-foreground py-8">No tasks</p>
               )}
             </div>
+
+            <div className="space-y-2 mt-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.completed }} />
+                  Completed
+                </span>
+                <span className="font-medium">{taskStats.completed}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.inProgress }} />
+                  In Progress
+                </span>
+                <span className="font-medium">{taskStats.inProgress}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.notStarted }} />
+                  Not Started
+                </span>
+                <span className="font-medium">{taskStats.notStarted}</span>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <h2 className="text-lg font-semibold mb-3">Major Milestones</h2>
+          <div className="border rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-primary" />
+              Budget Overview
+            </h2>
+            
+            {financialSummary.budget > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={140}>
+                  <BarChart data={financialChartData} layout="vertical">
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="name" width={60} fontSize={12} />
+                    <Tooltip formatter={(value: number) => [formatCurrency(value), '']} />
+                    <Bar dataKey="value" radius={4} />
+                  </BarChart>
+                </ResponsiveContainer>
+
+                <div className="space-y-2 mt-2 pt-2 border-t">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Variance</span>
+                    <span className={cn(
+                      "font-medium",
+                      financialSummary.variance < 0 ? "text-red-600" : "text-green-600"
+                    )}>
+                      {formatCurrency(financialSummary.variance)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Burn Rate</span>
+                    <span className="font-medium">
+                      {financialSummary.budgetPercent.toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground py-8 text-center">No budget data</p>
+            )}
+          </div>
+
+          <div className="border rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-primary" />
+              Risks & Issues
+            </h2>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <span className="text-2xl font-bold text-orange-500">{riskStats.total}</span>
+                <span className="text-xs text-muted-foreground block">Open Risks</span>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <span className="text-2xl font-bold text-red-500">{issueStats.total}</span>
+                <span className="text-xs text-muted-foreground block">Open Issues</span>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span>High/Critical</span>
+                <span className="font-medium text-red-600">{riskStats.high + issueStats.critical + issueStats.high}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span>Medium</span>
+                <span className="font-medium text-yellow-600">{riskStats.medium + issueStats.medium}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span>Low</span>
+                <span className="font-medium text-green-600">{riskStats.low}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="border rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <Flag className="h-5 w-5 text-primary" />
+              Major Milestones
+            </h2>
             <div className="space-y-2">
               {majorMilestones.length > 0 ? (
                 <table className="w-full text-sm">
@@ -250,7 +486,7 @@ export function ProjectStatusReport({
                           <td className="py-2 pr-2 text-muted-foreground">
                             {format(new Date(milestone.dueDate), "MMM d, yyyy")}
                           </td>
-                          <td className={cn("py-2 text-right", getMilestoneStatusColor(status))}>
+                          <td className={cn("py-2 text-right font-medium", getMilestoneStatusColor(status))}>
                             {status}
                           </td>
                         </tr>
@@ -264,14 +500,51 @@ export function ProjectStatusReport({
             </div>
           </div>
 
-          <div>
-            <h2 className="text-lg font-semibold mb-2">Status</h2>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{project.status}</Badge>
-              <Badge variant={project.priority === "Critical" ? "destructive" : "secondary"}>
-                {project.priority}
-              </Badge>
+          <div className="border rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-3">Key Risks & Issues</h2>
+            <div className="space-y-2">
+              {topRisksAndIssues.length > 0 ? (
+                topRisksAndIssues.map((item, index) => (
+                  <div key={index} className="flex items-start gap-2 py-1">
+                    <Badge variant="outline" className={cn(
+                      "text-xs shrink-0",
+                      item.type === "risk" ? "border-orange-500 text-orange-600" : "border-red-500 text-red-600"
+                    )}>
+                      {item.type === "risk" ? "Risk" : "Issue"}
+                    </Badge>
+                    <span className="text-sm">{item.title}</span>
+                    <Badge variant="secondary" className={cn(
+                      "ml-auto text-xs shrink-0",
+                      item.priority === "High" || item.priority === "Critical" ? "bg-red-100 text-red-700" : 
+                      item.priority === "Medium" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700"
+                    )}>
+                      {item.priority}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No open risks or issues</p>
+              )}
             </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="border rounded-lg p-4 text-center">
+            <span className="text-3xl font-bold text-primary">{tasks.length}</span>
+            <span className="text-sm text-muted-foreground block">Total Tasks</span>
+          </div>
+          <div className="border rounded-lg p-4 text-center">
+            <span className="text-3xl font-bold text-green-600">{Math.round(taskStats.completedPercent)}%</span>
+            <span className="text-sm text-muted-foreground block">Complete</span>
+          </div>
+          <div className="border rounded-lg p-4 text-center">
+            <span className="text-3xl font-bold text-blue-600">{milestones.filter(m => !m.deletedAt).length}</span>
+            <span className="text-sm text-muted-foreground block">Milestones</span>
+          </div>
+          <div className="border rounded-lg p-4 text-center">
+            <span className="text-3xl font-bold text-orange-600">{riskStats.total + issueStats.total}</span>
+            <span className="text-sm text-muted-foreground block">Open Items</span>
           </div>
         </div>
       </div>
