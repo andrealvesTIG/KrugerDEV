@@ -5,8 +5,10 @@ import passport from "passport";
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
-import connectPg from "connect-pg-simple";
+import connectPgSimple from "connect-pg-simple";
 import { authStorage } from "./storage";
+
+const PgSession = connectPgSimple(session);
 
 const getOidcConfig = memoize(
   async () => {
@@ -20,8 +22,17 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  // Use MemoryStore to avoid DB issues causing auth loops
+  
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
   return session({
+    store: new PgSession({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+      tableName: "sessions",
+    }),
     secret: process.env.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
@@ -29,6 +40,7 @@ export function getSession() {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       maxAge: sessionTtl,
+      sameSite: "lax",
     },
   });
 }
