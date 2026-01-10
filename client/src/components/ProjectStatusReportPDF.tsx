@@ -225,8 +225,14 @@ export function ProjectStatusReportPDF({
   const actual = financials.reduce((sum, f) => sum + parseFloat(f.actualAmount || "0"), 0);
   const planned = financials.reduce((sum, f) => sum + parseFloat(f.plannedAmount || "0"), 0);
   const projectBudget = parseFloat(project.budget?.toString() || "0");
-  const totalBudget = budget > 0 ? budget : projectBudget;
+  const totalBudget = budget > 0 ? budget : (projectBudget > 0 ? projectBudget : 1);
   const forecast = planned > 0 ? planned : totalBudget;
+  
+  // Safe percentage calculation to avoid NaN
+  const safePercent = (value: number, total: number) => {
+    if (total <= 0 || isNaN(value) || isNaN(total)) return 0;
+    return Math.min((value / total) * 100, 100);
+  };
 
   const topRisks = risks
     .filter((r) => r.status === "Open" && !r.deletedAt)
@@ -317,7 +323,7 @@ export function ProjectStatusReportPDF({
                 <Text style={styles.financialValue}>{formatCurrency(actual)}</Text>
               </View>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${Math.min((actual / totalBudget) * 100, 100)}%` }]} />
+                <View style={[styles.progressFill, { width: `${safePercent(actual, totalBudget)}%` }]} />
               </View>
 
               <View style={[styles.financialRow, { marginTop: 8 }]}>
@@ -325,7 +331,7 @@ export function ProjectStatusReportPDF({
                 <Text style={styles.financialValue}>{formatCurrency(forecast)}</Text>
               </View>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${Math.min((forecast / totalBudget) * 100, 100)}%` }]} />
+                <View style={[styles.progressFill, { width: `${safePercent(forecast, totalBudget)}%` }]} />
               </View>
             </View>
 
