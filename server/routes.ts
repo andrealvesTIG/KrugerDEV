@@ -853,6 +853,16 @@ async function seedDatabase() {
   }
 }
 
+// Helper to get user ID from request (supports both Replit OAuth and Email/Password auth)
+function getUserIdFromRequest(req: any): string | undefined {
+  // First check Replit OAuth format
+  const replitUserId = req.user?.claims?.sub;
+  if (replitUserId) return replitUserId;
+  
+  // Fall back to session-based auth (email/password)
+  return req.session?.userId;
+}
+
 // Helper to check if user has access to an organization
 async function userHasOrgAccess(userId: string | undefined, orgId: number): Promise<boolean> {
   if (!userId) return false;
@@ -961,7 +971,7 @@ export async function registerRoutes(
 
   app.get('/api/organizations/:id', async (req, res) => {
     const orgId = Number(req.params.id);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     
     // Check access
     if (!await userHasOrgAccess(userId, orgId)) {
@@ -994,7 +1004,7 @@ export async function registerRoutes(
   app.put('/api/organizations/:id', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1010,7 +1020,7 @@ export async function registerRoutes(
 
   app.delete('/api/organizations/:id', async (req, res) => {
     const orgId = Number(req.params.id);
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     
     if (!await userHasOrgAccess(userId, orgId)) {
       return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1024,7 +1034,7 @@ export async function registerRoutes(
   app.get('/api/organizations/:id/members', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1055,7 +1065,7 @@ export async function registerRoutes(
   app.post('/api/organizations/:id/members', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const currentUserId = (req.user as any)?.claims?.sub;
+      const currentUserId = getUserIdFromRequest(req);
       
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1076,7 +1086,7 @@ export async function registerRoutes(
   app.put('/api/organizations/:id/members/:userId', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const currentUserId = (req.user as any)?.claims?.sub;
+      const currentUserId = getUserIdFromRequest(req);
       
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1096,7 +1106,7 @@ export async function registerRoutes(
 
   app.delete('/api/organizations/:id/members/:userId', async (req, res) => {
     const orgId = Number(req.params.id);
-    const currentUserId = (req.user as any)?.claims?.sub;
+    const currentUserId = getUserIdFromRequest(req);
     
     if (!await userHasOrgAccess(currentUserId, orgId)) {
       return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1110,7 +1120,7 @@ export async function registerRoutes(
   app.get('/api/organizations/:id/recycle-bin', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1127,7 +1137,7 @@ export async function registerRoutes(
   app.post('/api/organizations/:id/recycle-bin/restore', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1152,7 +1162,7 @@ export async function registerRoutes(
   app.delete('/api/organizations/:id/recycle-bin/:type/:itemId', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       
       if (!await userHasOrgAccess(userId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1173,7 +1183,7 @@ export async function registerRoutes(
   // --- Global Search ---
   app.get('/api/search', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const query = req.query.q as string;
       if (!query || query.length < 2) {
         return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
@@ -1195,7 +1205,7 @@ export async function registerRoutes(
 
   // --- Portfolios ---
   app.get(api.portfolios.list.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1263,7 +1273,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.portfolios.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     await storage.softDeleteItem('portfolio', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1353,7 +1363,7 @@ export async function registerRoutes(
 
   // --- Projects ---
   app.get(api.projects.list.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -1398,7 +1408,7 @@ export async function registerRoutes(
       const project = await storage.createProject(sanitizedInput);
       
       // Log change
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createProjectChangeLog({
         projectId: project.id,
@@ -1450,7 +1460,7 @@ export async function registerRoutes(
       }
       
       if (changes.length > 0) {
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = getUserIdFromRequest(req);
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createProjectChangeLog({
           projectId,
@@ -1473,7 +1483,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.projects.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     await storage.softDeleteItem('project', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -1502,7 +1512,7 @@ export async function registerRoutes(
       if (!project) return res.status(404).json({ message: "Project not found" });
       
       // Security check: verify user is authenticated and has access to project's organization
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -1792,7 +1802,7 @@ export async function registerRoutes(
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
       
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -2090,7 +2100,7 @@ Generated by FridayReport.AI
       const risk = await storage.createRisk(input);
       
       // Log change
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createRiskChangeLog({
         riskId: risk.id,
@@ -2137,7 +2147,7 @@ Generated by FridayReport.AI
       }
       
       if (changes.length > 0) {
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = getUserIdFromRequest(req);
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createRiskChangeLog({
           riskId,
@@ -2158,7 +2168,7 @@ Generated by FridayReport.AI
   });
 
   app.delete(api.risks.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     await storage.softDeleteItem('risk', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -2206,7 +2216,7 @@ Generated by FridayReport.AI
   });
 
   app.delete(api.milestones.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     await storage.softDeleteItem('milestone', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -2218,7 +2228,7 @@ Generated by FridayReport.AI
   });
 
   app.get(api.issues.listAll.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -2247,7 +2257,7 @@ Generated by FridayReport.AI
       const issue = await storage.createIssue(input);
       
       // Log change
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createIssueChangeLog({
         issueId: issue.id,
@@ -2292,7 +2302,7 @@ Generated by FridayReport.AI
       }
       
       if (changes.length > 0) {
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = getUserIdFromRequest(req);
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createIssueChangeLog({
           issueId,
@@ -2313,7 +2323,7 @@ Generated by FridayReport.AI
   });
 
   app.delete(api.issues.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     await storage.softDeleteItem('issue', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -2339,7 +2349,7 @@ Generated by FridayReport.AI
   });
 
   app.get(api.tasks.listAll.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     
     // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
@@ -2377,7 +2387,7 @@ Generated by FridayReport.AI
       const task = await storage.createTask(input);
       
       // Log the creation
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const user = userId ? await storage.getUser(userId) : null;
       await storage.createTaskChangeLog({
         taskId: task.id,
@@ -2436,7 +2446,7 @@ Generated by FridayReport.AI
       }
       
       if (changes.length > 0) {
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = getUserIdFromRequest(req);
         const user = userId ? await storage.getUser(userId) : null;
         await storage.createTaskChangeLog({
           taskId,
@@ -2457,7 +2467,7 @@ Generated by FridayReport.AI
   });
 
   app.delete(api.tasks.delete.path, async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     await storage.softDeleteItem('task', Number(req.params.id), userId);
     res.status(204).send();
   });
@@ -2802,7 +2812,7 @@ Generated by FridayReport.AI
 
   // Demo Data Generation (Super Admin Only)
   app.get('/api/demo-data/industries', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -2820,7 +2830,7 @@ Generated by FridayReport.AI
   });
 
   app.post('/api/demo-data/generate', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -3060,7 +3070,7 @@ Generated by FridayReport.AI
   // Update a project intake
   app.put('/api/project-intakes/:id', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -3088,7 +3098,7 @@ Generated by FridayReport.AI
   // Delete a project intake
   app.delete('/api/project-intakes/:id', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -3117,7 +3127,7 @@ Generated by FridayReport.AI
   app.post('/api/project-intakes/:id/approve', async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -3145,7 +3155,7 @@ Generated by FridayReport.AI
   app.post('/api/project-intakes/:id/reject', async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const { reason } = req.body;
       
       if (!userId) {
@@ -3201,7 +3211,7 @@ Generated by FridayReport.AI
   // Upload and parse MPP file (XML or CSV)
   app.post('/api/mpp-imports/upload', upload.single('file'), async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const organizationId = Number(req.body.organizationId);
       
       if (isNaN(organizationId)) {
@@ -3329,7 +3339,7 @@ Generated by FridayReport.AI
     try {
       console.log("MPP Sync request:", { params: req.params, body: req.body });
       
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         console.log("MPP Sync: No userId");
         return res.status(401).json({ message: "Authentication required" });
@@ -3435,7 +3445,7 @@ Generated by FridayReport.AI
   app.post('/api/projects/:projectId/change-requests', async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const changeRequest = await storage.createChangeRequest({
         ...req.body,
         projectId,
@@ -3452,7 +3462,7 @@ Generated by FridayReport.AI
   app.patch('/api/change-requests/:id', async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const updates = { ...req.body };
       
       // Track who reviewed/approved if status is changing to those states
@@ -3502,7 +3512,7 @@ Generated by FridayReport.AI
   app.post('/api/projects/:projectId/documents', async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const document = await storage.createProjectDocument({
         ...req.body,
         projectId,
@@ -3544,7 +3554,7 @@ Generated by FridayReport.AI
   // Get all comments for a project
   app.get('/api/projects/:projectId/comments', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const projectId = Number(req.params.projectId);
       
       // Verify project exists and user has access
@@ -3572,7 +3582,7 @@ Generated by FridayReport.AI
   app.post('/api/projects/:projectId/comments', async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
@@ -3672,7 +3682,7 @@ Generated by FridayReport.AI
   // Delete a comment
   app.delete('/api/comments/:id', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       const id = Number(req.params.id);
       
       if (!userId) {
@@ -3708,7 +3718,7 @@ Generated by FridayReport.AI
   // Get all notifications for the current user
   app.get('/api/notifications', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -3724,7 +3734,7 @@ Generated by FridayReport.AI
   // Get unread notification count
   app.get('/api/notifications/unread-count', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -3740,7 +3750,7 @@ Generated by FridayReport.AI
   // Mark a notification as read
   app.patch('/api/notifications/:id/read', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -3757,7 +3767,7 @@ Generated by FridayReport.AI
   // Mark all notifications as read
   app.patch('/api/notifications/read-all', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -3775,7 +3785,7 @@ Generated by FridayReport.AI
   // Get intake workflow steps for an organization
   app.get('/api/organizations/:orgId/intake-workflow', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -3805,7 +3815,7 @@ Generated by FridayReport.AI
   // Update intake workflow steps for an organization
   app.put('/api/organizations/:orgId/intake-workflow', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -3842,7 +3852,7 @@ Generated by FridayReport.AI
   // Reset intake workflow to defaults
   app.post('/api/organizations/:orgId/intake-workflow/reset', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -3868,7 +3878,7 @@ Generated by FridayReport.AI
   // Generate a project with tasks, issues, and risks using AI
   app.post('/api/ai/generate-project', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       
       // Require authentication
       if (!userId) {
@@ -4065,7 +4075,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
   // Delete all demo data for an organization (SuperAdmin only)
   app.delete('/api/demo-data/:organizationId', async (req, res) => {
-    const userId = (req.user as any)?.claims?.sub;
+    const userId = getUserIdFromRequest(req);
     const user = userId ? await storage.getUser(userId) : null;
     
     if (!user || user.role !== 'super_admin') {
@@ -4102,7 +4112,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Projects flat data for Power BI
   app.get('/api/analytics/projects', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -4176,7 +4186,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Portfolios summary for Power BI
   app.get('/api/analytics/portfolios', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -4235,7 +4245,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Risks flat data for Power BI
   app.get('/api/analytics/risks', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -4291,7 +4301,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Issues flat data for Power BI
   app.get('/api/analytics/issues', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -4346,7 +4356,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Milestones flat data for Power BI
   app.get('/api/analytics/milestones', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -4398,7 +4408,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Intakes flat data for Power BI
   app.get('/api/analytics/intakes', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -4451,7 +4461,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Summary metrics for Power BI dashboards
   app.get('/api/analytics/summary', async (req, res) => {
     try {
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = getUserIdFromRequest(req);
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
