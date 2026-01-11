@@ -694,9 +694,41 @@ function PlansTab() {
   const [editingPlan, setEditingPlan] = useState<PlanData | null>(null);
   const [editingRules, setEditingRules] = useState<PlanMeterRule[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newPlan, setNewPlan] = useState({ code: "", name: "", description: "", monthlyPriceCents: 0, maxSeats: "" });
+  const [deletePlanId, setDeletePlanId] = useState<number | null>(null);
 
   const { data: plans, isLoading } = useQuery<PlanData[]>({
     queryKey: ['/api/billing/plans']
+  });
+
+  const createPlan = useMutation({
+    mutationFn: async (data: { code: string; name: string; description?: string; monthlyPriceCents?: number; maxSeats?: number }) => {
+      return apiRequest('POST', '/api/admin/plans', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      toast({ title: "Success", description: "Plan created successfully" });
+      setIsCreateOpen(false);
+      setNewPlan({ code: "", name: "", description: "", monthlyPriceCents: 0, maxSeats: "" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create plan", variant: "destructive" });
+    }
+  });
+
+  const deletePlan = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest('DELETE', `/api/admin/plans/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      toast({ title: "Success", description: "Plan deleted successfully" });
+      setDeletePlanId(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to delete plan", variant: "destructive" });
+    }
   });
 
   const updatePlan = useMutation({
@@ -764,12 +796,18 @@ function PlansTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            Subscription Plans
-          </CardTitle>
-          <CardDescription>Configure pricing, quotas, and features for each plan</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Subscription Plans
+            </CardTitle>
+            <CardDescription>Configure pricing, quotas, and features for each plan</CardDescription>
+          </div>
+          <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-plan">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Plan
+          </Button>
         </CardHeader>
         <CardContent>
           <Table>
@@ -801,17 +839,27 @@ function PlansTab() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingPlan(plan);
-                        fetchRules(plan.id);
-                      }}
-                      data-testid={`button-edit-plan-${plan.id}`}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingPlan(plan);
+                          fetchRules(plan.id);
+                        }}
+                        data-testid={`button-edit-plan-${plan.id}`}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeletePlanId(plan.id)}
+                        data-testid={`button-delete-plan-${plan.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -1016,6 +1064,109 @@ function PlansTab() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Plan</DialogTitle>
+            <DialogDescription>Add a new subscription plan with default meter rules</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Plan Code</Label>
+                <Input
+                  value={newPlan.code}
+                  onChange={(e) => setNewPlan({ ...newPlan, code: e.target.value.toUpperCase() })}
+                  placeholder="ENTERPRISE"
+                  data-testid="input-new-plan-code"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Plan Name</Label>
+                <Input
+                  value={newPlan.name}
+                  onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
+                  placeholder="Enterprise"
+                  data-testid="input-new-plan-name"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={newPlan.description}
+                onChange={(e) => setNewPlan({ ...newPlan, description: e.target.value })}
+                placeholder="Plan description..."
+                data-testid="input-new-plan-description"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Monthly Price ($)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={newPlan.monthlyPriceCents / 100}
+                  onChange={(e) => setNewPlan({ ...newPlan, monthlyPriceCents: Math.round(parseFloat(e.target.value || "0") * 100) })}
+                  placeholder="0.00"
+                  data-testid="input-new-plan-price"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Max Seats</Label>
+                <Input
+                  type="number"
+                  value={newPlan.maxSeats}
+                  onChange={(e) => setNewPlan({ ...newPlan, maxSeats: e.target.value })}
+                  placeholder="Unlimited"
+                  data-testid="input-new-plan-seats"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => createPlan.mutate({
+                code: newPlan.code,
+                name: newPlan.name,
+                description: newPlan.description || undefined,
+                monthlyPriceCents: newPlan.monthlyPriceCents,
+                maxSeats: newPlan.maxSeats ? parseInt(newPlan.maxSeats) : undefined,
+              })}
+              disabled={!newPlan.code || !newPlan.name || createPlan.isPending}
+              data-testid="button-save-new-plan"
+            >
+              {createPlan.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Create Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deletePlanId !== null} onOpenChange={() => setDeletePlanId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Plan</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this plan? This will remove all associated meter rules and features. Plans with active subscriptions cannot be deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletePlanId(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deletePlanId && deletePlan.mutate(deletePlanId)}
+              disabled={deletePlan.isPending}
+              data-testid="button-confirm-delete-plan"
+            >
+              {deletePlan.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Delete Plan
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

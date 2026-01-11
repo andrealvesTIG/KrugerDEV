@@ -4700,5 +4700,227 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // ============= ADMIN PLAN ROUTES =============
+
+  // Create a new plan (super admin only)
+  app.post('/api/admin/plans', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { plans, meters, planMeterRules, features, planFeatures } = await import("@shared/schema");
+      const { code, name, description, monthlyPriceCents, maxSeats } = req.body;
+
+      if (!code || !name) {
+        return res.status(400).json({ message: "Code and name are required" });
+      }
+
+      const existingPlan = await db.select().from(plans).where(eq(plans.code, code.toUpperCase())).limit(1);
+      if (existingPlan.length > 0) {
+        return res.status(400).json({ message: "Plan code already exists" });
+      }
+
+      const [newPlan] = await db.insert(plans).values({
+        code: code.toUpperCase(),
+        name,
+        description: description || null,
+        monthlyPriceCents: monthlyPriceCents || 0,
+        maxSeats: maxSeats || null,
+        isActive: true,
+      }).returning();
+
+      const allMeters = await db.select().from(meters);
+      const meterRulesValues: any[] = [];
+      
+      for (const meter of allMeters) {
+        meterRulesValues.push({
+          planId: newPlan.id,
+          meterId: meter.id,
+          ruleType: "INCLUDED_QUOTA",
+          includedUnitsMonthly: 10,
+          isSharedPool: false,
+        });
+        meterRulesValues.push({
+          planId: newPlan.id,
+          meterId: meter.id,
+          ruleType: "HARD_CAP",
+          hardCapUnits: 10,
+          isSharedPool: false,
+        });
+      }
+      
+      if (meterRulesValues.length > 0) {
+        await db.insert(planMeterRules).values(meterRulesValues);
+      }
+
+      const allFeatures = await db.select().from(features);
+      if (allFeatures.length > 0) {
+        const featureValues = allFeatures.map(f => ({
+          planId: newPlan.id,
+          featureId: f.id,
+          isEnabled: false,
+        }));
+        await db.insert(planFeatures).values(featureValues);
+      }
+
+      res.json(newPlan);
+    } catch (error) {
+      console.error("Error creating plan:", error);
+      res.status(500).json({ message: "Failed to create plan" });
+    }
+  });
+
+  // Update a plan (super admin only)
+  app.put('/api/admin/plans/:id', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { plans } = await import("@shared/schema");
+      const planId = parseInt(req.params.id);
+      const { name, description, monthlyPriceCents, maxSeats, isActive } = req.body;
+
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+      if (monthlyPriceCents !== undefined) updates.monthlyPriceCents = monthlyPriceCents;
+      if (maxSeats !== undefined) updates.maxSeats = maxSeats;
+      if (isActive !== undefined) updates.isActive = isActive;
+
+      const [updated] = await db.update(plans)
+        .set(updates)
+        .where(eq(plans.id, planId))
+        .returning();
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating plan:", error);
+      res.status(500).json({ message: "Failed to update plan" });
+    }
+  });
+
+  // Delete a plan (super admin only)
+  app.delete('/api/admin/plans/:id', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { plans, planMeterRules, planFeatures, subscriptions } = await import("@shared/schema");
+      const planId = parseInt(req.params.id);
+
+      const [existingSub] = await db.select().from(subscriptions).where(eq(subscriptions.planId, planId)).limit(1);
+      if (existingSub) {
+        return res.status(400).json({ message: "Cannot delete plan with active subscriptions. Deactivate it instead." });
+      }
+
+      await db.delete(planMeterRules).where(eq(planMeterRules.planId, planId));
+      await db.delete(planFeatures).where(eq(planFeatures.planId, planId));
+      await db.delete(plans).where(eq(plans.id, planId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting plan:", error);
+      res.status(500).json({ message: "Failed to delete plan" });
+    }
+  });
+
+  // Get plan meter rules
+  app.get('/api/admin/plans/:id/rules', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { planMeterRules, meters } = await import("@shared/schema");
+      const planId = parseInt(req.params.id);
+
+      const rules = await db.select({
+        id: planMeterRules.id,
+        planId: planMeterRules.planId,
+        meterId: planMeterRules.meterId,
+        ruleType: planMeterRules.ruleType,
+        includedUnitsMonthly: planMeterRules.includedUnitsMonthly,
+        hardCapUnits: planMeterRules.hardCapUnits,
+        overageUnitPriceMicrocents: planMeterRules.overageUnitPriceMicrocents,
+        isSharedPool: planMeterRules.isSharedPool,
+        meter: {
+          id: meters.id,
+          code: meters.code,
+          name: meters.name,
+          unitLabel: meters.unitLabel,
+        }
+      })
+      .from(planMeterRules)
+      .innerJoin(meters, eq(planMeterRules.meterId, meters.id))
+      .where(eq(planMeterRules.planId, planId));
+
+      res.json(rules);
+    } catch (error) {
+      console.error("Error fetching plan rules:", error);
+      res.status(500).json({ message: "Failed to fetch plan rules" });
+    }
+  });
+
+  // Update plan meter rule
+  app.put('/api/admin/plans/:planId/rules/:ruleId', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { planMeterRules } = await import("@shared/schema");
+      const ruleId = parseInt(req.params.ruleId);
+      const { includedUnitsMonthly, hardCapUnits, overageUnitPriceMicrocents } = req.body;
+
+      const updates: any = {};
+      if (includedUnitsMonthly !== undefined) updates.includedUnitsMonthly = includedUnitsMonthly;
+      if (hardCapUnits !== undefined) updates.hardCapUnits = hardCapUnits;
+      if (overageUnitPriceMicrocents !== undefined) updates.overageUnitPriceMicrocents = overageUnitPriceMicrocents;
+
+      const [updated] = await db.update(planMeterRules)
+        .set(updates)
+        .where(eq(planMeterRules.id, ruleId))
+        .returning();
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating rule:", error);
+      res.status(500).json({ message: "Failed to update rule" });
+    }
+  });
+
   return httpServer;
 }
