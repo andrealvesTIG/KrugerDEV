@@ -386,12 +386,34 @@ export default function Profile() {
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold">Organizations</h2>
-              <p className="text-muted-foreground">Organizations you belong to</p>
+              <p className="text-muted-foreground">
+                {user?.role === 'super_admin' ? 'All organizations (Super Admin access)' : 'Organizations you belong to'}
+              </p>
             </div>
 
             <Card>
               <CardContent className="pt-6">
-                {userOrgs.length === 0 ? (
+                {user?.role === 'super_admin' ? (
+                  organizations && organizations.length > 0 ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {organizations.map((org) => (
+                        <div key={org.id} className="flex items-center gap-3 rounded-lg border p-4" data-testid={`org-${org.id}`}>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                            <Building2 className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{org.name}</p>
+                            <Badge variant="default" className="text-xs">Super Admin</Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No organizations found.
+                    </div>
+                  )
+                ) : userOrgs.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     You are not a member of any organizations yet.
                   </div>
