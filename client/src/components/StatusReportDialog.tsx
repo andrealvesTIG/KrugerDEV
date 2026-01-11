@@ -13,7 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { ProjectStatusReport } from "./ProjectStatusReport";
 import { ProjectStatusReportPDF } from "./ProjectStatusReportPDF";
 import { Download, Mail, Loader2, FileText, Eye } from "lucide-react";
-import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task } from "@shared/schema";
+import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 
 interface StatusReportDialogProps {
   open: boolean;
@@ -24,6 +24,8 @@ interface StatusReportDialogProps {
   milestones: Milestone[];
   financials: ProjectFinancial[];
   tasks: Task[];
+  changeRequests?: ChangeRequest[];
+  documents?: ProjectDocument[];
 }
 
 export function StatusReportDialog({
@@ -34,7 +36,9 @@ export function StatusReportDialog({
   issues,
   milestones,
   financials,
-  tasks
+  tasks,
+  changeRequests = [],
+  documents = []
 }: StatusReportDialogProps) {
   const { toast } = useToast();
   const [tab, setTab] = useState<"preview" | "download" | "email">("preview");
@@ -76,6 +80,8 @@ export function StatusReportDialog({
           milestones={milestones}
           financials={financials}
           tasks={tasks}
+          changeRequests={changeRequests}
+          documents={documents}
           executiveSummary={executiveSummary}
         />
       );
@@ -84,7 +90,7 @@ export function StatusReportDialog({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${project.name.replace(/[^a-z0-9]/gi, "_")}_Status_Report.pdf`;
+      link.download = `${project.name.replace(/[^a-z0-9]/gi, "_")}_Comprehensive_Status_Report.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -124,7 +130,7 @@ export function StatusReportDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Project Status Report
+            Comprehensive Project Status Report
           </DialogTitle>
           <DialogDescription>
             Preview, download, or share the status report for {project.name}
@@ -156,6 +162,8 @@ export function StatusReportDialog({
                 milestones={milestones}
                 financials={financials}
                 tasks={tasks}
+                changeRequests={changeRequests}
+                documents={documents}
                 executiveSummary={executiveSummary}
               />
             </ScrollArea>
@@ -180,7 +188,7 @@ export function StatusReportDialog({
             <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
               <FileText className="h-10 w-10 text-muted-foreground" />
               <div className="flex-1">
-                <p className="font-medium">{project.name}_Status_Report.pdf</p>
+                <p className="font-medium">{project.name}_Comprehensive_Status_Report.pdf</p>
                 <p className="text-sm text-muted-foreground">PDF Document</p>
               </div>
               <Button 

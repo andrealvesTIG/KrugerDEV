@@ -133,6 +133,8 @@ export default function ProjectDetails() {
   const { data: projectRisks } = useRisks(id);
   const { data: projectIssues } = useIssues(id);
   const { data: projectMilestones } = useMilestones(id);
+  const { data: projectChangeRequests } = useChangeRequests(id);
+  const { data: projectDocuments } = useProjectDocuments(id);
   const { mutate: updateProject } = useUpdateProject();
   const { toast } = useToast();
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
@@ -246,6 +248,13 @@ export default function ProjectDetails() {
               <TooltipContent>Download Project</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={() => setIsStatusReportOpen(true)}
+                data-testid="menu-comprehensive-report"
+              >
+                <ClipboardList className="h-4 w-4 mr-2" />
+                Comprehensive Status Report
+              </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => {
                   window.open(`/api/projects/${project.id}/export?format=csv`, '_blank');
@@ -388,6 +397,8 @@ export default function ProjectDetails() {
         milestones={projectMilestones || []}
         financials={financials || []}
         tasks={projectTasks || []}
+        changeRequests={projectChangeRequests || []}
+        documents={projectDocuments || []}
       />
     </div>
   );

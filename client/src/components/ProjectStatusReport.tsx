@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { format, differenceInDays, isAfter, isBefore } from "date-fns";
-import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task } from "@shared/schema";
+import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Clock, Target, TrendingUp, Users, DollarSign, Calendar, Flag, FileText, GitPullRequest } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
@@ -14,6 +14,8 @@ interface ProjectStatusReportProps {
   milestones: Milestone[];
   financials: ProjectFinancial[];
   tasks: Task[];
+  changeRequests?: ChangeRequest[];
+  documents?: ProjectDocument[];
   executiveSummary?: string;
 }
 
@@ -62,6 +64,8 @@ export function ProjectStatusReport({
   milestones,
   financials,
   tasks,
+  changeRequests = [],
+  documents = [],
   executiveSummary
 }: ProjectStatusReportProps) {
   const taskStats = useMemo(() => {
@@ -528,6 +532,92 @@ export function ProjectStatusReport({
             </div>
           </div>
         </div>
+
+        {/* Change Requests Section */}
+        {changeRequests.length > 0 && (
+          <div className="border rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <GitPullRequest className="h-5 w-5 text-primary" />
+              Change Requests ({changeRequests.length})
+            </h2>
+            <div className="space-y-2">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="py-2 text-left font-medium">Title</th>
+                    <th className="py-2 text-left font-medium">Type</th>
+                    <th className="py-2 text-left font-medium">Status</th>
+                    <th className="py-2 text-left font-medium">Priority</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {changeRequests.slice(0, 5).map((cr) => (
+                    <tr key={cr.id} className="border-b border-border last:border-0">
+                      <td className="py-2 pr-2">{cr.title || 'Untitled change request'}</td>
+                      <td className="py-2 pr-2 capitalize">{cr.type?.replace('_', ' ') || 'Scope'}</td>
+                      <td className="py-2 pr-2">
+                        <Badge variant="outline" className={cn(
+                          "text-xs",
+                          cr.status === "approved" ? "border-green-500 text-green-600" :
+                          cr.status === "rejected" ? "border-red-500 text-red-600" :
+                          cr.status === "implemented" ? "border-blue-500 text-blue-600" :
+                          "border-yellow-500 text-yellow-600"
+                        )}>
+                          {cr.status?.replace('_', ' ') || 'pending'}
+                        </Badge>
+                      </td>
+                      <td className="py-2">
+                        <Badge variant="secondary" className={cn(
+                          "text-xs",
+                          cr.priority === "high" || cr.priority === "critical" ? "bg-red-100 text-red-700" :
+                          cr.priority === "medium" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-700"
+                        )}>
+                          {cr.priority || 'normal'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {changeRequests.length > 5 && (
+                <p className="text-xs text-muted-foreground mt-2">+ {changeRequests.length - 5} more change requests</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Documents Section */}
+        {documents.length > 0 && (
+          <div className="border rounded-lg p-4">
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Project Documents ({documents.length})
+            </h2>
+            <div className="space-y-2">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="py-2 text-left font-medium">Title</th>
+                    <th className="py-2 text-left font-medium">Category</th>
+                    <th className="py-2 text-left font-medium">Version</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.slice(0, 5).map((doc) => (
+                    <tr key={doc.id} className="border-b border-border last:border-0">
+                      <td className="py-2 pr-2">{doc.title || 'Untitled document'}</td>
+                      <td className="py-2 pr-2 capitalize">{doc.category?.replace('_', ' ') || 'General'}</td>
+                      <td className="py-2">{doc.version || '1.0'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {documents.length > 5 && (
+                <p className="text-xs text-muted-foreground mt-2">+ {documents.length - 5} more documents</p>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="border rounded-lg p-4 text-center">

@@ -1,6 +1,6 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format, differenceInDays } from "date-fns";
-import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task } from "@shared/schema";
+import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
 
 const styles = StyleSheet.create({
   page: {
@@ -443,6 +443,8 @@ interface ProjectStatusReportPDFProps {
   milestones: Milestone[];
   financials: ProjectFinancial[];
   tasks: Task[];
+  changeRequests?: ChangeRequest[];
+  documents?: ProjectDocument[];
   executiveSummary?: string;
 }
 
@@ -467,6 +469,8 @@ export function ProjectStatusReportPDF({
   milestones,
   financials,
   tasks,
+  changeRequests = [],
+  documents = [],
   executiveSummary,
 }: ProjectStatusReportPDFProps) {
   const completed = tasks.filter((t) => t.status === "Completed" || t.progress === 100).length;
@@ -766,6 +770,54 @@ export function ProjectStatusReportPDF({
             )}
           </View>
         </View>
+
+        {/* Change Requests Section */}
+        {changeRequests.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Change Requests ({changeRequests.length})</Text>
+            {changeRequests.slice(0, 5).map((cr) => (
+              <View key={cr.id} style={styles.milestoneRow}>
+                <Text style={[styles.milestoneTitle, { flex: 2 }]}>{cr.title || 'Untitled change request'}</Text>
+                <Text style={[styles.milestoneDate, { flex: 1, textTransform: "capitalize" }]}>
+                  {cr.type?.replace('_', ' ') || 'Scope'}
+                </Text>
+                <Text style={[
+                  styles.milestoneStatus,
+                  cr.status === "approved" ? styles.statusComplete :
+                  cr.status === "rejected" ? styles.statusAtRisk : styles.statusOnTrack
+                ]}>
+                  {cr.status?.replace('_', ' ') || 'pending'}
+                </Text>
+              </View>
+            ))}
+            {changeRequests.length > 5 && (
+              <Text style={[styles.text, { marginTop: 4, fontStyle: "italic" }]}>
+                + {changeRequests.length - 5} more change requests
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Documents Section */}
+        {documents.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Project Documents ({documents.length})</Text>
+            {documents.slice(0, 5).map((doc) => (
+              <View key={doc.id} style={styles.milestoneRow}>
+                <Text style={[styles.milestoneTitle, { flex: 2 }]}>{doc.title || 'Untitled document'}</Text>
+                <Text style={[styles.milestoneDate, { flex: 1, textTransform: "capitalize" }]}>
+                  {doc.category?.replace('_', ' ') || 'General'}
+                </Text>
+                <Text style={styles.milestoneStatus}>v{doc.version || '1.0'}</Text>
+              </View>
+            ))}
+            {documents.length > 5 && (
+              <Text style={[styles.text, { marginTop: 4, fontStyle: "italic" }]}>
+                + {documents.length - 5} more documents
+              </Text>
+            )}
+          </View>
+        )}
 
         <View style={styles.statsGrid}>
           <View style={styles.statBox}>
