@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
@@ -112,6 +112,10 @@ export default function OrgSettings() {
             <Trash2 className="h-4 w-4" />
             Recycle Bin
           </TabsTrigger>
+          <TabsTrigger value="demo" className="w-full justify-start gap-3" data-testid="nav-demo">
+            <Sparkles className="h-4 w-4" />
+            Demo Data
+          </TabsTrigger>
         </TabsList>
 
         <div className="flex-1 min-w-0">
@@ -126,6 +130,9 @@ export default function OrgSettings() {
           </TabsContent>
           <TabsContent value="recycle" className="mt-0">
             <RecycleBinSection organizationId={currentOrganization.id} />
+          </TabsContent>
+          <TabsContent value="demo" className="mt-0">
+            <DemoDataSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
           </TabsContent>
         </div>
       </Tabs>
@@ -1743,6 +1750,138 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </Card>
+  );
+}
+
+function DemoDataSection({ organizationId, orgName }: { organizationId: number; orgName: string }) {
+  const { toast } = useToast();
+  const [customIndustry, setCustomIndustry] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState<string>("");
+
+  const { data: industries } = useQuery<Array<{ id: string; label: string; description: string }>>({
+    queryKey: ['/api/demo-data/industries'],
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async (data: { organizationId: number; industry?: string; customIndustry?: string }) => {
+      return apiRequest('POST', '/api/demo-data/generate', data);
+    },
+    onSuccess: (response: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      toast({
+        title: "Demo Data Generated",
+        description: `Created ${response.stats?.portfolios || 0} portfolios, ${response.stats?.projects || 0} projects for ${orgName}`,
+      });
+      setCustomIndustry("");
+      setSelectedIndustry("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate demo data",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleGenerate = () => {
+    if (customIndustry.trim()) {
+      generateMutation.mutate({ organizationId, customIndustry: customIndustry.trim() });
+    } else if (selectedIndustry) {
+      generateMutation.mutate({ organizationId, industry: selectedIndustry });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5" />
+          Generate Demo Data
+        </CardTitle>
+        <CardDescription>
+          Create sample portfolios, projects, tasks, risks, milestones, and issues to explore the application.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="customIndustry">Industry / Business Type</Label>
+            <Input
+              id="customIndustry"
+              placeholder="e.g., Real Estate, Construction, Legal Services, Education..."
+              value={customIndustry}
+              onChange={(e) => {
+                setCustomIndustry(e.target.value);
+                if (e.target.value) setSelectedIndustry("");
+              }}
+              data-testid="input-custom-industry"
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter any industry or business type and AI will generate relevant demo data
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex-1 border-t" />
+            <span className="text-xs text-muted-foreground">OR</span>
+            <div className="flex-1 border-t" />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Choose from Templates</Label>
+            <Select 
+              value={selectedIndustry} 
+              onValueChange={(val) => {
+                setSelectedIndustry(val);
+                if (val) setCustomIndustry("");
+              }}
+            >
+              <SelectTrigger data-testid="select-industry">
+                <SelectValue placeholder="Select an industry template" />
+              </SelectTrigger>
+              <SelectContent>
+                {industries?.map((ind) => (
+                  <SelectItem key={ind.id} value={ind.id}>
+                    {ind.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+          <h4 className="font-medium text-sm">What will be created:</h4>
+          <ul className="text-sm text-muted-foreground space-y-1">
+            <li>2 Portfolios with descriptions</li>
+            <li>4-6 Projects with budgets, statuses, and health indicators</li>
+            <li>Tasks, Risks, Milestones, and Issues for each project</li>
+            <li>Financial line items with budget vs actual tracking</li>
+          </ul>
+        </div>
+
+        <Button 
+          onClick={handleGenerate}
+          disabled={generateMutation.isPending || (!customIndustry.trim() && !selectedIndustry)}
+          className="w-full"
+          data-testid="button-generate-demo"
+        >
+          {generateMutation.isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 mr-2" />
+              Generate Demo Data
+            </>
+          )}
+        </Button>
+      </CardContent>
     </Card>
   );
 }
