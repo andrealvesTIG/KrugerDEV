@@ -141,10 +141,12 @@ export default function Profile() {
   };
 
   const handleEmojiSelect = (emoji: string) => {
+    console.log("Emoji selected:", emoji);
     setSelectedEmoji(emoji);
   };
 
   const handleSaveEmoji = () => {
+    console.log("Saving emoji:", selectedEmoji);
     if (selectedEmoji) {
       updateAvatarMutation.mutate({ avatarEmoji: selectedEmoji });
     }
@@ -536,7 +538,7 @@ export default function Profile() {
                     key={emoji}
                     type="button"
                     onClick={() => handleEmojiSelect(emoji)}
-                    className={`h-10 w-10 flex items-center justify-center rounded-lg text-2xl hover-elevate transition-colors ${
+                    className={`h-10 w-10 flex items-center justify-center rounded-lg text-2xl transition-colors ${
                       selectedEmoji === emoji ? 'bg-primary/20 ring-2 ring-primary' : 'hover:bg-muted'
                     }`}
                     data-testid={`button-emoji-${emoji}`}
