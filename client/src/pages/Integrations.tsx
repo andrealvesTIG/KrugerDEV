@@ -495,9 +495,7 @@ export default function Integrations() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold text-foreground">{integration.name}</h3>
-                      {integration.status === "coming_soon" ? (
-                        <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
-                      ) : (
+                      {integration.status === "active" && (
                         <Badge variant="default" className="text-xs bg-green-600">Active</Badge>
                       )}
                     </div>
