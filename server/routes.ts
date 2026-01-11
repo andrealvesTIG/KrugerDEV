@@ -4620,8 +4620,20 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
     try {
       const { billingProvider } = await import("./services/billing");
+      const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
       
-      const subscription = await billingProvider.getSubscriptionForUser(userId);
+      let subscription;
+      
+      // Try org subscription first if orgId is provided
+      if (orgId) {
+        subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      }
+      
+      // Fall back to user subscription
+      if (!subscription) {
+        subscription = await billingProvider.getSubscriptionForUser(userId);
+      }
+      
       if (!subscription) {
         return res.json({});
       }
