@@ -40,7 +40,12 @@ import {
   UserCircle,
   LogOut,
   Milestone,
-  UserCog
+  UserCog,
+  Inbox,
+  Link2,
+  ExternalLink,
+  Frame,
+  Plug
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -54,10 +59,13 @@ const sections = [
   { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
   { id: "portfolios", name: "Portfolios", icon: Briefcase },
   { id: "projects", name: "Projects", icon: FolderKanban },
+  { id: "intakes", name: "Project Intakes", icon: Inbox },
   { id: "tasks", name: "Tasks", icon: CheckSquare },
   { id: "issues", name: "Issues", icon: CircleDot },
   { id: "resources", name: "Resources", icon: UserCog },
   { id: "calendar", name: "Calendar", icon: Calendar },
+  { id: "integrations", name: "Integrations", icon: Plug },
+  { id: "custom-links", name: "Custom Links", icon: Link2 },
   { id: "organizations", name: "Organizations", icon: Building2 },
   { id: "users", name: "User Management", icon: Users },
   { id: "settings", name: "Settings", icon: Settings },
@@ -1047,6 +1055,63 @@ export default function UserGuide() {
               </Card>
             </section>
 
+            <section id="intakes" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+                      <Inbox className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Project Intakes</CardTitle>
+                      <CardDescription>Project request pipeline and approval workflow</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Project Intakes feature provides a structured pipeline for new project requests. 
+                    Submit, review, and approve project proposals before they become active projects.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">Intake Workflow:</h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline">Submitted</Badge>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <Badge variant="outline">Under Review</Badge>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <Badge variant="outline">Approved</Badge>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <Badge variant="outline">Project Created</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Key Features:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Request Submission:</strong> Submit new project proposals with detailed information</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Priority Assessment:</strong> Set business priority for project requests</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Budget Estimation:</strong> Include estimated budget and timeline</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Approval Workflow:</strong> Multi-step approval process with status tracking</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Project Conversion:</strong> Convert approved intakes directly to active projects</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </section>
+
             <section id="tasks" className="scroll-mt-8">
               <Card>
                 <CardHeader>
@@ -1262,6 +1327,122 @@ export default function UserGuide() {
                     <li className="flex items-start gap-2">
                       <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
                       <span><strong>Color-Coded Events:</strong> Different colors for different projects</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="integrations" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                      <Plug className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Integrations</CardTitle>
+                      <CardDescription>Connect with external tools and services</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Integrations hub allows you to connect FridayReport.AI with external tools and services. 
+                    Access integrations through the sidebar to enhance your project management workflow.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">Integration Categories:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Microsoft 365</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Power BI, SharePoint, Teams integration</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Analytics</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Power BI reports and dashboards</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Import/Export</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Microsoft Project, Excel, CSV formats</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Communication</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Email notifications and alerts</p>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Power BI Integration:</h4>
+                  <p className="text-muted-foreground">
+                    Connect Power BI to access project analytics through REST API endpoints. 
+                    Available endpoints include projects, portfolios, risks, issues, milestones, and summary data.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="custom-links" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                      <Link2 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Custom Links</CardTitle>
+                      <CardDescription>Add custom navigation links to the sidebar</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Administrators can add custom links to the sidebar for quick access to external resources, 
+                    documentation, or frequently used tools.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">Link Open Modes:</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <ExternalLink className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">New Tab</h5>
+                        <p className="text-sm text-muted-foreground">Opens the link in a new browser tab</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Frame className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Embedded</h5>
+                        <p className="text-sm text-muted-foreground">Opens the link within FridayReport.AI using an embedded frame</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Managing Custom Links:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Add Links:</strong> Go to Organization Settings to add new custom links</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Organize:</strong> Drag and drop to reorder links in the sidebar</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Choose Mode:</strong> Select whether links open in new tab or embedded</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Remove:</strong> Delete links that are no longer needed</span>
                     </li>
                   </ul>
                 </CardContent>
