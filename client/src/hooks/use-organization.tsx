@@ -56,11 +56,12 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (currentOrganization && organizations.length > 0) {
       const updatedOrg = organizations.find(o => o.id === currentOrganization.id);
-      if (updatedOrg && JSON.stringify(updatedOrg) !== JSON.stringify(currentOrganization)) {
+      if (updatedOrg) {
+        // Always update to ensure we have the latest data
         setCurrentOrganization(updatedOrg);
       }
     }
-  }, [organizations, currentOrganization]);
+  }, [organizations]);
 
   return (
     <OrganizationContext.Provider value={{
