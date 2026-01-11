@@ -601,25 +601,23 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
                       >
                         <LinkIcon className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { setEditingGroup(group); setNewGroupName(group.name); }}
+                        data-testid={`button-edit-group-${group.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       {!group.isDefault && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => { setEditingGroup(group); setNewGroupName(group.name); }}
-                            data-testid={`button-edit-group-${group.id}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeleteGroup(group)}
-                            data-testid={`button-delete-group-${group.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeleteGroup(group)}
+                          data-testid={`button-delete-group-${group.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       )}
                       <div className="flex items-center gap-2 ml-2">
                         <span className="text-muted-foreground">
