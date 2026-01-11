@@ -22,6 +22,7 @@ export const organizations = pgTable("organizations", {
   createdAt: timestamp("created_at").defaultNow(),
   hiddenModules: text("hidden_modules").array(), // Array of module keys to hide from sidebar
   moduleOrder: text("module_order").array(), // Array of module keys defining sidebar order
+  hiddenGroups: text("hidden_groups").array(), // Array of group keys to hide from sidebar (e.g., 'menu', 'help')
 });
 
 // Organization Members (Join table for users <-> organizations)

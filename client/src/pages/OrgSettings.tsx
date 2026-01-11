@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
@@ -185,12 +185,16 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
   const [localModuleOrder, setLocalModuleOrder] = useState<string[]>(
     organization.moduleOrder || defaultOrder
   );
-  const [previousValues, setPreviousValues] = useState<{ hidden: string[]; order: string[] } | null>(null);
+  const [localHiddenGroups, setLocalHiddenGroups] = useState<string[]>(
+    organization.hiddenGroups || []
+  );
+  const [previousValues, setPreviousValues] = useState<{ hidden: string[]; order: string[]; groups: string[] } | null>(null);
   
   useEffect(() => {
     setLocalHiddenModules(organization.hiddenModules || []);
     setLocalModuleOrder(organization.moduleOrder || defaultOrder);
-  }, [organization.id, organization.hiddenModules, organization.moduleOrder]);
+    setLocalHiddenGroups(organization.hiddenGroups || []);
+  }, [organization.id, organization.hiddenModules, organization.moduleOrder, organization.hiddenGroups]);
   
   const orderedModules = [...availableModules].sort((a, b) => {
     const aIndex = localModuleOrder.indexOf(a.key);
@@ -202,18 +206,19 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
   });
   
   const updateOrgMutation = useMutation({
-    mutationFn: async (data: { hiddenModules: string[]; moduleOrder: string[] }) => {
+    mutationFn: async (data: { hiddenModules: string[]; moduleOrder: string[]; hiddenGroups: string[] }) => {
       return apiRequest('PUT', `/api/organizations/${organization.id}`, data);
     },
     onSuccess: () => {
       setPreviousValues(null);
       queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
-      toast({ title: "Saved", description: "Module settings updated" });
+      toast({ title: "Saved", description: "Settings updated" });
     },
     onError: () => {
       if (previousValues) {
         setLocalHiddenModules(previousValues.hidden);
         setLocalModuleOrder(previousValues.order);
+        setLocalHiddenGroups(previousValues.groups);
         setPreviousValues(null);
       }
       toast({ title: "Error", description: "Failed to update settings", variant: "destructive" });
@@ -221,17 +226,17 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
   });
 
   const toggleModule = (moduleKey: string) => {
-    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder] });
+    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder], groups: [...localHiddenGroups] });
     const isHidden = localHiddenModules.includes(moduleKey);
     const newHiddenModules = isHidden 
       ? localHiddenModules.filter(k => k !== moduleKey)
       : [...localHiddenModules, moduleKey];
     setLocalHiddenModules(newHiddenModules);
-    updateOrgMutation.mutate({ hiddenModules: newHiddenModules, moduleOrder: localModuleOrder });
+    updateOrgMutation.mutate({ hiddenModules: newHiddenModules, moduleOrder: localModuleOrder, hiddenGroups: localHiddenGroups });
   };
 
   const moveModule = (moduleKey: string, direction: 'up' | 'down') => {
-    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder] });
+    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder], groups: [...localHiddenGroups] });
     const currentIndex = localModuleOrder.indexOf(moduleKey);
     if (currentIndex === -1) return;
     
@@ -241,23 +246,89 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
     const newOrder = [...localModuleOrder];
     [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
     setLocalModuleOrder(newOrder);
-    updateOrgMutation.mutate({ hiddenModules: localHiddenModules, moduleOrder: newOrder });
+    updateOrgMutation.mutate({ hiddenModules: localHiddenModules, moduleOrder: newOrder, hiddenGroups: localHiddenGroups });
   };
 
+  const toggleGroup = (groupKey: string) => {
+    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder], groups: [...localHiddenGroups] });
+    const isHidden = localHiddenGroups.includes(groupKey);
+    const newHiddenGroups = isHidden 
+      ? localHiddenGroups.filter(k => k !== groupKey)
+      : [...localHiddenGroups, groupKey];
+    setLocalHiddenGroups(newHiddenGroups);
+    updateOrgMutation.mutate({ hiddenModules: localHiddenModules, moduleOrder: localModuleOrder, hiddenGroups: newHiddenGroups });
+  };
+
+  const menuGroups = [
+    { key: "menu", name: "Menu", description: "Main navigation modules (Dashboard, Projects, etc.)" },
+    { key: "help", name: "Help", description: "Help and documentation section" },
+  ];
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <EyeOff className="h-5 w-5" />
-          Module Visibility & Order
-        </CardTitle>
-        <CardDescription>
-          Control which modules are visible and their order in the sidebar. Use the arrows to reorder modules.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          {orderedModules.map((module, index) => {
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LayoutDashboard className="h-5 w-5" />
+            Menu Groups
+          </CardTitle>
+          <CardDescription>
+            Control which menu groups are visible in the sidebar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {menuGroups.map((group) => {
+              const isHidden = localHiddenGroups.includes(group.key);
+              return (
+                <div 
+                  key={group.key} 
+                  className="flex items-center justify-between p-3 rounded-lg border"
+                  data-testid={`group-toggle-${group.key}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-md ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
+                      {group.key === 'menu' ? <LayoutDashboard className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
+                    </div>
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        {group.name}
+                        {isHidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                      </div>
+                      <div className="text-sm text-muted-foreground">{group.description}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </span>
+                    <Switch
+                      checked={!isHidden}
+                      onCheckedChange={() => toggleGroup(group.key)}
+                      disabled={updateOrgMutation.isPending}
+                      data-testid={`switch-group-${group.key}`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <EyeOff className="h-5 w-5" />
+            Module Visibility & Order
+          </CardTitle>
+          <CardDescription>
+            Control which modules are visible and their order in the sidebar. Use the arrows to reorder modules.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {orderedModules.map((module, index) => {
             const isHidden = localHiddenModules.includes(module.key);
             const Icon = module.icon;
             const isFirst = index === 0;
@@ -317,9 +388,10 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
               </div>
             );
           })}
-        </div>
-      </CardContent>
-    </Card>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

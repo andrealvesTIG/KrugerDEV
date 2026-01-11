@@ -141,14 +141,28 @@ export function Sidebar() {
       </div>
       {/* Navigation */}
       <nav className={cn("flex-1 space-y-1 py-6", isCollapsed ? "px-2" : "px-4")}>
-        {!isCollapsed && (
-          <p className="mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Menu
-          </p>
-        )}
         {(() => {
+          const hiddenGroups = currentOrganization?.hiddenGroups || [];
+          const isMenuHidden = hiddenGroups.includes('menu');
+          if (isMenuHidden) return null;
+          
+          return (
+            <>
+              {!isCollapsed && (
+                <p className="mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Menu
+                </p>
+              )}
+            </>
+          );
+        })()}
+        {(() => {
+          const hiddenGroups = currentOrganization?.hiddenGroups || [];
           const hiddenModules = currentOrganization?.hiddenModules || [];
           const moduleOrder = currentOrganization?.moduleOrder || [];
+          
+          // If Menu group is hidden, don't show any modules
+          if (hiddenGroups.includes('menu')) return [];
           
           // Sort navigation by moduleOrder, keeping unordered items at the end
           const sortedNav = [...navigation].sort((a, b) => {
@@ -205,13 +219,26 @@ export function Sidebar() {
         })}
 
         {/* Help Section */}
-        {!isCollapsed && (
-          <p className="mt-6 mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Help
-          </p>
-        )}
-        {isCollapsed && <div className="mt-4" />}
-        {helpNavigation.map((item) => {
+        {(() => {
+          const hiddenGroups = currentOrganization?.hiddenGroups || [];
+          if (hiddenGroups.includes('help')) return null;
+          
+          return (
+            <>
+              {!isCollapsed && (
+                <p className="mt-6 mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Help
+                </p>
+              )}
+              {isCollapsed && <div className="mt-4" />}
+            </>
+          );
+        })()}
+        {(() => {
+          const hiddenGroups = currentOrganization?.hiddenGroups || [];
+          if (hiddenGroups.includes('help')) return [];
+          return helpNavigation;
+        })().map((item) => {
           const isActive = location === item.href || location.startsWith(item.href);
           
           const navItem = (
