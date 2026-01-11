@@ -11,13 +11,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile, Sun, Moon, Monitor, Bell } from "lucide-react";
+import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile, Sun, Moon, Monitor, Bell, AlertTriangle } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { OrganizationMember, Organization, User as UserType } from "@shared/schema";
+import type { OrganizationMember, Organization } from "@shared/schema";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 const AVATAR_EMOJIS = [
   "smile", "grin", "laugh", "wink", "cool", "heart-eyes", "star-struck", "thinking",
@@ -37,10 +38,21 @@ const EMOJI_MAP: Record<string, string> = {
   "koala": "\u{1F428}", "unicorn": "\u{1F984}", "dragon": "\u{1F409}", "octopus": "\u{1F419}"
 };
 
+type Section = "profile" | "organizations" | "display" | "notifications" | "security";
+
+const menuItems = [
+  { id: "profile" as Section, label: "Profile", icon: User },
+  { id: "organizations" as Section, label: "Organizations", icon: Building2 },
+  { id: "display" as Section, label: "Display", icon: Monitor },
+  { id: "notifications" as Section, label: "Notifications", icon: Bell },
+  { id: "security" as Section, label: "Security", icon: Shield },
+];
+
 export default function Profile() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const [activeSection, setActiveSection] = useState<Section>("profile");
   const [isEditing, setIsEditing] = useState(false);
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -168,23 +180,6 @@ export default function Profile() {
     }
   };
 
-  const getAvatarDisplay = () => {
-    const avatarUrl = user?.avatarUrl;
-    if (avatarUrl?.startsWith('emoji:')) {
-      const emojiKey = avatarUrl.replace('emoji:', '');
-      return { type: 'emoji' as const, emoji: EMOJI_MAP[emojiKey] || emojiKey };
-    }
-    if (avatarUrl?.startsWith('/objects/')) {
-      return { type: 'image' as const, url: avatarUrl };
-    }
-    if (user?.profileImageUrl) {
-      return { type: 'image' as const, url: user.profileImageUrl };
-    }
-    return { type: 'fallback' as const };
-  };
-
-  const avatarDisplay = getAvatarDisplay();
-
   const handleEdit = () => {
     setEditForm({
       firstName: user?.firstName || "",
@@ -196,11 +191,23 @@ export default function Profile() {
 
   const handleCancel = () => {
     setIsEditing(false);
+    setEditForm({ firstName: "", lastName: "", email: "" });
   };
 
   const handleSave = () => {
     updateProfileMutation.mutate(editForm);
   };
+
+  const avatarDisplay = (() => {
+    const avatarUrl = user?.avatarUrl;
+    if (!avatarUrl) return { type: 'fallback' as const };
+    if (avatarUrl.startsWith('emoji:')) {
+      const emojiKey = avatarUrl.replace('emoji:', '');
+      return { type: 'emoji' as const, emoji: EMOJI_MAP[emojiKey] || emojiKey };
+    }
+    const imageUrl = avatarUrl.startsWith('/objects/') ? avatarUrl : user?.profileImageUrl;
+    return imageUrl ? { type: 'image' as const, url: imageUrl } : { type: 'fallback' as const };
+  })();
 
   if (authLoading) {
     return (
@@ -228,416 +235,337 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <User className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-profile-title">Profile</h1>
-            <p className="text-muted-foreground">View and manage your profile information</p>
-          </div>
-        </div>
-        {!isEditing && (
-          <Button onClick={handleEdit} variant="outline" data-testid="button-edit-profile">
-            <Pencil className="h-4 w-4 mr-2" />
-            Edit Profile
-          </Button>
-        )}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardContent className="flex flex-col items-center pt-6">
-            <div className="relative group">
-              <Avatar className="h-24 w-24 mb-4">
+    <div className="flex gap-6">
+      <div className="w-56 shrink-0">
+        <Card className="sticky top-6">
+          <CardContent className="p-4">
+            <div className="flex flex-col items-center mb-4 pt-2">
+              <Avatar className="h-16 w-16 mb-2">
                 {avatarDisplay.type === 'image' ? (
                   <AvatarImage src={avatarDisplay.url} alt={user?.firstName || 'User'} />
                 ) : avatarDisplay.type === 'emoji' ? (
-                  <AvatarFallback className="text-4xl bg-muted">
+                  <AvatarFallback className="text-3xl bg-muted">
                     {avatarDisplay.emoji}
                   </AvatarFallback>
                 ) : (
-                  <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
-                    {(isEditing ? editForm.firstName : user?.firstName)?.[0] || 'U'}
+                  <AvatarFallback className="text-xl bg-primary text-primary-foreground">
+                    {user?.firstName?.[0] || 'U'}
                   </AvatarFallback>
                 )}
               </Avatar>
-              <Button
-                size="icon"
-                variant="secondary"
-                className="absolute bottom-3 right-0 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => setAvatarDialogOpen(true)}
-                data-testid="button-edit-avatar"
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
+              <p className="font-medium text-sm">{user?.firstName} {user?.lastName}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
-            <h2 className="text-xl font-semibold text-foreground" data-testid="text-user-name">
-              {isEditing ? `${editForm.firstName} ${editForm.lastName}` : `${user?.firstName} ${user?.lastName}`}
-            </h2>
-            <Badge variant={getRoleBadgeVariant(user?.role || 'member')} className="mt-2" data-testid="badge-user-role">
-              {formatRole(user?.role || 'member')}
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-3"
-              onClick={() => setAvatarDialogOpen(true)}
-              data-testid="button-change-avatar"
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              Change Avatar
-            </Button>
+            <Separator className="mb-4" />
+            <nav className="space-y-1">
+              {menuItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveSection(item.id)}
+                  className={cn(
+                    "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm transition-colors",
+                    activeSection === item.id
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                  data-testid={`nav-${item.id}`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
+      <div className="flex-1 min-w-0">
+        {activeSection === "profile" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Personal Information
-                </CardTitle>
-                <CardDescription>Your account details</CardDescription>
+                <h2 className="text-2xl font-bold">Profile</h2>
+                <p className="text-muted-foreground">Manage your personal information</p>
               </div>
-              {isEditing && (
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={handleCancel}
-                    disabled={updateProfileMutation.isPending}
-                    data-testid="button-cancel-edit"
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Cancel
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    onClick={handleSave}
-                    disabled={updateProfileMutation.isPending}
-                    data-testid="button-save-profile"
-                  >
-                    {updateProfileMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    ) : (
-                      <Check className="h-4 w-4 mr-1" />
-                    )}
-                    Save Changes
-                  </Button>
-                </div>
+              {!isEditing && (
+                <Button onClick={handleEdit} variant="outline" data-testid="button-edit-profile">
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
               )}
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isEditing ? (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName" className="flex items-center gap-2 text-muted-foreground">
-                    <User className="h-4 w-4" />
-                    First Name
-                  </Label>
-                  <Input
-                    id="firstName"
-                    value={editForm.firstName}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, firstName: e.target.value }))}
-                    placeholder="Enter first name"
-                    data-testid="input-first-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName" className="flex items-center gap-2 text-muted-foreground">
-                    <User className="h-4 w-4" />
-                    Last Name
-                  </Label>
-                  <Input
-                    id="lastName"
-                    value={editForm.lastName}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, lastName: e.target.value }))}
-                    placeholder="Enter last name"
-                    data-testid="input-last-name"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="email" className="flex items-center gap-2 text-muted-foreground">
-                    <Mail className="h-4 w-4" />
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={editForm.email}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="Enter email address"
-                    data-testid="input-email"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <Shield className="h-4 w-4" />
-                    System Role
-                  </label>
-                  <p className="text-foreground font-medium text-sm text-muted-foreground" data-testid="text-system-role">
-                    {formatRole(user?.role || 'member')}
-                    <span className="text-xs text-muted-foreground ml-2">(Cannot be changed)</span>
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Member Since
-                  </label>
-                  <p className="text-foreground font-medium" data-testid="text-member-since">
-                    {user?.createdAt ? format(new Date(user.createdAt), 'MMMM d, yyyy') : 'Unknown'}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    First Name
-                  </label>
-                  <p className="text-foreground font-medium" data-testid="text-first-name">{user?.firstName || 'Not set'}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Last Name
-                  </label>
-                  <p className="text-foreground font-medium" data-testid="text-last-name">{user?.lastName || 'Not set'}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <Mail className="h-4 w-4" />
-                    Email
-                  </label>
-                  <p className="text-foreground font-medium" data-testid="text-email">{user?.email || 'Not set'}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <Shield className="h-4 w-4" />
-                    System Role
-                  </label>
-                  <p className="text-foreground font-medium" data-testid="text-system-role">{formatRole(user?.role || 'member')}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Member Since
-                  </label>
-                  <p className="text-foreground font-medium" data-testid="text-member-since">
-                    {user?.createdAt ? format(new Date(user.createdAt), 'MMMM d, yyyy') : 'Unknown'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Organization Memberships
-          </CardTitle>
-          <CardDescription>Organizations you belong to</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {userOrgs.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              You are not a member of any organizations yet.
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {userOrgs.map((membership) => (
-                <div
-                  key={membership.id}
-                  className="flex items-center gap-3 rounded-lg border border-slate-200 p-4"
-                  data-testid={`org-membership-${membership.id}`}
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-                    <Building2 className="h-5 w-5 text-muted-foreground" />
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Personal Information</CardTitle>
+                  {isEditing && (
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={handleCancel} disabled={updateProfileMutation.isPending} data-testid="button-cancel-edit">
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                      <Button size="sm" onClick={handleSave} disabled={updateProfileMutation.isPending} data-testid="button-save-profile">
+                        {updateProfileMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+                        Save
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isEditing ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name</Label>
+                      <Input id="firstName" value={editForm.firstName} onChange={(e) => setEditForm(prev => ({ ...prev, firstName: e.target.value }))} data-testid="input-first-name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <Input id="lastName" value={editForm.lastName} onChange={(e) => setEditForm(prev => ({ ...prev, lastName: e.target.value }))} data-testid="input-last-name" />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input id="email" type="email" value={editForm.email} onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))} data-testid="input-email" />
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground truncate">{membership.organization?.name}</p>
-                    <Badge variant="outline">{formatRole(membership.role)}</Badge>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-muted-foreground text-xs">First Name</Label>
+                      <p className="font-medium" data-testid="text-first-name">{user?.firstName || '-'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Last Name</Label>
+                      <p className="font-medium" data-testid="text-last-name">{user?.lastName || '-'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Email</Label>
+                      <p className="font-medium" data-testid="text-email">{user?.email || '-'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Role</Label>
+                      <p className="font-medium" data-testid="text-role">{formatRole(user?.role || 'member')}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Member Since</Label>
+                      <p className="font-medium" data-testid="text-member-since">{user?.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : '-'}</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Avatar</CardTitle>
+                <CardDescription>Customize your profile picture</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-20 w-20">
+                    {avatarDisplay.type === 'image' ? (
+                      <AvatarImage src={avatarDisplay.url} alt={user?.firstName || 'User'} />
+                    ) : avatarDisplay.type === 'emoji' ? (
+                      <AvatarFallback className="text-4xl bg-muted">{avatarDisplay.emoji}</AvatarFallback>
+                    ) : (
+                      <AvatarFallback className="text-2xl bg-primary text-primary-foreground">{user?.firstName?.[0] || 'U'}</AvatarFallback>
+                    )}
+                  </Avatar>
+                  <Button variant="outline" onClick={() => setAvatarDialogOpen(true)} data-testid="button-change-avatar">
+                    <Camera className="h-4 w-4 mr-2" />
+                    Change Avatar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeSection === "organizations" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold">Organizations</h2>
+              <p className="text-muted-foreground">Organizations you belong to</p>
+            </div>
+
+            <Card>
+              <CardContent className="pt-6">
+                {userOrgs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    You are not a member of any organizations yet.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {userOrgs.map((membership) => (
+                      <div key={membership.id} className="flex items-center gap-3 rounded-lg border p-4" data-testid={`org-membership-${membership.id}`}>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                          <Building2 className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{membership.organization?.name}</p>
+                          <Badge variant="outline" className="text-xs">{formatRole(membership.role)}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeSection === "display" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold">Display Settings</h2>
+              <p className="text-muted-foreground">Customize your visual preferences</p>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Theme</CardTitle>
+                <CardDescription>Select your preferred color scheme</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup value={theme} onValueChange={(value) => setTheme(value as "light" | "dark" | "system")} className="flex flex-col gap-3">
+                  <div className="flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                    <RadioGroupItem value="light" id="theme-light" data-testid="radio-theme-light" />
+                    <Label htmlFor="theme-light" className="flex items-center gap-3 cursor-pointer flex-1">
+                      <Sun className="h-5 w-5 text-amber-500" />
+                      <div>
+                        <div className="font-medium">Light</div>
+                        <div className="text-sm text-muted-foreground">Use light theme</div>
+                      </div>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                    <RadioGroupItem value="dark" id="theme-dark" data-testid="radio-theme-dark" />
+                    <Label htmlFor="theme-dark" className="flex items-center gap-3 cursor-pointer flex-1">
+                      <Moon className="h-5 w-5 text-indigo-500" />
+                      <div>
+                        <div className="font-medium">Dark</div>
+                        <div className="text-sm text-muted-foreground">Use dark theme</div>
+                      </div>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                    <RadioGroupItem value="system" id="theme-system" data-testid="radio-theme-system" />
+                    <Label htmlFor="theme-system" className="flex items-center gap-3 cursor-pointer flex-1">
+                      <Monitor className="h-5 w-5 text-slate-500" />
+                      <div>
+                        <div className="font-medium">System</div>
+                        <div className="text-sm text-muted-foreground">Follow your system preference</div>
+                      </div>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeSection === "notifications" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold">Notifications</h2>
+              <p className="text-muted-foreground">Control how you receive notifications</p>
+            </div>
+
+            <Card>
+              <CardContent className="pt-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Email Notifications</p>
+                    <p className="text-sm text-muted-foreground">Receive notifications via email</p>
+                  </div>
+                  <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} data-testid="switch-email-notifications" />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Project Updates</p>
+                    <p className="text-sm text-muted-foreground">Get notified when projects are updated</p>
+                  </div>
+                  <Switch checked={projectUpdates} onCheckedChange={setProjectUpdates} data-testid="switch-project-updates" />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Task Reminders</p>
+                    <p className="text-sm text-muted-foreground">Receive reminders for upcoming tasks</p>
+                  </div>
+                  <Switch checked={taskReminders} onCheckedChange={setTaskReminders} data-testid="switch-task-reminders" />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Weekly Digest</p>
+                    <p className="text-sm text-muted-foreground">Get a weekly summary of activity</p>
+                  </div>
+                  <Switch checked={weeklyDigest} onCheckedChange={setWeeklyDigest} data-testid="switch-weekly-digest" />
+                </div>
+                <Button onClick={handleSavePreferences} className="w-full" data-testid="button-save-preferences">
+                  Save Preferences
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeSection === "security" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold">Security</h2>
+              <p className="text-muted-foreground">Manage your account security</p>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Connected Accounts</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div>
+                    <p className="font-medium">Connected Account</p>
+                    <p className="text-sm text-muted-foreground">Signed in via Replit</p>
+                  </div>
+                  <Badge variant="secondary">Active</Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div>
+                    <p className="font-medium">Two-Factor Authentication</p>
+                    <p className="text-sm text-muted-foreground">Managed through Replit account</p>
+                  </div>
+                  <Badge variant="outline">Via Replit</Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-destructive/50">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="h-5 w-5" />
+                  Danger Zone
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-medium">Delete Account</p>
+                      <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
+                    </div>
+                    <Button variant="destructive" size="sm" data-testid="button-delete-account">
+                      Delete
+                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Monitor className="h-5 w-5" />
-            Display Settings
-          </CardTitle>
-          <CardDescription>Customize your visual preferences</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Theme</Label>
-              <RadioGroup 
-                value={theme} 
-                onValueChange={(value) => setTheme(value as "light" | "dark" | "system")}
-                className="flex flex-col gap-3"
-              >
-                <div className="flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
-                  <RadioGroupItem value="light" id="theme-light" data-testid="radio-theme-light" />
-                  <Label htmlFor="theme-light" className="flex items-center gap-3 cursor-pointer flex-1">
-                    <Sun className="h-5 w-5 text-amber-500" />
-                    <div>
-                      <div className="font-medium">Light</div>
-                      <div className="text-sm text-muted-foreground">Use light theme</div>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
-                  <RadioGroupItem value="dark" id="theme-dark" data-testid="radio-theme-dark" />
-                  <Label htmlFor="theme-dark" className="flex items-center gap-3 cursor-pointer flex-1">
-                    <Moon className="h-5 w-5 text-indigo-500" />
-                    <div>
-                      <div className="font-medium">Dark</div>
-                      <div className="text-sm text-muted-foreground">Use dark theme</div>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
-                  <RadioGroupItem value="system" id="theme-system" data-testid="radio-theme-system" />
-                  <Label htmlFor="theme-system" className="flex items-center gap-3 cursor-pointer flex-1">
-                    <Monitor className="h-5 w-5 text-slate-500" />
-                    <div>
-                      <div className="font-medium">System</div>
-                      <div className="text-sm text-muted-foreground">Follow your system preference</div>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              Notification Preferences
-            </CardTitle>
-            <CardDescription>Control how you receive notifications</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <label className="text-sm font-medium text-foreground">Email Notifications</label>
-                <p className="text-sm text-muted-foreground">Receive notifications via email</p>
-              </div>
-              <Switch
-                checked={emailNotifications}
-                onCheckedChange={setEmailNotifications}
-                data-testid="switch-email-notifications"
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <label className="text-sm font-medium text-foreground">Project Updates</label>
-                <p className="text-sm text-muted-foreground">Get notified when projects are updated</p>
-              </div>
-              <Switch
-                checked={projectUpdates}
-                onCheckedChange={setProjectUpdates}
-                data-testid="switch-project-updates"
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <label className="text-sm font-medium text-foreground">Task Reminders</label>
-                <p className="text-sm text-muted-foreground">Receive reminders for upcoming tasks</p>
-              </div>
-              <Switch
-                checked={taskReminders}
-                onCheckedChange={setTaskReminders}
-                data-testid="switch-task-reminders"
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <label className="text-sm font-medium text-foreground">Weekly Digest</label>
-                <p className="text-sm text-muted-foreground">Get a weekly summary of activity</p>
-              </div>
-              <Switch
-                checked={weeklyDigest}
-                onCheckedChange={setWeeklyDigest}
-                data-testid="switch-weekly-digest"
-              />
-            </div>
-            <Button onClick={handleSavePreferences} className="w-full" data-testid="button-save-preferences">
-              Save Preferences
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Security
-            </CardTitle>
-            <CardDescription>Manage your account security</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium text-foreground">Connected Account</p>
-                <p className="text-sm text-muted-foreground">Signed in via Replit</p>
-              </div>
-              <Badge variant="secondary">Active</Badge>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium text-foreground">Two-Factor Authentication</p>
-                <p className="text-sm text-muted-foreground">Managed through Replit account</p>
-              </div>
-              <Badge variant="outline">Via Replit</Badge>
-            </div>
-          </CardContent>
-        </Card>
+        )}
       </div>
-
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-destructive">
-            <Shield className="h-5 w-5" />
-            Danger Zone
-          </CardTitle>
-          <CardDescription>Irreversible account actions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Delete Account</p>
-                <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
-              </div>
-              <Button variant="destructive" size="sm" data-testid="button-delete-account">
-                Delete
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <Dialog open={avatarDialogOpen} onOpenChange={setAvatarDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -660,48 +588,24 @@ export default function Profile() {
             
             <TabsContent value="upload" className="space-y-4 pt-4">
               <div className="flex flex-col items-center gap-4">
-                <div className="relative">
-                  <Avatar className="h-24 w-24">
-                    {avatarDisplay.type === 'image' ? (
-                      <AvatarImage src={avatarDisplay.url} alt="Current avatar" />
-                    ) : avatarDisplay.type === 'emoji' ? (
-                      <AvatarFallback className="text-4xl bg-muted">
-                        {avatarDisplay.emoji}
-                      </AvatarFallback>
-                    ) : (
-                      <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
-                        {user?.firstName?.[0] || 'U'}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                </div>
-                
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                  data-testid="input-avatar-file"
-                />
-                
-                <Button
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingAvatar}
-                  data-testid="button-upload-avatar"
-                >
-                  {uploadingAvatar ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Avatar className="h-24 w-24">
+                  {avatarDisplay.type === 'image' ? (
+                    <AvatarImage src={avatarDisplay.url} alt="Current avatar" />
+                  ) : avatarDisplay.type === 'emoji' ? (
+                    <AvatarFallback className="text-4xl bg-muted">{avatarDisplay.emoji}</AvatarFallback>
                   ) : (
-                    <Upload className="h-4 w-4 mr-2" />
+                    <AvatarFallback className="text-2xl bg-primary text-primary-foreground">{user?.firstName?.[0] || 'U'}</AvatarFallback>
                   )}
+                </Avatar>
+                
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} data-testid="input-avatar-file" />
+                
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploadingAvatar} data-testid="button-upload-avatar">
+                  {uploadingAvatar ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
                   {uploadingAvatar ? 'Uploading...' : 'Choose Image'}
                 </Button>
                 
-                <p className="text-xs text-muted-foreground">
-                  JPG, PNG or GIF. Max 5MB.
-                </p>
+                <p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max 5MB.</p>
               </div>
             </TabsContent>
             
@@ -731,20 +635,10 @@ export default function Profile() {
               </div>
               
               <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedEmoji(null);
-                    setAvatarDialogOpen(false);
-                  }}
-                >
+                <Button variant="outline" onClick={() => { setSelectedEmoji(null); setAvatarDialogOpen(false); }}>
                   Cancel
                 </Button>
-                <Button
-                  onClick={handleSaveEmoji}
-                  disabled={!selectedEmoji || updateAvatarMutation.isPending}
-                  data-testid="button-save-emoji"
-                >
+                <Button onClick={handleSaveEmoji} disabled={!selectedEmoji || updateAvatarMutation.isPending} data-testid="button-save-emoji">
                   {updateAvatarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Save Emoji
                 </Button>
