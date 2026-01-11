@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, numeric, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, numeric, varchar, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -7,6 +7,39 @@ import { users } from "./models/auth";
 export * from "./models/auth";
 export * from "./models/chat";
 export * from "./models/billing";
+
+// === SIDEBAR STRUCTURE TYPES ===
+
+export const sidebarItemSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("module"),
+    key: z.string(),
+    hidden: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("customLink"),
+    id: z.string(),
+    label: z.string(),
+    url: z.string().url(),
+    icon: z.string().optional(),
+    openInNewTab: z.boolean().default(true),
+    hidden: z.boolean().optional(),
+  }),
+]);
+
+export const sidebarGroupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  isDefault: z.boolean().optional(),
+  hidden: z.boolean().optional(),
+  items: z.array(sidebarItemSchema),
+});
+
+export const sidebarStructureSchema = z.array(sidebarGroupSchema);
+
+export type SidebarItem = z.infer<typeof sidebarItemSchema>;
+export type SidebarGroup = z.infer<typeof sidebarGroupSchema>;
+export type SidebarStructure = z.infer<typeof sidebarStructureSchema>;
 
 // === TABLE DEFINITIONS ===
 
@@ -20,9 +53,10 @@ export const organizations = pgTable("organizations", {
   description: text("description"),
   ownerId: varchar("owner_id").references(() => users.id), // Organization creator
   createdAt: timestamp("created_at").defaultNow(),
-  hiddenModules: text("hidden_modules").array(), // Array of module keys to hide from sidebar
-  moduleOrder: text("module_order").array(), // Array of module keys defining sidebar order
-  hiddenGroups: text("hidden_groups").array(), // Array of group keys to hide from sidebar (e.g., 'menu', 'help')
+  hiddenModules: text("hidden_modules").array(), // Legacy: Array of module keys to hide from sidebar
+  moduleOrder: text("module_order").array(), // Legacy: Array of module keys defining sidebar order
+  hiddenGroups: text("hidden_groups").array(), // Legacy: Array of group keys to hide from sidebar
+  sidebarStructure: jsonb("sidebar_structure").$type<SidebarStructure>(), // New: Full sidebar config
 });
 
 // Organization Members (Join table for users <-> organizations)
