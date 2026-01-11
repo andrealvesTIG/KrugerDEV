@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -123,10 +124,41 @@ export default function OrgSettings() {
         )}
       </div>
 
-      {orgId && currentOrg && <ModuleVisibilitySection organization={currentOrg} />}
-      {orgId && <IntakeWorkflowSection organizationId={orgId} />}
-      {orgId && <MembersSection organizationId={orgId} orgName={currentOrg?.name || ''} />}
-      {orgId && <RecycleBinSection organizationId={orgId} />}
+      <Tabs defaultValue="modules" orientation="vertical" className="flex gap-6">
+        <TabsList className="flex-col h-fit w-56 bg-card border rounded-lg p-1">
+          <TabsTrigger value="modules" className="w-full justify-start gap-3" data-testid="nav-modules">
+            <Eye className="h-4 w-4" />
+            Module Visibility
+          </TabsTrigger>
+          <TabsTrigger value="intake" className="w-full justify-start gap-3" data-testid="nav-intake">
+            <GitBranch className="h-4 w-4" />
+            Intake Workflow
+          </TabsTrigger>
+          <TabsTrigger value="members" className="w-full justify-start gap-3" data-testid="nav-members">
+            <Users className="h-4 w-4" />
+            Team Members
+          </TabsTrigger>
+          <TabsTrigger value="recycle" className="w-full justify-start gap-3" data-testid="nav-recycle">
+            <Trash2 className="h-4 w-4" />
+            Recycle Bin
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="flex-1 min-w-0">
+          <TabsContent value="modules" className="mt-0">
+            {orgId && currentOrg && <ModuleVisibilitySection organization={currentOrg} />}
+          </TabsContent>
+          <TabsContent value="intake" className="mt-0">
+            {orgId && <IntakeWorkflowSection organizationId={orgId} />}
+          </TabsContent>
+          <TabsContent value="members" className="mt-0">
+            {orgId && <MembersSection organizationId={orgId} orgName={currentOrg?.name || ''} />}
+          </TabsContent>
+          <TabsContent value="recycle" className="mt-0">
+            {orgId && <RecycleBinSection organizationId={orgId} />}
+          </TabsContent>
+        </div>
+      </Tabs>
     </div>
   );
 }
