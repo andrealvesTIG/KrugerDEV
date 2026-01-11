@@ -1,10 +1,9 @@
-import { useLocation, Link } from "wouter";
+import { Link } from "wouter";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Embed() {
-  const [location] = useLocation();
-  const searchParams = new URLSearchParams(location.split('?')[1] || '');
+  const searchParams = new URLSearchParams(window.location.search);
   const url = searchParams.get('url');
   const label = searchParams.get('label') || 'External Content';
 
