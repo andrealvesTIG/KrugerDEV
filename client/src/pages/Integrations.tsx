@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink, Files, X, Link2 } from "lucide-react";
+import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink, Files, X, Link2, BarChart3, Copy, Check } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -53,6 +53,9 @@ export default function Integrations() {
   const [syncingImport, setSyncingImport] = useState<MppImportWithTasks | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [syncMode, setSyncMode] = useState<'merge' | 'replace'>('merge');
+  
+  // Power BI integration states
+  const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
 
   const { data: imports, isLoading, refetch } = useQuery<MppImportWithTasks[]>({
     queryKey: ['/api/mpp-imports', currentOrganization?.id],
@@ -515,6 +518,89 @@ export default function Integrations() {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Power BI Integration Card */}
+        <Card data-testid="card-powerbi-connector">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900">
+                <BarChart3 className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <CardTitle>Power BI Connector</CardTitle>
+                <CardDescription>Connect your data to Power BI dashboards</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h4 className="font-medium text-sm mb-2">Available Data Endpoints</h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Use these REST API endpoints in Power BI's Web connector to import your data.
+                </p>
+                <div className="space-y-2">
+                  {[
+                    { name: 'Projects', endpoint: '/api/analytics/projects', desc: 'All projects with metrics' },
+                    { name: 'Portfolios', endpoint: '/api/analytics/portfolios', desc: 'Portfolio summaries' },
+                    { name: 'Risks', endpoint: '/api/analytics/risks', desc: 'Project risks' },
+                    { name: 'Issues', endpoint: '/api/analytics/issues', desc: 'Project issues' },
+                    { name: 'Milestones', endpoint: '/api/analytics/milestones', desc: 'Milestone data' },
+                    { name: 'Intakes', endpoint: '/api/analytics/intakes', desc: 'Intake pipeline' },
+                    { name: 'Summary', endpoint: '/api/analytics/summary', desc: 'Organization KPIs' },
+                  ].map((item) => (
+                    <div key={item.endpoint} className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const url = `${window.location.origin}${item.endpoint}`;
+                          navigator.clipboard.writeText(url);
+                          setCopiedEndpoint(item.endpoint);
+                          setTimeout(() => setCopiedEndpoint(null), 2000);
+                          toast({ title: "Copied", description: `${item.name} endpoint copied to clipboard` });
+                        }}
+                        data-testid={`button-copy-${item.name.toLowerCase()}`}
+                      >
+                        {copiedEndpoint === item.endpoint ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h4 className="font-medium text-sm mb-2">Setup Instructions</h4>
+                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+                  <li>Open Power BI Desktop</li>
+                  <li>Select <strong>Get Data</strong> &rarr; <strong>Web</strong></li>
+                  <li>Paste the endpoint URL and authenticate</li>
+                  <li>Transform and load your data</li>
+                </ol>
+              </div>
+              
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => window.open('/powerbi/README.md', '_blank')}
+                  data-testid="button-powerbi-docs"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View Documentation
+                </Button>
               </div>
             </div>
           </CardContent>
