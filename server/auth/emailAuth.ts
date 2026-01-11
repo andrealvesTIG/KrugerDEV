@@ -7,6 +7,7 @@ import { eq, and, gt } from "drizzle-orm";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "../services/email";
 import { lookupCompanyByEmail } from "../services/companyLookup";
+import { ensureUserOrganization } from "../services/onboarding";
 
 const PgSession = connectPgSimple(session);
 
@@ -116,10 +117,17 @@ export async function setupAuth(app: Express) {
 
       console.log("User created:", newUser.id);
 
-      // Set session directly without regenerate (simpler approach)
+      try {
+        const orgResult = await ensureUserOrganization(newUser.id, email);
+        if (orgResult.created) {
+          console.log(`Auto-created org for new user: ${email}`);
+        }
+      } catch (orgError) {
+        console.error("Error ensuring user organization:", orgError);
+      }
+
       req.session.userId = newUser.id;
       
-      // Use promisified save
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) {
@@ -163,10 +171,17 @@ export async function setupAuth(app: Express) {
 
       console.log("Password verified for user:", user.id);
 
-      // Set session directly without regenerate (simpler approach)
+      try {
+        const orgResult = await ensureUserOrganization(user.id, email);
+        if (orgResult.created) {
+          console.log(`Auto-created org for existing user: ${email}`);
+        }
+      } catch (orgError) {
+        console.error("Error ensuring user organization:", orgError);
+      }
+
       req.session.userId = user.id;
       
-      // Use promisified save
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) {

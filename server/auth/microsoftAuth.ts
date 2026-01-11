@@ -4,6 +4,7 @@ import { db } from "../db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { lookupCompanyByEmail } from "../services/companyLookup";
+import { ensureUserOrganization } from "../services/onboarding";
 import crypto from "crypto";
 
 declare module "express-session" {
@@ -222,6 +223,15 @@ export async function setupMicrosoftAuth(app: Express) {
           .update(users)
           .set({ microsoftTenantId: tenantId })
           .where(eq(users.id, existingUser.id));
+      }
+
+      try {
+        const orgResult = await ensureUserOrganization(existingUser.id, email);
+        if (orgResult.created) {
+          console.log(`Auto-created org for Microsoft user: ${existingUser.email}`);
+        }
+      } catch (orgError) {
+        console.error("Error ensuring user organization:", orgError);
       }
 
       req.session.userId = existingUser.id;

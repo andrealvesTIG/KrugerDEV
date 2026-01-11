@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { users, organizations, organizationMembers, portfolios, projects, risks, milestones, issues, tasks } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { extractDomain, isPersonalEmailDomain, lookupCompanyByDomain } from "./companyLookup";
 
 interface OnboardingData {
   companyName: string;
@@ -458,4 +459,97 @@ export async function getUserOnboardingStatus(userId: string): Promise<{
     detectedIndustry: user.detectedIndustry || null,
     hasOrganization,
   };
+}
+
+function domainToSlug(domain: string): string {
+  return domain
+    .toLowerCase()
+    .replace(/\./g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+}
+
+export async function ensureUserOrganization(userId: string, email: string): Promise<{
+  organization: typeof organizations.$inferSelect | null;
+  created: boolean;
+  role: string;
+}> {
+  const userOrgs = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, userId));
+  
+  if (userOrgs.length > 0) {
+    const [existingOrg] = await db.select().from(organizations).where(eq(organizations.id, userOrgs[0].organizationId)).limit(1);
+    return { organization: existingOrg || null, created: false, role: userOrgs[0].role };
+  }
+
+  const domain = extractDomain(email);
+  if (!domain || isPersonalEmailDomain(domain)) {
+    return { organization: null, created: false, role: '' };
+  }
+
+  const domainSlug = domainToSlug(domain);
+  
+  const [existingOrg] = await db.select().from(organizations)
+    .where(eq(organizations.slug, domainSlug))
+    .limit(1);
+  
+  if (existingOrg) {
+    const existingMembership = await db.select().from(organizationMembers)
+      .where(and(
+        eq(organizationMembers.organizationId, existingOrg.id),
+        eq(organizationMembers.userId, userId)
+      ))
+      .limit(1);
+    
+    if (existingMembership.length === 0) {
+      const memberCount = await db.select().from(organizationMembers)
+        .where(eq(organizationMembers.organizationId, existingOrg.id));
+      
+      const role = memberCount.length === 0 ? 'org_admin' : 'member';
+      
+      await db.insert(organizationMembers).values({
+        organizationId: existingOrg.id,
+        userId,
+        role,
+      });
+      
+      return { organization: existingOrg, created: false, role };
+    }
+    
+    return { organization: existingOrg, created: false, role: existingMembership[0].role };
+  }
+
+  let companyName = domain.split('.')[0];
+  companyName = companyName.charAt(0).toUpperCase() + companyName.slice(1);
+  
+  try {
+    const companyInfo = await lookupCompanyByDomain(domain);
+    if (companyInfo.companyName && !companyInfo.isPersonalEmail) {
+      companyName = companyInfo.companyName;
+    }
+  } catch (error) {
+    console.error('Company lookup failed during auto-org creation:', error);
+  }
+
+  const [newOrg] = await db.insert(organizations).values({
+    name: companyName,
+    slug: domainSlug,
+    description: `${companyName} organization`,
+    ownerId: userId,
+  }).returning();
+
+  await db.insert(organizationMembers).values({
+    organizationId: newOrg.id,
+    userId,
+    role: 'org_admin',
+  });
+
+  await db.update(users)
+    .set({ 
+      onboardingCompleted: true,
+      detectedCompany: companyName,
+    })
+    .where(eq(users.id, userId));
+
+  console.log(`Auto-created organization "${companyName}" for domain "${domain}" with user ${userId} as org_admin`);
+
+  return { organization: newOrg, created: true, role: 'org_admin' };
 }

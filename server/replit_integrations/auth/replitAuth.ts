@@ -7,6 +7,7 @@ import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPgSimple from "connect-pg-simple";
 import { authStorage } from "./storage";
+import { ensureUserOrganization } from "../../services/onboarding";
 
 const PgSession = connectPgSimple(session);
 
@@ -56,13 +57,24 @@ function updateUserSession(
 }
 
 async function upsertUser(claims: any) {
-  await authStorage.upsertUser({
+  const user = await authStorage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
   });
+
+  if (claims["email"]) {
+    try {
+      const orgResult = await ensureUserOrganization(user.id, claims["email"]);
+      if (orgResult.created) {
+        console.log(`Auto-created org for Replit user: ${claims["email"]}`);
+      }
+    } catch (orgError) {
+      console.error("Error ensuring user organization:", orgError);
+    }
+  }
 }
 
 export async function setupAuth(app: Express) {
