@@ -25,8 +25,8 @@ export default function Embed() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-card flex-shrink-0">
         <div className="flex items-center gap-3">
           <Link href="/">
             <Button variant="ghost" size="icon" data-testid="button-back">
@@ -46,7 +46,7 @@ export default function Embed() {
           <ExternalLink className="h-4 w-4" />
         </a>
       </div>
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0">
         <iframe
           src={url}
           className="w-full h-full border-0"

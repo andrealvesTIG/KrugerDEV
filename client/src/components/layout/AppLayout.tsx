@@ -42,6 +42,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
 function AppLayoutContent({ children }: { children: ReactNode }) {
   const { isCollapsed, setIsMobileOpen } = useSidebarState();
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
+  const [location] = useLocation();
+  
+  const isFullBleedPage = location.startsWith('/embed');
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -111,13 +114,23 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             <ThemeToggle />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="mx-auto max-w-7xl px-4 py-4 md:px-8 md:py-8">
-            {children}
-          </div>
-          <footer className="border-t border-slate-200 dark:border-slate-800 py-4 px-4 md:px-8 text-center">
-            <p className="text-xs text-muted-foreground">Copyright Friday Report LLC</p>
-          </footer>
+        <main className="flex-1 overflow-hidden flex flex-col">
+          {isFullBleedPage ? (
+            <div className="flex-1 overflow-hidden">
+              {children}
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto overflow-x-hidden">
+                <div className="mx-auto max-w-7xl px-4 py-4 md:px-8 md:py-8">
+                  {children}
+                </div>
+              </div>
+              <footer className="border-t border-slate-200 dark:border-slate-800 py-4 px-4 md:px-8 text-center flex-shrink-0">
+                <p className="text-xs text-muted-foreground">Copyright Friday Report LLC</p>
+              </footer>
+            </>
+          )}
         </main>
       </div>
     </div>
