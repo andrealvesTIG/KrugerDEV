@@ -115,6 +115,9 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           <div className="mx-auto max-w-7xl px-4 py-4 md:px-8 md:py-8">
             {children}
           </div>
+          <footer className="border-t border-slate-200 dark:border-slate-800 py-4 px-4 md:px-8 text-center">
+            <p className="text-xs text-muted-foreground">Copyright Friday Report LLC</p>
+          </footer>
         </main>
       </div>
     </div>
