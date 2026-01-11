@@ -47,9 +47,13 @@ export interface IStorage {
 
   // Organizations
   getOrganizations(): Promise<Organization[]>;
+  getDeactivatedOrganizations(): Promise<Organization[]>;
+  getAllOrganizations(): Promise<Organization[]>; // Including deactivated
   getOrganization(id: number): Promise<Organization | undefined>;
   createOrganization(org: InsertOrganization): Promise<Organization>;
   updateOrganization(id: number, updates: Partial<InsertOrganization>): Promise<Organization>;
+  deactivateOrganization(id: number, deactivatedBy: string): Promise<Organization>;
+  reactivateOrganization(id: number): Promise<Organization>;
   deleteOrganization(id: number): Promise<void>;
   
   // Organization Members
@@ -267,6 +271,14 @@ export class DatabaseStorage implements IStorage {
 
   // Organizations
   async getOrganizations(): Promise<Organization[]> {
+    return await db.select().from(organizations).where(isNull(organizations.deactivatedAt));
+  }
+
+  async getDeactivatedOrganizations(): Promise<Organization[]> {
+    return await db.select().from(organizations).where(isNotNull(organizations.deactivatedAt));
+  }
+
+  async getAllOrganizations(): Promise<Organization[]> {
     return await db.select().from(organizations);
   }
 
@@ -283,6 +295,22 @@ export class DatabaseStorage implements IStorage {
   async updateOrganization(id: number, updates: Partial<InsertOrganization>): Promise<Organization> {
     const [updated] = await db.update(organizations)
       .set(updates)
+      .where(eq(organizations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deactivateOrganization(id: number, deactivatedBy: string): Promise<Organization> {
+    const [updated] = await db.update(organizations)
+      .set({ deactivatedAt: new Date(), deactivatedBy })
+      .where(eq(organizations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async reactivateOrganization(id: number): Promise<Organization> {
+    const [updated] = await db.update(organizations)
+      .set({ deactivatedAt: null, deactivatedBy: null })
       .where(eq(organizations.id, id))
       .returning();
     return updated;
