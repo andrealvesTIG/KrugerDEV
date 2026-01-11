@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -12,14 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
-import type { Organization, OrganizationMember, User, RecycleBinItem, RecycleBinItemType, IntakeWorkflowStep } from "@shared/schema";
+import type { Organization, OrganizationMember, User, RecycleBinItem, RecycleBinItemType, IntakeWorkflowStep, SidebarStructure, SidebarGroup, SidebarItem } from "@shared/schema";
+import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay, UniqueIdentifier } from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface EnrichedMember extends OrganizationMember {
   user?: User;
@@ -173,224 +176,720 @@ const availableModules = [
   { key: "resources", name: "Resources", icon: Users, description: "Resource management" },
   { key: "calendar", name: "Calendar", icon: Calendar, description: "Calendar view" },
   { key: "integrations", name: "Integrations", icon: Plug, description: "External integrations" },
+  { key: "user-guide", name: "User Guide", icon: BookOpen, description: "Help documentation" },
 ];
+
+const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  dashboard: LayoutDashboard,
+  portfolios: Briefcase,
+  projects: FolderKanban,
+  intakes: FileInput,
+  tasks: CheckSquare,
+  issues: CircleDot,
+  resources: Users,
+  calendar: Calendar,
+  integrations: Plug,
+  "user-guide": BookOpen,
+};
+
+function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
+  const mainModuleKeys = availableModules.filter(m => m.key !== "user-guide").map(m => m.key);
+  const order = moduleOrder && moduleOrder.length > 0 
+    ? moduleOrder.filter(k => mainModuleKeys.includes(k)) 
+    : mainModuleKeys;
+  const hidden = hiddenModules || [];
+  const groupsHidden = hiddenGroups || [];
+  
+  const menuItems: SidebarItem[] = order.map(key => ({
+    type: "module" as const,
+    key,
+    hidden: hidden.includes(key),
+  }));
+  
+  const helpItems: SidebarItem[] = [{ type: "module" as const, key: "user-guide", hidden: false }];
+  
+  return [
+    { id: "menu", name: "Menu", isDefault: true, hidden: groupsHidden.includes("menu"), items: menuItems },
+    { id: "help", name: "Help", isDefault: true, hidden: groupsHidden.includes("help"), items: helpItems },
+  ];
+}
+
+function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructure {
+  const helpGroup = structure.find(g => g.id === "help");
+  const hasUserGuide = structure.some(g => 
+    g.items.some(item => item.type === "module" && item.key === "user-guide")
+  );
+  
+  if (!hasUserGuide && helpGroup) {
+    return structure.map(g => {
+      if (g.id === "help") {
+        return { ...g, items: [...g.items, { type: "module" as const, key: "user-guide", hidden: false }] };
+      }
+      return g;
+    });
+  }
+  
+  if (!helpGroup) {
+    return [...structure, { 
+      id: "help", 
+      name: "Help", 
+      isDefault: true, 
+      hidden: false, 
+      items: [{ type: "module" as const, key: "user-guide", hidden: false }] 
+    }];
+  }
+  
+  return structure;
+}
+
+function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
+  );
+}
 
 function ModuleVisibilitySection({ organization }: { organization: Organization }) {
   const { toast } = useToast();
-  const defaultOrder = availableModules.map(m => m.key);
   
-  const [localHiddenModules, setLocalHiddenModules] = useState<string[]>(
-    organization.hiddenModules || []
-  );
-  const [localModuleOrder, setLocalModuleOrder] = useState<string[]>(
-    organization.moduleOrder || defaultOrder
-  );
-  const [localHiddenGroups, setLocalHiddenGroups] = useState<string[]>(
-    organization.hiddenGroups || []
-  );
-  const [previousValues, setPreviousValues] = useState<{ hidden: string[]; order: string[]; groups: string[] } | null>(null);
+  const initialStructure = useMemo(() => {
+    if (organization.sidebarStructure && Array.isArray(organization.sidebarStructure) && organization.sidebarStructure.length > 0) {
+      return ensureStructureHasDefaults(organization.sidebarStructure as SidebarStructure);
+    }
+    return getDefaultSidebarStructure(organization.hiddenModules, organization.moduleOrder, organization.hiddenGroups);
+  }, [organization.id, organization.sidebarStructure, organization.hiddenModules, organization.moduleOrder, organization.hiddenGroups]);
+  
+  const [structure, setStructure] = useState<SidebarStructure>(initialStructure);
+  const [previousStructure, setPreviousStructure] = useState<SidebarStructure | null>(null);
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  
+  const [showAddGroup, setShowAddGroup] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<SidebarGroup | null>(null);
+  const [deleteGroup, setDeleteGroup] = useState<SidebarGroup | null>(null);
+  
+  const [showAddLink, setShowAddLink] = useState<string | null>(null);
+  const [editingLink, setEditingLink] = useState<{ groupId: string; link: SidebarItem & { type: "customLink" } } | null>(null);
+  
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newLinkLabel, setNewLinkLabel] = useState("");
+  const [newLinkUrl, setNewLinkUrl] = useState("");
   
   useEffect(() => {
-    setLocalHiddenModules(organization.hiddenModules || []);
-    setLocalModuleOrder(organization.moduleOrder || defaultOrder);
-    setLocalHiddenGroups(organization.hiddenGroups || []);
-  }, [organization.id, organization.hiddenModules, organization.moduleOrder, organization.hiddenGroups]);
+    const newStructure = organization.sidebarStructure && Array.isArray(organization.sidebarStructure) && organization.sidebarStructure.length > 0
+      ? ensureStructureHasDefaults(organization.sidebarStructure as SidebarStructure)
+      : getDefaultSidebarStructure(organization.hiddenModules, organization.moduleOrder, organization.hiddenGroups);
+    setStructure(newStructure);
+  }, [organization.id, organization.sidebarStructure]);
   
-  const orderedModules = [...availableModules].sort((a, b) => {
-    const aIndex = localModuleOrder.indexOf(a.key);
-    const bIndex = localModuleOrder.indexOf(b.key);
-    if (aIndex === -1 && bIndex === -1) return 0;
-    if (aIndex === -1) return 1;
-    if (bIndex === -1) return -1;
-    return aIndex - bIndex;
-  });
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
   
   const updateOrgMutation = useMutation({
-    mutationFn: async (data: { hiddenModules: string[]; moduleOrder: string[]; hiddenGroups: string[] }) => {
+    mutationFn: async (data: { sidebarStructure: SidebarStructure }) => {
       return apiRequest('PUT', `/api/organizations/${organization.id}`, data);
     },
     onSuccess: () => {
-      setPreviousValues(null);
+      setPreviousStructure(null);
       queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
-      toast({ title: "Saved", description: "Settings updated" });
+      toast({ title: "Saved", description: "Menu structure updated" });
     },
     onError: () => {
-      if (previousValues) {
-        setLocalHiddenModules(previousValues.hidden);
-        setLocalModuleOrder(previousValues.order);
-        setLocalHiddenGroups(previousValues.groups);
-        setPreviousValues(null);
+      if (previousStructure) {
+        setStructure(previousStructure);
+        setPreviousStructure(null);
       }
-      toast({ title: "Error", description: "Failed to update settings", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to update menu structure", variant: "destructive" });
     }
   });
 
-  const toggleModule = (moduleKey: string) => {
-    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder], groups: [...localHiddenGroups] });
-    const isHidden = localHiddenModules.includes(moduleKey);
-    const newHiddenModules = isHidden 
-      ? localHiddenModules.filter(k => k !== moduleKey)
-      : [...localHiddenModules, moduleKey];
-    setLocalHiddenModules(newHiddenModules);
-    updateOrgMutation.mutate({ hiddenModules: newHiddenModules, moduleOrder: localModuleOrder, hiddenGroups: localHiddenGroups });
+  const saveStructure = (newStructure: SidebarStructure) => {
+    const normalizedStructure = ensureStructureHasDefaults(newStructure);
+    setPreviousStructure([...structure]);
+    setStructure(normalizedStructure);
+    updateOrgMutation.mutate({ sidebarStructure: normalizedStructure });
   };
 
-  const moveModule = (moduleKey: string, direction: 'up' | 'down') => {
-    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder], groups: [...localHiddenGroups] });
-    const currentIndex = localModuleOrder.indexOf(moduleKey);
-    if (currentIndex === -1) return;
+  const getItemId = (item: SidebarItem): string => {
+    return item.type === "module" ? `module-${item.key}` : `link-${item.id}`;
+  };
+
+  const findItemAndGroup = (id: string): { groupIndex: number; itemIndex: number } | null => {
+    for (let gi = 0; gi < structure.length; gi++) {
+      const itemIndex = structure[gi].items.findIndex(item => getItemId(item) === id);
+      if (itemIndex !== -1) return { groupIndex: gi, itemIndex };
+    }
+    return null;
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+
+    const activeLocation = findItemAndGroup(String(active.id));
+    const overLocation = findItemAndGroup(String(over.id));
     
-    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= localModuleOrder.length) return;
+    if (!activeLocation) return;
     
-    const newOrder = [...localModuleOrder];
-    [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
-    setLocalModuleOrder(newOrder);
-    updateOrgMutation.mutate({ hiddenModules: localHiddenModules, moduleOrder: newOrder, hiddenGroups: localHiddenGroups });
+    const newStructure = structure.map(g => ({ ...g, items: [...g.items] }));
+    
+    if (overLocation) {
+      if (activeLocation.groupIndex === overLocation.groupIndex) {
+        newStructure[activeLocation.groupIndex].items = arrayMove(
+          newStructure[activeLocation.groupIndex].items,
+          activeLocation.itemIndex,
+          overLocation.itemIndex
+        );
+      } else {
+        const [movedItem] = newStructure[activeLocation.groupIndex].items.splice(activeLocation.itemIndex, 1);
+        newStructure[overLocation.groupIndex].items.splice(overLocation.itemIndex, 0, movedItem);
+      }
+    }
+    
+    saveStructure(newStructure);
   };
 
-  const toggleGroup = (groupKey: string) => {
-    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder], groups: [...localHiddenGroups] });
-    const isHidden = localHiddenGroups.includes(groupKey);
-    const newHiddenGroups = isHidden 
-      ? localHiddenGroups.filter(k => k !== groupKey)
-      : [...localHiddenGroups, groupKey];
-    setLocalHiddenGroups(newHiddenGroups);
-    updateOrgMutation.mutate({ hiddenModules: localHiddenModules, moduleOrder: localModuleOrder, hiddenGroups: newHiddenGroups });
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    
+    if (overId.startsWith("group-")) {
+      const targetGroupId = overId.replace("group-", "");
+      const activeLocation = findItemAndGroup(activeId);
+      if (!activeLocation) return;
+      
+      const sourceGroupIndex = activeLocation.groupIndex;
+      const targetGroupIndex = structure.findIndex(g => g.id === targetGroupId);
+      if (targetGroupIndex === -1 || sourceGroupIndex === targetGroupIndex) return;
+      
+      const newStructure = structure.map(g => ({ ...g, items: [...g.items] }));
+      const [movedItem] = newStructure[sourceGroupIndex].items.splice(activeLocation.itemIndex, 1);
+      newStructure[targetGroupIndex].items.push(movedItem);
+      setStructure(newStructure);
+    }
   };
 
-  const menuGroups = [
-    { key: "menu", name: "Menu", description: "Main navigation modules (Dashboard, Projects, etc.)" },
-    { key: "help", name: "Help", description: "Help and documentation section" },
-  ];
+  const toggleGroupVisibility = (groupId: string) => {
+    const newStructure = structure.map(g => 
+      g.id === groupId ? { ...g, hidden: !g.hidden } : g
+    );
+    saveStructure(newStructure);
+  };
+
+  const toggleItemVisibility = (groupId: string, itemId: string) => {
+    const newStructure = structure.map(g => {
+      if (g.id !== groupId) return g;
+      return {
+        ...g,
+        items: g.items.map(item => 
+          getItemId(item) === itemId ? { ...item, hidden: !item.hidden } : item
+        )
+      };
+    });
+    saveStructure(newStructure);
+  };
+
+  const addGroup = () => {
+    if (!newGroupName.trim()) return;
+    const id = newGroupName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const newGroup: SidebarGroup = { id, name: newGroupName.trim(), items: [] };
+    saveStructure([...structure, newGroup]);
+    setNewGroupName("");
+    setShowAddGroup(false);
+  };
+
+  const updateGroup = () => {
+    if (!editingGroup || !newGroupName.trim()) return;
+    const newStructure = structure.map(g => 
+      g.id === editingGroup.id ? { ...g, name: newGroupName.trim() } : g
+    );
+    saveStructure(newStructure);
+    setNewGroupName("");
+    setEditingGroup(null);
+  };
+
+  const confirmDeleteGroup = () => {
+    if (!deleteGroup) return;
+    const groupToDelete = structure.find(g => g.id === deleteGroup.id);
+    if (!groupToDelete) return;
+    
+    const menuGroupIndex = structure.findIndex(g => g.id === "menu");
+    const newStructure = structure.filter(g => g.id !== deleteGroup.id);
+    
+    if (groupToDelete.items.length > 0 && menuGroupIndex !== -1) {
+      const targetIndex = newStructure.findIndex(g => g.id === "menu");
+      if (targetIndex !== -1) {
+        newStructure[targetIndex] = {
+          ...newStructure[targetIndex],
+          items: [...newStructure[targetIndex].items, ...groupToDelete.items]
+        };
+      }
+    }
+    
+    saveStructure(newStructure);
+    setDeleteGroup(null);
+  };
+
+  const moveGroup = (groupId: string, direction: 'up' | 'down') => {
+    const index = structure.findIndex(g => g.id === groupId);
+    if (index === -1) return;
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= structure.length) return;
+    
+    const newStructure = [...structure];
+    [newStructure[index], newStructure[newIndex]] = [newStructure[newIndex], newStructure[index]];
+    saveStructure(newStructure);
+  };
+
+  const addCustomLink = (groupId: string) => {
+    if (!newLinkLabel.trim() || !newLinkUrl.trim()) return;
+    try {
+      new URL(newLinkUrl);
+    } catch {
+      toast({ title: "Invalid URL", description: "Please enter a valid URL", variant: "destructive" });
+      return;
+    }
+    
+    const linkId = `link-${Date.now()}`;
+    const newLink: SidebarItem = {
+      type: "customLink",
+      id: linkId,
+      label: newLinkLabel.trim(),
+      url: newLinkUrl.trim(),
+      openInNewTab: true,
+    };
+    
+    const newStructure = structure.map(g => 
+      g.id === groupId ? { ...g, items: [...g.items, newLink] } : g
+    );
+    saveStructure(newStructure);
+    setNewLinkLabel("");
+    setNewLinkUrl("");
+    setShowAddLink(null);
+  };
+
+  const updateCustomLink = () => {
+    if (!editingLink || !newLinkLabel.trim() || !newLinkUrl.trim()) return;
+    try {
+      new URL(newLinkUrl);
+    } catch {
+      toast({ title: "Invalid URL", description: "Please enter a valid URL", variant: "destructive" });
+      return;
+    }
+    
+    const newStructure = structure.map(g => {
+      if (g.id !== editingLink.groupId) return g;
+      return {
+        ...g,
+        items: g.items.map(item => {
+          if (item.type === "customLink" && item.id === editingLink.link.id) {
+            return { ...item, label: newLinkLabel.trim(), url: newLinkUrl.trim() };
+          }
+          return item;
+        })
+      };
+    });
+    saveStructure(newStructure);
+    setNewLinkLabel("");
+    setNewLinkUrl("");
+    setEditingLink(null);
+  };
+
+  const deleteItem = (groupId: string, itemId: string) => {
+    const newStructure = structure.map(g => {
+      if (g.id !== groupId) return g;
+      return { ...g, items: g.items.filter(item => getItemId(item) !== itemId) };
+    });
+    saveStructure(newStructure);
+  };
+
+  const getModuleInfo = (key: string) => availableModules.find(m => m.key === key);
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <LayoutDashboard className="h-5 w-5" />
-            Menu Groups
-          </CardTitle>
-          <CardDescription>
-            Control which menu groups are visible in the sidebar.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <LayoutDashboard className="h-5 w-5" />
+                Menu Structure
+              </CardTitle>
+              <CardDescription>
+                Organize menu groups and items. Drag items between groups to reorganize.
+              </CardDescription>
+            </div>
+            <Button onClick={() => setShowAddGroup(true)} size="sm" data-testid="button-add-group">
+              <Plus className="h-4 w-4 mr-1" />
+              Add Group
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {menuGroups.map((group) => {
-              const isHidden = localHiddenGroups.includes(group.key);
-              return (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragOver={handleDragOver}
+          >
+            <div className="space-y-4">
+              {structure.map((group, groupIndex) => (
                 <div 
-                  key={group.key} 
-                  className="flex items-center justify-between p-3 rounded-lg border"
-                  data-testid={`group-toggle-${group.key}`}
+                  key={group.id} 
+                  className="border rounded-lg overflow-visible"
+                  data-testid={`group-${group.id}`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-md ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
-                      {group.key === 'menu' ? <LayoutDashboard className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
-                    </div>
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        {group.name}
-                        {isHidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                  <div className="flex items-center justify-between p-3 bg-muted/50 border-b">
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() => moveGroup(group.id, 'up')}
+                          disabled={groupIndex === 0 || updateOrgMutation.isPending}
+                          data-testid={`button-move-group-up-${group.id}`}
+                        >
+                          <ChevronUp className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() => moveGroup(group.id, 'down')}
+                          disabled={groupIndex === structure.length - 1 || updateOrgMutation.isPending}
+                          data-testid={`button-move-group-down-${group.id}`}
+                        >
+                          <ChevronDown className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <div className="text-sm text-muted-foreground">{group.description}</div>
+                      <div className={`p-2 rounded-md ${group.hidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
+                        <Folder className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          {group.name}
+                          {group.isDefault && <Badge variant="outline" className="text-xs">Default</Badge>}
+                          {group.hidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                        </div>
+                        <div className="text-sm text-muted-foreground">{group.items.length} items</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowAddLink(group.id)}
+                        data-testid={`button-add-link-${group.id}`}
+                      >
+                        <LinkIcon className="h-4 w-4" />
+                      </Button>
+                      {!group.isDefault && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => { setEditingGroup(group); setNewGroupName(group.name); }}
+                            data-testid={`button-edit-group-${group.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeleteGroup(group)}
+                            data-testid={`button-delete-group-${group.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                      <div className="flex items-center gap-2 ml-2">
+                        <span className="text-muted-foreground">
+                          {group.hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </span>
+                        <Switch
+                          checked={!group.hidden}
+                          onCheckedChange={() => toggleGroupVisibility(group.id)}
+                          disabled={updateOrgMutation.isPending}
+                          data-testid={`switch-group-${group.id}`}
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </span>
-                    <Switch
-                      checked={!isHidden}
-                      onCheckedChange={() => toggleGroup(group.key)}
-                      disabled={updateOrgMutation.isPending}
-                      data-testid={`switch-group-${group.key}`}
-                    />
-                  </div>
+                  
+                  <SortableContext
+                    items={group.items.map(item => getItemId(item))}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div 
+                      className="p-2 min-h-[48px]"
+                      id={`group-${group.id}`}
+                      data-testid={`group-items-${group.id}`}
+                    >
+                      {group.items.length === 0 ? (
+                        <div className="text-center py-4 text-muted-foreground text-sm">
+                          Drag items here or add a custom link
+                        </div>
+                      ) : (
+                        group.items.map((item) => {
+                          const itemId = getItemId(item);
+                          const isHidden = item.hidden;
+                          
+                          if (item.type === "module") {
+                            const moduleInfo = getModuleInfo(item.key);
+                            const Icon = moduleIconMap[item.key] || Folder;
+                            return (
+                              <SortableItem key={itemId} id={itemId}>
+                                <div 
+                                  className="flex items-center justify-between p-3 rounded-lg border mb-2 bg-background cursor-grab active:cursor-grabbing"
+                                  data-testid={`item-${itemId}`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                    <div className={`p-2 rounded-md ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
+                                      <Icon className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                      <div className="font-medium flex items-center gap-2">
+                                        {moduleInfo?.name || item.key}
+                                        {isHidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">{moduleInfo?.description || 'Module'}</div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">
+                                      {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </span>
+                                    <Switch
+                                      checked={!isHidden}
+                                      onCheckedChange={() => toggleItemVisibility(group.id, itemId)}
+                                      disabled={updateOrgMutation.isPending}
+                                      data-testid={`switch-item-${itemId}`}
+                                    />
+                                  </div>
+                                </div>
+                              </SortableItem>
+                            );
+                          } else {
+                            return (
+                              <SortableItem key={itemId} id={itemId}>
+                                <div 
+                                  className="flex items-center justify-between p-3 rounded-lg border mb-2 bg-background cursor-grab active:cursor-grabbing"
+                                  data-testid={`item-${itemId}`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                    <div className={`p-2 rounded-md ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-accent text-accent-foreground'}`}>
+                                      <ExternalLink className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                      <div className="font-medium flex items-center gap-2">
+                                        {item.label}
+                                        <Badge variant="outline" className="text-xs">Link</Badge>
+                                        {isHidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
+                                      </div>
+                                      <div className="text-sm text-muted-foreground truncate max-w-[200px]">{item.url}</div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => { 
+                                        setEditingLink({ groupId: group.id, link: item }); 
+                                        setNewLinkLabel(item.label); 
+                                        setNewLinkUrl(item.url); 
+                                      }}
+                                      data-testid={`button-edit-link-${item.id}`}
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => deleteItem(group.id, itemId)}
+                                      data-testid={`button-delete-link-${item.id}`}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                    <div className="flex items-center gap-2 ml-2">
+                                      <span className="text-muted-foreground">
+                                        {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                      </span>
+                                      <Switch
+                                        checked={!isHidden}
+                                        onCheckedChange={() => toggleItemVisibility(group.id, itemId)}
+                                        disabled={updateOrgMutation.isPending}
+                                        data-testid={`switch-item-${itemId}`}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </SortableItem>
+                            );
+                          }
+                        })
+                      )}
+                    </div>
+                  </SortableContext>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          </DndContext>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <EyeOff className="h-5 w-5" />
-            Module Visibility & Order
-          </CardTitle>
-          <CardDescription>
-            Control which modules are visible and their order in the sidebar. Use the arrows to reorder modules.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {orderedModules.map((module, index) => {
-            const isHidden = localHiddenModules.includes(module.key);
-            const Icon = module.icon;
-            const isFirst = index === 0;
-            const isLast = index === orderedModules.length - 1;
-            
-            return (
-              <div 
-                key={module.key} 
-                className="flex items-center justify-between p-3 rounded-lg border"
-                data-testid={`module-toggle-${module.key}`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      onClick={() => moveModule(module.key, 'up')}
-                      disabled={isFirst || updateOrgMutation.isPending}
-                      data-testid={`button-move-up-${module.key}`}
-                    >
-                      <ChevronUp className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      onClick={() => moveModule(module.key, 'down')}
-                      disabled={isLast || updateOrgMutation.isPending}
-                      data-testid={`button-move-down-${module.key}`}
-                    >
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <div className={`p-2 rounded-md ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="font-medium flex items-center gap-2">
-                      {module.name}
-                      {isHidden && <Badge variant="secondary" className="text-xs">Hidden</Badge>}
-                    </div>
-                    <div className="text-sm text-muted-foreground">{module.description}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </span>
-                  <Switch
-                    checked={!isHidden}
-                    onCheckedChange={() => toggleModule(module.key)}
-                    disabled={updateOrgMutation.isPending}
-                    data-testid={`switch-module-${module.key}`}
-                  />
-                </div>
-              </div>
-            );
-          })}
+      <Dialog open={showAddGroup} onOpenChange={setShowAddGroup}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Menu Group</DialogTitle>
+            <DialogDescription>Create a new group to organize your sidebar items.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="group-name">Group Name</Label>
+              <Input 
+                id="group-name" 
+                value={newGroupName} 
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="e.g., Reports"
+                data-testid="input-group-name"
+              />
+            </div>
           </div>
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowAddGroup(false); setNewGroupName(""); }}>Cancel</Button>
+            <Button onClick={addGroup} disabled={!newGroupName.trim()} data-testid="button-confirm-add-group">Add Group</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingGroup} onOpenChange={(open) => { if (!open) { setEditingGroup(null); setNewGroupName(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Group</DialogTitle>
+            <DialogDescription>Update the group name.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-group-name">Group Name</Label>
+              <Input 
+                id="edit-group-name" 
+                value={newGroupName} 
+                onChange={(e) => setNewGroupName(e.target.value)}
+                data-testid="input-edit-group-name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditingGroup(null); setNewGroupName(""); }}>Cancel</Button>
+            <Button onClick={updateGroup} disabled={!newGroupName.trim()} data-testid="button-confirm-edit-group">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteGroup} onOpenChange={(open) => { if (!open) setDeleteGroup(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Group</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteGroup?.name}"? 
+              {deleteGroup && deleteGroup.items.length > 0 && " Its items will be moved to the Menu group."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteGroup} data-testid="button-confirm-delete-group">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={!!showAddLink} onOpenChange={(open) => { if (!open) { setShowAddLink(null); setNewLinkLabel(""); setNewLinkUrl(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Custom Link</DialogTitle>
+            <DialogDescription>Add an external link that opens in a new tab.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="link-label">Label</Label>
+              <Input 
+                id="link-label" 
+                value={newLinkLabel} 
+                onChange={(e) => setNewLinkLabel(e.target.value)}
+                placeholder="e.g., Documentation"
+                data-testid="input-link-label"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="link-url">URL</Label>
+              <Input 
+                id="link-url" 
+                value={newLinkUrl} 
+                onChange={(e) => setNewLinkUrl(e.target.value)}
+                placeholder="https://example.com"
+                data-testid="input-link-url"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowAddLink(null); setNewLinkLabel(""); setNewLinkUrl(""); }}>Cancel</Button>
+            <Button onClick={() => showAddLink && addCustomLink(showAddLink)} disabled={!newLinkLabel.trim() || !newLinkUrl.trim()} data-testid="button-confirm-add-link">Add Link</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingLink} onOpenChange={(open) => { if (!open) { setEditingLink(null); setNewLinkLabel(""); setNewLinkUrl(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Custom Link</DialogTitle>
+            <DialogDescription>Update the link details.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-link-label">Label</Label>
+              <Input 
+                id="edit-link-label" 
+                value={newLinkLabel} 
+                onChange={(e) => setNewLinkLabel(e.target.value)}
+                data-testid="input-edit-link-label"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-link-url">URL</Label>
+              <Input 
+                id="edit-link-url" 
+                value={newLinkUrl} 
+                onChange={(e) => setNewLinkUrl(e.target.value)}
+                data-testid="input-edit-link-url"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditingLink(null); setNewLinkLabel(""); setNewLinkUrl(""); }}>Cancel</Button>
+            <Button onClick={updateCustomLink} disabled={!newLinkLabel.trim() || !newLinkUrl.trim()} data-testid="button-confirm-edit-link">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

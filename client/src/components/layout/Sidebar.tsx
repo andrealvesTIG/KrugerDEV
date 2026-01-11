@@ -1,6 +1,6 @@
-import { useState, createContext, useContext, ReactNode, useEffect } from "react";
+import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug, CreditCard } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, UserCog, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug, CreditCard, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,6 +8,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { SidebarStructure, SidebarGroup, SidebarItem } from "@shared/schema";
 
 // Context for sidebar collapsed state
 interface SidebarContextType {
@@ -51,6 +52,19 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 
 export { logoIcon };
 
+const moduleDefinitions: Record<string, { name: string; href: string; icon: React.ComponentType<{ className?: string }> }> = {
+  dashboard: { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  portfolios: { name: "Portfolios", href: "/portfolios", icon: Briefcase },
+  projects: { name: "Projects", href: "/projects", icon: FolderKanban },
+  intakes: { name: "Intakes", href: "/intakes", icon: FileInput },
+  tasks: { name: "Tasks", href: "/tasks", icon: CheckSquare },
+  issues: { name: "Issues", href: "/issues", icon: CircleDot },
+  resources: { name: "Resources", href: "/resources", icon: Users },
+  calendar: { name: "Calendar", href: "/calendar", icon: Calendar },
+  integrations: { name: "Integrations", href: "/integrations", icon: Plug },
+  "user-guide": { name: "User Guide", href: "/user-guide", icon: BookOpen },
+};
+
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, key: "dashboard" },
   { name: "Portfolios", href: "/portfolios", icon: Briefcase, key: "portfolios" },
@@ -66,6 +80,55 @@ const navigation = [
 const helpNavigation = [
   { name: "User Guide", href: "/user-guide", icon: BookOpen },
 ];
+
+function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
+  const mainModules = ["dashboard", "portfolios", "projects", "intakes", "tasks", "issues", "resources", "calendar", "integrations"];
+  const defaultOrder = mainModules;
+  const order = moduleOrder && moduleOrder.length > 0 ? moduleOrder.filter(k => mainModules.includes(k)) : defaultOrder;
+  const hidden = hiddenModules || [];
+  const groupsHidden = hiddenGroups || [];
+  
+  const menuItems: SidebarItem[] = order.map(key => ({
+    type: "module" as const,
+    key,
+    hidden: hidden.includes(key),
+  }));
+  
+  const helpItems: SidebarItem[] = [{ type: "module" as const, key: "user-guide", hidden: false }];
+  
+  return [
+    { id: "menu", name: "Menu", isDefault: true, hidden: groupsHidden.includes("menu"), items: menuItems },
+    { id: "help", name: "Help", isDefault: true, hidden: groupsHidden.includes("help"), items: helpItems },
+  ];
+}
+
+function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructure {
+  const helpGroup = structure.find(g => g.id === "help");
+  const hasUserGuide = structure.some(g => 
+    g.items.some(item => item.type === "module" && item.key === "user-guide")
+  );
+  
+  if (!hasUserGuide && helpGroup) {
+    return structure.map(g => {
+      if (g.id === "help") {
+        return { ...g, items: [...g.items, { type: "module" as const, key: "user-guide", hidden: false }] };
+      }
+      return g;
+    });
+  }
+  
+  if (!helpGroup) {
+    return [...structure, { 
+      id: "help", 
+      name: "Help", 
+      isDefault: true, 
+      hidden: false, 
+      items: [{ type: "module" as const, key: "user-guide", hidden: false }] 
+    }];
+  }
+  
+  return structure;
+}
 
 const userMenuItems = [
   { name: "Profile", href: "/profile", icon: User },
@@ -140,146 +203,119 @@ export function Sidebar() {
         </div>
       </div>
       {/* Navigation */}
-      <nav className={cn("flex-1 space-y-1 py-6", isCollapsed ? "px-2" : "px-4")}>
+      <nav className={cn("flex-1 space-y-1 py-6 overflow-y-auto", isCollapsed ? "px-2" : "px-4")}>
         {(() => {
-          const hiddenGroups = currentOrganization?.hiddenGroups || [];
-          const isMenuHidden = hiddenGroups.includes('menu');
-          if (isMenuHidden) return null;
+          const sidebarStructure: SidebarStructure = currentOrganization?.sidebarStructure 
+            && Array.isArray(currentOrganization.sidebarStructure) 
+            && currentOrganization.sidebarStructure.length > 0
+            ? ensureStructureHasDefaults(currentOrganization.sidebarStructure as SidebarStructure)
+            : getDefaultSidebarStructure(
+                currentOrganization?.hiddenModules,
+                currentOrganization?.moduleOrder,
+                currentOrganization?.hiddenGroups
+              );
           
-          return (
-            <>
-              {!isCollapsed && (
-                <p className="mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Menu
-                </p>
-              )}
-            </>
-          );
-        })()}
-        {(() => {
-          const hiddenGroups = currentOrganization?.hiddenGroups || [];
-          const hiddenModules = currentOrganization?.hiddenModules || [];
-          const moduleOrder = currentOrganization?.moduleOrder || [];
-          
-          // If Menu group is hidden, don't show any modules
-          if (hiddenGroups.includes('menu')) return [];
-          
-          // Sort navigation by moduleOrder, keeping unordered items at the end
-          const sortedNav = [...navigation].sort((a, b) => {
-            const aIndex = moduleOrder.indexOf(a.key);
-            const bIndex = moduleOrder.indexOf(b.key);
-            if (aIndex === -1 && bIndex === -1) return 0;
-            if (aIndex === -1) return 1;
-            if (bIndex === -1) return -1;
-            return aIndex - bIndex;
+          return sidebarStructure.map((group, groupIndex) => {
+            if (group.hidden) return null;
+            
+            const visibleItems = group.items.filter(item => !item.hidden);
+            if (visibleItems.length === 0 && group.id !== "help") return null;
+            
+            return (
+              <div key={group.id} className={groupIndex > 0 ? "mt-4" : ""}>
+                {!isCollapsed && (
+                  <p className="mb-3 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    {group.name}
+                  </p>
+                )}
+                {isCollapsed && groupIndex > 0 && <div className="mt-4 border-t border-slate-700 pt-4" />}
+                
+                {visibleItems.map((item) => {
+                  if (item.type === "module") {
+                    const moduleDef = moduleDefinitions[item.key];
+                    if (!moduleDef) return null;
+                    
+                    const isActive = location === moduleDef.href || (moduleDef.href !== "/" && location.startsWith(moduleDef.href));
+                    const Icon = moduleDef.icon;
+                    
+                    const navItem = (
+                      <Link key={item.key} href={moduleDef.href} onClick={handleNavClick}>
+                        <div
+                          className={cn(
+                            "group flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
+                            isCollapsed ? "justify-center px-2" : "px-4",
+                            isActive
+                              ? "bg-primary text-white shadow-md shadow-primary/20"
+                              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                          )}
+                          data-testid={`link-nav-${moduleDef.name.toLowerCase().replace(/\s+/g, '-')}`}
+                        >
+                          <Icon
+                            className={cn(
+                              "h-5 w-5 flex-shrink-0 transition-colors",
+                              !isCollapsed && "mr-3",
+                              isActive ? "text-white" : "text-slate-400 group-hover:text-white"
+                            )}
+                          />
+                          {!isCollapsed && moduleDef.name}
+                        </div>
+                      </Link>
+                    );
+
+                    if (isCollapsed) {
+                      return (
+                        <Tooltip key={item.key} delayDuration={0}>
+                          <TooltipTrigger asChild>{navItem}</TooltipTrigger>
+                          <TooltipContent side="right" className="bg-slate-800 text-white border-slate-700">
+                            {moduleDef.name}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
+                    return navItem;
+                  } else {
+                    const customLink = (
+                      <a
+                        key={item.id}
+                        href={item.url}
+                        target={item.openInNewTab ? "_blank" : "_self"}
+                        rel={item.openInNewTab ? "noopener noreferrer" : undefined}
+                        onClick={handleNavClick}
+                        className={cn(
+                          "group flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
+                          isCollapsed ? "justify-center px-2" : "px-4",
+                          "text-slate-300 hover:bg-slate-800 hover:text-white"
+                        )}
+                        data-testid={`link-nav-custom-${item.id}`}
+                      >
+                        <ExternalLink
+                          className={cn(
+                            "h-5 w-5 flex-shrink-0 transition-colors",
+                            !isCollapsed && "mr-3",
+                            "text-slate-400 group-hover:text-white"
+                          )}
+                        />
+                        {!isCollapsed && item.label}
+                      </a>
+                    );
+
+                    if (isCollapsed) {
+                      return (
+                        <Tooltip key={item.id} delayDuration={0}>
+                          <TooltipTrigger asChild>{customLink}</TooltipTrigger>
+                          <TooltipContent side="right" className="bg-slate-800 text-white border-slate-700">
+                            {item.label}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
+                    return customLink;
+                  }
+                })}
+              </div>
+            );
           });
-          
-          return sortedNav.filter((item) => !hiddenModules.includes(item.key));
-        })().map((item) => {
-          const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
-          
-          const navItem = (
-            <Link key={item.name} href={item.href} onClick={handleNavClick}>
-              <div
-                className={cn(
-                  "group flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
-                  isCollapsed ? "justify-center px-2" : "px-4",
-                  isActive
-                    ? "bg-primary text-white shadow-md shadow-primary/20"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                )}
-                data-testid={`link-nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                <item.icon
-                  className={cn(
-                    "h-5 w-5 flex-shrink-0 transition-colors",
-                    !isCollapsed && "mr-3",
-                    isActive ? "text-white" : "text-slate-400 group-hover:text-white"
-                  )}
-                />
-                {!isCollapsed && item.name}
-              </div>
-            </Link>
-          );
-
-          if (isCollapsed) {
-            return (
-              <Tooltip key={item.name} delayDuration={0}>
-                <TooltipTrigger asChild>
-                  {navItem}
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-slate-800 text-white border-slate-700">
-                  {item.name}
-                </TooltipContent>
-              </Tooltip>
-            );
-          }
-
-          return navItem;
-        })}
-
-        {/* Help Section */}
-        {(() => {
-          const hiddenGroups = currentOrganization?.hiddenGroups || [];
-          if (hiddenGroups.includes('help')) return null;
-          
-          return (
-            <>
-              {!isCollapsed && (
-                <p className="mt-6 mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Help
-                </p>
-              )}
-              {isCollapsed && <div className="mt-4" />}
-            </>
-          );
         })()}
-        {(() => {
-          const hiddenGroups = currentOrganization?.hiddenGroups || [];
-          if (hiddenGroups.includes('help')) return [];
-          return helpNavigation;
-        })().map((item) => {
-          const isActive = location === item.href || location.startsWith(item.href);
-          
-          const navItem = (
-            <Link key={item.name} href={item.href} onClick={handleNavClick}>
-              <div
-                className={cn(
-                  "group flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
-                  isCollapsed ? "justify-center px-2" : "px-4",
-                  isActive
-                    ? "bg-primary text-white shadow-md shadow-primary/20"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                )}
-                data-testid={`link-nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                <item.icon
-                  className={cn(
-                    "h-5 w-5 flex-shrink-0 transition-colors",
-                    !isCollapsed && "mr-3",
-                    isActive ? "text-white" : "text-slate-400 group-hover:text-white"
-                  )}
-                />
-                {!isCollapsed && item.name}
-              </div>
-            </Link>
-          );
-
-          if (isCollapsed) {
-            return (
-              <Tooltip key={item.name} delayDuration={0}>
-                <TooltipTrigger asChild>
-                  {navItem}
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-slate-800 text-white border-slate-700">
-                  {item.name}
-                </TooltipContent>
-              </Tooltip>
-            );
-          }
-
-          return navItem;
-        })}
       </nav>
       {/* User Section with Dropdown */}
       <div className={cn("border-t border-slate-800", isCollapsed ? "p-2" : "p-4")}>
