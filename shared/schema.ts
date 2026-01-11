@@ -21,6 +21,7 @@ export const organizations = pgTable("organizations", {
   ownerId: varchar("owner_id").references(() => users.id), // Organization creator
   createdAt: timestamp("created_at").defaultNow(),
   hiddenModules: text("hidden_modules").array(), // Array of module keys to hide from sidebar
+  moduleOrder: text("module_order").array(), // Array of module keys defining sidebar order
 });
 
 // Organization Members (Join table for users <-> organizations)

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
@@ -178,16 +178,24 @@ const availableModules = [
 function ModuleVisibilitySection({ organization }: { organization: Organization }) {
   const { toast } = useToast();
   const hiddenModules = organization.hiddenModules || [];
+  const moduleOrder = organization.moduleOrder || availableModules.map(m => m.key);
+  
+  const orderedModules = [...availableModules].sort((a, b) => {
+    const aIndex = moduleOrder.indexOf(a.key);
+    const bIndex = moduleOrder.indexOf(b.key);
+    if (aIndex === -1 && bIndex === -1) return 0;
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
   
   const updateOrgMutation = useMutation({
-    mutationFn: async (newHiddenModules: string[]) => {
-      return apiRequest('PUT', `/api/organizations/${organization.id}`, { 
-        hiddenModules: newHiddenModules 
-      });
+    mutationFn: async (data: { hiddenModules?: string[]; moduleOrder?: string[] }) => {
+      return apiRequest('PUT', `/api/organizations/${organization.id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
-      toast({ title: "Saved", description: "Module visibility settings updated" });
+      toast({ title: "Saved", description: "Module settings updated" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update settings", variant: "destructive" });
@@ -199,7 +207,20 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
     const newHiddenModules = isHidden 
       ? hiddenModules.filter(k => k !== moduleKey)
       : [...hiddenModules, moduleKey];
-    updateOrgMutation.mutate(newHiddenModules);
+    updateOrgMutation.mutate({ hiddenModules: newHiddenModules });
+  };
+
+  const moveModule = (moduleKey: string, direction: 'up' | 'down') => {
+    const currentOrder = orderedModules.map(m => m.key);
+    const currentIndex = currentOrder.indexOf(moduleKey);
+    if (currentIndex === -1) return;
+    
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= currentOrder.length) return;
+    
+    const newOrder = [...currentOrder];
+    [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
+    updateOrgMutation.mutate({ moduleOrder: newOrder });
   };
 
   return (
@@ -207,24 +228,49 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <EyeOff className="h-5 w-5" />
-          Module Visibility
+          Module Visibility & Order
         </CardTitle>
         <CardDescription>
-          Control which modules are visible in the sidebar for this organization. Hidden modules will not appear in navigation.
+          Control which modules are visible and their order in the sidebar. Use the arrows to reorder modules.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {availableModules.map((module) => {
+        <div className="space-y-2">
+          {orderedModules.map((module, index) => {
             const isHidden = hiddenModules.includes(module.key);
             const Icon = module.icon;
+            const isFirst = index === 0;
+            const isLast = index === orderedModules.length - 1;
+            
             return (
               <div 
                 key={module.key} 
-                className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
+                className="flex items-center justify-between p-3 rounded-lg border"
                 data-testid={`module-toggle-${module.key}`}
               >
                 <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => moveModule(module.key, 'up')}
+                      disabled={isFirst || updateOrgMutation.isPending}
+                      data-testid={`button-move-up-${module.key}`}
+                    >
+                      <ChevronUp className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => moveModule(module.key, 'down')}
+                      disabled={isLast || updateOrgMutation.isPending}
+                      data-testid={`button-move-down-${module.key}`}
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </div>
                   <div className={`p-2 rounded-md ${isHidden ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
                     <Icon className="h-4 w-4" />
                   </div>

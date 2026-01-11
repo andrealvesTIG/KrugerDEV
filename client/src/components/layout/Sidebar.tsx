@@ -146,9 +146,22 @@ export function Sidebar() {
             Menu
           </p>
         )}
-        {navigation
-          .filter((item) => !(currentOrganization?.hiddenModules || []).includes(item.key))
-          .map((item) => {
+        {(() => {
+          const hiddenModules = currentOrganization?.hiddenModules || [];
+          const moduleOrder = currentOrganization?.moduleOrder || [];
+          
+          // Sort navigation by moduleOrder, keeping unordered items at the end
+          const sortedNav = [...navigation].sort((a, b) => {
+            const aIndex = moduleOrder.indexOf(a.key);
+            const bIndex = moduleOrder.indexOf(b.key);
+            if (aIndex === -1 && bIndex === -1) return 0;
+            if (aIndex === -1) return 1;
+            if (bIndex === -1) return -1;
+            return aIndex - bIndex;
+          });
+          
+          return sortedNav.filter((item) => !hiddenModules.includes(item.key));
+        })().map((item) => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           
           const navItem = (
