@@ -84,7 +84,7 @@ export default function Integrations() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   
   // MS Project integration states
-  const [mppDetailOpen, setMppDetailOpen] = useState(false);
+  const [mppFullPage, setMppFullPage] = useState(false);
   const [powerBiDetailOpen, setPowerBiDetailOpen] = useState(false);
   const [expandedImports, setExpandedImports] = useState<Set<number>>(new Set());
   const [selectedImportId, setSelectedImportId] = useState<number | null>(null);
@@ -429,13 +429,460 @@ export default function Integrations() {
       setSelectedIntegration(integration);
       setComingSoonOpen(true);
     } else if (integration.id === "ms-project") {
-      setMppDetailOpen(true);
+      setMppFullPage(true);
     } else if (integration.id === "power-bi") {
       setPowerBiDetailOpen(true);
     }
   };
 
   const filteredIntegrations = integrations.filter(i => i.category === activeCategory);
+
+  // Full-page MS Project view
+  if (mppFullPage) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => setMppFullPage(false)} data-testid="button-back-integrations">
+            <ChevronRight className="h-4 w-4 rotate-180 mr-2" />
+            Back to Integrations
+          </Button>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900">
+            <FileSpreadsheet className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Microsoft Project Connector</h1>
+            <p className="text-muted-foreground">Import task schedules from MS Project files</p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload Files</CardTitle>
+              <CardDescription>Import MPP, XML, or CSV files from MS Project</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <h4 className="font-medium text-sm mb-2">Supported Formats</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="default">MPP (Native)</Badge>
+                    <Badge variant="secondary">XML (MSPDI)</Badge>
+                    <Badge variant="secondary">CSV</Badge>
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <h4 className="font-medium text-sm mb-2">Imported Fields</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>Task Name &amp; WBS</li>
+                    <li>Start/Finish Date, Duration</li>
+                    <li>% Complete, Hierarchy</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`
+                  relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+                  transition-colors duration-200
+                  ${isDragOver 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                  }
+                `}
+                data-testid="dropzone-upload"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".mpp,.xml,.csv"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  data-testid="input-file-upload"
+                />
+                
+                {uploadingFiles.length > 0 ? (
+                  <div className="space-y-3">
+                    <Files className="mx-auto h-10 w-10 text-primary" />
+                    <div className="text-sm font-medium">Uploading {uploadingFiles.length} file(s)...</div>
+                    <div className="space-y-2 max-h-32 overflow-auto">
+                      {uploadingFiles.map((fileName) => (
+                        <div key={fileName} className="flex items-center justify-center gap-2 text-sm">
+                          {uploadProgress.get(fileName) === 'uploading' && (
+                            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                          )}
+                          {uploadProgress.get(fileName) === 'success' && (
+                            <CheckCircle2 className="h-3 w-3 text-green-600" />
+                          )}
+                          {uploadProgress.get(fileName) === 'error' && (
+                            <X className="h-3 w-3 text-destructive" />
+                          )}
+                          {uploadProgress.get(fileName) === 'pending' && (
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                          )}
+                          <span className="truncate max-w-[200px]">{fileName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Upload className={`mx-auto h-10 w-10 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {isDragOver ? 'Drop files here' : 'Drag and drop files here'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        or click to browse - supports multiple files
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle>Import History</CardTitle>
+                <CardDescription>Previously imported project files</CardDescription>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {unconvertedImports.length > 0 && (
+                  <>
+                    {selectedImports.size > 0 ? (
+                      <>
+                        <Badge variant="secondary">{selectedUnconvertedCount} selected</Badge>
+                        <Button variant="outline" size="sm" onClick={clearSelection} data-testid="button-clear-selection">
+                          Clear
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => {
+                            setBatchPortfolio("");
+                            setBatchStatus("Initiation");
+                            setBatchPriority("Medium");
+                            setBatchConvertModalOpen(true);
+                          }}
+                          disabled={selectedUnconvertedCount === 0}
+                          data-testid="button-batch-convert"
+                        >
+                          <FolderPlus className="mr-2 h-4 w-4" />
+                          Create All
+                        </Button>
+                      </>
+                    ) : (
+                      <Button variant="outline" size="sm" onClick={selectAllUnconverted} data-testid="button-select-all">
+                        <Files className="mr-2 h-4 w-4" />
+                        Select All ({unconvertedImports.length})
+                      </Button>
+                    )}
+                  </>
+                )}
+                <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading} data-testid="button-refresh-imports">
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : !imports?.length ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileSpreadsheet className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                  <p>No imports yet. Upload your first file above.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-auto">
+                  {imports.map((imp) => {
+                    const isUnconverted = !imp.projectId && imp.status !== "converted";
+                    const isSelected = selectedImports.has(imp.id);
+                    
+                    return (
+                      <div key={imp.id} className={`flex items-center justify-between p-3 rounded-lg border ${isSelected ? 'border-primary bg-primary/5' : 'bg-background'}`}>
+                        <div className="flex items-center gap-3">
+                          {isUnconverted && (
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleImportSelection(imp.id)}
+                              data-testid={`checkbox-select-import-${imp.id}`}
+                            />
+                          )}
+                          <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">{imp.fileName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {imp.taskCount} tasks • {imp.lastSyncedAt ? formatDistanceToNow(new Date(imp.lastSyncedAt), { addSuffix: true }) : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {imp.projectId ? (
+                            <>
+                              <Badge variant="default" className="bg-green-600">Converted</Badge>
+                              <Button variant="outline" size="sm" onClick={() => navigate(`/projects/${imp.projectId}`)} data-testid={`button-view-project-${imp.id}`}>
+                                <ExternalLink className="h-4 w-4 mr-1" />
+                                View
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => openSyncModal(imp)} data-testid={`button-resync-project-${imp.id}`}>
+                                <RefreshCw className="h-4 w-4 mr-1" />
+                                Re-sync
+                              </Button>
+                            </>
+                          ) : imp.status === "converted" ? (
+                            <Badge variant="default" className="bg-green-600">Converted</Badge>
+                          ) : (
+                            <>
+                              <Button size="sm" onClick={() => openConvertModal(imp)} data-testid={`button-create-project-${imp.id}`}>
+                                <FolderPlus className="h-4 w-4 mr-1" />
+                                Create Project
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => openSyncModal(imp)} data-testid={`button-sync-project-${imp.id}`}>
+                                <Link2 className="h-4 w-4 mr-1" />
+                                Update Existing
+                              </Button>
+                            </>
+                          )}
+                          <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(imp.id)} disabled={deleteMutation.isPending} data-testid={`button-delete-import-${imp.id}`}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Convert Modal */}
+        <Dialog open={convertModalOpen} onOpenChange={setConvertModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Project from Import</DialogTitle>
+              <DialogDescription>
+                Convert "{convertingImport?.fileName}" into a new project with {convertingImport?.taskCount} tasks
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Project Name</Label>
+                <Input 
+                  value={projectName} 
+                  onChange={(e) => setProjectName(e.target.value)}
+                  placeholder="Enter project name"
+                  data-testid="input-project-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Portfolio (Optional)</Label>
+                <Select value={projectPortfolio} onValueChange={setProjectPortfolio}>
+                  <SelectTrigger data-testid="select-portfolio">
+                    <SelectValue placeholder="Select a portfolio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Portfolio</SelectItem>
+                    {portfolios?.map((p) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={projectStatus} onValueChange={setProjectStatus}>
+                    <SelectTrigger data-testid="select-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Initiation">Initiation</SelectItem>
+                      <SelectItem value="Planning">Planning</SelectItem>
+                      <SelectItem value="Execution">Execution</SelectItem>
+                      <SelectItem value="Monitoring">Monitoring</SelectItem>
+                      <SelectItem value="Closing">Closing</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select value={projectPriority} onValueChange={setProjectPriority}>
+                    <SelectTrigger data-testid="select-priority">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Low">Low</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConvertModalOpen(false)}>Cancel</Button>
+              <Button 
+                onClick={() => convertingImport && convertMutation.mutate({
+                  importId: convertingImport.id,
+                  name: projectName,
+                  portfolioId: projectPortfolio && projectPortfolio !== "none" ? parseInt(projectPortfolio) : undefined,
+                  status: projectStatus,
+                  priority: projectPriority,
+                })}
+                disabled={!projectName || convertMutation.isPending}
+                data-testid="button-confirm-create"
+              >
+                {convertMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Create Project
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Sync Modal */}
+        <Dialog open={syncModalOpen} onOpenChange={setSyncModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update Existing Project</DialogTitle>
+              <DialogDescription>
+                Sync tasks from "{syncingImport?.fileName}" to an existing project
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Select Project</Label>
+                <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                  <SelectTrigger data-testid="select-target-project">
+                    <SelectValue placeholder="Choose a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orgProjects?.map((p) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Sync Mode</Label>
+                <Select value={syncMode} onValueChange={(v: 'merge' | 'replace') => setSyncMode(v)}>
+                  <SelectTrigger data-testid="select-sync-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="merge">Merge (Add new, update existing)</SelectItem>
+                    <SelectItem value="replace">Replace (Remove all, add from import)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSyncModalOpen(false)}>Cancel</Button>
+              <Button 
+                onClick={() => syncingImport && selectedProjectId && syncMutation.mutate({
+                  importId: syncingImport.id,
+                  projectId: parseInt(selectedProjectId),
+                  syncMode,
+                })}
+                disabled={!selectedProjectId || syncMutation.isPending}
+                data-testid="button-confirm-sync"
+              >
+                {syncMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Sync Tasks
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Batch Convert Modal */}
+        <Dialog open={batchConvertModalOpen} onOpenChange={setBatchConvertModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Batch Create Projects</DialogTitle>
+              <DialogDescription>
+                Create {selectedUnconvertedCount} projects from selected imports
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Portfolio (Optional)</Label>
+                <Select value={batchPortfolio} onValueChange={setBatchPortfolio}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a portfolio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Portfolio</SelectItem>
+                    {portfolios?.map((p) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={batchStatus} onValueChange={setBatchStatus}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Initiation">Initiation</SelectItem>
+                      <SelectItem value="Planning">Planning</SelectItem>
+                      <SelectItem value="Execution">Execution</SelectItem>
+                      <SelectItem value="Monitoring">Monitoring</SelectItem>
+                      <SelectItem value="Closing">Closing</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select value={batchPriority} onValueChange={setBatchPriority}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Low">Low</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBatchConvertModalOpen(false)}>Cancel</Button>
+              <Button 
+                onClick={() => batchConvertMutation.mutate({
+                  importIds: Array.from(selectedImports),
+                  portfolioId: batchPortfolio && batchPortfolio !== "none" ? parseInt(batchPortfolio) : undefined,
+                  status: batchStatus,
+                  priority: batchPriority,
+                })}
+                disabled={batchConvertMutation.isPending}
+              >
+                {batchConvertMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Create {selectedUnconvertedCount} Projects
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full">
@@ -548,156 +995,6 @@ export default function Integrations() {
             <Button variant="outline" onClick={() => setComingSoonOpen(false)}>
               Close
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* MS Project Detail Dialog */}
-      <Dialog open={mppDetailOpen} onOpenChange={setMppDetailOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900">
-                <FileSpreadsheet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              Microsoft Project Connector
-            </DialogTitle>
-            <DialogDescription>
-              Import task schedules from MS Project files
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-6 py-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <h4 className="font-medium text-sm mb-2">Supported Formats</h4>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="default">MPP (Native)</Badge>
-                  <Badge variant="secondary">XML (MSPDI)</Badge>
-                  <Badge variant="secondary">CSV</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Upload native .mpp files directly, or export from MS Project as XML/CSV
-                </p>
-              </div>
-              
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <h4 className="font-medium text-sm mb-2">Imported Fields</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>Task Name &amp; WBS</li>
-                  <li>Start Date &amp; Finish Date</li>
-                  <li>Duration &amp; % Complete</li>
-                  <li>Task Hierarchy</li>
-                </ul>
-              </div>
-            </div>
-            
-            {/* Upload Zone */}
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`
-                relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-                transition-colors duration-200
-                ${isDragOver 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                }
-              `}
-              data-testid="dropzone-upload"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".mpp,.xml,.csv"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
-                data-testid="input-file-upload"
-              />
-              
-              {uploadingFiles.length > 0 ? (
-                <div className="space-y-3">
-                  <Files className="mx-auto h-10 w-10 text-primary" />
-                  <div className="text-sm font-medium">Uploading {uploadingFiles.length} file(s)...</div>
-                  <div className="space-y-2 max-h-32 overflow-auto">
-                    {uploadingFiles.map((fileName) => (
-                      <div key={fileName} className="flex items-center justify-center gap-2 text-sm">
-                        {uploadProgress.get(fileName) === 'uploading' && (
-                          <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                        )}
-                        {uploadProgress.get(fileName) === 'success' && (
-                          <CheckCircle2 className="h-3 w-3 text-green-600" />
-                        )}
-                        {uploadProgress.get(fileName) === 'error' && (
-                          <X className="h-3 w-3 text-destructive" />
-                        )}
-                        {uploadProgress.get(fileName) === 'pending' && (
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                        )}
-                        <span className="truncate max-w-[200px]">{fileName}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <Upload className={`mx-auto h-10 w-10 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
-                  <div>
-                    <p className="text-sm font-medium">
-                      {isDragOver ? 'Drop files here' : 'Drag and drop files here'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      or click to browse - supports multiple files
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Import History */}
-            {imports && imports.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium">Import History</h4>
-                  <Button variant="ghost" size="sm" onClick={() => refetch()}>
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </Button>
-                </div>
-                <div className="space-y-2 max-h-64 overflow-auto">
-                  {imports.map((imp) => (
-                    <div key={imp.id} className="flex items-center justify-between p-3 rounded-lg border bg-background">
-                      <div className="flex items-center gap-3">
-                        <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">{imp.fileName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {imp.taskCount} tasks • {imp.lastSyncedAt ? formatDistanceToNow(new Date(imp.lastSyncedAt), { addSuffix: true }) : 'N/A'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {imp.projectId ? (
-                          <Badge variant="default" className="bg-green-600">Converted</Badge>
-                        ) : (
-                          <Button size="sm" onClick={() => openConvertModal(imp)}>
-                            <FolderPlus className="h-4 w-4 mr-2" />
-                            Create Project
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setMppDetailOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
