@@ -5,6 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
+import { setupMicrosoftAuth } from "./auth/microsoftAuth";
 import { sendEmail } from "./services/email";
 import { db } from "./db";
 import { users } from "@shared/schema";
@@ -909,9 +910,10 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  // Set up authentication first - both Replit OAuth and Email/Password auth
+  // Set up authentication first - Replit OAuth, Email/Password, and Microsoft 365
   await setupReplitAuth(app);
   await setupEmailAuth(app);
+  await setupMicrosoftAuth(app);
   registerAuthRoutes(app);
 
   // Seed DB on startup

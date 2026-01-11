@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { Loader2, ArrowLeft } from "lucide-react";
+import { SiMicrosoft } from "react-icons/si";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 
 type AuthMode = "login" | "register" | "forgot-password";
@@ -15,12 +16,26 @@ type AuthMode = "login" | "register" | "forgot-password";
 export default function AuthPage() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { toast } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+
+  const { data: microsoftStatus } = useQuery<{ configured: boolean }>({
+    queryKey: ["/api/auth/microsoft/status"],
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const error = params.get("error");
+    if (error) {
+      toast({ title: "Authentication Error", description: error, variant: "destructive" });
+      window.history.replaceState({}, "", "/auth");
+    }
+  }, [search, toast]);
 
   const loginMutation = useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
@@ -218,6 +233,29 @@ export default function AuthPage() {
               {mode === "forgot-password" && "Send Reset Link"}
             </Button>
           </form>
+
+          {mode !== "forgot-password" && microsoftStatus?.configured && (
+            <>
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => window.location.href = "/api/auth/microsoft/login"}
+                data-testid="button-microsoft-login"
+              >
+                <SiMicrosoft className="mr-2 h-4 w-4" />
+                Microsoft 365
+              </Button>
+            </>
+          )}
           {mode !== "forgot-password" && (
             <div className="mt-6 text-center text-sm">
               <span className="text-muted-foreground">
