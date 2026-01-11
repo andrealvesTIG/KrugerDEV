@@ -24,7 +24,6 @@ import Admin from "@/pages/Admin";
 import SuperAdmin from "@/pages/SuperAdmin";
 import OrgSettings from "@/pages/OrgSettings";
 import Profile from "@/pages/Profile";
-import UserSettings from "@/pages/UserSettings";
 import UserGuide from "@/pages/UserGuide";
 import Resources from "@/pages/Resources";
 import ProjectIntakes from "@/pages/ProjectIntakes";
@@ -100,7 +99,6 @@ function Router() {
         <Route path="/super-admin" component={SuperAdmin} />
         <Route path="/org-settings" component={OrgSettings} />
         <Route path="/profile" component={Profile} />
-        <Route path="/user-settings" component={UserSettings} />
         <Route path="/user-guide" component={UserGuide} />
         <Route component={NotFound} />
       </Switch>

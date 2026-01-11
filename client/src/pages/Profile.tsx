@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile, Sun, Moon, Monitor } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile, Sun, Moon, Monitor, Bell } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -44,6 +46,12 @@ export default function Profile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [projectUpdates, setProjectUpdates] = useState(true);
+  const [taskReminders, setTaskReminders] = useState(true);
+  const [weeklyDigest, setWeeklyDigest] = useState(false);
+  
   const [editForm, setEditForm] = useState({
     firstName: "",
     lastName: "",
@@ -108,6 +116,13 @@ export default function Profile() {
       });
     }
   });
+
+  const handleSavePreferences = () => {
+    toast({
+      title: "Preferences saved",
+      description: "Your notification preferences have been updated.",
+    });
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -506,6 +521,119 @@ export default function Profile() {
                   </Label>
                 </div>
               </RadioGroup>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Notification Preferences
+            </CardTitle>
+            <CardDescription>Control how you receive notifications</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label className="text-sm font-medium text-foreground">Email Notifications</label>
+                <p className="text-sm text-muted-foreground">Receive notifications via email</p>
+              </div>
+              <Switch
+                checked={emailNotifications}
+                onCheckedChange={setEmailNotifications}
+                data-testid="switch-email-notifications"
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label className="text-sm font-medium text-foreground">Project Updates</label>
+                <p className="text-sm text-muted-foreground">Get notified when projects are updated</p>
+              </div>
+              <Switch
+                checked={projectUpdates}
+                onCheckedChange={setProjectUpdates}
+                data-testid="switch-project-updates"
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label className="text-sm font-medium text-foreground">Task Reminders</label>
+                <p className="text-sm text-muted-foreground">Receive reminders for upcoming tasks</p>
+              </div>
+              <Switch
+                checked={taskReminders}
+                onCheckedChange={setTaskReminders}
+                data-testid="switch-task-reminders"
+              />
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label className="text-sm font-medium text-foreground">Weekly Digest</label>
+                <p className="text-sm text-muted-foreground">Get a weekly summary of activity</p>
+              </div>
+              <Switch
+                checked={weeklyDigest}
+                onCheckedChange={setWeeklyDigest}
+                data-testid="switch-weekly-digest"
+              />
+            </div>
+            <Button onClick={handleSavePreferences} className="w-full" data-testid="button-save-preferences">
+              Save Preferences
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Security
+            </CardTitle>
+            <CardDescription>Manage your account security</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium text-foreground">Connected Account</p>
+                <p className="text-sm text-muted-foreground">Signed in via Replit</p>
+              </div>
+              <Badge variant="secondary">Active</Badge>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium text-foreground">Two-Factor Authentication</p>
+                <p className="text-sm text-muted-foreground">Managed through Replit account</p>
+              </div>
+              <Badge variant="outline">Via Replit</Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <Shield className="h-5 w-5" />
+            Danger Zone
+          </CardTitle>
+          <CardDescription>Irreversible account actions</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Delete Account</p>
+                <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
+              </div>
+              <Button variant="destructive" size="sm" data-testid="button-delete-account">
+                Delete
+              </Button>
             </div>
           </div>
         </CardContent>
