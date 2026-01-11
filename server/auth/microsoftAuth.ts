@@ -6,6 +6,59 @@ import { eq } from "drizzle-orm";
 import { lookupCompanyByEmail } from "../services/companyLookup";
 import { ensureUserOrganization } from "../services/onboarding";
 import crypto from "crypto";
+import { objectStorageClient } from "../replit_integrations/object_storage/objectStorage";
+
+async function fetchAndUploadMicrosoftPhoto(accessToken: string, userId: string): Promise<string | null> {
+  try {
+    const response = await fetch("https://graph.microsoft.com/v1.0/me/photo/$value", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log("No Microsoft profile photo found for user");
+        return null;
+      }
+      console.error("Failed to fetch Microsoft photo:", response.status, response.statusText);
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    
+    const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+    if (!privateObjectDir) {
+      console.error("PRIVATE_OBJECT_DIR not set, cannot upload Microsoft photo");
+      return null;
+    }
+
+    const objectId = `ms-avatar-${userId}-${Date.now()}`;
+    const extension = contentType.includes("png") ? "png" : "jpg";
+    const objectName = `uploads/${objectId}.${extension}`;
+    
+    const parts = privateObjectDir.replace(/^\//, "").split("/");
+    const bucketName = parts[0];
+    const prefix = parts.slice(1).join("/");
+    const fullObjectName = prefix ? `${prefix}/${objectName}` : objectName;
+
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(fullObjectName);
+    
+    await file.save(buffer, {
+      metadata: {
+        contentType,
+      },
+    });
+
+    return `/objects/${objectName}`;
+  } catch (error) {
+    console.error("Error fetching/uploading Microsoft profile photo:", error);
+    return null;
+  }
+}
 
 declare module "express-session" {
   interface SessionData {
@@ -223,6 +276,25 @@ export async function setupMicrosoftAuth(app: Express) {
           .update(users)
           .set({ microsoftTenantId: tenantId })
           .where(eq(users.id, existingUser.id));
+      }
+
+      // Fetch and upload Microsoft profile photo if user doesn't have one
+      if (response.accessToken && (!existingUser.profileImageUrl || !existingUser.avatarUrl)) {
+        try {
+          const photoUrl = await fetchAndUploadMicrosoftPhoto(response.accessToken, existingUser.id);
+          if (photoUrl) {
+            await db
+              .update(users)
+              .set({ 
+                profileImageUrl: photoUrl,
+                avatarUrl: photoUrl 
+              })
+              .where(eq(users.id, existingUser.id));
+            console.log(`Updated Microsoft profile photo for user: ${existingUser.email}`);
+          }
+        } catch (photoError) {
+          console.error("Error updating Microsoft profile photo:", photoError);
+        }
       }
 
       try {
