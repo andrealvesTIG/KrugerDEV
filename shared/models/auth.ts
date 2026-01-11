@@ -31,6 +31,10 @@ export const users = pgTable("users", {
   detectedCompany: varchar("detected_company"),
   detectedIndustry: varchar("detected_industry"),
 
+  // Microsoft 365 authentication
+  microsoftId: varchar("microsoft_id").unique(), // Azure AD object ID (oid)
+  microsoftTenantId: varchar("microsoft_tenant_id"), // Azure AD tenant ID (tid)
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
