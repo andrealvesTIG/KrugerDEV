@@ -3014,6 +3014,12 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         financials: 0,
       };
       
+      const sanitizeBudget = (value: any) => {
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'string') return value.replace(/,/g, '');
+        return '0';
+      };
+      
       const today = new Date();
       
       for (const portfolioTemplate of template.portfolios) {
@@ -3040,7 +3046,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             priority: projectTemplate.priority,
             startDate: startDate.toISOString().split('T')[0],
             endDate: endDate.toISOString().split('T')[0],
-            budget: projectTemplate.budget,
+            budget: sanitizeBudget(projectTemplate.budget),
             health: projectTemplate.health,
             completionPercentage: projectTemplate.completionPercentage,
             isDemo: true,
@@ -3125,9 +3131,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               description: finTemplate.description,
               fiscalYear: today.getFullYear(),
               fiscalPeriod: 'Full Year',
-              budgetAmount: finTemplate.budgetAmount,
-              plannedAmount: finTemplate.plannedAmount,
-              actualAmount: finTemplate.actualAmount,
+              budgetAmount: sanitizeBudget(finTemplate.budgetAmount),
+              plannedAmount: sanitizeBudget(finTemplate.plannedAmount),
+              actualAmount: sanitizeBudget(finTemplate.actualAmount),
               notes: finTemplate.notes,
               isDemo: true,
             });
