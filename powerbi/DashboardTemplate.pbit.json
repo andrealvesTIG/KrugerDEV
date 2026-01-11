@@ -1,0 +1,205 @@
+{
+  "name": "FridayReport.AI Dashboard",
+  "description": "Power BI Dashboard template for FridayReport.AI Project Portfolio Management",
+  "version": "1.0.0",
+  "dataModel": {
+    "tables": [
+      {
+        "name": "Projects",
+        "source": "Projects.pq",
+        "description": "All projects with metrics and health status"
+      },
+      {
+        "name": "Portfolios",
+        "source": "Portfolios.pq", 
+        "description": "Portfolio summaries with aggregated project data"
+      },
+      {
+        "name": "Risks",
+        "source": "Risks.pq",
+        "description": "Project risks with probability and impact"
+      },
+      {
+        "name": "Issues",
+        "source": "Issues.pq",
+        "description": "Project issues with priority and status"
+      },
+      {
+        "name": "Milestones",
+        "source": "Milestones.pq",
+        "description": "Project milestones with completion tracking"
+      },
+      {
+        "name": "Intakes",
+        "source": "Intakes.pq",
+        "description": "Project intake pipeline data"
+      },
+      {
+        "name": "Summary",
+        "source": "Summary.pq",
+        "description": "Organization-level KPI summaries"
+      }
+    ],
+    "relationships": [
+      {
+        "from": "Projects.portfolioId",
+        "to": "Portfolios.id",
+        "type": "many-to-one"
+      },
+      {
+        "from": "Risks.projectId",
+        "to": "Projects.id",
+        "type": "many-to-one"
+      },
+      {
+        "from": "Issues.projectId",
+        "to": "Projects.id",
+        "type": "many-to-one"
+      },
+      {
+        "from": "Milestones.projectId",
+        "to": "Projects.id",
+        "type": "many-to-one"
+      }
+    ]
+  },
+  "pages": [
+    {
+      "name": "Executive Dashboard",
+      "layout": "grid",
+      "visuals": [
+        {
+          "type": "card",
+          "title": "Total Projects",
+          "measure": "COUNTROWS(Projects)",
+          "position": {"row": 1, "col": 1}
+        },
+        {
+          "type": "card", 
+          "title": "Total Portfolios",
+          "measure": "COUNTROWS(Portfolios)",
+          "position": {"row": 1, "col": 2}
+        },
+        {
+          "type": "card",
+          "title": "Critical Projects",
+          "measure": "CALCULATE(COUNTROWS(Projects), Projects[health] = \"Red\")",
+          "position": {"row": 1, "col": 3}
+        },
+        {
+          "type": "card",
+          "title": "Total Budget",
+          "measure": "SUM(Projects[budget])",
+          "format": "currency",
+          "position": {"row": 1, "col": 4}
+        },
+        {
+          "type": "pieChart",
+          "title": "Project Health Distribution",
+          "legend": "health",
+          "values": "COUNT(id)",
+          "colors": {"Green": "#10b981", "Yellow": "#f59e0b", "Red": "#ef4444"},
+          "position": {"row": 2, "col": 1, "colSpan": 2}
+        },
+        {
+          "type": "barChart",
+          "title": "Projects by Status",
+          "axis": "status",
+          "values": "COUNT(id)",
+          "position": {"row": 2, "col": 3, "colSpan": 2}
+        },
+        {
+          "type": "table",
+          "title": "Recent Projects",
+          "columns": ["name", "status", "health", "completionPercentage", "budget"],
+          "position": {"row": 3, "col": 1, "colSpan": 4}
+        }
+      ]
+    },
+    {
+      "name": "Intake Pipeline",
+      "visuals": [
+        {
+          "type": "card",
+          "title": "Total Intakes",
+          "measure": "COUNTROWS(Intakes)"
+        },
+        {
+          "type": "card",
+          "title": "Pending Review",
+          "measure": "CALCULATE(COUNTROWS(Intakes), OR(Intakes[status] = \"draft\", Intakes[status] = \"in_progress\"))"
+        },
+        {
+          "type": "funnelChart",
+          "title": "Intake Pipeline",
+          "category": "StatusDisplay",
+          "values": "COUNT(id)"
+        }
+      ]
+    },
+    {
+      "name": "Risk & Issues",
+      "visuals": [
+        {
+          "type": "matrix",
+          "title": "Risk Heat Map",
+          "rows": "probability",
+          "columns": "impact",
+          "values": "COUNT(id)"
+        },
+        {
+          "type": "table",
+          "title": "Open Issues by Priority",
+          "columns": ["title", "projectName", "priority", "status"],
+          "filter": "status = 'Open'"
+        }
+      ]
+    }
+  ],
+  "measures": [
+    {
+      "name": "Total Projects",
+      "expression": "COUNTROWS(Projects)"
+    },
+    {
+      "name": "Critical Projects",
+      "expression": "CALCULATE(COUNTROWS(Projects), Projects[health] = \"Red\")"
+    },
+    {
+      "name": "At Risk Projects", 
+      "expression": "CALCULATE(COUNTROWS(Projects), Projects[health] = \"Yellow\")"
+    },
+    {
+      "name": "Healthy Projects",
+      "expression": "CALCULATE(COUNTROWS(Projects), Projects[health] = \"Green\")"
+    },
+    {
+      "name": "Total Budget",
+      "expression": "SUM(Projects[budget])"
+    },
+    {
+      "name": "Avg Completion",
+      "expression": "AVERAGE(Projects[completionPercentage])"
+    },
+    {
+      "name": "Open Risks",
+      "expression": "CALCULATE(COUNTROWS(Risks), Risks[status] = \"Open\")"
+    },
+    {
+      "name": "High Risks",
+      "expression": "CALCULATE(COUNTROWS(Risks), OR(Risks[probability] = \"High\", Risks[impact] = \"High\"))"
+    },
+    {
+      "name": "Open Issues",
+      "expression": "CALCULATE(COUNTROWS(Issues), Issues[status] = \"Open\")"
+    },
+    {
+      "name": "Milestone Completion %",
+      "expression": "DIVIDE(CALCULATE(COUNTROWS(Milestones), Milestones[completed] = TRUE()), COUNTROWS(Milestones), 0)"
+    },
+    {
+      "name": "Pending Intakes",
+      "expression": "CALCULATE(COUNTROWS(Intakes), OR(Intakes[status] = \"draft\", Intakes[status] = \"in_progress\"))"
+    }
+  ]
+}
