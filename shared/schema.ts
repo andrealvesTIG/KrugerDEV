@@ -57,6 +57,8 @@ export const organizations = pgTable("organizations", {
   moduleOrder: text("module_order").array(), // Legacy: Array of module keys defining sidebar order
   hiddenGroups: text("hidden_groups").array(), // Legacy: Array of group keys to hide from sidebar
   sidebarStructure: jsonb("sidebar_structure").$type<SidebarStructure>(), // New: Full sidebar config
+  deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
+  deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
 });
 
 // Organization Members (Join table for users <-> organizations)
