@@ -1,10 +1,12 @@
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Footer } from "@/components/layout/Footer";
 
 export default function PrivacyStatement() {
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
+      <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
       <div className="mb-6">
         <Link href="/">
           <Button variant="ghost" size="sm" className="gap-2" data-testid="button-back">
@@ -89,6 +91,8 @@ export default function PrivacyStatement() {
           </p>
         </section>
       </div>
+      </div>
+      <Footer />
     </div>
   );
 }

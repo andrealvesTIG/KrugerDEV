@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { Loader2, ArrowLeft } from "lucide-react";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import { Footer } from "@/components/layout/Footer";
 
 type AuthMode = "login" | "register" | "forgot-password";
 
@@ -135,7 +136,8 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 p-4">
+      <div className="flex-1 flex items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           {mode === "forgot-password" && (
@@ -277,6 +279,8 @@ export default function AuthPage() {
           )}
         </CardContent>
       </Card>
+      </div>
+      <Footer />
     </div>
   );
 }
