@@ -33,6 +33,8 @@ import Billing from "@/pages/Billing";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import Embed from "@/pages/Embed";
+import TermsOfService from "@/pages/TermsOfService";
+import PrivacyStatement from "@/pages/PrivacyStatement";
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -118,6 +120,8 @@ function Router() {
         <Route path="/profile" component={Profile} />
         <Route path="/user-guide" component={UserGuide} />
         <Route path="/embed" component={Embed} />
+        <Route path="/terms" component={TermsOfService} />
+        <Route path="/privacy" component={PrivacyStatement} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
