@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2 } from "lucide-react";
+import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -29,6 +30,7 @@ export default function Portfolios() {
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
   const [deletePortfolioId, setDeletePortfolioId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const { toast } = useToast();
 
   const deletePortfolio = useMutation({
@@ -79,118 +81,240 @@ export default function Portfolios() {
       </div>
 
       {/* Search and Filters */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <Input 
-          className="pl-10 max-w-md bg-card border-border" 
-          placeholder="Search portfolios..." 
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          data-testid="input-search-portfolios"
-        />
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input 
+            className="pl-10 bg-card border-border" 
+            placeholder="Search portfolios..." 
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            data-testid="input-search-portfolios"
+          />
+        </div>
+        <div className="flex items-center gap-1 border rounded-lg p-1 bg-muted/30">
+          <Button
+            variant={viewMode === "cards" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("cards")}
+            data-testid="button-view-cards"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === "table" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("table")}
+            data-testid="button-view-table"
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredPortfolios?.map((portfolio, index) => {
-          const healthSummary = getProjectHealthSummary(portfolio.id);
-          return (
-            <motion.div
-              key={portfolio.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <Link href={`/portfolios/${portfolio.id}`}>
-                <Card className="group cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-300" data-testid={`card-portfolio-${portfolio.id}`}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="rounded-lg bg-primary/10 p-2 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                        <FolderOpen className="h-6 w-6" />
+      {/* Card View */}
+      {viewMode === "cards" && (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredPortfolios?.map((portfolio, index) => {
+            const healthSummary = getProjectHealthSummary(portfolio.id);
+            return (
+              <motion.div
+                key={portfolio.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Link href={`/portfolios/${portfolio.id}`}>
+                  <Card className="group cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-300" data-testid={`card-portfolio-${portfolio.id}`}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="rounded-lg bg-primary/10 p-2 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                          <FolderOpen className="h-6 w-6" />
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              data-testid={`button-menu-portfolio-${portfolio.id}`}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.preventDefault()}>
+                            <DropdownMenuItem onClick={(e) => { e.preventDefault(); handleEditClick(e as any, portfolio); }} data-testid={`menu-edit-portfolio-${portfolio.id}`}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={(e) => { e.preventDefault(); setDeletePortfolioId(portfolio.id); }} 
+                              className="text-red-600 focus:text-red-600"
+                              data-testid={`menu-delete-portfolio-${portfolio.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
+                      <CardTitle className="mt-4 text-xl">{portfolio.name}</CardTitle>
+                      <CardDescription className="line-clamp-2 mt-2">{portfolio.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <Briefcase className="h-4 w-4" />
+                        <span>{healthSummary.total} Project{healthSummary.total !== 1 ? 's' : ''}</span>
+                      </div>
+                      
+                      {healthSummary.total > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {healthSummary.green > 0 && (
+                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-xs">
+                              {healthSummary.green} Healthy
+                            </Badge>
+                          )}
+                          {healthSummary.yellow > 0 && (
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
+                              {healthSummary.yellow} At Risk
+                            </Badge>
+                          )}
+                          {healthSummary.red > 0 && (
+                            <Badge variant="secondary" className="bg-rose-100 text-rose-700 text-xs">
+                              {healthSummary.red} Critical
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity pt-2">
+                        View Details <ArrowRight className="ml-1 h-4 w-4" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </motion.div>
+            );
+          })}
+
+          {!isLoading && filteredPortfolios?.length === 0 && (
+            <div className="col-span-full flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-slate-200 rounded-xl">
+              <div className="rounded-full bg-slate-50 p-4 mb-4">
+                <FolderOpen className="h-8 w-8 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900">No portfolios found</h3>
+              <p className="text-slate-500 mt-1 max-w-sm">
+                Get started by creating a new portfolio to organize your projects.
+              </p>
+              <Button className="mt-4" onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-first-portfolio">
+                Create Portfolio
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Table View */}
+      {viewMode === "table" && (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-center">Projects</TableHead>
+                <TableHead className="text-center">Health Summary</TableHead>
+                <TableHead className="w-[60px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredPortfolios?.map((portfolio) => {
+                const healthSummary = getProjectHealthSummary(portfolio.id);
+                return (
+                  <TableRow 
+                    key={portfolio.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    data-testid={`row-portfolio-${portfolio.id}`}
+                  >
+                    <TableCell>
+                      <Link href={`/portfolios/${portfolio.id}`} className="flex items-center gap-3 font-medium hover:text-primary">
+                        <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                          <FolderOpen className="h-4 w-4" />
+                        </div>
+                        {portfolio.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="max-w-[300px]">
+                      <span className="text-muted-foreground line-clamp-1">{portfolio.description || "—"}</span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="secondary">{healthSummary.total}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-center gap-1">
+                        {healthSummary.green > 0 && (
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-xs">
+                            {healthSummary.green}
+                          </Badge>
+                        )}
+                        {healthSummary.yellow > 0 && (
+                          <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
+                            {healthSummary.yellow}
+                          </Badge>
+                        )}
+                        {healthSummary.red > 0 && (
+                          <Badge variant="secondary" className="bg-rose-100 text-rose-700 text-xs">
+                            {healthSummary.red}
+                          </Badge>
+                        )}
+                        {healthSummary.total === 0 && <span className="text-muted-foreground text-sm">—</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
-                          <Button 
-                            size="icon" 
-                            variant="ghost" 
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            data-testid={`button-menu-portfolio-${portfolio.id}`}
-                          >
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" data-testid={`button-menu-portfolio-table-${portfolio.id}`}>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" onClick={(e) => e.preventDefault()}>
-                          <DropdownMenuItem onClick={(e) => { e.preventDefault(); handleEditClick(e as any, portfolio); }} data-testid={`menu-edit-portfolio-${portfolio.id}`}>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setEditingPortfolio(portfolio)} data-testid={`menu-edit-portfolio-table-${portfolio.id}`}>
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 
-                            onClick={(e) => { e.preventDefault(); setDeletePortfolioId(portfolio.id); }} 
+                            onClick={() => setDeletePortfolioId(portfolio.id)} 
                             className="text-red-600 focus:text-red-600"
-                            data-testid={`menu-delete-portfolio-${portfolio.id}`}
+                            data-testid={`menu-delete-portfolio-table-${portfolio.id}`}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {!isLoading && filteredPortfolios?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <FolderOpen className="h-8 w-8 text-slate-400 mb-2" />
+                      <p className="text-muted-foreground">No portfolios found</p>
+                      <Button className="mt-4" size="sm" onClick={() => setIsCreateDialogOpen(true)}>
+                        Create Portfolio
+                      </Button>
                     </div>
-                    <CardTitle className="mt-4 text-xl">{portfolio.name}</CardTitle>
-                    <CardDescription className="line-clamp-2 mt-2">{portfolio.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {/* Project Summary */}
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Briefcase className="h-4 w-4" />
-                      <span>{healthSummary.total} Project{healthSummary.total !== 1 ? 's' : ''}</span>
-                    </div>
-                    
-                    {healthSummary.total > 0 && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {healthSummary.green > 0 && (
-                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-xs">
-                            {healthSummary.green} Healthy
-                          </Badge>
-                        )}
-                        {healthSummary.yellow > 0 && (
-                          <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
-                            {healthSummary.yellow} At Risk
-                          </Badge>
-                        )}
-                        {healthSummary.red > 0 && (
-                          <Badge variant="secondary" className="bg-rose-100 text-rose-700 text-xs">
-                            {healthSummary.red} Critical
-                          </Badge>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity pt-2">
-                      View Details <ArrowRight className="ml-1 h-4 w-4" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            </motion.div>
-          );
-        })}
-
-        {!isLoading && filteredPortfolios?.length === 0 && (
-          <div className="col-span-full flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-slate-200 rounded-xl">
-            <div className="rounded-full bg-slate-50 p-4 mb-4">
-              <FolderOpen className="h-8 w-8 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-900">No portfolios found</h3>
-            <p className="text-slate-500 mt-1 max-w-sm">
-              Get started by creating a new portfolio to organize your projects.
-            </p>
-            <Button className="mt-4" onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-first-portfolio">
-              Create Portfolio
-            </Button>
-          </div>
-        )}
-      </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
 
       {/* Edit Portfolio Dialog */}
       <EditPortfolioDialog 
