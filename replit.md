@@ -49,6 +49,16 @@ The application manages the following core entities:
 5. **Issues** - Bug/task/enhancement tracking per project
 6. **Change Requests** - Formal change requests with type (scope/schedule/budget/resource), priority, impact assessment, justification, and workflow status (pending/under_review/approved/rejected/implemented)
 7. **Project Documents** - Document management with categories (general/contract/requirement/design/test/report), versioning, and URL references
+8. **Organizations** - Multi-tenant organizations with soft-delete (deactivate/reactivate) capability
+
+### Organization Soft-Delete
+Organizations use soft-delete (deactivation) rather than permanent deletion:
+- When deleted, organizations are marked with `deactivatedAt` and `deactivatedBy` timestamps
+- Deactivated organizations are hidden from normal queries but data is preserved
+- Organization members remain intact during deactivation for seamless restore
+- Only Super Admins can restore (reactivate) deactivated organizations via the Super Admin console
+- Restore endpoint: `POST /api/admin/organizations/:id/reactivate`
+- View deactivated: `GET /api/admin/organizations/deactivated`
 
 ### Shared Code Pattern
 The `shared/` directory contains code used by both frontend and backend:
