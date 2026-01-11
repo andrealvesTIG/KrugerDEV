@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useOrganization } from "@/hooks/use-organization";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,31 +31,14 @@ interface EnrichedMember extends OrganizationMember {
 
 export default function OrgSettings() {
   const { user, isLoading: authLoading } = useAuth();
+  const { currentOrganization, memberships, organizations, isLoading: orgLoading } = useOrganization();
   const { toast } = useToast();
-  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null);
 
-  const { data: memberships } = useQuery<OrganizationMember[]>({
-    queryKey: ['/api/users', user?.id, 'organizations'],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const res = await fetch(`/api/users/${user.id}/organizations`);
-      return res.json();
-    },
-    enabled: !!user?.id
-  });
+  // Check if user has admin access to the current organization
+  const hasAdminAccess = user?.role === 'super_admin' || 
+    memberships?.some(m => m.organizationId === currentOrganization?.id && m.role === 'org_admin');
 
-  const { data: organizations } = useQuery<Organization[]>({
-    queryKey: ['/api/organizations']
-  });
-
-  const userOrgs = memberships?.filter(m => m.role === 'org_admin').map(m => {
-    return organizations?.find(o => o.id === m.organizationId);
-  }).filter(Boolean) as Organization[] || [];
-
-  // Super admins can see all organizations
-  const accessibleOrgs = user?.role === 'super_admin' ? (organizations || []) : userOrgs;
-
-  if (authLoading) {
+  if (authLoading || orgLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -62,20 +46,7 @@ export default function OrgSettings() {
     );
   }
 
-  const hasOrgAdminAccess = userOrgs.length > 0 || user?.role === 'super_admin';
-
-  if (!hasOrgAdminAccess) {
-    return (
-      <div className="flex h-96 flex-col items-center justify-center gap-4">
-        <ShieldAlert className="h-16 w-16 text-muted-foreground/50" />
-        <h2 className="text-2xl font-bold text-foreground">No Organization Access</h2>
-        <p className="text-muted-foreground">You are not an admin of any organization.</p>
-      </div>
-    );
-  }
-
-  // If no organizations exist yet, show a message
-  if (accessibleOrgs.length === 0) {
+  if (!currentOrganization) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
@@ -88,11 +59,9 @@ export default function OrgSettings() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
             <Users className="h-16 w-16 text-muted-foreground/50" />
-            <h2 className="text-xl font-semibold text-foreground">No Organizations Yet</h2>
+            <h2 className="text-xl font-semibold text-foreground">No Organization Selected</h2>
             <p className="text-muted-foreground text-center max-w-md">
-              {user?.role === 'super_admin' 
-                ? "Go to Super Admin to create your first organization, then come back here to manage its members."
-                : "You don't have access to any organizations yet. Contact your administrator."}
+              Please select an organization from the dropdown in the top bar to manage its settings.
             </p>
           </CardContent>
         </Card>
@@ -100,8 +69,18 @@ export default function OrgSettings() {
     );
   }
 
-  const currentOrg = selectedOrgId ? organizations?.find(o => o.id === selectedOrgId) : accessibleOrgs[0];
-  const orgId = currentOrg?.id || selectedOrgId;
+  if (!hasAdminAccess) {
+    return (
+      <div className="flex h-96 flex-col items-center justify-center gap-4">
+        <ShieldAlert className="h-16 w-16 text-muted-foreground/50" />
+        <h2 className="text-2xl font-bold text-foreground">No Admin Access</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          You don't have admin access to <strong>{currentOrganization.name}</strong>. 
+          Please select a different organization from the top bar or contact your administrator.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -110,21 +89,9 @@ export default function OrgSettings() {
           <Settings className="h-8 w-8 text-primary" />
           <div>
             <h1 className="text-3xl font-display font-bold text-foreground">Organization Settings</h1>
-            <p className="text-muted-foreground">Manage your organization and team members</p>
+            <p className="text-muted-foreground">Managing: <strong>{currentOrganization.name}</strong></p>
           </div>
         </div>
-        {accessibleOrgs.length > 1 && (
-          <Select value={String(orgId)} onValueChange={(v) => setSelectedOrgId(Number(v))}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select organization" />
-            </SelectTrigger>
-            <SelectContent>
-              {accessibleOrgs.map(org => (
-                <SelectItem key={org.id} value={String(org.id)}>{org.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
       </div>
 
       <Tabs defaultValue="modules" orientation="vertical" className="flex gap-6">
@@ -149,16 +116,16 @@ export default function OrgSettings() {
 
         <div className="flex-1 min-w-0">
           <TabsContent value="modules" className="mt-0">
-            {orgId && currentOrg && <ModuleVisibilitySection organization={currentOrg} />}
+            <ModuleVisibilitySection organization={currentOrganization} />
           </TabsContent>
           <TabsContent value="intake" className="mt-0">
-            {orgId && <IntakeWorkflowSection organizationId={orgId} />}
+            <IntakeWorkflowSection organizationId={currentOrganization.id} />
           </TabsContent>
           <TabsContent value="members" className="mt-0">
-            {orgId && <MembersSection organizationId={orgId} orgName={currentOrg?.name || ''} />}
+            <MembersSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
           </TabsContent>
           <TabsContent value="recycle" className="mt-0">
-            {orgId && <RecycleBinSection organizationId={orgId} />}
+            <RecycleBinSection organizationId={currentOrganization.id} />
           </TabsContent>
         </div>
       </Tabs>
