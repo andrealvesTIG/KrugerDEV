@@ -23,6 +23,7 @@ export const sidebarItemSchema = z.discriminatedUnion("type", [
     url: z.string().url(),
     icon: z.string().optional(),
     openInNewTab: z.boolean().default(true),
+    openMode: z.enum(["newTab", "iframe"]).default("newTab"),
     hidden: z.boolean().optional(),
   }),
 ]);

@@ -318,12 +318,55 @@ export function Sidebar() {
                     }
                     return navItem;
                   } else {
+                    const openMode = item.openMode || (item.openInNewTab === false ? "iframe" : "newTab");
+                    
+                    if (openMode === "iframe") {
+                      const embedUrl = `/embed?url=${encodeURIComponent(item.url)}&label=${encodeURIComponent(item.label)}`;
+                      const iframeLink = (
+                        <Link
+                          key={item.id}
+                          href={embedUrl}
+                        >
+                          <div
+                            onClick={handleNavClick}
+                            className={cn(
+                              "group flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
+                              isCollapsed ? "justify-center px-2" : "px-4",
+                              "text-slate-300 hover:bg-slate-800 hover:text-white"
+                            )}
+                            data-testid={`link-nav-custom-${item.id}`}
+                          >
+                            <ExternalLink
+                              className={cn(
+                                "h-5 w-5 flex-shrink-0 transition-colors",
+                                !isCollapsed && "mr-3",
+                                "text-slate-400 group-hover:text-white"
+                              )}
+                            />
+                            {!isCollapsed && item.label}
+                          </div>
+                        </Link>
+                      );
+
+                      if (isCollapsed) {
+                        return (
+                          <Tooltip key={item.id} delayDuration={0}>
+                            <TooltipTrigger asChild>{iframeLink}</TooltipTrigger>
+                            <TooltipContent side="right" className="bg-slate-800 text-white border-slate-700">
+                              {item.label}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      }
+                      return iframeLink;
+                    }
+                    
                     const customLink = (
                       <a
                         key={item.id}
                         href={item.url}
-                        target={item.openInNewTab ? "_blank" : "_self"}
-                        rel={item.openInNewTab ? "noopener noreferrer" : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         onClick={handleNavClick}
                         className={cn(
                           "group flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",

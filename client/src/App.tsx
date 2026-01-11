@@ -32,6 +32,7 @@ import Integrations from "@/pages/Integrations";
 import Billing from "@/pages/Billing";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import Embed from "@/pages/Embed";
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -116,6 +117,7 @@ function Router() {
         <Route path="/org-settings" component={OrgSettings} />
         <Route path="/profile" component={Profile} />
         <Route path="/user-guide" component={UserGuide} />
+        <Route path="/embed" component={Embed} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

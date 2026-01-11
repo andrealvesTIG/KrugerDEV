@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -254,6 +255,7 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
   const [newGroupName, setNewGroupName] = useState("");
   const [newLinkLabel, setNewLinkLabel] = useState("");
   const [newLinkUrl, setNewLinkUrl] = useState("");
+  const [newLinkOpenMode, setNewLinkOpenMode] = useState<"newTab" | "iframe">("newTab");
   
   useEffect(() => {
     const newStructure = organization.sidebarStructure && Array.isArray(organization.sidebarStructure) && organization.sidebarStructure.length > 0
@@ -446,7 +448,8 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
       id: linkId,
       label: newLinkLabel.trim(),
       url: newLinkUrl.trim(),
-      openInNewTab: true,
+      openInNewTab: newLinkOpenMode === "newTab",
+      openMode: newLinkOpenMode,
     };
     
     const newStructure = structure.map(g => 
@@ -455,6 +458,7 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
     saveStructure(newStructure);
     setNewLinkLabel("");
     setNewLinkUrl("");
+    setNewLinkOpenMode("newTab");
     setShowAddLink(null);
   };
 
@@ -473,7 +477,7 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
         ...g,
         items: g.items.map(item => {
           if (item.type === "customLink" && item.id === editingLink.link.id) {
-            return { ...item, label: newLinkLabel.trim(), url: newLinkUrl.trim() };
+            return { ...item, label: newLinkLabel.trim(), url: newLinkUrl.trim(), openInNewTab: newLinkOpenMode === "newTab", openMode: newLinkOpenMode };
           }
           return item;
         })
@@ -482,6 +486,7 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
     saveStructure(newStructure);
     setNewLinkLabel("");
     setNewLinkUrl("");
+    setNewLinkOpenMode("newTab");
     setEditingLink(null);
   };
 
@@ -690,6 +695,7 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
                                         setEditingLink({ groupId: group.id, link: item }); 
                                         setNewLinkLabel(item.label); 
                                         setNewLinkUrl(item.url); 
+                                        setNewLinkOpenMode(item.openMode || (item.openInNewTab === false ? "iframe" : "newTab"));
                                       }}
                                       data-testid={`button-edit-link-${item.id}`}
                                     >
@@ -795,11 +801,11 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={!!showAddLink} onOpenChange={(open) => { if (!open) { setShowAddLink(null); setNewLinkLabel(""); setNewLinkUrl(""); } }}>
+      <Dialog open={!!showAddLink} onOpenChange={(open) => { if (!open) { setShowAddLink(null); setNewLinkLabel(""); setNewLinkUrl(""); setNewLinkOpenMode("newTab"); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Custom Link</DialogTitle>
-            <DialogDescription>Add an external link that opens in a new tab.</DialogDescription>
+            <DialogDescription>Add an external link to your sidebar.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -822,15 +828,34 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
                 data-testid="input-link-url"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Open Mode</Label>
+              <RadioGroup 
+                value={newLinkOpenMode} 
+                onValueChange={(value: "newTab" | "iframe") => setNewLinkOpenMode(value)}
+                className="flex gap-4"
+                data-testid="radio-link-open-mode"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="newTab" id="add-mode-newtab" data-testid="radio-newtab" />
+                  <Label htmlFor="add-mode-newtab" className="font-normal cursor-pointer">New Tab</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="iframe" id="add-mode-iframe" data-testid="radio-iframe" />
+                  <Label htmlFor="add-mode-iframe" className="font-normal cursor-pointer">Embedded (iframe)</Label>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">New Tab opens the link in a separate browser tab. Embedded displays the link within the app.</p>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowAddLink(null); setNewLinkLabel(""); setNewLinkUrl(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowAddLink(null); setNewLinkLabel(""); setNewLinkUrl(""); setNewLinkOpenMode("newTab"); }}>Cancel</Button>
             <Button onClick={() => showAddLink && addCustomLink(showAddLink)} disabled={!newLinkLabel.trim() || !newLinkUrl.trim()} data-testid="button-confirm-add-link">Add Link</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingLink} onOpenChange={(open) => { if (!open) { setEditingLink(null); setNewLinkLabel(""); setNewLinkUrl(""); } }}>
+      <Dialog open={!!editingLink} onOpenChange={(open) => { if (!open) { setEditingLink(null); setNewLinkLabel(""); setNewLinkUrl(""); setNewLinkOpenMode("newTab"); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Custom Link</DialogTitle>
@@ -855,9 +880,28 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
                 data-testid="input-edit-link-url"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Open Mode</Label>
+              <RadioGroup 
+                value={newLinkOpenMode} 
+                onValueChange={(value: "newTab" | "iframe") => setNewLinkOpenMode(value)}
+                className="flex gap-4"
+                data-testid="radio-edit-link-open-mode"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="newTab" id="edit-mode-newtab" data-testid="radio-edit-newtab" />
+                  <Label htmlFor="edit-mode-newtab" className="font-normal cursor-pointer">New Tab</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="iframe" id="edit-mode-iframe" data-testid="radio-edit-iframe" />
+                  <Label htmlFor="edit-mode-iframe" className="font-normal cursor-pointer">Embedded (iframe)</Label>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">New Tab opens the link in a separate browser tab. Embedded displays the link within the app.</p>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setEditingLink(null); setNewLinkLabel(""); setNewLinkUrl(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setEditingLink(null); setNewLinkLabel(""); setNewLinkUrl(""); setNewLinkOpenMode("newTab"); }}>Cancel</Button>
             <Button onClick={updateCustomLink} disabled={!newLinkLabel.trim() || !newLinkUrl.trim()} data-testid="button-confirm-edit-link">Save</Button>
           </DialogFooter>
         </DialogContent>
