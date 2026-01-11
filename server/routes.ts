@@ -959,6 +959,64 @@ export async function registerRoutes(
     }
   });
 
+  // Update user avatar (image URL or emoji)
+  app.patch('/api/users/:userId/avatar', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId || userId !== req.params.userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { avatarUrl, avatarEmoji } = req.body;
+      
+      const updateData: any = { updatedAt: new Date() };
+      
+      if (avatarUrl !== undefined) {
+        // For image uploads, set avatarUrl (primary) and profileImageUrl (legacy)
+        updateData.avatarUrl = avatarUrl || null;
+        updateData.profileImageUrl = avatarUrl || null;
+      }
+      
+      if (avatarEmoji !== undefined) {
+        // Store emoji in avatarUrl field with emoji: prefix
+        updateData.avatarUrl = avatarEmoji ? `emoji:${avatarEmoji}` : null;
+        // Clear image URL when using emoji
+        updateData.profileImageUrl = null;
+      }
+
+      const [updated] = await db.update(users)
+        .set(updateData)
+        .where(eq(users.id, req.params.userId))
+        .returning();
+      
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating avatar:", err);
+      res.status(500).json({ message: 'Failed to update avatar' });
+    }
+  });
+
+  // Request avatar upload URL
+  app.post('/api/users/:userId/avatar/upload-url', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId || userId !== req.params.userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+      const objectStorageService = new ObjectStorageService();
+      
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+      res.json({ uploadURL, objectPath });
+    } catch (err) {
+      console.error("Error generating avatar upload URL:", err);
+      res.status(500).json({ message: 'Failed to generate upload URL' });
+    }
+  });
+
   // --- Organizations ---
   app.get('/api/organizations', async (req, res) => {
     try {
