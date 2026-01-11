@@ -1078,16 +1078,67 @@ export async function registerRoutes(
     }
   });
 
+  // Deactivate organization (soft delete)
   app.delete('/api/organizations/:id', async (req, res) => {
-    const orgId = Number(req.params.id);
-    const userId = getUserIdFromRequest(req);
-    
-    if (!await userHasOrgAccess(userId, orgId)) {
-      return res.status(403).json({ message: 'Access denied to this organization' });
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const deactivated = await storage.deactivateOrganization(orgId, userId);
+      res.json({ message: 'Organization deactivated', organization: deactivated });
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to deactivate organization' });
     }
-    
-    await storage.deleteOrganization(orgId);
-    res.status(204).send();
+  });
+
+  // Get deactivated organizations (super_admin only)
+  app.get('/api/admin/organizations/deactivated', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
+      const deactivatedOrgs = await storage.getDeactivatedOrganizations();
+      res.json(deactivatedOrgs);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to get deactivated organizations' });
+    }
+  });
+
+  // Reactivate (restore) organization (super_admin only)
+  app.post('/api/admin/organizations/:id/reactivate', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
+      const reactivated = await storage.reactivateOrganization(orgId);
+      res.json({ message: 'Organization reactivated', organization: reactivated });
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to reactivate organization' });
+    }
   });
 
   // --- Organization Members ---
