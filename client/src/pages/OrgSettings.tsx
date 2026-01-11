@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -177,12 +177,24 @@ const availableModules = [
 
 function ModuleVisibilitySection({ organization }: { organization: Organization }) {
   const { toast } = useToast();
-  const hiddenModules = organization.hiddenModules || [];
-  const moduleOrder = organization.moduleOrder || availableModules.map(m => m.key);
+  const defaultOrder = availableModules.map(m => m.key);
+  
+  const [localHiddenModules, setLocalHiddenModules] = useState<string[]>(
+    organization.hiddenModules || []
+  );
+  const [localModuleOrder, setLocalModuleOrder] = useState<string[]>(
+    organization.moduleOrder || defaultOrder
+  );
+  const [previousValues, setPreviousValues] = useState<{ hidden: string[]; order: string[] } | null>(null);
+  
+  useEffect(() => {
+    setLocalHiddenModules(organization.hiddenModules || []);
+    setLocalModuleOrder(organization.moduleOrder || defaultOrder);
+  }, [organization.id, organization.hiddenModules, organization.moduleOrder]);
   
   const orderedModules = [...availableModules].sort((a, b) => {
-    const aIndex = moduleOrder.indexOf(a.key);
-    const bIndex = moduleOrder.indexOf(b.key);
+    const aIndex = localModuleOrder.indexOf(a.key);
+    const bIndex = localModuleOrder.indexOf(b.key);
     if (aIndex === -1 && bIndex === -1) return 0;
     if (aIndex === -1) return 1;
     if (bIndex === -1) return -1;
@@ -190,37 +202,46 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
   });
   
   const updateOrgMutation = useMutation({
-    mutationFn: async (data: { hiddenModules?: string[]; moduleOrder?: string[] }) => {
+    mutationFn: async (data: { hiddenModules: string[]; moduleOrder: string[] }) => {
       return apiRequest('PUT', `/api/organizations/${organization.id}`, data);
     },
     onSuccess: () => {
+      setPreviousValues(null);
       queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
       toast({ title: "Saved", description: "Module settings updated" });
     },
     onError: () => {
+      if (previousValues) {
+        setLocalHiddenModules(previousValues.hidden);
+        setLocalModuleOrder(previousValues.order);
+        setPreviousValues(null);
+      }
       toast({ title: "Error", description: "Failed to update settings", variant: "destructive" });
     }
   });
 
   const toggleModule = (moduleKey: string) => {
-    const isHidden = hiddenModules.includes(moduleKey);
+    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder] });
+    const isHidden = localHiddenModules.includes(moduleKey);
     const newHiddenModules = isHidden 
-      ? hiddenModules.filter(k => k !== moduleKey)
-      : [...hiddenModules, moduleKey];
-    updateOrgMutation.mutate({ hiddenModules: newHiddenModules });
+      ? localHiddenModules.filter(k => k !== moduleKey)
+      : [...localHiddenModules, moduleKey];
+    setLocalHiddenModules(newHiddenModules);
+    updateOrgMutation.mutate({ hiddenModules: newHiddenModules, moduleOrder: localModuleOrder });
   };
 
   const moveModule = (moduleKey: string, direction: 'up' | 'down') => {
-    const currentOrder = orderedModules.map(m => m.key);
-    const currentIndex = currentOrder.indexOf(moduleKey);
+    setPreviousValues({ hidden: [...localHiddenModules], order: [...localModuleOrder] });
+    const currentIndex = localModuleOrder.indexOf(moduleKey);
     if (currentIndex === -1) return;
     
     const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= currentOrder.length) return;
+    if (newIndex < 0 || newIndex >= localModuleOrder.length) return;
     
-    const newOrder = [...currentOrder];
+    const newOrder = [...localModuleOrder];
     [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
-    updateOrgMutation.mutate({ moduleOrder: newOrder });
+    setLocalModuleOrder(newOrder);
+    updateOrgMutation.mutate({ hiddenModules: localHiddenModules, moduleOrder: newOrder });
   };
 
   return (
@@ -237,7 +258,7 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
       <CardContent>
         <div className="space-y-2">
           {orderedModules.map((module, index) => {
-            const isHidden = hiddenModules.includes(module.key);
+            const isHidden = localHiddenModules.includes(module.key);
             const Icon = module.icon;
             const isFirst = index === 0;
             const isLast = index === orderedModules.length - 1;

@@ -141,12 +141,10 @@ export default function Profile() {
   };
 
   const handleEmojiSelect = (emoji: string) => {
-    console.log("Emoji selected:", emoji);
     setSelectedEmoji(emoji);
   };
 
   const handleSaveEmoji = () => {
-    console.log("Saving emoji:", selectedEmoji);
     if (selectedEmoji) {
       updateAvatarMutation.mutate({ avatarEmoji: selectedEmoji });
     }
