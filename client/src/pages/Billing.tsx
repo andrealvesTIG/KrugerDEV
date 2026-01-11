@@ -280,7 +280,7 @@ export default function Billing() {
                     <span className="text-2xl font-bold" data-testid={`price-${plan.code.toLowerCase()}`}>
                       {formatPlanPrice(plan.monthlyPriceCents)}
                     </span>
-                    {plan.monthlyPriceCents && plan.monthlyPriceCents > 0 && (
+                    {plan.monthlyPriceCents != null && plan.monthlyPriceCents > 0 && (
                       <span className="text-muted-foreground text-xs">/mo</span>
                     )}
                   </div>
