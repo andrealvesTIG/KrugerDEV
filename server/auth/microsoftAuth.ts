@@ -29,7 +29,7 @@ let msalClient: ConfidentialClientApplication | null = null;
 function getMsalConfig(): Configuration | null {
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const tenantId = process.env.MICROSOFT_TENANT_ID || "common";
+  const tenantId = "common";
 
   if (!clientId || !clientSecret) {
     return null;
