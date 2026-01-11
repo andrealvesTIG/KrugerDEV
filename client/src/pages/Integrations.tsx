@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink, Files, X, Link2, BarChart3, Copy, Check } from "lucide-react";
+import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink, Files, X, Link2, BarChart3, Copy, Check, Puzzle, Building2, Settings, Briefcase, Rocket } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -17,16 +17,75 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
 import type { MppImport, MppImportTask, Portfolio, Project } from "@shared/schema";
 import { motion, AnimatePresence } from "framer-motion";
+import { 
+  SiJira, SiAsana, SiTrello, SiNotion, SiClickup,
+  SiSap, SiOracle, SiSalesforce,
+  SiTableau, SiGoogleanalytics
+} from "react-icons/si";
+import { Calendar, LayoutGrid, Square } from "lucide-react";
 
 interface MppImportWithTasks extends MppImport {
   tasks?: MppImportTask[];
 }
+
+type IntegrationCategory = "project" | "erp" | "analytics";
+
+interface Integration {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  category: IntegrationCategory;
+  status: "active" | "coming_soon";
+  bgColor: string;
+}
+
+const integrations: Integration[] = [
+  // Project Management
+  { id: "jira", name: "Jira", description: "Sync issues and projects from Atlassian Jira", icon: <SiJira className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-blue-100 dark:bg-blue-900" },
+  { id: "asana", name: "Asana", description: "Import tasks and projects from Asana", icon: <SiAsana className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-pink-100 dark:bg-pink-900" },
+  { id: "monday", name: "Monday.com", description: "Connect boards and items from Monday", icon: <LayoutGrid className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-red-100 dark:bg-red-900" },
+  { id: "trello", name: "Trello", description: "Sync cards and boards from Trello", icon: <SiTrello className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-sky-100 dark:bg-sky-900" },
+  { id: "ms-project", name: "MS Project", description: "Import MPP, XML, and CSV files", icon: <FileSpreadsheet className="h-6 w-6" />, category: "project", status: "active", bgColor: "bg-blue-100 dark:bg-blue-900" },
+  { id: "notion", name: "Notion", description: "Connect databases from Notion", icon: <SiNotion className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-stone-100 dark:bg-stone-900" },
+  { id: "clickup", name: "ClickUp", description: "Sync tasks and spaces from ClickUp", icon: <SiClickup className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-violet-100 dark:bg-violet-900" },
+  { id: "basecamp", name: "Basecamp", description: "Import projects from Basecamp", icon: <Briefcase className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-emerald-100 dark:bg-emerald-900" },
+  
+  // ERP
+  { id: "sap", name: "SAP", description: "Connect to SAP ERP for financial data", icon: <SiSap className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-blue-100 dark:bg-blue-900" },
+  { id: "oracle", name: "Oracle", description: "Integrate with Oracle ERP Cloud", icon: <SiOracle className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-red-100 dark:bg-red-900" },
+  { id: "netsuite", name: "NetSuite", description: "Sync projects from Oracle NetSuite", icon: <Building2 className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-orange-100 dark:bg-orange-900" },
+  { id: "dynamics", name: "Dynamics 365", description: "Connect Microsoft Dynamics 365", icon: <Square className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-cyan-100 dark:bg-cyan-900" },
+  { id: "workday", name: "Workday", description: "Integrate Workday financials", icon: <Rocket className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-amber-100 dark:bg-amber-900" },
+  { id: "salesforce", name: "Salesforce", description: "Connect Salesforce CRM data", icon: <SiSalesforce className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-blue-100 dark:bg-blue-900" },
+  
+  // Analytics
+  { id: "power-bi", name: "Power BI", description: "Connect data to Power BI dashboards", icon: <BarChart3 className="h-6 w-6" />, category: "analytics", status: "active", bgColor: "bg-amber-100 dark:bg-amber-900" },
+  { id: "tableau", name: "Tableau", description: "Export data to Tableau", icon: <SiTableau className="h-6 w-6" />, category: "analytics", status: "coming_soon", bgColor: "bg-blue-100 dark:bg-blue-900" },
+  { id: "google-analytics", name: "Google Analytics", description: "Connect with Google Analytics", icon: <SiGoogleanalytics className="h-6 w-6" />, category: "analytics", status: "coming_soon", bgColor: "bg-orange-100 dark:bg-orange-900" },
+  { id: "looker", name: "Looker", description: "Integrate with Google Looker", icon: <BarChart3 className="h-6 w-6" />, category: "analytics", status: "coming_soon", bgColor: "bg-purple-100 dark:bg-purple-900" },
+];
+
+const categories: { id: IntegrationCategory; name: string; icon: React.ReactNode; description: string }[] = [
+  { id: "project", name: "Project Management", icon: <Puzzle className="h-4 w-4" />, description: "Connect your project management tools" },
+  { id: "erp", name: "ERP Systems", icon: <Building2 className="h-4 w-4" />, description: "Integrate enterprise resource planning" },
+  { id: "analytics", name: "Analytics & BI", icon: <BarChart3 className="h-4 w-4" />, description: "Connect business intelligence tools" },
+];
 
 export default function Integrations() {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Navigation state
+  const [activeCategory, setActiveCategory] = useState<IntegrationCategory>("project");
+  const [comingSoonOpen, setComingSoonOpen] = useState(false);
+  const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
+  
+  // MS Project integration states
+  const [mppDetailOpen, setMppDetailOpen] = useState(false);
+  const [powerBiDetailOpen, setPowerBiDetailOpen] = useState(false);
   const [expandedImports, setExpandedImports] = useState<Set<number>>(new Set());
   const [selectedImportId, setSelectedImportId] = useState<number | null>(null);
   const [convertModalOpen, setConvertModalOpen] = useState(false);
@@ -223,71 +282,43 @@ export default function Integrations() {
     onSuccess: (data) => {
       toast({ 
         title: "Project Updated", 
-        description: data.message || `Tasks synced: ${data.tasksAdded} added, ${data.tasksUpdated} updated`,
+        description: data.message || `Tasks synchronized successfully`,
       });
       setSyncModalOpen(false);
       setSyncingImport(null);
-      setSelectedProjectId("");
       queryClient.invalidateQueries({ queryKey: ['/api/mpp-imports'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
     },
     onError: (error: Error) => {
-      toast({ title: "Sync Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
-  const openConvertModal = (imp: MppImportWithTasks) => {
-    setConvertingImport(imp);
-    setProjectName(imp.fileName.replace(/\.(mpp|xml|csv)$/i, ''));
-    setProjectPortfolio("");
-    setProjectStatus("Initiation");
-    setProjectPriority("Medium");
-    setConvertModalOpen(true);
-  };
+  const batchConvertMutation = useMutation({
+    mutationFn: async (data: { importIds: number[]; portfolioId?: number; status: string; priority: string }) => {
+      const res = await apiRequest('POST', '/api/mpp-imports/batch-convert', {
+        importIds: data.importIds,
+        portfolioId: data.portfolioId,
+        status: data.status,
+        priority: data.priority,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "Projects Created", 
+        description: data.message || `${data.projectCount} projects created`,
+      });
+      setBatchConvertModalOpen(false);
+      setSelectedImports(new Set());
+      queryClient.invalidateQueries({ queryKey: ['/api/mpp-imports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
 
-  const openSyncModal = (imp: MppImportWithTasks) => {
-    setSyncingImport(imp);
-    setSelectedProjectId("");
-    setSyncMode('merge');
-    setSyncModalOpen(true);
-  };
-
-  const handleSync = () => {
-    if (!syncingImport || !selectedProjectId) return;
-    syncMutation.mutate({
-      importId: syncingImport.id,
-      projectId: Number(selectedProjectId),
-      syncMode,
-    });
-  };
-
-  const handleConvert = () => {
-    if (!convertingImport || !projectName.trim()) return;
-    const portfolioNum = projectPortfolio && projectPortfolio !== "none" ? Number(projectPortfolio) : undefined;
-    convertMutation.mutate({
-      importId: convertingImport.id,
-      name: projectName.trim(),
-      portfolioId: portfolioNum && portfolioNum > 0 ? portfolioNum : undefined,
-      status: projectStatus,
-      priority: projectPriority,
-    });
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const fileArray = Array.from(files);
-      if (fileArray.length === 1) {
-        uploadMutation.mutate(fileArray[0]);
-      } else {
-        uploadMultipleFiles(fileArray);
-      }
-    }
-    e.target.value = '';
-  };
-
-  // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -306,73 +337,59 @@ export default function Integrations() {
     setIsDragOver(false);
     
     const files = Array.from(e.dataTransfer.files).filter(file => 
-      file.name.match(/\.(mpp|xml|csv)$/i)
+      file.name.endsWith('.mpp') || file.name.endsWith('.xml') || file.name.endsWith('.csv')
     );
     
-    if (files.length === 0) {
-      toast({ title: "Invalid Files", description: "Please drop .mpp, .xml, or .csv files", variant: "destructive" });
-      return;
-    }
-    
-    if (files.length === 1) {
-      uploadMutation.mutate(files[0]);
-    } else {
+    if (files.length > 0) {
       uploadMultipleFiles(files);
     }
-  }, [uploadMultipleFiles, uploadMutation, toast]);
+  }, [currentOrganization?.id]);
 
-  // Batch selection handlers
-  const toggleImportSelection = (importId: number) => {
-    const newSelected = new Set(selectedImports);
-    if (newSelected.has(importId)) {
-      newSelected.delete(importId);
-    } else {
-      newSelected.add(importId);
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      uploadMultipleFiles(files);
     }
-    setSelectedImports(newSelected);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [currentOrganization?.id]);
+
+  const openConvertModal = (imp: MppImportWithTasks) => {
+    setConvertingImport(imp);
+    setProjectName(imp.fileName.replace(/\.(mpp|xml|csv)$/i, ''));
+    setProjectPortfolio("");
+    setProjectStatus("Initiation");
+    setProjectPriority("Medium");
+    setConvertModalOpen(true);
+  };
+
+  const openSyncModal = (imp: MppImportWithTasks) => {
+    setSyncingImport(imp);
+    setSelectedProjectId(imp.projectId?.toString() || "");
+    setSyncMode('merge');
+    setSyncModalOpen(true);
+  };
+
+  const toggleImportSelection = (importId: number) => {
+    setSelectedImports(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(importId)) {
+        newSet.delete(importId);
+      } else {
+        newSet.add(importId);
+      }
+      return newSet;
+    });
   };
 
   const selectAllUnconverted = () => {
-    const unconvertedIds = imports?.filter(imp => !imp.projectId && imp.status !== "converted").map(imp => imp.id) || [];
-    setSelectedImports(new Set(unconvertedIds));
+    const unconverted = imports?.filter(imp => !imp.projectId && imp.status !== "converted") || [];
+    setSelectedImports(new Set(unconverted.map(imp => imp.id)));
   };
 
   const clearSelection = () => {
     setSelectedImports(new Set());
-  };
-
-  const handleBatchConvert = async () => {
-    if (selectedImports.size === 0) return;
-    
-    const importsToConvert = imports?.filter(imp => selectedImports.has(imp.id)) || [];
-    const portfolioNum = batchPortfolio && batchPortfolio !== "none" ? Number(batchPortfolio) : undefined;
-    
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const imp of importsToConvert) {
-      try {
-        await apiRequest('POST', `/api/mpp-imports/${imp.id}/convert`, {
-          name: imp.fileName.replace(/\.(mpp|xml|csv)$/i, ''),
-          portfolioId: portfolioNum && portfolioNum > 0 ? portfolioNum : undefined,
-          status: batchStatus,
-          priority: batchPriority,
-        });
-        successCount++;
-      } catch (error) {
-        errorCount++;
-      }
-    }
-    
-    setBatchConvertModalOpen(false);
-    setSelectedImports(new Set());
-    queryClient.invalidateQueries({ queryKey: ['/api/mpp-imports'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
-    
-    toast({ 
-      title: "Batch Conversion Complete", 
-      description: `${successCount} project(s) created${errorCount > 0 ? `, ${errorCount} failed` : ''}` 
-    });
   };
 
   // Get unconverted imports for batch actions
@@ -407,28 +424,153 @@ export default function Integrations() {
     setSelectedImportId(null);
   };
 
+  const handleIntegrationClick = (integration: Integration) => {
+    if (integration.status === "coming_soon") {
+      setSelectedIntegration(integration);
+      setComingSoonOpen(true);
+    } else if (integration.id === "ms-project") {
+      setMppDetailOpen(true);
+    } else if (integration.id === "power-bi") {
+      setPowerBiDetailOpen(true);
+    }
+  };
+
+  const filteredIntegrations = integrations.filter(i => i.category === activeCategory);
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Integrations</h1>
-        <p className="mt-2 text-muted-foreground">Connect external project management tools and import data.</p>
+    <div className="flex h-full">
+      {/* Left Navigation */}
+      <div className="w-64 border-r bg-muted/30 p-4 shrink-0">
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-foreground">Integrations</h2>
+          <p className="text-sm text-muted-foreground">Connect your tools</p>
+        </div>
+        
+        <nav className="space-y-1">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                activeCategory === cat.id 
+                  ? 'bg-primary/10 text-primary font-medium' 
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+              data-testid={`nav-category-${cat.id}`}
+            >
+              {cat.icon}
+              <span>{cat.name}</span>
+              <Badge variant="secondary" className="ml-auto text-xs">
+                {integrations.filter(i => i.category === cat.id).length}
+              </Badge>
+            </button>
+          ))}
+        </nav>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card data-testid="card-mpp-connector">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900">
-                <FileSpreadsheet className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <CardTitle>Microsoft Project (MPP) Connector</CardTitle>
-                <CardDescription>Import task schedules from MS Project files</CardDescription>
-              </div>
+      {/* Main Content */}
+      <div className="flex-1 p-6 overflow-auto">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-foreground">
+            {categories.find(c => c.id === activeCategory)?.name}
+          </h1>
+          <p className="text-muted-foreground">
+            {categories.find(c => c.id === activeCategory)?.description}
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredIntegrations.map((integration) => (
+            <Card 
+              key={integration.id} 
+              className="hover-elevate cursor-pointer"
+              onClick={() => handleIntegrationClick(integration)}
+              data-testid={`card-integration-${integration.id}`}
+            >
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${integration.bgColor}`}>
+                    {integration.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-foreground">{integration.name}</h3>
+                      {integration.status === "coming_soon" ? (
+                        <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                      ) : (
+                        <Badge variant="default" className="text-xs bg-green-600">Active</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{integration.description}</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <Button 
+                    variant={integration.status === "active" ? "default" : "outline"} 
+                    size="sm" 
+                    className="w-full"
+                    data-testid={`button-configure-${integration.id}`}
+                  >
+                    <Settings className="mr-2 h-4 w-4" />
+                    {integration.status === "active" ? "Configure" : "Learn More"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Coming Soon Dialog */}
+      <Dialog open={comingSoonOpen} onOpenChange={setComingSoonOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              {selectedIntegration && (
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${selectedIntegration.bgColor}`}>
+                  {selectedIntegration.icon}
+                </div>
+              )}
+              {selectedIntegration?.name} Integration
+            </DialogTitle>
+            <DialogDescription>
+              This integration is coming soon! We're working hard to bring you seamless connectivity with {selectedIntegration?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-6">
+            <div className="rounded-lg border bg-muted/30 p-4 text-center">
+              <Rocket className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+              <h4 className="font-medium mb-2">Coming Soon</h4>
+              <p className="text-sm text-muted-foreground">
+                We'll notify you when the {selectedIntegration?.name} integration is available. Stay tuned!
+              </p>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setComingSoonOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MS Project Detail Dialog */}
+      <Dialog open={mppDetailOpen} onOpenChange={setMppDetailOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900">
+                <FileSpreadsheet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              Microsoft Project Connector
+            </DialogTitle>
+            <DialogDescription>
+              Import task schedules from MS Project files
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-lg border bg-muted/30 p-4">
                 <h4 className="font-medium text-sm mb-2">Supported Formats</h4>
                 <div className="flex flex-wrap gap-2">
@@ -447,473 +589,232 @@ export default function Integrations() {
                   <li>Task Name &amp; WBS</li>
                   <li>Start Date &amp; Finish Date</li>
                   <li>Duration &amp; % Complete</li>
-                  <li>Task Hierarchy (Outline Level, Summary/Milestone)</li>
+                  <li>Task Hierarchy</li>
                 </ul>
               </div>
+            </div>
+            
+            {/* Upload Zone */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`
+                relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+                transition-colors duration-200
+                ${isDragOver 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                }
+              `}
+              data-testid="dropzone-upload"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".mpp,.xml,.csv"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+                data-testid="input-file-upload"
+              />
               
-              {/* Drag and Drop Upload Zone */}
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`
-                  relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-                  transition-colors duration-200
-                  ${isDragOver 
-                    ? 'border-primary bg-primary/5' 
-                    : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                  }
-                `}
-                data-testid="dropzone-upload"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".mpp,.xml,.csv"
-                  multiple
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  data-testid="input-file-upload"
-                />
-                
-                {uploadingFiles.length > 0 ? (
-                  <div className="space-y-3">
-                    <Files className="mx-auto h-10 w-10 text-primary" />
-                    <div className="text-sm font-medium">Uploading {uploadingFiles.length} file(s)...</div>
-                    <div className="space-y-2 max-h-32 overflow-auto">
-                      {uploadingFiles.map((fileName) => (
-                        <div key={fileName} className="flex items-center justify-center gap-2 text-sm">
-                          {uploadProgress.get(fileName) === 'uploading' && (
-                            <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                          )}
-                          {uploadProgress.get(fileName) === 'success' && (
-                            <CheckCircle2 className="h-3 w-3 text-green-600" />
-                          )}
-                          {uploadProgress.get(fileName) === 'error' && (
-                            <X className="h-3 w-3 text-destructive" />
-                          )}
-                          {uploadProgress.get(fileName) === 'pending' && (
-                            <Clock className="h-3 w-3 text-muted-foreground" />
-                          )}
-                          <span className="truncate max-w-[200px]">{fileName}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : uploadMutation.isPending ? (
-                  <div className="space-y-3">
-                    <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
-                    <div className="text-sm font-medium">Uploading...</div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <Upload className={`mx-auto h-10 w-10 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <div>
-                      <p className="text-sm font-medium">
-                        {isDragOver ? 'Drop files here' : 'Drag and drop files here'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        or click to browse - supports multiple files
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Power BI Integration Card */}
-        <Card data-testid="card-powerbi-connector">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900">
-                <BarChart3 className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <CardTitle>Power BI Connector</CardTitle>
-                <CardDescription>Connect your data to Power BI dashboards</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <h4 className="font-medium text-sm mb-2">Available Data Endpoints</h4>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Use these REST API endpoints in Power BI's Web connector to import your data.
-                </p>
-                <div className="space-y-2">
-                  {[
-                    { name: 'Projects', endpoint: '/api/analytics/projects', desc: 'All projects with metrics' },
-                    { name: 'Portfolios', endpoint: '/api/analytics/portfolios', desc: 'Portfolio summaries' },
-                    { name: 'Risks', endpoint: '/api/analytics/risks', desc: 'Project risks' },
-                    { name: 'Issues', endpoint: '/api/analytics/issues', desc: 'Project issues' },
-                    { name: 'Milestones', endpoint: '/api/analytics/milestones', desc: 'Milestone data' },
-                    { name: 'Intakes', endpoint: '/api/analytics/intakes', desc: 'Intake pipeline' },
-                    { name: 'Summary', endpoint: '/api/analytics/summary', desc: 'Organization KPIs' },
-                  ].map((item) => (
-                    <div key={item.endpoint} className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{item.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          const url = `${window.location.origin}${item.endpoint}`;
-                          navigator.clipboard.writeText(url);
-                          setCopiedEndpoint(item.endpoint);
-                          setTimeout(() => setCopiedEndpoint(null), 2000);
-                          toast({ title: "Copied", description: `${item.name} endpoint copied to clipboard` });
-                        }}
-                        data-testid={`button-copy-${item.name.toLowerCase()}`}
-                      >
-                        {copiedEndpoint === item.endpoint ? (
-                          <Check className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
+              {uploadingFiles.length > 0 ? (
+                <div className="space-y-3">
+                  <Files className="mx-auto h-10 w-10 text-primary" />
+                  <div className="text-sm font-medium">Uploading {uploadingFiles.length} file(s)...</div>
+                  <div className="space-y-2 max-h-32 overflow-auto">
+                    {uploadingFiles.map((fileName) => (
+                      <div key={fileName} className="flex items-center justify-center gap-2 text-sm">
+                        {uploadProgress.get(fileName) === 'uploading' && (
+                          <Loader2 className="h-3 w-3 animate-spin text-primary" />
                         )}
-                      </Button>
+                        {uploadProgress.get(fileName) === 'success' && (
+                          <CheckCircle2 className="h-3 w-3 text-green-600" />
+                        )}
+                        {uploadProgress.get(fileName) === 'error' && (
+                          <X className="h-3 w-3 text-destructive" />
+                        )}
+                        {uploadProgress.get(fileName) === 'pending' && (
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                        )}
+                        <span className="truncate max-w-[200px]">{fileName}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Upload className={`mx-auto h-10 w-10 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <div>
+                    <p className="text-sm font-medium">
+                      {isDragOver ? 'Drop files here' : 'Drag and drop files here'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      or click to browse - supports multiple files
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Import History */}
+            {imports && imports.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Import History</h4>
+                  <Button variant="ghost" size="sm" onClick={() => refetch()}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-auto">
+                  {imports.map((imp) => (
+                    <div key={imp.id} className="flex items-center justify-between p-3 rounded-lg border bg-background">
+                      <div className="flex items-center gap-3">
+                        <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">{imp.fileName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {imp.taskCount} tasks • {imp.lastSyncedAt ? formatDistanceToNow(new Date(imp.lastSyncedAt), { addSuffix: true }) : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {imp.projectId ? (
+                          <Badge variant="default" className="bg-green-600">Converted</Badge>
+                        ) : (
+                          <Button size="sm" onClick={() => openConvertModal(imp)}>
+                            <FolderPlus className="h-4 w-4 mr-2" />
+                            Create Project
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-              
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <h4 className="font-medium text-sm mb-2">Setup Instructions</h4>
-                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                  <li>Open Power BI Desktop</li>
-                  <li>Select <strong>Get Data</strong> &rarr; <strong>Web</strong></li>
-                  <li>Paste the endpoint URL and authenticate</li>
-                  <li>Transform and load your data</li>
-                </ol>
-              </div>
-              
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={() => setPowerBiDocsOpen(true)}
-                  data-testid="button-powerbi-docs"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  View Documentation
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
-          <div>
-            <CardTitle>Import History</CardTitle>
-            <CardDescription>Previously imported project files</CardDescription>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {unconvertedImports.length > 0 && (
-              <>
-                {selectedImports.size > 0 ? (
-                  <>
-                    <Badge variant="secondary">{selectedUnconvertedCount} selected</Badge>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={clearSelection}
-                      data-testid="button-clear-selection"
-                    >
-                      Clear
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      onClick={() => {
-                        setBatchPortfolio("");
-                        setBatchStatus("Initiation");
-                        setBatchPriority("Medium");
-                        setBatchConvertModalOpen(true);
-                      }}
-                      disabled={selectedUnconvertedCount === 0}
-                      data-testid="button-batch-convert"
-                    >
-                      <FolderPlus className="mr-2 h-4 w-4" />
-                      Create All Projects
-                    </Button>
-                  </>
-                ) : (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={selectAllUnconverted}
-                    data-testid="button-select-all"
-                  >
-                    <Files className="mr-2 h-4 w-4" />
-                    Select All ({unconvertedImports.length})
-                  </Button>
-                )}
-              </>
             )}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => refetch()}
-              disabled={isLoading}
-              data-testid="button-refresh-imports"
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : !imports?.length ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileSpreadsheet className="mx-auto h-12 w-12 mb-4 opacity-50" />
-              <p>No imports yet. Upload your first file above.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {imports.map((imp) => {
-                const isUnconverted = !imp.projectId && imp.status !== "converted";
-                const isSelected = selectedImports.has(imp.id);
-                
-                return (
-                <div key={imp.id} className={`border rounded-lg ${isSelected ? 'border-primary bg-primary/5' : ''}`} data-testid={`import-item-${imp.id}`}>
-                  <div 
-                    className="flex items-center justify-between p-4 cursor-pointer hover-elevate"
-                    onClick={() => toggleExpanded(imp.id)}
-                    data-testid={`button-expand-import-${imp.id}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {isUnconverted && (
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleImportSelection(imp.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          data-testid={`checkbox-select-import-${imp.id}`}
-                        />
-                      )}
-                      <Button variant="ghost" size="icon" className="h-6 w-6">
-                        {expandedImports.has(imp.id) ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{imp.fileName}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          <span data-testid={`text-last-synced-${imp.id}`}>
-                            Last synced: {imp.lastSyncedAt ? formatDistanceToNow(new Date(imp.lastSyncedAt), { addSuffix: true }) : 'N/A'}
-                          </span>
-                        </div>
-                      </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMppDetailOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Power BI Detail Dialog */}
+      <Dialog open={powerBiDetailOpen} onOpenChange={setPowerBiDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900">
+                <BarChart3 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              Power BI Connector
+            </DialogTitle>
+            <DialogDescription>
+              Connect your data to Power BI dashboards
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <h4 className="font-medium text-sm mb-2">Available Data Endpoints</h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                Use these REST API endpoints in Power BI's Web connector to import your data.
+              </p>
+              <div className="space-y-2">
+                {[
+                  { name: 'Projects', endpoint: '/api/analytics/projects', desc: 'All projects with metrics' },
+                  { name: 'Portfolios', endpoint: '/api/analytics/portfolios', desc: 'Portfolio summaries' },
+                  { name: 'Risks', endpoint: '/api/analytics/risks', desc: 'Project risks' },
+                  { name: 'Issues', endpoint: '/api/analytics/issues', desc: 'Project issues' },
+                  { name: 'Milestones', endpoint: '/api/analytics/milestones', desc: 'Milestone data' },
+                  { name: 'Summary', endpoint: '/api/analytics/summary', desc: 'Organization KPIs' },
+                ].map((item) => (
+                  <div key={item.endpoint} className="flex items-center justify-between gap-2 p-2 rounded-md bg-background border">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="outline">{imp.taskCount} tasks</Badge>
-                      <Badge variant="secondary">{imp.fileType?.toUpperCase()}</Badge>
-                      {imp.projectId ? (
-                        <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                          <CheckCircle2 className="mr-1 h-3 w-3" />
-                          Converted
-                        </Badge>
-                      ) : imp.status === "converted" ? (
-                        <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                          <CheckCircle2 className="mr-1 h-3 w-3" />
-                          Converted
-                        </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const url = `${window.location.origin}${item.endpoint}`;
+                        navigator.clipboard.writeText(url);
+                        setCopiedEndpoint(item.endpoint);
+                        setTimeout(() => setCopiedEndpoint(null), 2000);
+                        toast({ title: "Copied", description: `${item.name} endpoint copied to clipboard` });
+                      }}
+                      data-testid={`button-copy-${item.name.toLowerCase()}`}
+                    >
+                      {copiedEndpoint === item.endpoint ? (
+                        <Check className="h-4 w-4 text-green-600" />
                       ) : (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openConvertModal(imp);
-                            }}
-                            data-testid={`button-create-project-${imp.id}`}
-                          >
-                            <FolderPlus className="mr-2 h-4 w-4" />
-                            Create Project
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openSyncModal(imp);
-                            }}
-                            data-testid={`button-sync-project-${imp.id}`}
-                          >
-                            <Link2 className="mr-2 h-4 w-4" />
-                            Update Existing
-                          </Button>
-                        </div>
+                        <Copy className="h-4 w-4" />
                       )}
-                      {imp.projectId && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/projects/${imp.projectId}`);
-                            }}
-                            data-testid={`button-view-project-${imp.id}`}
-                          >
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            View
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openSyncModal(imp);
-                            }}
-                            data-testid={`button-resync-project-${imp.id}`}
-                          >
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Re-sync
-                          </Button>
-                        </div>
-                      )}
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteMutation.mutate(imp.id);
-                        }}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-import-${imp.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+                    </Button>
                   </div>
-
-                  <AnimatePresence>
-                    {expandedImports.has(imp.id) && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="border-t overflow-hidden"
-                      >
-                        <div className="p-4">
-                          {selectedImportId === imp.id ? (
-                            <div className="flex justify-center py-4">
-                              <Loader2 className="h-6 w-6 animate-spin" />
-                            </div>
-                          ) : imp.tasks?.length ? (
-                            <div className="rounded-lg border overflow-auto max-h-96">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Task Name</TableHead>
-                                    <TableHead>Start Date</TableHead>
-                                    <TableHead>Finish Date</TableHead>
-                                    <TableHead>Duration</TableHead>
-                                    <TableHead className="text-right">% Complete</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {imp.tasks.map((task) => (
-                                    <TableRow key={task.id} data-testid={`row-task-${task.id}`}>
-                                      <TableCell className="font-medium">
-                                        <span style={{ paddingLeft: `${(task.outlineLevel || 1) * 12}px` }}>
-                                          {task.isSummary && <span className="font-bold">{task.taskName}</span>}
-                                          {task.isMilestone && <span className="text-primary">{task.taskName}</span>}
-                                          {!task.isSummary && !task.isMilestone && task.taskName}
-                                        </span>
-                                      </TableCell>
-                                      <TableCell>
-                                        {task.startDate ? format(new Date(task.startDate), 'MMM d, yyyy') : '-'}
-                                      </TableCell>
-                                      <TableCell>
-                                        {task.finishDate ? format(new Date(task.finishDate), 'MMM d, yyyy') : '-'}
-                                      </TableCell>
-                                      <TableCell>{task.duration || `${task.durationDays || 0} days`}</TableCell>
-                                      <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                          <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                                            <div 
-                                              className="h-full bg-primary rounded-full"
-                                              style={{ width: `${task.percentComplete || 0}%` }}
-                                            />
-                                          </div>
-                                          <span className="text-sm">{task.percentComplete || 0}%</span>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          ) : (
-                            <p className="text-muted-foreground text-center py-4">No tasks in this import</p>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-              })}
+                ))}
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <h4 className="font-medium text-sm mb-2">Setup Instructions</h4>
+              <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+                <li>Open Power BI Desktop</li>
+                <li>Select <strong>Get Data</strong> &rarr; <strong>Web</strong></li>
+                <li>Paste the endpoint URL and authenticate</li>
+                <li>Transform and load your data</li>
+              </ol>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPowerBiDetailOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
+      {/* Convert to Project Modal */}
       <Dialog open={convertModalOpen} onOpenChange={setConvertModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Project from Import</DialogTitle>
             <DialogDescription>
-              This will create a new project with {convertingImport?.taskCount || 0} tasks from the imported file.
+              Convert "{convertingImport?.fileName}" into a new project with {convertingImport?.taskCount} tasks
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="projectName">Project Name</Label>
-              <Input
-                id="projectName"
-                value={projectName}
+              <Label>Project Name</Label>
+              <Input 
+                value={projectName} 
                 onChange={(e) => setProjectName(e.target.value)}
                 placeholder="Enter project name"
                 data-testid="input-project-name"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="portfolio">Portfolio (Optional)</Label>
+              <Label>Portfolio (Optional)</Label>
               <Select value={projectPortfolio} onValueChange={setProjectPortfolio}>
                 <SelectTrigger data-testid="select-portfolio">
-                  <SelectValue placeholder="No portfolio selected" />
+                  <SelectValue placeholder="Select a portfolio" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Portfolio</SelectItem>
                   {portfolios?.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
+                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
+                <Label>Status</Label>
                 <Select value={projectStatus} onValueChange={setProjectStatus}>
                   <SelectTrigger data-testid="select-status">
                     <SelectValue />
@@ -923,12 +824,12 @@ export default function Integrations() {
                     <SelectItem value="Planning">Planning</SelectItem>
                     <SelectItem value="Execution">Execution</SelectItem>
                     <SelectItem value="Monitoring">Monitoring</SelectItem>
-                    <SelectItem value="Closed">Closed</SelectItem>
+                    <SelectItem value="Closing">Closing</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
+                <Label>Priority</Label>
                 <Select value={projectPriority} onValueChange={setProjectPriority}>
                   <SelectTrigger data-testid="select-priority">
                     <SelectValue />
@@ -944,20 +845,74 @@ export default function Integrations() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConvertModalOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setConvertModalOpen(false)}>Cancel</Button>
             <Button 
-              onClick={handleConvert} 
-              disabled={convertMutation.isPending || !projectName.trim()}
+              onClick={() => convertingImport && convertMutation.mutate({
+                importId: convertingImport.id,
+                name: projectName,
+                portfolioId: projectPortfolio && projectPortfolio !== "none" ? parseInt(projectPortfolio) : undefined,
+                status: projectStatus,
+                priority: projectPriority,
+              })}
+              disabled={!projectName || convertMutation.isPending}
               data-testid="button-confirm-create"
             >
-              {convertMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <FolderPlus className="mr-2 h-4 w-4" />
-              )}
+              {convertMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Create Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sync Modal */}
+      <Dialog open={syncModalOpen} onOpenChange={setSyncModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Existing Project</DialogTitle>
+            <DialogDescription>
+              Sync tasks from "{syncingImport?.fileName}" to an existing project
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Project</Label>
+              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                <SelectTrigger data-testid="select-target-project">
+                  <SelectValue placeholder="Choose a project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {orgProjects?.map((p) => (
+                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Sync Mode</Label>
+              <Select value={syncMode} onValueChange={(v: 'merge' | 'replace') => setSyncMode(v)}>
+                <SelectTrigger data-testid="select-sync-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="merge">Merge (Add new, update existing)</SelectItem>
+                  <SelectItem value="replace">Replace (Remove all, add from import)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSyncModalOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={() => syncingImport && selectedProjectId && syncMutation.mutate({
+                importId: syncingImport.id,
+                projectId: parseInt(selectedProjectId),
+                syncMode,
+              })}
+              disabled={!selectedProjectId || syncMutation.isPending}
+              data-testid="button-confirm-sync"
+            >
+              {syncMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Sync Tasks
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -965,47 +920,33 @@ export default function Integrations() {
 
       {/* Batch Convert Modal */}
       <Dialog open={batchConvertModalOpen} onOpenChange={setBatchConvertModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create All Projects</DialogTitle>
+            <DialogTitle>Batch Create Projects</DialogTitle>
             <DialogDescription>
-              This will create {selectedUnconvertedCount} project(s) from the selected imports.
-              Each project will use the file name as the project name.
+              Create {selectedUnconvertedCount} projects from selected imports
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="rounded-lg border bg-muted/30 p-3 max-h-32 overflow-auto">
-              <p className="text-sm font-medium mb-2">Selected Files:</p>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                {imports?.filter(imp => selectedImports.has(imp.id)).map(imp => (
-                  <li key={imp.id} className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-3 w-3" />
-                    {imp.fileName} ({imp.taskCount} tasks)
-                  </li>
-                ))}
-              </ul>
-            </div>
             <div className="space-y-2">
-              <Label htmlFor="batchPortfolio">Portfolio (Optional)</Label>
+              <Label>Portfolio (Optional)</Label>
               <Select value={batchPortfolio} onValueChange={setBatchPortfolio}>
-                <SelectTrigger data-testid="select-batch-portfolio">
-                  <SelectValue placeholder="No portfolio selected" />
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a portfolio" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Portfolio</SelectItem>
                   {portfolios?.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
+                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="batchStatus">Status</Label>
+                <Label>Status</Label>
                 <Select value={batchStatus} onValueChange={setBatchStatus}>
-                  <SelectTrigger data-testid="select-batch-status">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1013,14 +954,14 @@ export default function Integrations() {
                     <SelectItem value="Planning">Planning</SelectItem>
                     <SelectItem value="Execution">Execution</SelectItem>
                     <SelectItem value="Monitoring">Monitoring</SelectItem>
-                    <SelectItem value="Closed">Closed</SelectItem>
+                    <SelectItem value="Closing">Closing</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="batchPriority">Priority</Label>
+                <Label>Priority</Label>
                 <Select value={batchPriority} onValueChange={setBatchPriority}>
-                  <SelectTrigger data-testid="select-batch-priority">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1034,169 +975,19 @@ export default function Integrations() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBatchConvertModalOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setBatchConvertModalOpen(false)}>Cancel</Button>
             <Button 
-              onClick={handleBatchConvert} 
-              disabled={selectedUnconvertedCount === 0}
-              data-testid="button-confirm-batch-create"
+              onClick={() => batchConvertMutation.mutate({
+                importIds: Array.from(selectedImports),
+                portfolioId: batchPortfolio && batchPortfolio !== "none" ? parseInt(batchPortfolio) : undefined,
+                status: batchStatus,
+                priority: batchPriority,
+              })}
+              disabled={batchConvertMutation.isPending}
             >
-              <FolderPlus className="mr-2 h-4 w-4" />
-              Create {selectedUnconvertedCount} Project(s)
+              {batchConvertMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Create {selectedUnconvertedCount} Projects
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Sync to Existing Project Modal */}
-      <Dialog open={syncModalOpen} onOpenChange={setSyncModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Update Existing Project</DialogTitle>
-            <DialogDescription>
-              Sync {syncingImport?.taskCount || 0} tasks from "{syncingImport?.fileName}" to an existing project.
-              Tasks will be matched by name or WBS code.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="targetProject">Select Project to Update</Label>
-              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger data-testid="select-target-project">
-                  <SelectValue placeholder="Choose a project..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {orgProjects?.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Sync Mode</Label>
-              <Select value={syncMode} onValueChange={(v) => setSyncMode(v as 'merge' | 'replace')}>
-                <SelectTrigger data-testid="select-sync-mode">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="merge">
-                    Merge - Add new tasks and update existing by name
-                  </SelectItem>
-                  <SelectItem value="replace">
-                    Replace - Remove all existing tasks first
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              {syncMode === 'merge' ? (
-                <p className="text-xs text-muted-foreground">
-                  Existing tasks with matching names will be updated. New tasks will be added.
-                </p>
-              ) : (
-                <p className="text-xs text-destructive font-medium">
-                  Warning: All existing tasks in the selected project will be permanently deleted and replaced with imported tasks.
-                </p>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSyncModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSync} 
-              disabled={syncMutation.isPending || !selectedProjectId}
-              data-testid="button-confirm-sync"
-            >
-              {syncMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Link2 className="mr-2 h-4 w-4" />
-              )}
-              Sync Tasks
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Power BI Documentation Modal */}
-      <Dialog open={powerBiDocsOpen} onOpenChange={setPowerBiDocsOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Power BI Connection Guide</DialogTitle>
-            <DialogDescription>
-              Connect FridayReport.AI to Power BI for advanced analytics and reporting
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Prerequisites</h3>
-              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                <li>Power BI Desktop installed</li>
-                <li>Your FridayReport.AI application running and accessible</li>
-                <li>Valid authentication session</li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Step-by-Step Setup</h3>
-              <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-2">
-                <li><strong>Get Your Base URL:</strong> Copy your app URL from the browser address bar (e.g., <code className="bg-muted px-1 rounded">{window.location.origin}</code>)</li>
-                <li><strong>Open Power BI Desktop</strong> and go to <strong>Home &rarr; Get Data &rarr; Web</strong></li>
-                <li><strong>Paste the endpoint URL</strong> (e.g., <code className="bg-muted px-1 rounded">{window.location.origin}/api/analytics/projects</code>)</li>
-                <li><strong>Configure authentication</strong> - Use "Anonymous" or set up OAuth if available</li>
-                <li><strong>Transform data</strong> in Power Query Editor as needed</li>
-                <li><strong>Load to report</strong> and create your visualizations</li>
-              </ol>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Available Endpoints</h3>
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Endpoint</TableHead>
-                      <TableHead>Description</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/projects</TableCell><TableCell>All projects with metrics</TableCell></TableRow>
-                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/portfolios</TableCell><TableCell>Portfolio summaries</TableCell></TableRow>
-                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/risks</TableCell><TableCell>Risk data across projects</TableCell></TableRow>
-                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/issues</TableCell><TableCell>Issue tracking data</TableCell></TableRow>
-                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/milestones</TableCell><TableCell>Milestone completion</TableCell></TableRow>
-                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/intakes</TableCell><TableCell>Intake pipeline</TableCell></TableRow>
-                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/summary</TableCell><TableCell>Organization KPIs</TableCell></TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Sample DAX Measures</h3>
-              <div className="bg-muted rounded-lg p-3 text-xs font-mono space-y-2 overflow-x-auto">
-                <div>Total Projects = COUNTROWS(Projects)</div>
-                <div>Critical Projects = CALCULATE(COUNTROWS(Projects), Projects[health] = "Red")</div>
-                <div>Total Budget = SUM(Projects[budget])</div>
-                <div>Avg Completion = AVERAGE(Projects[completionPercentage])</div>
-                <div>Open Risks = CALCULATE(COUNTROWS(Risks), Risks[status] = "Open")</div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-lg mb-2">Troubleshooting</h3>
-              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                <li><strong>401 Unauthorized:</strong> Ensure you're logged in to FridayReport.AI</li>
-                <li><strong>No Data:</strong> Check that you have organizations with projects</li>
-                <li><strong>Connection Timeout:</strong> Verify your app URL is correct</li>
-              </ul>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setPowerBiDocsOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
