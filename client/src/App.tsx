@@ -37,8 +37,24 @@ function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: 
   const { currentOrganization, isLoading } = useOrganization();
   const [, setLocation] = useLocation();
   
-  const hiddenModules = currentOrganization?.hiddenModules || [];
-  const isHidden = hiddenModules.includes(moduleKey);
+  // Check sidebarStructure (new) first, fallback to hiddenModules (legacy)
+  const sidebarStructure = currentOrganization?.sidebarStructure as Array<{ items: Array<{ type: string; key?: string; hidden?: boolean }> }> | null;
+  
+  let isHidden = false;
+  if (sidebarStructure && Array.isArray(sidebarStructure)) {
+    // Find the module in sidebarStructure and check its hidden status
+    for (const group of sidebarStructure) {
+      const item = group.items?.find(i => i.type === "module" && i.key === moduleKey);
+      if (item) {
+        isHidden = item.hidden === true;
+        break;
+      }
+    }
+  } else {
+    // Fallback to legacy hiddenModules array
+    const hiddenModules = currentOrganization?.hiddenModules || [];
+    isHidden = hiddenModules.includes(moduleKey);
+  }
   
   useEffect(() => {
     if (!isLoading && isHidden) {
