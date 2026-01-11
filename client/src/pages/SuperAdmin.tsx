@@ -12,7 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import type { Organization, User } from "@shared/schema";
@@ -101,9 +102,16 @@ function OrganizationsTab() {
   const [demoDataOrg, setDemoDataOrg] = useState<Organization | null>(null);
   const [deleteDemoDataOrg, setDeleteDemoDataOrg] = useState<Organization | null>(null);
   const [selectedIndustry, setSelectedIndustry] = useState<string>("");
+  const [deactivatedOpen, setDeactivatedOpen] = useState(false);
+  const [restoreOrgId, setRestoreOrgId] = useState<number | null>(null);
 
   const { data: organizations, isLoading } = useQuery<Organization[]>({
     queryKey: ['/api/organizations']
+  });
+
+  const { data: deactivatedOrgs, isLoading: deactivatedLoading } = useQuery<Organization[]>({
+    queryKey: ['/api/admin/organizations/deactivated'],
+    enabled: user?.role === 'super_admin',
   });
 
   const { data: industries } = useQuery<IndustryOption[]>({
@@ -145,8 +153,24 @@ function OrganizationsTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
-      toast({ title: "Success", description: "Organization deleted" });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/organizations/deactivated'] });
+      toast({ title: "Success", description: "Organization deactivated" });
       setDeleteId(null);
+    }
+  });
+
+  const reactivateOrg = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest('POST', `/api/admin/organizations/${id}/reactivate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/organizations/deactivated'] });
+      toast({ title: "Success", description: "Organization restored" });
+      setRestoreOrgId(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to restore organization", variant: "destructive" });
     }
   });
 
@@ -280,6 +304,56 @@ function OrganizationsTab() {
         {organizations?.length === 0 && (
           <div className="text-center py-8 text-slate-500">No organizations yet. Create one to get started.</div>
         )}
+
+        {deactivatedOrgs && deactivatedOrgs.length > 0 && (
+          <Collapsible open={deactivatedOpen} onOpenChange={setDeactivatedOpen} className="mt-6">
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="flex w-full justify-start gap-2 text-muted-foreground hover:text-foreground">
+                {deactivatedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                <Archive className="h-4 w-4" />
+                Deactivated Organizations ({deactivatedOrgs.length})
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-4">
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Slug</TableHead>
+                      <TableHead>Deactivated</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deactivatedOrgs.map(org => (
+                      <TableRow key={org.id} data-testid={`deactivated-org-row-${org.id}`} className="opacity-75">
+                        <TableCell className="font-medium">{org.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{org.slug}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {org.deactivatedAt ? format(new Date(org.deactivatedAt), 'MMM d, yyyy HH:mm') : 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => setRestoreOrgId(org.id)}
+                            data-testid={`button-restore-org-${org.id}`}
+                            title="Restore organization"
+                          >
+                            <RotateCcw className="h-4 w-4 text-green-500" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </CardContent>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -374,15 +448,38 @@ function OrganizationsTab() {
       <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Organization</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="h-5 w-5" />
+              Deactivate Organization
+            </DialogTitle>
             <DialogDescription>
-              Are you sure? This will remove the organization and all its data. This cannot be undone.
+              This organization will be deactivated and hidden from normal use. All data will be preserved and the organization can be restored later by a Super Admin.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteOrg.mutate(deleteId)}>
-              Delete
+              Deactivate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={restoreOrgId !== null} onOpenChange={() => setRestoreOrgId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-green-500" />
+              Restore Organization
+            </DialogTitle>
+            <DialogDescription>
+              This will restore the organization and make it active again. All members and data will become accessible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRestoreOrgId(null)}>Cancel</Button>
+            <Button onClick={() => restoreOrgId && reactivateOrg.mutate(restoreOrgId)}>
+              Restore
             </Button>
           </DialogFooter>
         </DialogContent>
