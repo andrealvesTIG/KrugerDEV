@@ -1195,9 +1195,24 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(organizationMembers.userId, users.id))
       .where(eq(organizationMembers.organizationId, organizationId));
 
-    // Insert resources for members that don't have one yet using ON CONFLICT DO NOTHING
-    // This is concurrency-safe due to the unique index on (organization_id, user_id)
+    // Get existing resources for this organization to check for duplicates
+    const existingResources = await db.select()
+      .from(resources)
+      .where(and(
+        eq(resources.organizationId, organizationId),
+        isNull(resources.deletedAt)
+      ));
+
+    // Build lookup sets for existing resources
+    const existingByUserId = new Set(existingResources.filter(r => r.userId).map(r => r.userId));
+    const existingByEmail = new Set(existingResources.filter(r => r.email).map(r => r.email?.toLowerCase()));
+
+    // Only insert resources for members that don't have one yet
     for (const member of members) {
+      // Skip if already exists by userId or email
+      if (existingByUserId.has(member.userId)) continue;
+      if (member.email && existingByEmail.has(member.email.toLowerCase())) continue;
+
       const displayName = [member.firstName, member.lastName].filter(Boolean).join(' ') || member.email || member.userId;
       await db.insert(resources).values({
         organizationId,
@@ -1205,12 +1220,67 @@ export class DatabaseStorage implements IStorage {
         displayName,
         email: member.email || null,
         isActive: true,
-      }).onConflictDoNothing();
+      });
+      
+      // Add to lookup sets to prevent duplicates within this sync
+      existingByUserId.add(member.userId);
+      if (member.email) existingByEmail.add(member.email.toLowerCase());
     }
   }
 
+  async deduplicateResources(organizationId: number): Promise<number> {
+    // Get all resources for this organization
+    const allResources = await db.select()
+      .from(resources)
+      .where(and(
+        eq(resources.organizationId, organizationId),
+        isNull(resources.deletedAt)
+      ))
+      .orderBy(resources.id); // Oldest first
+
+    // Group by email (case-insensitive)
+    const byEmail = new Map<string, typeof allResources>();
+    for (const r of allResources) {
+      if (!r.email) continue;
+      const key = r.email.toLowerCase();
+      if (!byEmail.has(key)) byEmail.set(key, []);
+      byEmail.get(key)!.push(r);
+    }
+
+    let deletedCount = 0;
+
+    // For each group with duplicates, keep the oldest and delete the rest
+    for (const group of Array.from(byEmail.values())) {
+      if (group.length <= 1) continue;
+
+      const [keep, ...toDelete] = group;
+      
+      for (const dup of toDelete) {
+        // Re-point any assignments to the canonical resource
+        await db.update(taskResourceAssignments)
+          .set({ resourceId: keep.id })
+          .where(eq(taskResourceAssignments.resourceId, dup.id));
+        await db.update(issueResourceAssignments)
+          .set({ resourceId: keep.id })
+          .where(eq(issueResourceAssignments.resourceId, dup.id));
+        await db.update(riskResourceAssignments)
+          .set({ resourceId: keep.id })
+          .where(eq(riskResourceAssignments.resourceId, dup.id));
+
+        // Delete the duplicate
+        await db.delete(resources).where(eq(resources.id, dup.id));
+        deletedCount++;
+      }
+    }
+
+    return deletedCount;
+  }
+
   async getResources(organizationId: number): Promise<Resource[]> {
-    // Auto-sync org members as resources before returning
+    // First, clean up any existing duplicates
+    await this.deduplicateResources(organizationId);
+    
+    // Auto-sync org members as resources
     await this.syncOrganizationMembersAsResources(organizationId);
     
     return await db.select().from(resources)
