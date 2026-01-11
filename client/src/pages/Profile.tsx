@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile, Sun, Moon, Monitor } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +38,7 @@ const EMOJI_MAP: Record<string, string> = {
 export default function Profile() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -452,6 +455,59 @@ export default function Profile() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Monitor className="h-5 w-5" />
+            Display Settings
+          </CardTitle>
+          <CardDescription>Customize your visual preferences</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Theme</Label>
+              <RadioGroup 
+                value={theme} 
+                onValueChange={(value) => setTheme(value as "light" | "dark" | "system")}
+                className="flex flex-col gap-3"
+              >
+                <div className="flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="light" id="theme-light" data-testid="radio-theme-light" />
+                  <Label htmlFor="theme-light" className="flex items-center gap-3 cursor-pointer flex-1">
+                    <Sun className="h-5 w-5 text-amber-500" />
+                    <div>
+                      <div className="font-medium">Light</div>
+                      <div className="text-sm text-muted-foreground">Use light theme</div>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="dark" id="theme-dark" data-testid="radio-theme-dark" />
+                  <Label htmlFor="theme-dark" className="flex items-center gap-3 cursor-pointer flex-1">
+                    <Moon className="h-5 w-5 text-indigo-500" />
+                    <div>
+                      <div className="font-medium">Dark</div>
+                      <div className="text-sm text-muted-foreground">Use dark theme</div>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="system" id="theme-system" data-testid="radio-theme-system" />
+                  <Label htmlFor="theme-system" className="flex items-center gap-3 cursor-pointer flex-1">
+                    <Monitor className="h-5 w-5 text-slate-500" />
+                    <div>
+                      <div className="font-medium">System</div>
+                      <div className="text-sm text-muted-foreground">Follow your system preference</div>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
