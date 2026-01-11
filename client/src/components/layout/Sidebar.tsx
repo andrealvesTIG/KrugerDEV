@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug, CreditCard, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug, CreditCard, ExternalLink, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -206,11 +206,22 @@ export function Sidebar() {
       >
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
       </button>
-      {/* Logo Area */}
-      <div className={cn("flex h-20 items-center", isCollapsed ? "justify-center px-2" : "px-6")}>
-        <div className="flex items-center gap-3">
-          <img src={logoIcon} alt="FridayReport.AI" className="h-10 w-10 flex-shrink-0" />
-          {!isCollapsed && <span className="text-xl font-display font-bold tracking-tight">FridayReport.AI</span>}
+      {/* Logo Area with Waffle Menu */}
+      <div className={cn("flex h-20 items-center", isCollapsed ? "justify-center px-2" : "px-4")}>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-slate-800 transition-colors flex-shrink-0"
+            data-testid="button-waffle-menu"
+          >
+            <LayoutGrid className="h-5 w-5 text-slate-400 hover:text-white" />
+          </button>
+          {!isCollapsed && (
+            <>
+              <img src={logoIcon} alt="FridayReport.AI" className="h-8 w-8 flex-shrink-0" />
+              <span className="text-lg font-display font-bold tracking-tight">FridayReport.AI</span>
+            </>
+          )}
         </div>
       </div>
       {/* Navigation */}
