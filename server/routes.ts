@@ -4547,5 +4547,146 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // ============= BILLING ROUTES =============
+  
+  // Get all plans with meter rules
+  app.get('/api/billing/plans', async (req, res) => {
+    try {
+      const { plans, meters, planMeterRules } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      const allPlans = await db.select().from(plans).where(eq(plans.isActive, true));
+      const allRules = await db
+        .select()
+        .from(planMeterRules)
+        .innerJoin(meters, eq(planMeterRules.meterId, meters.id));
+      
+      const plansWithRules = allPlans.map(plan => ({
+        ...plan,
+        meterRules: allRules
+          .filter(r => r.plan_meter_rules.planId === plan.id)
+          .map(r => ({
+            meterCode: r.meters.code,
+            meterName: r.meters.name,
+            ruleType: r.plan_meter_rules.ruleType,
+            includedUnitsMonthly: r.plan_meter_rules.includedUnitsMonthly,
+            hardCapUnits: r.plan_meter_rules.hardCapUnits,
+            overageUnitPriceMicrocents: r.plan_meter_rules.overageUnitPriceMicrocents,
+          })),
+      }));
+      
+      res.json(plansWithRules);
+    } catch (error) {
+      console.error("Error fetching plans:", error);
+      res.status(500).json({ message: "Failed to fetch plans" });
+    }
+  });
+
+  // Get current user's subscription
+  app.get('/api/billing/subscription', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const { billingProvider } = await import("./services/billing");
+      const { plans } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      let subscription = await billingProvider.getSubscriptionForUser(userId);
+      
+      if (!subscription) {
+        // Auto-create a free subscription for new users
+        subscription = await billingProvider.createSubscription({ planCode: "FREE", userId });
+      }
+      
+      // Get the plan details
+      const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId));
+      
+      res.json({ ...subscription, plan });
+    } catch (error) {
+      console.error("Error fetching subscription:", error);
+      res.status(500).json({ message: "Failed to fetch subscription" });
+    }
+  });
+
+  // Get usage summary
+  app.get('/api/billing/usage', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const { billingProvider } = await import("./services/billing");
+      
+      const subscription = await billingProvider.getSubscriptionForUser(userId);
+      if (!subscription) {
+        return res.json({});
+      }
+      
+      const usage = await billingProvider.getUsageSummary(subscription.id);
+      res.json(usage);
+    } catch (error) {
+      console.error("Error fetching usage:", error);
+      res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
+  // Create subscription
+  app.post('/api/billing/subscription', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const { planCode } = req.body;
+      if (!planCode) {
+        return res.status(400).json({ message: "Plan code is required" });
+      }
+      
+      const { billingProvider } = await import("./services/billing");
+      
+      // Check if user already has a subscription
+      const existing = await billingProvider.getSubscriptionForUser(userId);
+      if (existing) {
+        return res.status(400).json({ message: "User already has a subscription. Use PATCH to change plan." });
+      }
+      
+      const subscription = await billingProvider.createSubscription({ planCode, userId });
+      res.json(subscription);
+    } catch (error) {
+      console.error("Error creating subscription:", error);
+      res.status(500).json({ message: "Failed to create subscription" });
+    }
+  });
+
+  // Change plan
+  app.patch('/api/billing/subscription/:id/plan', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const subscriptionId = parseInt(req.params.id);
+      const { planCode } = req.body;
+      
+      if (!planCode) {
+        return res.status(400).json({ message: "Plan code is required" });
+      }
+      
+      const { billingProvider } = await import("./services/billing");
+      
+      const subscription = await billingProvider.changePlan(subscriptionId, planCode, userId);
+      res.json(subscription);
+    } catch (error) {
+      console.error("Error changing plan:", error);
+      res.status(500).json({ message: "Failed to change plan" });
+    }
+  });
+
   return httpServer;
 }
