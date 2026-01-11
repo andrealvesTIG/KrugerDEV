@@ -56,6 +56,7 @@ export default function Integrations() {
   
   // Power BI integration states
   const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
+  const [powerBiDocsOpen, setPowerBiDocsOpen] = useState(false);
 
   const { data: imports, isLoading, refetch } = useQuery<MppImportWithTasks[]>({
     queryKey: ['/api/mpp-imports', currentOrganization?.id],
@@ -595,7 +596,7 @@ export default function Integrations() {
                 <Button 
                   variant="outline" 
                   className="flex-1"
-                  onClick={() => window.open('/powerbi/README.md', '_blank')}
+                  onClick={() => setPowerBiDocsOpen(true)}
                   data-testid="button-powerbi-docs"
                 >
                   <ExternalLink className="mr-2 h-4 w-4" />
@@ -1116,6 +1117,86 @@ export default function Integrations() {
               )}
               Sync Tasks
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Power BI Documentation Modal */}
+      <Dialog open={powerBiDocsOpen} onOpenChange={setPowerBiDocsOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Power BI Connection Guide</DialogTitle>
+            <DialogDescription>
+              Connect FridayReport.AI to Power BI for advanced analytics and reporting
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div>
+              <h3 className="font-semibold text-lg mb-2">Prerequisites</h3>
+              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                <li>Power BI Desktop installed</li>
+                <li>Your FridayReport.AI application running and accessible</li>
+                <li>Valid authentication session</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-lg mb-2">Step-by-Step Setup</h3>
+              <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-2">
+                <li><strong>Get Your Base URL:</strong> Copy your app URL from the browser address bar (e.g., <code className="bg-muted px-1 rounded">{window.location.origin}</code>)</li>
+                <li><strong>Open Power BI Desktop</strong> and go to <strong>Home &rarr; Get Data &rarr; Web</strong></li>
+                <li><strong>Paste the endpoint URL</strong> (e.g., <code className="bg-muted px-1 rounded">{window.location.origin}/api/analytics/projects</code>)</li>
+                <li><strong>Configure authentication</strong> - Use "Anonymous" or set up OAuth if available</li>
+                <li><strong>Transform data</strong> in Power Query Editor as needed</li>
+                <li><strong>Load to report</strong> and create your visualizations</li>
+              </ol>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-lg mb-2">Available Endpoints</h3>
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Endpoint</TableHead>
+                      <TableHead>Description</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/projects</TableCell><TableCell>All projects with metrics</TableCell></TableRow>
+                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/portfolios</TableCell><TableCell>Portfolio summaries</TableCell></TableRow>
+                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/risks</TableCell><TableCell>Risk data across projects</TableCell></TableRow>
+                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/issues</TableCell><TableCell>Issue tracking data</TableCell></TableRow>
+                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/milestones</TableCell><TableCell>Milestone completion</TableCell></TableRow>
+                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/intakes</TableCell><TableCell>Intake pipeline</TableCell></TableRow>
+                    <TableRow><TableCell className="font-mono text-xs">/api/analytics/summary</TableCell><TableCell>Organization KPIs</TableCell></TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-lg mb-2">Sample DAX Measures</h3>
+              <div className="bg-muted rounded-lg p-3 text-xs font-mono space-y-2 overflow-x-auto">
+                <div>Total Projects = COUNTROWS(Projects)</div>
+                <div>Critical Projects = CALCULATE(COUNTROWS(Projects), Projects[health] = "Red")</div>
+                <div>Total Budget = SUM(Projects[budget])</div>
+                <div>Avg Completion = AVERAGE(Projects[completionPercentage])</div>
+                <div>Open Risks = CALCULATE(COUNTROWS(Risks), Risks[status] = "Open")</div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-lg mb-2">Troubleshooting</h3>
+              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                <li><strong>401 Unauthorized:</strong> Ensure you're logged in to FridayReport.AI</li>
+                <li><strong>No Data:</strong> Check that you have organizations with projects</li>
+                <li><strong>Connection Timeout:</strong> Verify your app URL is correct</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setPowerBiDocsOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
