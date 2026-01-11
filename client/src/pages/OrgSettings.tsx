@@ -1758,6 +1758,7 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
   const { toast } = useToast();
   const [customIndustry, setCustomIndustry] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState<string>("");
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   const { data: industries } = useQuery<Array<{ id: string; label: string; description: string }>>({
     queryKey: ['/api/demo-data/industries'],
@@ -1781,6 +1782,28 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
       toast({
         title: "Error",
         description: error.message || "Failed to generate demo data",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('DELETE', `/api/demo-data/${organizationId}`);
+    },
+    onSuccess: (response: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      toast({
+        title: "Demo Data Removed",
+        description: `Removed ${response.stats?.portfolios || 0} portfolios, ${response.stats?.projects || 0} projects from ${orgName}`,
+      });
+      setShowRemoveConfirm(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove demo data",
         variant: "destructive",
       });
     },
@@ -1881,7 +1904,58 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
             </>
           )}
         </Button>
+
+        <div className="border-t pt-6 mt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-sm">Remove Demo Data</h4>
+              <p className="text-xs text-muted-foreground">
+                Delete all demo portfolios, projects, and related items
+              </p>
+            </div>
+            <Button 
+              variant="destructive"
+              onClick={() => setShowRemoveConfirm(true)}
+              disabled={removeMutation.isPending}
+              data-testid="button-remove-demo"
+            >
+              {removeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remove Demo Data
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </CardContent>
+
+      <Dialog open={showRemoveConfirm} onOpenChange={setShowRemoveConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Demo Data</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove all demo data from {orgName}? This will delete all demo portfolios, projects, tasks, risks, milestones, issues, and financial records.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRemoveConfirm(false)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => removeMutation.mutate()}
+              disabled={removeMutation.isPending}
+              data-testid="button-confirm-remove-demo"
+            >
+              {removeMutation.isPending ? "Removing..." : "Remove All Demo Data"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -3153,6 +3153,45 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     }
   });
 
+  app.delete('/api/demo-data/:organizationId', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    const user = userId ? await storage.getUser(userId) : null;
+    
+    if (!user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    const organizationId = Number(req.params.organizationId);
+    if (!organizationId) {
+      return res.status(400).json({ message: 'Organization ID is required' });
+    }
+    
+    const org = await storage.getOrganization(organizationId);
+    if (!org) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+    
+    const isSuperAdmin = user.role === 'super_admin';
+    const memberships = await storage.getUserOrganizations(user.id);
+    const isOrgAdmin = memberships.some(m => m.organizationId === organizationId && m.role === 'org_admin');
+    
+    if (!isSuperAdmin && !isOrgAdmin) {
+      return res.status(403).json({ message: 'Organization Admin access required' });
+    }
+    
+    try {
+      const stats = await storage.deleteAllDemoDataForOrganization(organizationId);
+      res.json({
+        success: true,
+        message: `Demo data removed from ${org.name}`,
+        stats,
+      });
+    } catch (err) {
+      console.error('Error removing demo data:', err);
+      res.status(500).json({ message: 'Failed to remove demo data' });
+    }
+  });
+
   // ==================== PROJECT INTAKES ====================
 
   // Get all project intakes for an organization
