@@ -10,6 +10,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { SidebarStructure, SidebarGroup, SidebarItem } from "@shared/schema";
 
+const EMOJI_MAP: Record<string, string> = {
+  "smile": "\u{1F642}", "grin": "\u{1F601}", "laugh": "\u{1F602}", "wink": "\u{1F609}",
+  "cool": "\u{1F60E}", "heart-eyes": "\u{1F60D}", "star-struck": "\u{1F929}", "thinking": "\u{1F914}",
+  "nerd": "\u{1F913}", "zany": "\u{1F92A}", "shush": "\u{1F92B}", "money": "\u{1F911}",
+  "party": "\u{1F973}", "cowboy": "\u{1F920}", "disguise": "\u{1F978}", "monocle": "\u{1F9D0}",
+  "robot": "\u{1F916}", "alien": "\u{1F47D}", "ghost": "\u{1F47B}", "skull": "\u{1F480}",
+  "pumpkin": "\u{1F383}", "cat": "\u{1F431}", "dog": "\u{1F436}", "fox": "\u{1F98A}",
+  "lion": "\u{1F981}", "tiger": "\u{1F42F}", "bear": "\u{1F43B}", "panda": "\u{1F43C}",
+  "koala": "\u{1F428}", "unicorn": "\u{1F984}", "dragon": "\u{1F409}", "octopus": "\u{1F419}"
+};
+
+function getAvatarDisplay(user: { avatarUrl?: string | null; profileImageUrl?: string | null; firstName?: string | null } | null | undefined) {
+  const avatarUrl = user?.avatarUrl;
+  if (!avatarUrl) {
+    const imageUrl = user?.profileImageUrl;
+    return imageUrl ? { type: 'image' as const, url: imageUrl } : { type: 'fallback' as const };
+  }
+  if (avatarUrl.startsWith('emoji:')) {
+    const emojiKey = avatarUrl.replace('emoji:', '');
+    return { type: 'emoji' as const, emoji: EMOJI_MAP[emojiKey] || emojiKey };
+  }
+  const imageUrl = avatarUrl.startsWith('/objects/') ? avatarUrl : user?.profileImageUrl;
+  return imageUrl ? { type: 'image' as const, url: imageUrl } : { type: 'fallback' as const };
+}
+
 // Context for sidebar collapsed state
 interface SidebarContextType {
   isCollapsed: boolean;
@@ -416,13 +441,24 @@ export function Sidebar() {
                     className="flex w-full items-center justify-center rounded-xl bg-slate-800/50 p-3 hover:bg-slate-700 transition-colors"
                     data-testid="button-user-menu"
                   >
-                    {user?.profileImageUrl ? (
-                      <img src={user.profileImageUrl} alt="Avatar" className="h-8 w-8 rounded-full border border-slate-600" />
-                    ) : (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 border border-slate-600">
-                        <span className="font-bold text-slate-300 text-sm">{user?.firstName?.[0] || 'U'}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const display = getAvatarDisplay(user);
+                      if (display.type === 'image') {
+                        return <img src={display.url} alt="Avatar" className="h-8 w-8 rounded-full border border-slate-600" />;
+                      } else if (display.type === 'emoji') {
+                        return (
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 border border-slate-600">
+                            <span className="text-lg">{display.emoji}</span>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 border border-slate-600">
+                            <span className="font-bold text-slate-300 text-sm">{user?.firstName?.[0] || 'U'}</span>
+                          </div>
+                        );
+                      }
+                    })()}
                   </button>
                 </PopoverTrigger>
               </TooltipTrigger>
@@ -436,13 +472,24 @@ export function Sidebar() {
                 className="flex w-full items-center gap-3 rounded-xl bg-slate-800/50 p-3 hover:bg-slate-700 transition-colors cursor-pointer"
                 data-testid="button-user-menu"
               >
-                {user?.profileImageUrl ? (
-                  <img src={user.profileImageUrl} alt="Avatar" className="h-10 w-10 rounded-full border border-slate-600" />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 border border-slate-600">
-                    <span className="font-bold text-slate-300">{user?.firstName?.[0] || 'U'}</span>
-                  </div>
-                )}
+                {(() => {
+                  const display = getAvatarDisplay(user);
+                  if (display.type === 'image') {
+                    return <img src={display.url} alt="Avatar" className="h-10 w-10 rounded-full border border-slate-600" />;
+                  } else if (display.type === 'emoji') {
+                    return (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 border border-slate-600">
+                        <span className="text-2xl">{display.emoji}</span>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 border border-slate-600">
+                        <span className="font-bold text-slate-300">{user?.firstName?.[0] || 'U'}</span>
+                      </div>
+                    );
+                  }
+                })()}
                 <div className="flex-1 overflow-hidden text-left">
                   <p className="truncate text-sm font-medium text-white">{user?.firstName || 'User'}</p>
                   <p className="truncate text-xs text-slate-400">Click for options</p>
