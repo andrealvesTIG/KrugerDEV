@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug, CreditCard, ExternalLink, LayoutGrid } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug, CreditCard, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -211,10 +211,14 @@ export function Sidebar() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-slate-800 transition-colors flex-shrink-0"
+            className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-slate-800 transition-colors flex-shrink-0 group"
             data-testid="button-waffle-menu"
           >
-            <LayoutGrid className="h-5 w-5 text-slate-400 hover:text-white" />
+            <div className="grid grid-cols-3 gap-1">
+              {[...Array(9)].map((_, i) => (
+                <div key={i} className="w-1.5 h-1.5 rounded-sm bg-slate-400 group-hover:bg-white transition-colors" />
+              ))}
+            </div>
           </button>
           {!isCollapsed && (
             <>
