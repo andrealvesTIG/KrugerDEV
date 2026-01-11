@@ -143,6 +143,18 @@ export function Sidebar() {
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
   const { isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen } = useSidebarState();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    const stored = localStorage.getItem('sidebarCollapsedGroups');
+    return stored ? JSON.parse(stored) : {};
+  });
+
+  const toggleGroupCollapse = (groupId: string) => {
+    setCollapsedGroups(prev => {
+      const updated = { ...prev, [groupId]: !prev[groupId] };
+      localStorage.setItem('sidebarCollapsedGroups', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   const handleMenuItemClick = (href: string) => {
     setLocation(href);
@@ -220,15 +232,33 @@ export function Sidebar() {
             const visibleItems = group.items.filter(item => !item.hidden);
             if (visibleItems.length === 0 && group.id !== "help") return null;
             
+            const isGroupCollapsed = collapsedGroups[group.id] ?? false;
+            
             return (
               <div key={group.id} className={groupIndex > 0 ? "mt-4" : ""}>
                 {!isCollapsed && (
-                  <p className="mb-3 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    {group.name}
-                  </p>
+                  <button
+                    onClick={() => toggleGroupCollapse(group.id)}
+                    className="flex w-full items-center justify-between mb-2 px-2 py-1 rounded-md hover:bg-slate-800/50 transition-colors group"
+                    data-testid={`button-toggle-group-${group.id}`}
+                  >
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-300">
+                      {group.name}
+                    </span>
+                    <ChevronDown 
+                      className={cn(
+                        "h-3.5 w-3.5 text-slate-500 group-hover:text-slate-300 transition-transform duration-200",
+                        isGroupCollapsed && "-rotate-90"
+                      )} 
+                    />
+                  </button>
                 )}
                 {isCollapsed && groupIndex > 0 && <div className="mt-4 border-t border-slate-700 pt-4" />}
                 
+                <div className={cn(
+                  "transition-all duration-200 overflow-hidden",
+                  !isCollapsed && isGroupCollapsed ? "max-h-0 opacity-0" : "max-h-[1000px] opacity-100"
+                )}>
                 {visibleItems.map((item) => {
                   if (item.type === "module") {
                     const moduleDef = moduleDefinitions[item.key];
@@ -311,6 +341,7 @@ export function Sidebar() {
                     return customLink;
                   }
                 })}
+                </div>
               </div>
             );
           });
