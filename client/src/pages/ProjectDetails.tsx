@@ -292,61 +292,6 @@ export default function ProjectDetails() {
         </div>
       </div>
 
-      {/* Business Process Flow */}
-      <BusinessProcessFlow 
-        currentStatus={project.status} 
-        onStatusChange={handleStatusChange} 
-      />
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              Budget
-              {financialBudgetTotal > 0 && (
-                <Badge variant="outline" className="text-[9px] font-normal py-0">From Financials</Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><DollarSign className="h-4 w-4 mr-1 text-muted-foreground" />{displayBudget.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-              Progress
-              {projectTasks && projectTasks.length > 0 && (
-                <Badge variant="outline" className="text-[9px] font-normal py-0">From Tasks</Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-1 px-4">
-             <div className="text-base font-semibold">{calculatedProgress}%</div>
-             <Progress value={calculatedProgress} className="h-1.5 mt-1" />
-          </CardContent>
-        </Card>
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Start Date</CardTitle></CardHeader>
-          <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
-          </CardContent>
-        </Card>
-        <Card className="py-2">
-          <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">End Date</CardTitle></CardHeader>
-          <CardContent className="py-1 px-4">
-            <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Timeline Section */}
-      <ProjectTimeline 
-        projectId={project.id}
-        startDate={project.startDate}
-        endDate={project.endDate}
-      />
-
       <Tabs defaultValue="summary" className="w-full">
         <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl flex-wrap gap-1 h-auto">
           <TabsTrigger value="summary" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-summary">Project Summary</TabsTrigger>
@@ -357,7 +302,63 @@ export default function ProjectDetails() {
           <TabsTrigger value="change-requests" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-change-requests">Change Requests</TabsTrigger>
           <TabsTrigger value="documents" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-documents">Documents</TabsTrigger>
         </TabsList>
-        <div className="mt-6">
+
+        <div className="mt-6 space-y-6">
+          {/* Business Process Flow */}
+          <BusinessProcessFlow 
+            currentStatus={project.status} 
+            onStatusChange={handleStatusChange} 
+          />
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <Card className="py-2">
+              <CardHeader className="py-1 px-4">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  Budget
+                  {financialBudgetTotal > 0 && (
+                    <Badge variant="outline" className="text-[9px] font-normal py-0">From Financials</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="py-1 px-4">
+                <div className="text-base font-semibold flex items-center"><DollarSign className="h-4 w-4 mr-1 text-muted-foreground" />{displayBudget.toLocaleString()}</div>
+              </CardContent>
+            </Card>
+            <Card className="py-2">
+              <CardHeader className="py-1 px-4">
+                <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                  Progress
+                  {projectTasks && projectTasks.length > 0 && (
+                    <Badge variant="outline" className="text-[9px] font-normal py-0">From Tasks</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="py-1 px-4">
+                 <div className="text-base font-semibold">{calculatedProgress}%</div>
+                 <Progress value={calculatedProgress} className="h-1.5 mt-1" />
+              </CardContent>
+            </Card>
+            <Card className="py-2">
+              <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">Start Date</CardTitle></CardHeader>
+              <CardContent className="py-1 px-4">
+                <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : '-'}</div>
+              </CardContent>
+            </Card>
+            <Card className="py-2">
+              <CardHeader className="py-1 px-4"><CardTitle className="text-xs font-medium text-muted-foreground">End Date</CardTitle></CardHeader>
+              <CardContent className="py-1 px-4">
+                <div className="text-base font-semibold flex items-center"><CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground" />{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : '-'}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Timeline Section */}
+          <ProjectTimeline 
+            projectId={project.id}
+            startDate={project.startDate}
+            endDate={project.endDate}
+          />
+
           <TabsContent value="summary">
             <ProjectSummaryTab project={project} onUpdate={updateProject} />
           </TabsContent>
