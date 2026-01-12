@@ -1149,8 +1149,8 @@ function PlansTab() {
 
               <div className="space-y-4">
                 <h4 className="font-medium flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  Usage Quotas & Pricing
+                  <Wallet className="h-4 w-4" />
+                  Credits Allocation
                 </h4>
                 
                 {loadingRules ? (
@@ -1158,109 +1158,253 @@ function PlansTab() {
                     <Loader2 className="h-5 w-5 animate-spin" />
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Meter</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Value</TableHead>
-                        <TableHead className="text-right">Save</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {editingRules.map(rule => (
-                        <TableRow key={rule.id}>
-                          <TableCell className="font-medium">
-                            {rule.meter.name}
-                            {rule.isSharedPool && (
-                              <Badge variant="outline" className="ml-2 text-xs">Shared</Badge>
+                  <div className="space-y-4">
+                    {/* Credits Rules - Primary Focus */}
+                    {(() => {
+                      const creditsRules = editingRules.filter(r => r.meter.code === 'credits');
+                      const quotaRule = creditsRules.find(r => r.ruleType === 'INCLUDED_QUOTA');
+                      const hardCapRule = creditsRules.find(r => r.ruleType === 'HARD_CAP');
+                      const overageRule = creditsRules.find(r => r.ruleType === 'METERED_OVERAGE');
+                      
+                      return (
+                        <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
+                          <div className="flex items-center gap-2">
+                            <Wallet className="h-5 w-5 text-primary" />
+                            <span className="font-medium">Monthly Credits</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            {quotaRule && (
+                              <div className="space-y-2">
+                                <Label className="text-sm">Included Credits</Label>
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="number"
+                                    value={quotaRule.includedUnitsMonthly || ""}
+                                    onChange={(e) => {
+                                      const newRules = editingRules.map(r => 
+                                        r.id === quotaRule.id 
+                                          ? { ...r, includedUnitsMonthly: parseInt(e.target.value) || null } 
+                                          : r
+                                      );
+                                      setEditingRules(newRules);
+                                    }}
+                                    placeholder="0"
+                                    data-testid="input-credits-quota"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      updateRule.mutate({ 
+                                        planId: editingPlan.id, 
+                                        ruleId: quotaRule.id, 
+                                        includedUnitsMonthly: quotaRule.includedUnitsMonthly ?? undefined 
+                                      });
+                                    }}
+                                    disabled={updateRule.isPending}
+                                    data-testid="button-save-credits-quota"
+                                  >
+                                    {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Credits included each billing cycle
+                                </p>
+                              </div>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="text-xs">
-                              {rule.ruleType.replace(/_/g, " ")}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {rule.ruleType === "INCLUDED_QUOTA" && (
-                              <Input
-                                type="number"
-                                className="w-24"
-                                value={rule.includedUnitsMonthly || ""}
-                                onChange={(e) => {
-                                  const newRules = editingRules.map(r => 
-                                    r.id === rule.id 
-                                      ? { ...r, includedUnitsMonthly: parseInt(e.target.value) || null } 
-                                      : r
-                                  );
-                                  setEditingRules(newRules);
-                                }}
-                                data-testid={`input-quota-${rule.id}`}
-                              />
+                            
+                            {hardCapRule && (
+                              <div className="space-y-2">
+                                <Label className="text-sm">Hard Cap</Label>
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="number"
+                                    value={hardCapRule.hardCapUnits || ""}
+                                    onChange={(e) => {
+                                      const newRules = editingRules.map(r => 
+                                        r.id === hardCapRule.id 
+                                          ? { ...r, hardCapUnits: parseInt(e.target.value) || null } 
+                                          : r
+                                      );
+                                      setEditingRules(newRules);
+                                    }}
+                                    placeholder="No limit"
+                                    data-testid="input-credits-cap"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      updateRule.mutate({ 
+                                        planId: editingPlan.id, 
+                                        ruleId: hardCapRule.id, 
+                                        hardCapUnits: hardCapRule.hardCapUnits ?? undefined 
+                                      });
+                                    }}
+                                    disabled={updateRule.isPending}
+                                    data-testid="button-save-credits-cap"
+                                  >
+                                    {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Maximum credits allowed (blocks usage when reached)
+                                </p>
+                              </div>
                             )}
-                            {rule.ruleType === "HARD_CAP" && (
-                              <Input
-                                type="number"
-                                className="w-24"
-                                value={rule.hardCapUnits || ""}
-                                onChange={(e) => {
-                                  const newRules = editingRules.map(r => 
-                                    r.id === rule.id 
-                                      ? { ...r, hardCapUnits: parseInt(e.target.value) || null } 
-                                      : r
-                                  );
-                                  setEditingRules(newRules);
-                                }}
-                                data-testid={`input-cap-${rule.id}`}
-                              />
-                            )}
-                            {rule.ruleType === "METERED_OVERAGE" && (
-                              <div className="flex items-center gap-1">
+                          </div>
+                          
+                          {overageRule && (
+                            <div className="pt-3 border-t space-y-2">
+                              <Label className="text-sm">Overage Pricing</Label>
+                              <div className="flex items-center gap-2">
                                 <span className="text-sm text-muted-foreground">$</span>
                                 <Input
                                   type="number"
                                   step="0.0001"
-                                  className="w-24"
-                                  value={(rule.overageUnitPriceMicrocents || 0) / 1000000}
+                                  className="w-32"
+                                  value={(overageRule.overageUnitPriceMicrocents || 0) / 1000000}
                                   onChange={(e) => {
                                     const newRules = editingRules.map(r => 
-                                      r.id === rule.id 
+                                      r.id === overageRule.id 
                                         ? { ...r, overageUnitPriceMicrocents: Math.round(parseFloat(e.target.value || "0") * 1000000) } 
                                         : r
                                     );
                                     setEditingRules(newRules);
                                   }}
-                                  data-testid={`input-overage-${rule.id}`}
+                                  data-testid="input-credits-overage"
                                 />
-                                <span className="text-sm text-muted-foreground">/unit</span>
+                                <span className="text-sm text-muted-foreground">per credit</span>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    updateRule.mutate({ 
+                                      planId: editingPlan.id, 
+                                      ruleId: overageRule.id, 
+                                      overageUnitPriceMicrocents: overageRule.overageUnitPriceMicrocents ?? undefined 
+                                    });
+                                  }}
+                                  disabled={updateRule.isPending}
+                                  data-testid="button-save-credits-overage"
+                                >
+                                  {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                                </Button>
                               </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                const updates: any = {};
-                                if (rule.ruleType === "INCLUDED_QUOTA") {
-                                  updates.includedUnitsMonthly = rule.includedUnitsMonthly;
-                                } else if (rule.ruleType === "HARD_CAP") {
-                                  updates.hardCapUnits = rule.hardCapUnits;
-                                } else if (rule.ruleType === "METERED_OVERAGE") {
-                                  updates.overageUnitPriceMicrocents = rule.overageUnitPriceMicrocents;
-                                }
-                                updateRule.mutate({ planId: editingPlan.id, ruleId: rule.id, ...updates });
-                              }}
-                              disabled={updateRule.isPending}
-                              data-testid={`button-save-rule-${rule.id}`}
-                            >
-                              {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                              <p className="text-xs text-muted-foreground">
+                                Price per credit when usage exceeds included quota
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Capacity Estimates */}
+                          {quotaRule?.includedUnitsMonthly && (
+                            <div className="pt-3 border-t">
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Estimated Capacity (with {quotaRule.includedUnitsMonthly.toLocaleString()} credits)</p>
+                              <div className="flex flex-wrap gap-3 text-xs">
+                                <span className="px-2 py-1 rounded bg-muted">
+                                  {Math.floor(quotaRule.includedUnitsMonthly / 5)} projects
+                                </span>
+                                <span className="px-2 py-1 rounded bg-muted">
+                                  {Math.floor(quotaRule.includedUnitsMonthly / 1)} tasks
+                                </span>
+                                <span className="px-2 py-1 rounded bg-muted">
+                                  {Math.floor(quotaRule.includedUnitsMonthly / 1)} issues
+                                </span>
+                                <span className="px-2 py-1 rounded bg-muted">
+                                  {Math.floor(quotaRule.includedUnitsMonthly / 3)} AI runs
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    
+                    {/* Other Meters (collapsed) */}
+                    {editingRules.filter(r => r.meter.code !== 'credits').length > 0 && (
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                          <ChevronRight className="h-4 w-4" />
+                          <span>Other Meters ({editingRules.filter(r => r.meter.code !== 'credits').length} rules)</span>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-3">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Meter</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Value</TableHead>
+                                <TableHead className="text-right">Save</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {editingRules.filter(r => r.meter.code !== 'credits').map(rule => (
+                                <TableRow key={rule.id}>
+                                  <TableCell className="font-medium text-sm">
+                                    {rule.meter.name}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="secondary" className="text-xs">
+                                      {rule.ruleType.replace(/_/g, " ")}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    {rule.ruleType === "INCLUDED_QUOTA" && (
+                                      <Input
+                                        type="number"
+                                        className="w-20"
+                                        value={rule.includedUnitsMonthly || ""}
+                                        onChange={(e) => {
+                                          const newRules = editingRules.map(r => 
+                                            r.id === rule.id 
+                                              ? { ...r, includedUnitsMonthly: parseInt(e.target.value) || null } 
+                                              : r
+                                          );
+                                          setEditingRules(newRules);
+                                        }}
+                                      />
+                                    )}
+                                    {rule.ruleType === "HARD_CAP" && (
+                                      <Input
+                                        type="number"
+                                        className="w-20"
+                                        value={rule.hardCapUnits || ""}
+                                        onChange={(e) => {
+                                          const newRules = editingRules.map(r => 
+                                            r.id === rule.id 
+                                              ? { ...r, hardCapUnits: parseInt(e.target.value) || null } 
+                                              : r
+                                          );
+                                          setEditingRules(newRules);
+                                        }}
+                                      />
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        const updates: any = {};
+                                        if (rule.ruleType === "INCLUDED_QUOTA") {
+                                          updates.includedUnitsMonthly = rule.includedUnitsMonthly;
+                                        } else if (rule.ruleType === "HARD_CAP") {
+                                          updates.hardCapUnits = rule.hardCapUnits;
+                                        }
+                                        updateRule.mutate({ planId: editingPlan.id, ruleId: rule.id, ...updates });
+                                      }}
+                                      disabled={updateRule.isPending}
+                                    >
+                                      {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                  </div>
                 )}
               </div>
 
