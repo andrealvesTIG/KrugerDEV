@@ -1435,8 +1435,14 @@ export async function registerRoutes(
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
       
-      if (!await userHasOrgAccess(userId, orgId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
+      // Require org_admin role to view access requests
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === orgId && m.role === 'org_admin');
+      if (!isOrgAdmin) {
+        return res.status(403).json({ message: 'Only organization admins can view access requests' });
       }
       
       const requests = await storage.getOrganizationAccessRequests(orgId);
@@ -1489,8 +1495,14 @@ export async function registerRoutes(
       const requestId = Number(req.params.requestId);
       const userId = getUserIdFromRequest(req);
       
-      if (!await userHasOrgAccess(userId, orgId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
+      // Require org_admin role to approve access requests
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === orgId && m.role === 'org_admin');
+      if (!isOrgAdmin) {
+        return res.status(403).json({ message: 'Only organization admins can approve access requests' });
       }
       
       // Get the request
@@ -1553,8 +1565,14 @@ export async function registerRoutes(
       const requestId = Number(req.params.requestId);
       const userId = getUserIdFromRequest(req);
       
-      if (!await userHasOrgAccess(userId, orgId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
+      // Require org_admin role to reject access requests
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === orgId && m.role === 'org_admin');
+      if (!isOrgAdmin) {
+        return res.status(403).json({ message: 'Only organization admins can reject access requests' });
       }
       
       // Get the request
