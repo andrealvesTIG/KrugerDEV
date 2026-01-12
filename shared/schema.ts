@@ -52,6 +52,7 @@ export const organizations = pgTable("organizations", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(), // URL-friendly identifier
   description: text("description"),
+  logoUrl: text("logo_url"), // Custom company logo URL
   ownerId: varchar("owner_id").references(() => users.id), // Organization creator
   createdAt: timestamp("created_at").defaultNow(),
   hiddenModules: text("hidden_modules").array(), // Legacy: Array of module keys to hide from sidebar
