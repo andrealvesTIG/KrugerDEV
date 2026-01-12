@@ -6,7 +6,7 @@ import { z } from "zod";
 import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { setupMicrosoftAuth } from "./auth/microsoftAuth";
-import { sendEmail } from "./services/email";
+import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification } from "./services/email";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -1358,6 +1358,239 @@ export async function registerRoutes(
       res.status(204).send();
     } catch (err) {
       res.status(500).json({ message: 'Failed to cancel invite' });
+    }
+  });
+
+  // --- Organization Access Requests ---
+  
+  // Create access request (for users without admin access)
+  app.post('/api/organizations/:id/access-requests', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
+      // Check if org exists
+      const org = await storage.getOrganization(orgId);
+      if (!org) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      // Check if user already has a pending request
+      const existingRequest = await storage.getPendingAccessRequestByUser(orgId, userId);
+      if (existingRequest) {
+        return res.status(400).json({ message: 'You already have a pending access request for this organization' });
+      }
+      
+      // Check if user is already a member with admin role
+      const userOrgs = await storage.getUserOrganizations(userId);
+      const existingMembership = userOrgs.find(m => m.organizationId === orgId);
+      if (existingMembership && existingMembership.role === 'org_admin') {
+        return res.status(400).json({ message: 'You already have admin access to this organization' });
+      }
+      
+      const { message } = req.body;
+      
+      // Create the access request
+      const request = await storage.createOrganizationAccessRequest({
+        organizationId: orgId,
+        userId,
+        requestedRole: 'org_admin',
+        message: message || null,
+      });
+      
+      // Get the requester's name
+      const requester = await storage.getUser(userId);
+      const requesterName = [requester?.firstName, requester?.lastName].filter(Boolean).join(' ') || requester?.email || 'Unknown User';
+      
+      // Send email notifications to all org admins
+      const members = await storage.getOrganizationMembers(orgId);
+      const admins = members.filter(m => m.role === 'org_admin');
+      
+      for (const admin of admins) {
+        const adminUser = await storage.getUser(admin.userId);
+        if (adminUser?.email) {
+          await sendAccessRequestNotification(
+            adminUser.email,
+            requesterName,
+            org.name,
+            message
+          );
+        }
+      }
+      
+      res.status(201).json(request);
+    } catch (err) {
+      console.error('Failed to create access request:', err);
+      res.status(500).json({ message: 'Failed to create access request' });
+    }
+  });
+  
+  // Get access requests for an organization (org admins only)
+  app.get('/api/organizations/:id/access-requests', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const requests = await storage.getOrganizationAccessRequests(orgId);
+      
+      // Enrich with user details
+      const enrichedRequests = await Promise.all(
+        requests.map(async (request) => {
+          const user = await storage.getUser(request.userId);
+          return {
+            ...request,
+            user: user ? {
+              id: user.id,
+              name: [user.firstName, user.lastName].filter(Boolean).join(' ') || null,
+              email: user.email,
+              avatarUrl: user.avatarUrl,
+            } : null,
+          };
+        })
+      );
+      
+      res.json(enrichedRequests);
+    } catch (err) {
+      console.error('Failed to get access requests:', err);
+      res.status(500).json({ message: 'Failed to get access requests' });
+    }
+  });
+  
+  // Get user's pending request status for an organization
+  app.get('/api/organizations/:id/access-requests/my-status', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
+      const request = await storage.getPendingAccessRequestByUser(orgId, userId);
+      res.json({ hasPendingRequest: !!request, request: request || null });
+    } catch (err) {
+      console.error('Failed to get access request status:', err);
+      res.status(500).json({ message: 'Failed to get access request status' });
+    }
+  });
+  
+  // Approve access request
+  app.post('/api/organizations/:id/access-requests/:requestId/approve', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const requestId = Number(req.params.requestId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      // Get the request
+      const requests = await storage.getOrganizationAccessRequests(orgId);
+      const request = requests.find(r => r.id === requestId);
+      
+      if (!request) {
+        return res.status(404).json({ message: 'Access request not found' });
+      }
+      
+      if (request.status !== 'pending') {
+        return res.status(400).json({ message: 'This request has already been processed' });
+      }
+      
+      // Update request status
+      const updatedRequest = await storage.updateAccessRequestStatus(requestId, 'approved', userId);
+      
+      // Add the user as an org admin
+      const existingMembership = (await storage.getUserOrganizations(request.userId))
+        .find(m => m.organizationId === orgId);
+      
+      if (existingMembership) {
+        // Update existing membership to org_admin
+        await storage.updateOrganizationMemberRole(orgId, request.userId, 'org_admin');
+      } else {
+        // Add as new member with org_admin role
+        await storage.addOrganizationMember({
+          organizationId: orgId,
+          userId: request.userId,
+          role: 'org_admin',
+        });
+      }
+      
+      // Send notification email
+      const requestingUser = await storage.getUser(request.userId);
+      const reviewer = userId ? await storage.getUser(userId) : null;
+      const org = await storage.getOrganization(orgId);
+      const reviewerName = reviewer ? [reviewer.firstName, reviewer.lastName].filter(Boolean).join(' ') || reviewer.email : undefined;
+      
+      if (requestingUser?.email && org) {
+        await sendAccessRequestDecisionNotification(
+          requestingUser.email,
+          org.name,
+          true,
+          reviewerName || undefined
+        );
+      }
+      
+      res.json(updatedRequest);
+    } catch (err) {
+      console.error('Failed to approve access request:', err);
+      res.status(500).json({ message: 'Failed to approve access request' });
+    }
+  });
+  
+  // Reject access request
+  app.post('/api/organizations/:id/access-requests/:requestId/reject', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const requestId = Number(req.params.requestId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      // Get the request
+      const requests = await storage.getOrganizationAccessRequests(orgId);
+      const request = requests.find(r => r.id === requestId);
+      
+      if (!request) {
+        return res.status(404).json({ message: 'Access request not found' });
+      }
+      
+      if (request.status !== 'pending') {
+        return res.status(400).json({ message: 'This request has already been processed' });
+      }
+      
+      // Update request status
+      const updatedRequest = await storage.updateAccessRequestStatus(requestId, 'rejected', userId);
+      
+      // Send notification email
+      const requestingUser = await storage.getUser(request.userId);
+      const reviewer = userId ? await storage.getUser(userId) : null;
+      const org = await storage.getOrganization(orgId);
+      const reviewerName = reviewer ? [reviewer.firstName, reviewer.lastName].filter(Boolean).join(' ') || reviewer.email : undefined;
+      
+      if (requestingUser?.email && org) {
+        await sendAccessRequestDecisionNotification(
+          requestingUser.email,
+          org.name,
+          false,
+          reviewerName || undefined
+        );
+      }
+      
+      res.json(updatedRequest);
+    } catch (err) {
+      console.error('Failed to reject access request:', err);
+      res.status(500).json({ message: 'Failed to reject access request' });
     }
   });
 

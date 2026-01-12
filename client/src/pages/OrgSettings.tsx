@@ -72,16 +72,7 @@ export default function OrgSettings() {
   }
 
   if (!hasAdminAccess) {
-    return (
-      <div className="flex h-96 flex-col items-center justify-center gap-4">
-        <ShieldAlert className="h-16 w-16 text-muted-foreground/50" />
-        <h2 className="text-2xl font-bold text-foreground">No Admin Access</h2>
-        <p className="text-muted-foreground text-center max-w-md">
-          You don't have admin access to <strong>{currentOrganization.name}</strong>. 
-          Please select a different organization from the top bar or contact your administrator.
-        </p>
-      </div>
-    );
+    return <NoAdminAccessView organization={currentOrganization} />;
   }
 
   return (
@@ -145,6 +136,130 @@ export default function OrgSettings() {
           </TabsContent>
         </div>
       </Tabs>
+    </div>
+  );
+}
+
+// No Admin Access view with Request Access button
+function NoAdminAccessView({ organization }: { organization: Organization }) {
+  const { toast } = useToast();
+  const [requestMessage, setRequestMessage] = useState("");
+  const [showRequestDialog, setShowRequestDialog] = useState(false);
+
+  // Check if user has a pending access request
+  const { data: accessStatus, isLoading: statusLoading } = useQuery<{ hasPendingRequest: boolean; request: { id: number; status: string; createdAt: string } | null }>({
+    queryKey: ['/api/organizations', organization.id, 'access-requests', 'my-status'],
+  });
+
+  // Mutation for submitting access request
+  const submitRequestMutation = useMutation({
+    mutationFn: async (message: string) => {
+      return await apiRequest('POST', `/api/organizations/${organization.id}/access-requests`, { 
+        message: message || undefined 
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Request Submitted",
+        description: "Your access request has been sent to the organization administrators.",
+      });
+      setShowRequestDialog(false);
+      setRequestMessage("");
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organization.id, 'access-requests', 'my-status'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Request Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const hasPendingRequest = accessStatus?.hasPendingRequest;
+  const pendingRequest = accessStatus?.request;
+
+  return (
+    <div className="flex h-96 flex-col items-center justify-center gap-4">
+      <ShieldAlert className="h-16 w-16 text-muted-foreground/50" />
+      <h2 className="text-2xl font-bold text-foreground">No Admin Access</h2>
+      <p className="text-muted-foreground text-center max-w-md">
+        You don't have admin access to <strong>{organization.name}</strong>. 
+        Please select a different organization from the top bar or request access from an administrator.
+      </p>
+      
+      {statusLoading ? (
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      ) : hasPendingRequest ? (
+        <div className="flex flex-col items-center gap-2">
+          <Badge variant="secondary" className="flex items-center gap-2">
+            <Clock className="h-3 w-3" />
+            Request Pending
+          </Badge>
+          {pendingRequest?.createdAt && (
+            <p className="text-xs text-muted-foreground">
+              Submitted {format(new Date(pendingRequest.createdAt), 'MMM d, yyyy')}
+            </p>
+          )}
+        </div>
+      ) : (
+        <Button 
+          onClick={() => setShowRequestDialog(true)}
+          data-testid="button-request-access"
+        >
+          <Mail className="h-4 w-4 mr-2" />
+          Request Access
+        </Button>
+      )}
+
+      <Dialog open={showRequestDialog} onOpenChange={setShowRequestDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Admin Access</DialogTitle>
+            <DialogDescription>
+              Send a request to the administrators of <strong>{organization.name}</strong> to grant you admin access.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="request-message">Message (optional)</Label>
+              <Textarea
+                id="request-message"
+                placeholder="Explain why you need admin access..."
+                value={requestMessage}
+                onChange={(e) => setRequestMessage(e.target.value)}
+                rows={3}
+                data-testid="input-request-message"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowRequestDialog(false)}
+              data-testid="button-cancel-request"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => submitRequestMutation.mutate(requestMessage)}
+              disabled={submitRequestMutation.isPending}
+              data-testid="button-submit-request"
+            >
+              {submitRequestMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Request'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1933,6 +2048,22 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     queryKey: [`/api/organizations/${organizationId}/invites`],
   });
 
+  // Access requests query
+  interface EnrichedAccessRequest {
+    id: number;
+    organizationId: number;
+    userId: string;
+    status: string;
+    requestedRole: string;
+    message: string | null;
+    createdAt: string | null;
+    user: { id: string; name: string | null; email: string | null; avatarUrl: string | null } | null;
+  }
+  
+  const { data: accessRequests = [] } = useQuery<EnrichedAccessRequest[]>({
+    queryKey: [`/api/organizations/${organizationId}/access-requests`],
+  });
+
   const { data: allUsers } = useQuery<User[]>({
     queryKey: ['/api/users']
   });
@@ -2052,6 +2183,33 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     }
   });
 
+  const approveAccessRequest = useMutation({
+    mutationFn: async (requestId: number) => {
+      return apiRequest('POST', `/api/organizations/${organizationId}/access-requests/${requestId}/approve`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/access-requests`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/members`] });
+      toast({ title: "Success", description: "Access request approved" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const rejectAccessRequest = useMutation({
+    mutationFn: async (requestId: number) => {
+      return apiRequest('POST', `/api/organizations/${organizationId}/access-requests/${requestId}/reject`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/access-requests`] });
+      toast({ title: "Success", description: "Access request rejected" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
   const existingMemberIds = members.map(m => m.userId);
   
   // Get current user's email domain for corporate filtering
@@ -2085,6 +2243,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
   }, [allUsers, existingMemberIds, isCurrentUserCorporate, currentUserDomain]);
   
   const pendingInvites = invites.filter(i => i.status === 'pending');
+  const pendingAccessRequests = accessRequests.filter(r => r.status === 'pending');
 
   if (isLoading) return <Loader2 className="animate-spin" />;
 
@@ -2201,6 +2360,69 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
                       >
                         <X className="h-4 w-4 text-slate-400 hover:text-red-500" />
                       </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* Access Requests Section */}
+        {pendingAccessRequests.length > 0 && (
+          <div className="mt-8 pt-6 border-t">
+            <h4 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4" />
+              Access Requests ({pendingAccessRequests.length})
+            </h4>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Requested Role</TableHead>
+                  <TableHead>Message</TableHead>
+                  <TableHead>Requested</TableHead>
+                  <TableHead className="w-[150px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingAccessRequests.map(request => (
+                  <TableRow key={request.id} data-testid={`access-request-row-${request.id}`}>
+                    <TableCell className="font-medium">{request.user?.name || 'Unknown'}</TableCell>
+                    <TableCell>{request.user?.email || 'N/A'}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="capitalize">{request.requestedRole.replace('_', ' ')}</Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate" title={request.message || ''}>
+                      {request.message || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {request.createdAt ? format(new Date(request.createdAt), 'MMM d, yyyy') : 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => approveAccessRequest.mutate(request.id)}
+                          disabled={approveAccessRequest.isPending || rejectAccessRequest.isPending}
+                          title="Approve request"
+                          data-testid={`button-approve-request-${request.id}`}
+                        >
+                          <Check className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => rejectAccessRequest.mutate(request.id)}
+                          disabled={approveAccessRequest.isPending || rejectAccessRequest.isPending}
+                          title="Reject request"
+                          data-testid={`button-reject-request-${request.id}`}
+                        >
+                          <X className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

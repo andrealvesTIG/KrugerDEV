@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, portfolios, projects, risks, milestones, issues, tasks,
-  organizations, organizationMembers, organizationInvites, taskChangeLogs, taskDependencies, projectFinancials,
+  organizations, organizationMembers, organizationInvites, organizationAccessRequests, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
@@ -10,6 +10,7 @@ import {
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
   type OrganizationInvite, type InsertOrganizationInvite,
+  type OrganizationAccessRequest, type InsertOrganizationAccessRequest,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
@@ -71,6 +72,12 @@ export interface IStorage {
   createOrganizationInvite(invite: InsertOrganizationInvite): Promise<OrganizationInvite>;
   cancelOrganizationInvite(id: number): Promise<void>;
   claimInvitesForUser(email: string, userId: string): Promise<OrganizationMember[]>;
+
+  // Organization Access Requests
+  getOrganizationAccessRequests(organizationId: number): Promise<OrganizationAccessRequest[]>;
+  getPendingAccessRequestByUser(organizationId: number, userId: string): Promise<OrganizationAccessRequest | undefined>;
+  createOrganizationAccessRequest(request: InsertOrganizationAccessRequest): Promise<OrganizationAccessRequest>;
+  updateAccessRequestStatus(id: number, status: string, reviewedBy: string): Promise<OrganizationAccessRequest>;
 
   // Portfolios
   getPortfolios(organizationId?: number): Promise<Portfolio[]>;
@@ -426,6 +433,38 @@ export class DatabaseStorage implements IStorage {
     }
 
     return claimedMembers;
+  }
+
+  // Organization Access Requests
+  async getOrganizationAccessRequests(organizationId: number): Promise<OrganizationAccessRequest[]> {
+    return await db.select().from(organizationAccessRequests)
+      .where(eq(organizationAccessRequests.organizationId, organizationId))
+      .orderBy(desc(organizationAccessRequests.createdAt));
+  }
+
+  async getPendingAccessRequestByUser(organizationId: number, userId: string): Promise<OrganizationAccessRequest | undefined> {
+    const [request] = await db.select().from(organizationAccessRequests)
+      .where(and(
+        eq(organizationAccessRequests.organizationId, organizationId),
+        eq(organizationAccessRequests.userId, userId),
+        eq(organizationAccessRequests.status, "pending")
+      ));
+    return request;
+  }
+
+  async createOrganizationAccessRequest(request: InsertOrganizationAccessRequest): Promise<OrganizationAccessRequest> {
+    const [created] = await db.insert(organizationAccessRequests)
+      .values(request)
+      .returning();
+    return created;
+  }
+
+  async updateAccessRequestStatus(id: number, status: string, reviewedBy: string): Promise<OrganizationAccessRequest> {
+    const [updated] = await db.update(organizationAccessRequests)
+      .set({ status, reviewedBy, reviewedAt: new Date() })
+      .where(eq(organizationAccessRequests.id, id))
+      .returning();
+    return updated;
   }
 
   // Portfolios

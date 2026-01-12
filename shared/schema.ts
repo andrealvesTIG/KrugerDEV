@@ -84,6 +84,19 @@ export const organizationInvites = pgTable("organization_invites", {
   acceptedAt: timestamp("accepted_at"),
 });
 
+// Organization Access Requests (Users requesting admin access)
+export const organizationAccessRequests = pgTable("organization_access_requests", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  status: text("status").notNull().default("pending"), // 'pending', 'approved', 'rejected'
+  requestedRole: text("requested_role").notNull().default("org_admin"), // Role being requested
+  message: text("message"), // Optional message from requester
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Portfolios - High level grouping of projects
 export const portfolios = pgTable("portfolios", {
   organizationId: integer("organization_id").references(() => organizations.id),
@@ -815,6 +828,7 @@ export const taskDependenciesRelations = relations(taskDependencies, ({ one }) =
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true });
 export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({ id: true, createdAt: true });
 export const insertOrganizationInviteSchema = createInsertSchema(organizationInvites).omit({ id: true, createdAt: true, acceptedAt: true });
+export const insertOrganizationAccessRequestSchema = createInsertSchema(organizationAccessRequests).omit({ id: true, createdAt: true, reviewedAt: true });
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true });
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
 export const insertRiskSchema = createInsertSchema(risks).omit({ id: true, createdAt: true });
@@ -855,6 +869,9 @@ export type InsertOrganizationMember = z.infer<typeof insertOrganizationMemberSc
 
 export type OrganizationInvite = typeof organizationInvites.$inferSelect;
 export type InsertOrganizationInvite = z.infer<typeof insertOrganizationInviteSchema>;
+
+export type OrganizationAccessRequest = typeof organizationAccessRequests.$inferSelect;
+export type InsertOrganizationAccessRequest = z.infer<typeof insertOrganizationAccessRequestSchema>;
 
 export type Portfolio = typeof portfolios.$inferSelect;
 export type InsertPortfolio = z.infer<typeof insertPortfolioSchema>;

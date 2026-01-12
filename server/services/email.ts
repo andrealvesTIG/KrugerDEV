@@ -165,3 +165,112 @@ export async function verifyEmailConnection(): Promise<boolean> {
     return false;
   }
 }
+
+export async function sendAccessRequestNotification(
+  adminEmail: string,
+  requesterName: string,
+  organizationName: string,
+  requestMessage?: string
+): Promise<boolean> {
+  const subject = `Access Request for ${organizationName} - FridayReport.AI`;
+  
+  const text = `
+A user has requested admin access to ${organizationName}.
+
+Requester: ${requesterName}
+${requestMessage ? `Message: ${requestMessage}` : ''}
+
+Please log in to FridayReport.AI to review this request in Organization Settings > Members.
+
+- The FridayReport.AI Team
+`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
+  </div>
+  
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="margin-top: 0; color: #1f2937;">Access Request</h2>
+    
+    <p>A user has requested admin access to <strong>${organizationName}</strong>.</p>
+    
+    <div style="background: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0;">
+      <p style="margin: 0 0 10px 0;"><strong>Requester:</strong> ${requesterName}</p>
+      ${requestMessage ? `<p style="margin: 0;"><strong>Message:</strong> ${requestMessage}</p>` : ''}
+    </div>
+    
+    <p>Please log in to FridayReport.AI to review this request in <strong>Organization Settings &gt; Members</strong>.</p>
+    
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    
+    <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
+      This is an automated notification from FridayReport.AI
+    </p>
+  </div>
+</body>
+</html>
+`;
+
+  return sendEmail({ to: adminEmail, subject, text, html });
+}
+
+export async function sendAccessRequestDecisionNotification(
+  userEmail: string,
+  organizationName: string,
+  approved: boolean,
+  reviewerName?: string
+): Promise<boolean> {
+  const subject = `Access Request ${approved ? 'Approved' : 'Declined'} - ${organizationName}`;
+  
+  const text = approved
+    ? `Your request for admin access to ${organizationName} has been approved${reviewerName ? ` by ${reviewerName}` : ''}. You now have admin access to the organization.`
+    : `Your request for admin access to ${organizationName} has been declined${reviewerName ? ` by ${reviewerName}` : ''}. Please contact the organization administrators for more information.`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
+  </div>
+  
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="margin-top: 0; color: #1f2937;">Access Request ${approved ? 'Approved' : 'Declined'}</h2>
+    
+    <p>${approved 
+      ? `Your request for admin access to <strong>${organizationName}</strong> has been approved${reviewerName ? ` by ${reviewerName}` : ''}.`
+      : `Your request for admin access to <strong>${organizationName}</strong> has been declined${reviewerName ? ` by ${reviewerName}` : ''}.`
+    }</p>
+    
+    <div style="background: ${approved ? '#ecfdf5' : '#fef2f2'}; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid ${approved ? '#10b981' : '#ef4444'};">
+      <p style="margin: 0; color: ${approved ? '#065f46' : '#991b1b'};">
+        ${approved 
+          ? 'You now have admin access to the organization. You can manage settings, members, and all organization resources.'
+          : 'Please contact the organization administrators if you believe this decision was made in error.'}
+      </p>
+    </div>
+    
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    
+    <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
+      This is an automated notification from FridayReport.AI
+    </p>
+  </div>
+</body>
+</html>
+`;
+
+  return sendEmail({ to: userEmail, subject, text, html });
+}
