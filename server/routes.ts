@@ -5642,8 +5642,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
       }
       
       // Get AI runs from usage rollups (these are event-based)
+      // Meter codes in DB are lowercase (ai_runs), convert to uppercase for API response
       const rollupUsage = await billingProvider.getUsageSummary(subscription.id);
-      const aiRunsUsed = rollupUsage["AI_RUNS"]?.usedUnits || 0;
+      const aiRunsUsed = rollupUsage["ai_runs"]?.usedUnits || 0;
       
       // Build usage summary with actual entity counts
       const usage: Record<string, { usedUnits: number }> = {
