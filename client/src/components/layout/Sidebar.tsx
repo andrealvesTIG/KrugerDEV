@@ -247,8 +247,14 @@ export function Sidebar() {
           </button>
           {!isCollapsed && (
             <>
-              <img src={logoIcon} alt="FridayReport.AI" className="h-8 w-8 flex-shrink-0" />
-              <span className="text-lg font-display font-bold tracking-tight">FridayReport.AI</span>
+              <img 
+                src={currentOrganization?.logoUrl || logoIcon} 
+                alt={currentOrganization?.name || "FridayReport.AI"} 
+                className="h-8 w-8 flex-shrink-0 object-contain" 
+              />
+              <span className="text-lg font-display font-bold tracking-tight">
+                {currentOrganization?.logoUrl ? currentOrganization.name : "FridayReport.AI"}
+              </span>
             </>
           )}
         </div>

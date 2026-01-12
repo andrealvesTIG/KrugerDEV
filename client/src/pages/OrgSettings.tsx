@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -95,8 +95,12 @@ export default function OrgSettings() {
         </div>
       </div>
 
-      <Tabs defaultValue="modules" orientation="vertical" className="flex gap-6">
+      <Tabs defaultValue="general" orientation="vertical" className="flex gap-6">
         <TabsList className="flex-col h-fit w-56 bg-card border rounded-lg p-1">
+          <TabsTrigger value="general" className="w-full justify-start gap-3" data-testid="nav-general">
+            <Building2 className="h-4 w-4" />
+            General
+          </TabsTrigger>
           <TabsTrigger value="modules" className="w-full justify-start gap-3" data-testid="nav-modules">
             <Eye className="h-4 w-4" />
             Module Visibility
@@ -120,6 +124,9 @@ export default function OrgSettings() {
         </TabsList>
 
         <div className="flex-1 min-w-0">
+          <TabsContent value="general" className="mt-0">
+            <GeneralSection organization={currentOrganization} />
+          </TabsContent>
           <TabsContent value="modules" className="mt-0">
             <ModuleVisibilitySection organization={currentOrganization} />
           </TabsContent>
@@ -138,6 +145,189 @@ export default function OrgSettings() {
         </div>
       </Tabs>
     </div>
+  );
+}
+
+// General settings section with logo upload
+function GeneralSection({ organization }: { organization: Organization }) {
+  const { toast } = useToast();
+  const [isUploading, setIsUploading] = useState(false);
+  
+  const updateLogoMutation = useMutation({
+    mutationFn: async (logoUrl: string | null) => {
+      const res = await apiRequest('PUT', `/api/organizations/${organization.id}`, { logoUrl });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/organizations'] });
+      toast({
+        title: "Logo updated",
+        description: "Your company logo has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update logo. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file",
+        description: "Please select an image file (PNG, JPG, GIF, etc.)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Get upload URL from server
+      const response = await apiRequest('POST', `/api/organizations/${organization.id}/logo/upload-url`);
+      const { uploadURL, objectPath } = await response.json() as { uploadURL: string; objectPath: string };
+
+      // Upload file to object storage
+      await fetch(uploadURL, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
+      });
+
+      // Update organization with new logo URL
+      await updateLogoMutation.mutateAsync(`/objects/${objectPath}`);
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload logo. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    updateLogoMutation.mutate(null);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5" />
+          General Settings
+        </CardTitle>
+        <CardDescription>
+          Customize your organization's branding and appearance
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Company Logo Section */}
+        <div className="space-y-4">
+          <div>
+            <Label className="text-base font-medium">Company Logo</Label>
+            <p className="text-sm text-muted-foreground">
+              Upload your company logo to display in the sidebar. Recommended size: 48x48px or larger (square format works best).
+            </p>
+          </div>
+          
+          <div className="flex items-start gap-6">
+            {/* Logo Preview */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-24 w-24 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/50">
+                {organization.logoUrl ? (
+                  <img 
+                    src={organization.logoUrl} 
+                    alt="Company Logo" 
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <Image className="h-8 w-8 text-muted-foreground/50" />
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground">Preview</span>
+            </div>
+
+            {/* Upload Controls */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => document.getElementById('logo-upload')?.click()}
+                  disabled={isUploading || updateLogoMutation.isPending}
+                  data-testid="button-upload-logo"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Logo
+                    </>
+                  )}
+                </Button>
+                
+                {organization.logoUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveLogo}
+                    disabled={isUploading || updateLogoMutation.isPending}
+                    className="text-muted-foreground hover:text-destructive"
+                    data-testid="button-remove-logo"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Remove
+                  </Button>
+                )}
+              </div>
+              
+              <input
+                id="logo-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+                data-testid="input-logo-upload"
+              />
+              
+              <p className="text-xs text-muted-foreground">
+                Supported formats: PNG, JPG, GIF, SVG. Max size: 5MB
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
