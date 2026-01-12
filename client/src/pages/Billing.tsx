@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState } from "react";
 import { format } from "date-fns";
-import PayPalButton from "@/components/PayPalButton";
+import PayPalSubscriptionButton from "@/components/PayPalSubscriptionButton";
 import type { Plan, Subscription, UsageRollup } from "@shared/schema";
 
 interface PlanWithRules extends Omit<Plan, 'monthlyPriceCents'> {
@@ -652,7 +652,7 @@ export default function Billing() {
             <DialogDescription>
               {changePlanDialog?.code === "FREE" 
                 ? "Downgrading will reduce your usage limits. Any usage over the new limits may be affected."
-                : `You're about to ${currentPlan?.code === "FREE" ? "upgrade" : "switch"} to the ${changePlanDialog?.name} plan.`}
+                : `You're about to ${currentPlan?.code === "FREE" ? "upgrade" : "switch"} to the ${changePlanDialog?.name} plan at ${formatPlanPrice(changePlanDialog?.monthlyPriceCents)}/month.`}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -670,19 +670,64 @@ export default function Billing() {
                 );
               })}
             </div>
+            
+            {changePlanDialog && changePlanDialog.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && changePlanDialog.paypalPlanId && (
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm text-muted-foreground mb-3">Subscribe with PayPal for secure recurring payments:</p>
+                <PayPalSubscriptionButton
+                  planId={changePlanDialog.paypalPlanId}
+                  onSuccess={async (subscriptionId, subscriptionData) => {
+                    try {
+                      await apiRequest('POST', '/api/billing/subscription/paypal', {
+                        planCode: changePlanDialog.code,
+                        paypalSubscriptionId: subscriptionId,
+                      });
+                      queryClient.invalidateQueries({ queryKey: ['/api/billing/subscription'] });
+                      queryClient.invalidateQueries({ queryKey: ['/api/billing/usage'] });
+                      setChangePlanDialog(null);
+                      toast({ 
+                        title: "Subscription Active!", 
+                        description: `Your ${changePlanDialog.name} plan subscription is now active.` 
+                      });
+                    } catch (error) {
+                      toast({ 
+                        title: "Error", 
+                        description: "Failed to activate subscription. Please contact support.", 
+                        variant: "destructive" 
+                      });
+                    }
+                  }}
+                  onError={(error) => {
+                    toast({ 
+                      title: "Payment Error", 
+                      description: "There was an issue with your payment. Please try again.", 
+                      variant: "destructive" 
+                    });
+                  }}
+                  onCancel={() => {
+                    toast({ 
+                      title: "Payment Cancelled", 
+                      description: "Your subscription was not processed." 
+                    });
+                  }}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setChangePlanDialog(null)} data-testid="button-cancel-plan-change">
               Cancel
             </Button>
-            <Button 
-              onClick={() => changePlanDialog && changePlanMutation.mutate(changePlanDialog.code)}
-              disabled={changePlanMutation.isPending}
-              data-testid="button-confirm-plan-change"
-            >
-              {changePlanMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirm Change
-            </Button>
+            {(!changePlanDialog?.monthlyPriceCents || changePlanDialog.monthlyPriceCents === 0 || !changePlanDialog?.paypalPlanId) && (
+              <Button 
+                onClick={() => changePlanDialog && changePlanMutation.mutate(changePlanDialog.code)}
+                disabled={changePlanMutation.isPending}
+                data-testid="button-confirm-plan-change"
+              >
+                {changePlanMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {changePlanDialog?.code === "FREE" ? "Downgrade to Free" : "Confirm Change"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

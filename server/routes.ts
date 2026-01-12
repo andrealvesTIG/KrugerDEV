@@ -9,7 +9,7 @@ import { setupMicrosoftAuth } from "./auth/microsoftAuth";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
 import { users } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
 import Papa from "papaparse";
@@ -5907,6 +5907,238 @@ Return ONLY valid JSON, no markdown or explanations.`;
       });
       
       console.log("[routes] PayPal routes registered successfully");
+      
+      // PayPal Subscription routes
+      const { 
+        createProduct, 
+        createPlan, 
+        createSubscription, 
+        getSubscription, 
+        cancelSubscription, 
+        activateSubscription,
+        listPlans: listPayPalPlans,
+        getPayPalClientId 
+      } = await import("./paypalSubscriptions");
+
+      app.get("/api/paypal/subscription/client-id", getPayPalClientId);
+      app.post("/api/paypal/subscription/product", createProduct);
+      app.post("/api/paypal/subscription/plan", createPlan);
+      app.get("/api/paypal/subscription/plans", listPayPalPlans);
+      app.post("/api/paypal/subscription/create", createSubscription);
+      app.get("/api/paypal/subscription/:subscriptionId", getSubscription);
+      app.post("/api/paypal/subscription/:subscriptionId/cancel", cancelSubscription);
+      app.post("/api/paypal/subscription/:subscriptionId/activate", activateSubscription);
+
+      // Admin: Sync all billing plans to PayPal
+      app.post("/api/admin/paypal/sync-plans", async (req, res) => {
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const user = await storage.getUser(userId);
+        if (user?.role !== "super_admin") {
+          return res.status(403).json({ message: "Super admin access required" });
+        }
+
+        try {
+          const { plans } = await import("@shared/schema");
+          const allPlans = await db.select().from(plans);
+          
+          const PAYPAL_API_BASE = process.env.NODE_ENV === "production"
+            ? "https://api-m.paypal.com"
+            : "https://api-m.sandbox.paypal.com";
+
+          const auth = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString("base64");
+          const tokenRes = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Basic ${auth}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: "grant_type=client_credentials",
+          });
+          
+          if (!tokenRes.ok) {
+            const errorData = await tokenRes.json();
+            console.error("PayPal auth failed:", errorData);
+            return res.status(500).json({ message: "PayPal authentication failed", error: errorData });
+          }
+          const { access_token } = await tokenRes.json();
+
+          // Create product if not exists
+          let productId = allPlans.find(p => p.paypalProductId)?.paypalProductId;
+          if (!productId) {
+            const productRes = await fetch(`${PAYPAL_API_BASE}/v1/catalogs/products`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${access_token}`,
+                "Content-Type": "application/json",
+                "PayPal-Request-Id": `product-fridayreport-${Date.now()}`,
+              },
+              body: JSON.stringify({
+                name: "FridayReport.AI Subscription",
+                description: "Project Portfolio Management subscription",
+                type: "SERVICE",
+                category: "SOFTWARE",
+              }),
+            });
+            
+            if (!productRes.ok) {
+              const errorData = await productRes.json();
+              console.error("PayPal product creation failed:", errorData);
+              return res.status(500).json({ message: "Failed to create PayPal product", error: errorData });
+            }
+            const product = await productRes.json();
+            productId = product.id;
+          }
+
+          const results = [];
+          for (const plan of allPlans) {
+            if (plan.monthlyPriceCents && plan.monthlyPriceCents > 0 && !plan.paypalPlanId) {
+              const priceValue = (plan.monthlyPriceCents / 100).toFixed(2);
+              
+              const planRes = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans`, {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${access_token}`,
+                  "Content-Type": "application/json",
+                  "PayPal-Request-Id": `plan-${plan.code}-${Date.now()}`,
+                },
+                body: JSON.stringify({
+                  product_id: productId,
+                  name: `${plan.name} Plan`,
+                  description: plan.description || `${plan.name} monthly subscription`,
+                  status: "ACTIVE",
+                  billing_cycles: [{
+                    frequency: { interval_unit: "MONTH", interval_count: 1 },
+                    tenure_type: "REGULAR",
+                    sequence: 1,
+                    total_cycles: 0,
+                    pricing_scheme: {
+                      fixed_price: { value: priceValue, currency_code: "USD" },
+                    },
+                  }],
+                  payment_preferences: {
+                    auto_bill_outstanding: true,
+                    setup_fee: { value: "0", currency_code: "USD" },
+                    setup_fee_failure_action: "CONTINUE",
+                    payment_failure_threshold: 3,
+                  },
+                }),
+              });
+              
+              if (!planRes.ok) {
+                const errorData = await planRes.json();
+                console.error(`PayPal plan creation failed for ${plan.code}:`, errorData);
+                results.push({ planCode: plan.code, error: errorData.message || "Failed to create plan" });
+                continue;
+              }
+              
+              const paypalPlan = await planRes.json();
+              
+              // Update plan in database
+              await db.update(plans)
+                .set({ paypalPlanId: paypalPlan.id, paypalProductId: productId })
+                .where(eq(plans.id, plan.id));
+              
+              results.push({ planCode: plan.code, paypalPlanId: paypalPlan.id });
+            } else if (plan.paypalPlanId) {
+              results.push({ planCode: plan.code, paypalPlanId: plan.paypalPlanId, status: "already_synced" });
+            }
+          }
+
+          res.json({ success: true, productId, plans: results });
+        } catch (error) {
+          console.error("Failed to sync PayPal plans:", error);
+          res.status(500).json({ message: "Failed to sync PayPal plans" });
+        }
+      });
+
+      // Update subscription with PayPal subscription ID
+      app.post("/api/billing/subscription/paypal", async (req, res) => {
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        try {
+          const { planCode, paypalSubscriptionId } = req.body;
+          const { plans, subscriptions, billingCycles, usageRollups, meters, planMeterRules } = await import("@shared/schema");
+          
+          const [plan] = await db.select().from(plans).where(eq(plans.code, planCode));
+          if (!plan) {
+            return res.status(404).json({ message: "Plan not found" });
+          }
+
+          // Check if user has existing subscription
+          const [existingSub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
+          
+          const now = new Date();
+          const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+          if (existingSub) {
+            // Update existing subscription
+            await db.update(subscriptions)
+              .set({ 
+                planId: plan.id, 
+                paypalSubscriptionId,
+                status: "ACTIVE",
+                currentPeriodStart: periodStart,
+                currentPeriodEnd: periodEnd,
+              })
+              .where(eq(subscriptions.id, existingSub.id));
+            
+            res.json({ success: true, subscriptionId: existingSub.id });
+          } else {
+            // Create new subscription
+            const [newSub] = await db.insert(subscriptions).values({
+              planId: plan.id,
+              userId,
+              subjectType: "USER",
+              status: "ACTIVE",
+              paypalSubscriptionId,
+              currentPeriodStart: periodStart,
+              currentPeriodEnd: periodEnd,
+            }).returning();
+
+            // Create billing cycle and usage rollups
+            const [cycle] = await db.insert(billingCycles).values({
+              subscriptionId: newSub.id,
+              periodStart,
+              periodEnd,
+              status: "OPEN",
+            }).returning();
+
+            const allMeters = await db.select().from(meters);
+            const allRules = await db.select().from(planMeterRules).where(eq(planMeterRules.planId, plan.id));
+
+            for (const meter of allMeters) {
+              const rules = allRules.filter(r => r.meterId === meter.id);
+              const includedQuota = rules.find(r => r.ruleType === "INCLUDED_QUOTA");
+              
+              await db.insert(usageRollups).values({
+                billingCycleId: cycle.id,
+                meterId: meter.id,
+                includedUnits: includedQuota?.includedUnitsMonthly || 0,
+                usedUnits: 0,
+                remainingUnits: includedQuota?.includedUnitsMonthly || 0,
+                overageUnits: 0,
+                overageCostMicrocents: 0,
+                hardCapHit: false,
+              });
+            }
+
+            res.json({ success: true, subscriptionId: newSub.id });
+          }
+        } catch (error) {
+          console.error("Failed to update subscription:", error);
+          res.status(500).json({ message: "Failed to update subscription" });
+        }
+      });
+
+      console.log("[routes] PayPal Subscription routes registered successfully");
     } catch (error) {
       console.warn("[routes] PayPal routes not registered - credentials may be invalid:", error);
     }

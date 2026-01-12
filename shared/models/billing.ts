@@ -49,6 +49,8 @@ export const plans = pgTable("plans", {
   isActive: boolean("is_active").default(true),
   stripePriceId: text("stripe_price_id"),
   stripeProductId: text("stripe_product_id"),
+  paypalPlanId: text("paypal_plan_id"),
+  paypalProductId: text("paypal_product_id"),
   maxSeats: integer("max_seats"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -104,6 +106,7 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodEnd: timestamp("current_period_end").notNull(),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  paypalSubscriptionId: text("paypal_subscription_id"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_subscriptions_user_id").on(table.userId),
