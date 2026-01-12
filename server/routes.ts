@@ -5658,7 +5658,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
-  // Get usage summary
+  // Get usage summary (credits-based)
   app.get('/api/billing/usage', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
@@ -5666,9 +5666,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
 
     try {
-      const { billingProvider } = await import("./services/billing");
-      const { projects, tasks, projectDocuments, usageRollups } = await import("@shared/schema");
-      const { sql } = await import("drizzle-orm");
+      const { billingProvider, getAllCreditCosts } = await import("./services/billing");
+      const { meters, planMeterRules, usageRollups } = await import("@shared/schema");
+      const { sql, eq, and } = await import("drizzle-orm");
       const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
       
       let subscription;
@@ -5684,67 +5684,76 @@ Return ONLY valid JSON, no markdown or explanations.`;
       }
       
       if (!subscription) {
-        return res.json({});
+        return res.json({
+          credits: { used: 0, included: 0, remaining: 0 },
+          creditCosts: []
+        });
       }
       
-      const { inArray, eq, and, or, isNull } = await import("drizzle-orm");
+      // Get credits meter
+      const [creditsMeter] = await db.select().from(meters).where(eq(meters.code, "credits")).limit(1);
       
-      // Count actual entities from the database based on subscription type
-      let projectCountResult = 0;
-      let taskCountResult = 0;
-      let documentCountResult = 0;
+      // Get credits limit from plan rules
+      let creditsIncluded = 0;
+      let creditsHardCap: number | null = null;
       
-      if (subscription.subjectType === "ORG" && subscription.orgId) {
-        // For org subscription, count resources in that specific org
-        const [projectRow] = await db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(projects)
-          .where(eq(projects.organizationId, subscription.orgId));
-        projectCountResult = projectRow?.count || 0;
+      if (creditsMeter) {
+        const rules = await db
+          .select()
+          .from(planMeterRules)
+          .where(
+            and(
+              eq(planMeterRules.planId, subscription.planId),
+              eq(planMeterRules.meterId, creditsMeter.id)
+            )
+          );
         
-        const [taskRow] = await db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(tasks)
-          .innerJoin(projects, eq(tasks.projectId, projects.id))
-          .where(eq(projects.organizationId, subscription.orgId));
-        taskCountResult = taskRow?.count || 0;
+        const quotaRule = rules.find((r) => r.ruleType === "INCLUDED_QUOTA");
+        const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
         
-        const [documentRow] = await db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(projectDocuments)
-          .innerJoin(projects, eq(projectDocuments.projectId, projects.id))
-          .where(eq(projects.organizationId, subscription.orgId));
-        documentCountResult = documentRow?.count || 0;
-      } else {
-        // For user subscription, count resources created by this user
-        // Projects: count where the user created them using raw SQL
-        const projectResult = await db.execute(
-          sql`SELECT COUNT(*)::int as count FROM projects WHERE created_by = ${userId}`
-        );
-        projectCountResult = (projectResult.rows[0] as any)?.count || 0;
-        
-        // Tasks: count from usage rollups since tasks are linked to projects, not users directly
-        const rollupUsage = await billingProvider.getUsageSummary(subscription.id);
-        taskCountResult = rollupUsage["tasks"]?.usedUnits || 0;
-        
-        // Documents: count from usage rollups
-        documentCountResult = rollupUsage["documents"]?.usedUnits || 0;
+        creditsIncluded = quotaRule?.includedUnitsMonthly || 0;
+        creditsHardCap = hardCapRule?.hardCapUnits || null;
       }
       
-      // Get AI runs from usage rollups (these are event-based)
-      // Meter codes in DB are lowercase (ai_runs), convert to uppercase for API response
-      const rollupUsage = await billingProvider.getUsageSummary(subscription.id);
-      const aiRunsUsed = rollupUsage["ai_runs"]?.usedUnits || 0;
+      // Get credits used from rollups
+      const cycle = await billingProvider.getOrCreateBillingCycle(subscription.id);
+      let creditsUsed = 0;
       
-      // Build usage summary with actual entity counts
-      const usage: Record<string, { usedUnits: number }> = {
-        PROJECTS: { usedUnits: projectCountResult },
-        TASKS: { usedUnits: taskCountResult },
-        DOCUMENTS: { usedUnits: documentCountResult },
-        AI_RUNS: { usedUnits: aiRunsUsed },
-      };
+      if (creditsMeter) {
+        const [rollup] = await db
+          .select()
+          .from(usageRollups)
+          .where(
+            and(
+              eq(usageRollups.billingCycleId, cycle.id),
+              eq(usageRollups.meterId, creditsMeter.id)
+            )
+          )
+          .limit(1);
+        
+        creditsUsed = rollup?.usedUnits || 0;
+      }
       
-      res.json(usage);
+      const limit = creditsHardCap !== null ? creditsHardCap : creditsIncluded;
+      const remaining = Math.max(0, limit - creditsUsed);
+      
+      // Get credit costs for display
+      const creditCosts = await getAllCreditCosts();
+      
+      // Return credits-based usage (in hundredths, divide by 100 for display)
+      res.json({
+        credits: {
+          used: creditsUsed / 100,
+          included: creditsIncluded / 100,
+          hardCap: creditsHardCap !== null ? creditsHardCap / 100 : null,
+          remaining: remaining / 100,
+          limit: limit / 100
+        },
+        creditCosts: creditCosts.map(c => ({
+          ...c,
+          creditCost: c.creditCost / 100 // Convert to display format
+        }))
+      });
     } catch (error) {
       console.error("Error fetching usage:", error);
       res.status(500).json({ message: "Failed to fetch usage" });
@@ -6122,6 +6131,121 @@ Return ONLY valid JSON, no markdown or explanations.`;
     } catch (error) {
       console.error("Error updating rule:", error);
       res.status(500).json({ message: "Failed to update rule" });
+    }
+  });
+
+  // === CREDIT COST MANAGEMENT (Super Admin) ===
+  
+  // Get all credit costs
+  app.get('/api/admin/credit-costs', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { getAllCreditCosts } = await import("./services/billing");
+      const costs = await getAllCreditCosts();
+      
+      // Return raw values for editing (in hundredths)
+      res.json(costs);
+    } catch (error) {
+      console.error("Error fetching credit costs:", error);
+      res.status(500).json({ message: "Failed to fetch credit costs" });
+    }
+  });
+
+  // Update a credit cost
+  app.put('/api/admin/credit-costs/:resourceType', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { resourceType } = req.params;
+      const { creditCost, displayName, description } = req.body;
+      const { resourceCreditCosts } = await import("@shared/schema");
+      
+      if (creditCost === undefined || creditCost < 0) {
+        return res.status(400).json({ message: "Invalid credit cost" });
+      }
+
+      const [updated] = await db.update(resourceCreditCosts)
+        .set({ 
+          creditCost: Math.round(creditCost),
+          displayName: displayName || undefined,
+          description: description || undefined,
+          updatedAt: new Date(),
+          updatedBy: userId
+        })
+        .where(eq(resourceCreditCosts.resourceType, resourceType))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: "Resource type not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating credit cost:", error);
+      res.status(500).json({ message: "Failed to update credit cost" });
+    }
+  });
+
+  // Get plan credits summary (for plan management UI)
+  app.get('/api/admin/plans/:id/credits', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { planMeterRules, meters } = await import("@shared/schema");
+      const planId = parseInt(req.params.id);
+
+      // Get credits meter
+      const [creditsMeter] = await db.select().from(meters).where(eq(meters.code, "credits")).limit(1);
+      
+      if (!creditsMeter) {
+        return res.json({ included: 0, hardCap: null });
+      }
+
+      const rules = await db.select()
+        .from(planMeterRules)
+        .where(and(
+          eq(planMeterRules.planId, planId),
+          eq(planMeterRules.meterId, creditsMeter.id)
+        ));
+
+      const quotaRule = rules.find((r) => r.ruleType === "INCLUDED_QUOTA");
+      const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
+
+      res.json({
+        meterId: creditsMeter.id,
+        included: quotaRule?.includedUnitsMonthly || 0,
+        hardCap: hardCapRule?.hardCapUnits || null,
+        quotaRuleId: quotaRule?.id,
+        hardCapRuleId: hardCapRule?.id
+      });
+    } catch (error) {
+      console.error("Error fetching plan credits:", error);
+      res.status(500).json({ message: "Failed to fetch plan credits" });
     }
   });
 

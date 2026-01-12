@@ -495,8 +495,23 @@ export class MockBillingProvider implements BillingProvider {
 
 export const billingProvider = new MockBillingProvider();
 
-// Meter codes used throughout the application
+// Resource types that consume credits
+export const RESOURCE_TYPES = {
+  PROJECT: "project",
+  TASK: "task",
+  ISSUE: "issue",
+  RISK: "risk",
+  DOCUMENT: "document",
+  RESOURCE: "resource",
+  RESOURCE_ASSIGNMENT: "resource_assignment",
+  AI_RUN: "ai_run",
+} as const;
+
+export type ResourceType = (typeof RESOURCE_TYPES)[keyof typeof RESOURCE_TYPES];
+
+// Legacy meter codes for backwards compatibility
 export const METER_CODES = {
+  CREDITS: "credits",
   PROJECTS: "projects",
   TASKS: "tasks",
   DOCUMENTS: "documents",
@@ -505,100 +520,209 @@ export const METER_CODES = {
 
 export type MeterCode = (typeof METER_CODES)[keyof typeof METER_CODES];
 
-// Helper function to check and enforce limits before resource creation
+// Get credit cost for a resource type from database
+async function getResourceCreditCost(resourceType: ResourceType): Promise<number> {
+  const result = await db.execute(
+    sql`SELECT credit_cost FROM resource_credit_costs WHERE resource_type = ${resourceType} AND is_active = true`
+  );
+  const cost = (result.rows[0] as any)?.credit_cost;
+  // Return default costs if not found (in hundredths of a credit)
+  if (cost === undefined || cost === null) {
+    const defaults: Record<string, number> = {
+      project: 500,      // 5 credits
+      task: 100,         // 1 credit
+      issue: 100,        // 1 credit
+      risk: 100,         // 1 credit
+      document: 100,     // 1 credit
+      resource: 200,     // 2 credits
+      resource_assignment: 50,  // 0.5 credits
+      ai_run: 300,       // 3 credits
+    };
+    return defaults[resourceType] || 100;
+  }
+  return cost;
+}
+
+// Get total credits used by a user in the current billing cycle
+async function getTotalCreditsUsed(subscriptionId: number): Promise<number> {
+  const cycle = await billingProvider.getOrCreateBillingCycle(subscriptionId);
+  const [creditsMeter] = await db.select().from(meters).where(eq(meters.code, "credits")).limit(1);
+  if (!creditsMeter) return 0;
+  
+  const [rollup] = await db
+    .select()
+    .from(usageRollups)
+    .where(
+      and(
+        eq(usageRollups.billingCycleId, cycle.id),
+        eq(usageRollups.meterId, creditsMeter.id)
+      )
+    )
+    .limit(1);
+  
+  return rollup?.usedUnits || 0;
+}
+
+// Get credits limit for a subscription
+async function getCreditsLimit(subscriptionId: number): Promise<{ included: number; hardCap: number | null }> {
+  const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.id, subscriptionId)).limit(1);
+  if (!subscription) return { included: 0, hardCap: 0 };
+  
+  const [creditsMeter] = await db.select().from(meters).where(eq(meters.code, "credits")).limit(1);
+  if (!creditsMeter) return { included: 0, hardCap: null };
+  
+  const rules = await db
+    .select()
+    .from(planMeterRules)
+    .where(
+      and(
+        eq(planMeterRules.planId, subscription.planId),
+        eq(planMeterRules.meterId, creditsMeter.id)
+      )
+    );
+  
+  const quotaRule = rules.find((r) => r.ruleType === "INCLUDED_QUOTA");
+  const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
+  
+  return {
+    included: quotaRule?.includedUnitsMonthly || 0,
+    hardCap: hardCapRule?.hardCapUnits || null
+  };
+}
+
+// Helper function to check and enforce credit limits before resource creation
+export async function checkCreditLimit(
+  userId: string,
+  resourceType: ResourceType
+): Promise<{ allowed: boolean; error?: string; creditsRequired: number; creditsRemaining?: number }> {
+  try {
+    let subscription = await billingProvider.getSubscriptionForUser(userId);
+    if (!subscription) {
+      await billingProvider.ensureUserHasSubscription(userId);
+      subscription = await billingProvider.getSubscriptionForUser(userId);
+      if (!subscription) {
+        return { allowed: false, error: "Unable to verify subscription", creditsRequired: 0 };
+      }
+    }
+
+    const creditCost = await getResourceCreditCost(resourceType);
+    const creditsUsed = await getTotalCreditsUsed(subscription.id);
+    const { included, hardCap } = await getCreditsLimit(subscription.id);
+    
+    const limit = hardCap !== null ? hardCap : included;
+    const creditsRemaining = Math.max(0, limit - creditsUsed);
+    
+    // Convert from hundredths to display format
+    const displayCreditsRequired = creditCost / 100;
+    const displayRemaining = creditsRemaining / 100;
+    const displayLimit = limit / 100;
+    
+    if (creditsUsed + creditCost > limit) {
+      return {
+        allowed: false,
+        error: `You need ${displayCreditsRequired} credits but only have ${displayRemaining} remaining. Your plan includes ${displayLimit} credits. Please upgrade your plan.`,
+        creditsRequired: creditCost,
+        creditsRemaining
+      };
+    }
+    
+    return { 
+      allowed: true, 
+      creditsRequired: creditCost,
+      creditsRemaining
+    };
+  } catch (error) {
+    console.error("Error checking credit limit:", error);
+    return { allowed: true, creditsRequired: 0 };
+  }
+}
+
+// Legacy function for backwards compatibility - redirects to credit system
 export async function checkAndEnforceLimit(
   userId: string,
   meterCode: MeterCode,
   unitsToAdd: number = 1
 ): Promise<{ allowed: boolean; error?: string; remaining?: number }> {
-  try {
-    let subscription = await billingProvider.getSubscriptionForUser(userId);
-    if (!subscription) {
-      // Create a free subscription if none exists
-      await billingProvider.ensureUserHasSubscription(userId);
-      subscription = await billingProvider.getSubscriptionForUser(userId);
-      if (!subscription) {
-        return { allowed: false, error: "Unable to verify subscription" };
-      }
-    }
-
-    // Get the hard cap for this meter from plan rules
-    const [meter] = await db.select().from(meters).where(eq(meters.code, meterCode)).limit(1);
-    if (!meter) {
-      return { allowed: true }; // No meter defined, allow
-    }
-
-    const rules = await db
-      .select()
-      .from(planMeterRules)
-      .where(
-        and(
-          eq(planMeterRules.planId, subscription.planId),
-          eq(planMeterRules.meterId, meter.id)
-        )
-      );
-
-    const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
-    const hardCap = hardCapRule?.hardCapUnits;
-    
-    if (hardCap === null || hardCap === undefined) {
-      return { allowed: true }; // No hard cap, allow
-    }
-
-    // For projects, count directly from database based on what user created
-    if (meterCode === METER_CODES.PROJECTS) {
-      const result = await db.execute(
-        sql`SELECT COUNT(*)::int as count FROM projects WHERE created_by = ${userId}`
-      );
-      const currentUsage = (result.rows[0] as any)?.count || 0;
-      
-      if (currentUsage + unitsToAdd > hardCap) {
-        return {
-          allowed: false,
-          error: `You've reached your plan limit of ${hardCap} projects. Please upgrade your plan.`,
-          remaining: Math.max(0, hardCap - currentUsage)
-        };
-      }
-      return { allowed: true, remaining: Math.max(0, hardCap - currentUsage) };
-    }
-
-    // For other meters, use the rollup-based check
-    const result = await billingProvider.checkLimit(subscription.id, meterCode, unitsToAdd);
-    if (!result.allowed) {
-      return { 
-        allowed: false, 
-        error: result.reason || `You've reached your plan limit for ${meterCode}. Please upgrade your plan.`,
-        remaining: result.remaining ?? undefined
-      };
-    }
-    return { allowed: true, remaining: result.remaining ?? undefined };
-  } catch (error) {
-    console.error("Error checking limit:", error);
-    // Allow the operation if there's an error checking limits (fail open)
+  // Map old meter codes to resource types
+  const meterToResource: Record<string, ResourceType> = {
+    projects: RESOURCE_TYPES.PROJECT,
+    tasks: RESOURCE_TYPES.TASK,
+    documents: RESOURCE_TYPES.DOCUMENT,
+    ai_runs: RESOURCE_TYPES.AI_RUN,
+  };
+  
+  const resourceType = meterToResource[meterCode];
+  if (!resourceType) {
     return { allowed: true };
+  }
+  
+  const result = await checkCreditLimit(userId, resourceType);
+  return {
+    allowed: result.allowed,
+    error: result.error,
+    remaining: result.creditsRemaining ? result.creditsRemaining / 100 : undefined
+  };
+}
+
+// Helper function to record credit usage after successful resource creation
+export async function recordCreditUsage(
+  userId: string,
+  resourceType: ResourceType,
+  resourceId: string | number
+): Promise<void> {
+  try {
+    const subscription = await billingProvider.getSubscriptionForUser(userId);
+    if (!subscription) return;
+
+    const creditCost = await getResourceCreditCost(resourceType);
+    
+    await billingProvider.recordUsage({
+      subscriptionId: subscription.id,
+      meterCode: "credits",
+      units: creditCost,
+      actorUserId: userId,
+      requestId: `${resourceType}_${resourceId}_${Date.now()}`,
+    });
+  } catch (error) {
+    console.error("Error recording credit usage:", error);
   }
 }
 
-// Helper function to record usage after successful resource creation
+// Legacy function for backwards compatibility
 export async function recordResourceUsage(
   userId: string,
   meterCode: MeterCode,
   resourceId: string | number,
   units: number = 1
 ): Promise<void> {
-  try {
-    const subscription = await billingProvider.getSubscriptionForUser(userId);
-    if (!subscription) return;
-
-    await billingProvider.recordUsage({
-      subscriptionId: subscription.id,
-      meterCode,
-      units,
-      actorUserId: userId,
-      requestId: `${meterCode}_${resourceId}_${Date.now()}`,
-    });
-  } catch (error) {
-    console.error("Error recording usage:", error);
-    // Don't fail the operation if usage recording fails
+  const meterToResource: Record<string, ResourceType> = {
+    projects: RESOURCE_TYPES.PROJECT,
+    tasks: RESOURCE_TYPES.TASK,
+    documents: RESOURCE_TYPES.DOCUMENT,
+    ai_runs: RESOURCE_TYPES.AI_RUN,
+  };
+  
+  const resourceType = meterToResource[meterCode];
+  if (resourceType) {
+    await recordCreditUsage(userId, resourceType, resourceId);
   }
+}
+
+// Get all credit costs for display
+export async function getAllCreditCosts(): Promise<Array<{ resourceType: string; creditCost: number; displayName: string; description: string | null }>> {
+  const result = await db.execute(
+    sql`SELECT resource_type, credit_cost, display_name, description FROM resource_credit_costs WHERE is_active = true ORDER BY credit_cost DESC`
+  );
+  return result.rows as any[];
+}
+
+// Update a credit cost (for Super Admin)
+export async function updateCreditCost(
+  resourceType: string, 
+  creditCost: number,
+  updatedBy: string
+): Promise<void> {
+  await db.execute(
+    sql`UPDATE resource_credit_costs SET credit_cost = ${creditCost}, updated_at = NOW(), updated_by = ${updatedBy} WHERE resource_type = ${resourceType}`
+  );
 }

@@ -78,8 +78,22 @@ interface ReferralStats {
   payouts: ReferralPayout[];
 }
 
+interface CreditCostInfo {
+  resourceType: string;
+  creditCost: number;
+  displayName: string;
+  description: string | null;
+}
+
 interface UsageSummary {
-  [meterCode: string]: UsageRollup;
+  credits: {
+    used: number;
+    included: number;
+    hardCap: number | null;
+    remaining: number;
+    limit: number;
+  };
+  creditCosts: CreditCostInfo[];
 }
 
 interface BillingTransaction {
@@ -417,40 +431,48 @@ export default function Billing() {
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {Object.keys(meterLabels).map((meterCode) => {
-                    const rollup = usage?.[meterCode];
-                    const Icon = meterIcons[meterCode] || Zap;
-                    const planWithRules = plans?.find(p => p.code === currentPlan.code);
-                    const limits = getLimit(planWithRules?.meterRules, meterCode);
-                    
-                    const current = rollup?.usedUnits || 0;
-                    const limit = limits.hardCap || limits.included || 0;
-                    const percentage = limit > 0 ? Math.min((current / limit) * 100, 100) : 0;
-                    const isNearLimit = percentage >= 80;
-                    const isAtLimit = percentage >= 100;
-
-                    return (
-                      <div key={meterCode} className="space-y-1" data-testid={`card-usage-${meterCode}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5">
-                            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-xs font-medium">{meterLabels[meterCode]}</span>
-                          </div>
-                          {isAtLimit && <AlertTriangle className="h-3 w-3 text-destructive" />}
-                        </div>
-                        <Progress 
-                          value={percentage} 
-                          className={`h-1.5 ${isAtLimit ? "bg-destructive/20" : isNearLimit ? "bg-warning/20" : ""}`}
-                          data-testid={`progress-${meterCode}`}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          {current.toLocaleString()} / {limit > 0 ? limit.toLocaleString() : "∞"}
-                        </p>
+              ) : usage?.credits ? (
+                <div className="space-y-4">
+                  <div className="space-y-2" data-testid="card-usage-credits">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <Wallet className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">Credits</span>
                       </div>
-                    );
-                  })}
+                      {usage.credits.remaining <= 0 && <AlertTriangle className="h-4 w-4 text-destructive" />}
+                    </div>
+                    <Progress 
+                      value={usage.credits.limit > 0 ? Math.min((usage.credits.used / usage.credits.limit) * 100, 100) : 0} 
+                      className={`h-2 ${usage.credits.remaining <= 0 ? "bg-destructive/20" : usage.credits.remaining < usage.credits.limit * 0.2 ? "bg-warning/20" : ""}`}
+                      data-testid="progress-credits"
+                    />
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {usage.credits.used.toFixed(1)} / {usage.credits.limit.toFixed(0)} credits used
+                      </span>
+                      <span className={`font-medium ${usage.credits.remaining <= 0 ? 'text-destructive' : 'text-primary'}`}>
+                        {usage.credits.remaining.toFixed(1)} remaining
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {usage.creditCosts && usage.creditCosts.length > 0 && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium mb-2 text-muted-foreground">Credit Costs</p>
+                      <div className="grid grid-cols-2 gap-1.5 text-xs">
+                        {usage.creditCosts.slice(0, 6).map((cost) => (
+                          <div key={cost.resourceType} className="flex items-center justify-between gap-1 text-muted-foreground">
+                            <span>{cost.displayName}</span>
+                            <span className="font-mono">{cost.creditCost}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  No usage data available
                 </div>
               )}
             </CardContent>
@@ -582,18 +604,23 @@ export default function Billing() {
                 </CardHeader>
                 <CardContent className="pt-0 pb-3">
                   <div className="space-y-1.5">
-                    {Object.keys(meterLabels).map((meterCode) => {
-                      const limits = getLimit(planRules as PlanWithRules['meterRules'], meterCode);
-                      const Icon = meterIcons[meterCode] || Zap;
-                      
+                    {/* Show credits allocation */}
+                    {(() => {
+                      const creditsRule = planRules?.find((r: any) => r.meterCode === 'credits');
+                      const creditsLimit = creditsRule?.includedUnitsMonthly || creditsRule?.hardCapUnits;
                       return (
-                        <div key={meterCode} className="flex items-center gap-2 text-xs">
+                        <div className="flex items-center gap-2 text-xs">
                           <Check className="h-3 w-3 text-primary flex-shrink-0" />
-                          <Icon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                          <span>{meterLabels[meterCode]}: {formatLimit(limits)}</span>
+                          <Wallet className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <span className="font-medium">
+                            {creditsLimit ? `${creditsLimit.toLocaleString()} credits/month` : 'Unlimited credits'}
+                          </span>
                         </div>
                       );
-                    })}
+                    })()}
+                    <div className="text-[10px] text-muted-foreground ml-5">
+                      Use credits to create projects, tasks, issues, and more
+                    </div>
                   </div>
                 </CardContent>
                 <CardFooter className="pt-0">
@@ -954,17 +981,21 @@ export default function Billing() {
           <div className="py-4">
             <h4 className="font-medium mb-3">New Plan Limits:</h4>
             <div className="space-y-2">
-              {Object.keys(meterLabels).map((meterCode) => {
-                const limits = getLimit(changePlanDialog?.meterRules as PlanWithRules['meterRules'], meterCode);
-                const Icon = meterIcons[meterCode] || Zap;
-                
+              {(() => {
+                const creditsRule = changePlanDialog?.meterRules?.find((r: any) => r.meterCode === 'credits');
+                const creditsLimit = creditsRule?.includedUnitsMonthly || creditsRule?.hardCapUnits;
                 return (
-                  <div key={meterCode} className="flex items-center gap-3 text-sm">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    <span>{meterLabels[meterCode]}: {formatLimit(limits)}</span>
+                  <div className="flex items-center gap-3 text-sm">
+                    <Wallet className="h-4 w-4 text-primary" />
+                    <span className="font-medium">
+                      {creditsLimit ? `${creditsLimit.toLocaleString()} credits per month` : 'Unlimited credits'}
+                    </span>
                   </div>
                 );
-              })}
+              })()}
+              <p className="text-xs text-muted-foreground ml-7">
+                Credits are used when creating projects (5 credits), tasks, issues, risks (1 credit each), and more.
+              </p>
             </div>
             
             {changePlanDialog && isContactUsPlan(changePlanDialog) ? (

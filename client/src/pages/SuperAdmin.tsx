@@ -76,6 +76,10 @@ export default function SuperAdmin() {
             <CreditCard className="h-4 w-4" />
             Plans
           </TabsTrigger>
+          <TabsTrigger value="credits" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2">
+            <Wallet className="h-4 w-4" />
+            Credit Pricing
+          </TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="organizations">
@@ -86,6 +90,9 @@ export default function SuperAdmin() {
           </TabsContent>
           <TabsContent value="plans">
             <PlansTab />
+          </TabsContent>
+          <TabsContent value="credits">
+            <CreditCostsTab />
           </TabsContent>
         </div>
       </Tabs>
@@ -1552,6 +1559,166 @@ function OrgMembersEditor({ orgId, allUsers }: { orgId: number; allUsers: User[]
           No members yet. Add users above.
         </div>
       )}
+    </div>
+  );
+}
+
+interface CreditCost {
+  resourceType: string;
+  creditCost: number;
+  displayName: string;
+  description: string | null;
+}
+
+function CreditCostsTab() {
+  const { toast } = useToast();
+  const [editingCost, setEditingCost] = useState<CreditCost | null>(null);
+  const [newCreditCost, setNewCreditCost] = useState<number>(0);
+
+  const { data: creditCosts, isLoading } = useQuery<CreditCost[]>({
+    queryKey: ['/api/admin/credit-costs']
+  });
+
+  const updateCost = useMutation({
+    mutationFn: async ({ resourceType, creditCost }: { resourceType: string; creditCost: number }) => {
+      return apiRequest('PUT', `/api/admin/credit-costs/${resourceType}`, { creditCost });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/credit-costs'] });
+      toast({ title: "Success", description: "Credit cost updated" });
+      setEditingCost(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update credit cost", variant: "destructive" });
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Credit Pricing
+          </CardTitle>
+          <CardDescription>
+            Manage how many credits each resource type costs. Values are stored in hundredths (100 = 1 credit).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Resource Type</TableHead>
+                <TableHead>Display Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-right">Credits Cost</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {creditCosts?.map((cost) => (
+                <TableRow key={cost.resourceType} data-testid={`credit-cost-row-${cost.resourceType}`}>
+                  <TableCell className="font-mono text-sm">{cost.resourceType}</TableCell>
+                  <TableCell>{cost.displayName}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{cost.description || '-'}</TableCell>
+                  <TableCell className="text-right font-mono">
+                    {editingCost?.resourceType === cost.resourceType ? (
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={newCreditCost}
+                        onChange={(e) => setNewCreditCost(parseInt(e.target.value) || 0)}
+                        className="w-24 ml-auto text-right"
+                        data-testid={`input-credit-cost-${cost.resourceType}`}
+                      />
+                    ) : (
+                      <span className="font-semibold">{cost.creditCost}</span>
+                    )}
+                    <span className="text-muted-foreground text-xs ml-1">
+                      ({(cost.creditCost / 100).toFixed(2)} credits)
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {editingCost?.resourceType === cost.resourceType ? (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingCost(null)}
+                          data-testid={`button-cancel-edit-${cost.resourceType}`}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => updateCost.mutate({ resourceType: cost.resourceType, creditCost: newCreditCost })}
+                          disabled={updateCost.isPending}
+                          data-testid={`button-save-${cost.resourceType}`}
+                        >
+                          {updateCost.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingCost(cost);
+                          setNewCreditCost(cost.creditCost);
+                        }}
+                        data-testid={`button-edit-${cost.resourceType}`}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Credit Pricing Guide</CardTitle>
+          <CardDescription>Reference for setting credit costs</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="p-3 rounded-lg bg-muted">
+              <div className="font-medium">100 = 1 credit</div>
+              <div className="text-muted-foreground">Standard task, issue, risk</div>
+            </div>
+            <div className="p-3 rounded-lg bg-muted">
+              <div className="font-medium">500 = 5 credits</div>
+              <div className="text-muted-foreground">Project (complex)</div>
+            </div>
+            <div className="p-3 rounded-lg bg-muted">
+              <div className="font-medium">50 = 0.5 credits</div>
+              <div className="text-muted-foreground">Resource assignment (simple)</div>
+            </div>
+            <div className="p-3 rounded-lg bg-muted">
+              <div className="font-medium">300 = 3 credits</div>
+              <div className="text-muted-foreground">AI Run (compute intensive)</div>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Adjust costs based on the complexity and resource intensity of each action. 
+            Higher costs for resource-intensive operations, lower costs for simple data entries.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

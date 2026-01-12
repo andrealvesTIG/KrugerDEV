@@ -7,8 +7,21 @@ import { users } from "./auth";
 export const planCodeEnum = ["FREE", "BASIC", "TEAM"] as const;
 export type PlanCode = typeof planCodeEnum[number];
 
-export const meterCodeEnum = ["ai_runs", "documents", "projects", "tasks"] as const;
+export const meterCodeEnum = ["credits", "ai_runs", "documents", "projects", "tasks"] as const;
 export type MeterCode = typeof meterCodeEnum[number];
+
+// Resource types that consume credits
+export const resourceTypeEnum = [
+  "project",
+  "task", 
+  "issue",
+  "risk",
+  "document",
+  "resource",
+  "resource_assignment",
+  "ai_run"
+] as const;
+export type ResourceType = typeof resourceTypeEnum[number];
 
 export const ruleTypeEnum = ["INCLUDED_QUOTA", "HARD_CAP", "METERED_OVERAGE"] as const;
 export type RuleType = typeof ruleTypeEnum[number];
@@ -199,6 +212,18 @@ export const billingAuditLogs = pgTable("billing_audit_logs", {
   index("idx_billing_audit_logs_actor").on(table.actorUserId),
   index("idx_billing_audit_logs_entity").on(table.entityType, table.entityId),
 ]);
+
+// Resource credit costs - defines how many credits each resource type costs
+export const resourceCreditCosts = pgTable("resource_credit_costs", {
+  id: serial("id").primaryKey(),
+  resourceType: text("resource_type").notNull().unique(), // project, task, issue, risk, document, resource, resource_assignment, ai_run
+  creditCost: integer("credit_cost").notNull().default(100), // Cost in hundredths of a credit (100 = 1 credit, 50 = 0.5 credits)
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
 
 export const plansRelations = relations(plans, ({ many }) => ({
   meterRules: many(planMeterRules),
@@ -476,3 +501,7 @@ export type Referral = typeof referrals.$inferSelect;
 export type InsertReferral = z.infer<typeof insertReferralSchema>;
 export type ReferralPayout = typeof referralPayouts.$inferSelect;
 export type InsertReferralPayout = z.infer<typeof insertReferralPayoutSchema>;
+
+export const insertResourceCreditCostSchema = createInsertSchema(resourceCreditCosts).omit({ id: true, updatedAt: true });
+export type ResourceCreditCost = typeof resourceCreditCosts.$inferSelect;
+export type InsertResourceCreditCost = z.infer<typeof insertResourceCreditCostSchema>;
