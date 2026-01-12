@@ -5891,19 +5891,27 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // === PAYPAL ROUTES ===
   // Only register PayPal routes if credentials are configured
   if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET) {
-    const { createPaypalOrder, capturePaypalOrder, loadPaypalDefault } = await import("./paypal");
+    try {
+      const { createPaypalOrder, capturePaypalOrder, loadPaypalDefault } = await import("./paypal");
 
-    app.get("/paypal/setup", async (req, res) => {
-      await loadPaypalDefault(req, res);
-    });
+      app.get("/paypal/setup", async (req, res) => {
+        await loadPaypalDefault(req, res);
+      });
 
-    app.post("/paypal/order", async (req, res) => {
-      await createPaypalOrder(req, res);
-    });
+      app.post("/paypal/order", async (req, res) => {
+        await createPaypalOrder(req, res);
+      });
 
-    app.post("/paypal/order/:orderID/capture", async (req, res) => {
-      await capturePaypalOrder(req, res);
-    });
+      app.post("/paypal/order/:orderID/capture", async (req, res) => {
+        await capturePaypalOrder(req, res);
+      });
+      
+      console.log("[routes] PayPal routes registered successfully");
+    } catch (error) {
+      console.warn("[routes] PayPal routes not registered - credentials may be invalid:", error);
+    }
+  } else {
+    console.log("[routes] PayPal routes not registered - credentials not configured");
   }
 
   // === REFERRAL PROGRAM ROUTES ===
@@ -5955,20 +5963,24 @@ Return ONLY valid JSON, no markdown or explanations.`;
     try {
       const { referralCodes, referrals, referralPayouts } = await import("@shared/schema");
       
-      // Get user's referral code
-      const [userCode] = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId));
+      // Get user's referral code - auto-create if none exists
+      let [userCode] = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId));
       
       if (!userCode) {
-        return res.json({
-          code: null,
+        // Auto-generate a unique referral code
+        const user = await storage.getUser(userId);
+        const baseCode = (user?.firstName || user?.email?.split('@')[0] || 'REF').toUpperCase().substring(0, 6);
+        const uniqueSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const code = `${baseCode}${uniqueSuffix}`;
+        
+        [userCode] = await db.insert(referralCodes).values({
+          userId,
+          code,
+          commissionPercent: 10,
+          isActive: true,
           totalReferrals: 0,
-          signedUp: 0,
-          converted: 0,
-          pendingEarningsCents: 0,
-          paidOutCents: 0,
-          referrals: [],
-          payouts: [],
-        });
+          totalEarningsCents: 0,
+        }).returning();
       }
       
       // Get referrals for this code

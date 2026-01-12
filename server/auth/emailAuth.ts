@@ -137,6 +137,36 @@ export async function setupAuth(app: Express) {
         console.error("Error claiming organization invites:", inviteError);
       }
 
+      // Track referral if referral code was provided
+      const { referralCode } = req.body;
+      if (referralCode) {
+        try {
+          const { referralCodes, referrals } = await import("@shared/schema");
+          const [refCode] = await db.select().from(referralCodes)
+            .where(and(eq(referralCodes.code, referralCode.toUpperCase()), eq(referralCodes.isActive, true)));
+          
+          if (refCode) {
+            await db.insert(referrals).values({
+              referralCodeId: refCode.id,
+              referrerId: refCode.userId,
+              referredUserId: newUser.id,
+              referredEmail: email,
+              status: 'SIGNED_UP',
+              signedUpAt: new Date(),
+            });
+            
+            // Update total referrals count
+            await db.update(referralCodes)
+              .set({ totalReferrals: (refCode.totalReferrals || 0) + 1 })
+              .where(eq(referralCodes.id, refCode.id));
+            
+            console.log(`Tracked referral for new user: ${email} via code: ${referralCode}`);
+          }
+        } catch (refError) {
+          console.error("Error tracking referral:", refError);
+        }
+      }
+
       req.session.userId = newUser.id;
       
       await new Promise<void>((resolve, reject) => {

@@ -4,16 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState } from "react";
 import { format } from "date-fns";
+import PayPalButton from "@/components/PayPalButton";
 import type { Plan, Subscription, UsageRollup } from "@shared/schema";
 
-interface PlanWithRules extends Plan {
+interface PlanWithRules extends Omit<Plan, 'monthlyPriceCents'> {
   monthlyPriceCents?: number | null;
   meterRules?: Array<{
     meterCode: string;
@@ -23,6 +27,54 @@ interface PlanWithRules extends Plan {
     hardCapUnits: number | null;
     overageUnitPriceMicrocents: number | null;
   }>;
+}
+
+interface ReferralCode {
+  id: number;
+  userId: string;
+  code: string;
+  commissionPercent: number;
+  isActive: boolean;
+  totalReferrals: number;
+  totalEarningsCents: number;
+  createdAt: string;
+}
+
+interface Referral {
+  id: number;
+  referralCodeId: number;
+  referrerId: string;
+  referredUserId: string | null;
+  referredEmail: string | null;
+  status: string;
+  signedUpAt: string | null;
+  convertedAt: string | null;
+  conversionAmountCents: number | null;
+  commissionAmountCents: number | null;
+  createdAt: string;
+}
+
+interface ReferralPayout {
+  id: number;
+  userId: string;
+  amountCents: number;
+  status: string;
+  paypalEmail: string | null;
+  paypalTransactionId: string | null;
+  processedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+interface ReferralStats {
+  code: ReferralCode | null;
+  totalReferrals: number;
+  signedUp: number;
+  converted: number;
+  pendingEarningsCents: number;
+  paidOutCents: number;
+  referrals: Referral[];
+  payouts: ReferralPayout[];
 }
 
 interface UsageSummary {
@@ -93,6 +145,9 @@ export default function Billing() {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const [changePlanDialog, setChangePlanDialog] = useState<PlanWithRules | null>(null);
+  const [activeTab, setActiveTab] = useState("billing");
+  const [paypalEmail, setPaypalEmail] = useState("");
+  const [payoutDialogOpen, setPayoutDialogOpen] = useState(false);
 
   const { data: plans, isLoading: plansLoading } = useQuery<PlanWithRules[]>({
     queryKey: ['/api/billing/plans'],
@@ -114,6 +169,26 @@ export default function Billing() {
       return res.json();
     },
     enabled: !!user && !!subscription,
+  });
+
+  const { data: referralStats, isLoading: referralLoading } = useQuery<ReferralStats>({
+    queryKey: ['/api/referral/stats'],
+    enabled: !!user,
+  });
+
+  const requestPayoutMutation = useMutation({
+    mutationFn: async (email: string) => {
+      return apiRequest('POST', '/api/referral/request-payout', { paypalEmail: email });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/referral/stats'] });
+      toast({ title: "Payout Requested", description: "Your payout request has been submitted." });
+      setPayoutDialogOpen(false);
+      setPaypalEmail("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
   });
 
   const changePlanMutation = useMutation({
@@ -158,12 +233,35 @@ export default function Billing() {
     return order.indexOf(a.code) - order.indexOf(b.code);
   });
 
+  const copyReferralLink = () => {
+    if (referralStats?.code) {
+      const link = `${window.location.origin}/auth?ref=${referralStats.code.code}`;
+      navigator.clipboard.writeText(link);
+      toast({ title: "Copied!", description: "Referral link copied to clipboard" });
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "PENDING":
+        return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>;
+      case "SIGNED_UP":
+        return <Badge variant="outline"><UserPlus className="h-3 w-3 mr-1" /> Signed Up</Badge>;
+      case "CONVERTED":
+        return <Badge variant="default"><TrendingUp className="h-3 w-3 mr-1" /> Converted</Badge>;
+      case "PAID_OUT":
+        return <Badge variant="default"><CheckCircle2 className="h-3 w-3 mr-1" /> Paid</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <CreditCard className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-display font-bold text-foreground">Billing</h1>
+          <h1 className="text-2xl font-display font-bold text-foreground">Billing & Referrals</h1>
         </div>
         {subscription && (
           <Badge variant={subscription.status === "ACTIVE" ? "default" : "secondary"} data-testid="badge-subscription-status">
@@ -171,6 +269,20 @@ export default function Billing() {
           </Badge>
         )}
       </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="billing" data-testid="tab-billing">
+            <CreditCard className="h-4 w-4 mr-2" />
+            Billing
+          </TabsTrigger>
+          <TabsTrigger value="referrals" data-testid="tab-referrals">
+            <Gift className="h-4 w-4 mr-2" />
+            Referrals
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="billing" className="space-y-5 mt-4">
 
       {subscription && currentPlan && (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -322,6 +434,216 @@ export default function Billing() {
           })}
         </div>
       </div>
+        </TabsContent>
+
+        <TabsContent value="referrals" className="space-y-5 mt-4">
+          <Card data-testid="card-referral-link">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Share2 className="h-4 w-4" />
+                Your Referral Link
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Share your unique link and earn 10% commission on every paid subscription.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {referralLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      value={referralStats?.code ? `${window.location.origin}/auth?ref=${referralStats.code.code}` : ""} 
+                      readOnly 
+                      className="font-mono text-sm"
+                      data-testid="input-referral-link"
+                    />
+                    <Button size="icon" variant="outline" onClick={copyReferralLink} data-testid="button-copy-referral-link">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {referralStats?.code && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        Code: {referralStats.code.code}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {referralStats.code.commissionPercent}% Commission
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card data-testid="card-stat-referrals">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-md bg-primary/10">
+                    <UserPlus className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{referralStats?.totalReferrals || 0}</p>
+                    <p className="text-xs text-muted-foreground">Total Referrals</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card data-testid="card-stat-signups">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-md bg-blue-500/10">
+                    <Users className="h-4 w-4 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{referralStats?.signedUp || 0}</p>
+                    <p className="text-xs text-muted-foreground">Signed Up</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card data-testid="card-stat-conversions">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-md bg-green-500/10">
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{referralStats?.converted || 0}</p>
+                    <p className="text-xs text-muted-foreground">Converted</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card data-testid="card-stat-earnings">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-md bg-yellow-500/10">
+                    <DollarSign className="h-4 w-4 text-yellow-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">
+                      ${((referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Pending Earnings</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card data-testid="card-referral-history">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Referral History</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {referralStats?.referrals && referralStats.referrals.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {referralStats.referrals.map((ref) => (
+                      <div key={ref.id} className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/30">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm truncate">
+                            {ref.referredEmail || `User ${ref.referredUserId?.substring(0, 8)}...`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {ref.commissionAmountCents && (
+                            <span className="text-xs text-muted-foreground">
+                              ${(ref.commissionAmountCents / 100).toFixed(2)}
+                            </span>
+                          )}
+                          {getStatusBadge(ref.status)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <UserPlus className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                    <p className="text-sm text-muted-foreground">No referrals yet</p>
+                    <p className="text-xs text-muted-foreground">Share your link to start earning</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card data-testid="card-payout">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Request Payout</CardTitle>
+                <CardDescription className="text-xs">
+                  Minimum payout: $10.00 | Total paid: ${((referralStats?.paidOutCents || 0) / 100).toFixed(2)}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-3">
+                  <div className="p-3 rounded-md bg-muted/30 text-center">
+                    <p className="text-sm text-muted-foreground">Available for payout</p>
+                    <p className="text-2xl font-bold text-primary">
+                      ${((referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)}
+                    </p>
+                  </div>
+                  <Button 
+                    className="w-full" 
+                    onClick={() => setPayoutDialogOpen(true)}
+                    disabled={(referralStats?.pendingEarningsCents || 0) < 1000}
+                    data-testid="button-request-payout"
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Request Payout via PayPal
+                  </Button>
+                  {(referralStats?.pendingEarningsCents || 0) < 1000 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      You need ${(10 - (referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)} more to request a payout
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={payoutDialogOpen} onOpenChange={setPayoutDialogOpen}>
+        <DialogContent data-testid="dialog-payout">
+          <DialogHeader>
+            <DialogTitle>Request Payout</DialogTitle>
+            <DialogDescription>
+              Enter your PayPal email to receive your earnings of ${((referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="paypal-email">PayPal Email</Label>
+            <Input 
+              id="paypal-email"
+              type="email" 
+              value={paypalEmail} 
+              onChange={(e) => setPaypalEmail(e.target.value)}
+              placeholder="your@email.com"
+              className="mt-2"
+              data-testid="input-paypal-email"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayoutDialogOpen(false)} data-testid="button-cancel-payout">
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => requestPayoutMutation.mutate(paypalEmail)}
+              disabled={requestPayoutMutation.isPending || !paypalEmail}
+              data-testid="button-confirm-payout"
+            >
+              {requestPayoutMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Request Payout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!changePlanDialog} onOpenChange={(open) => !open && setChangePlanDialog(null)}>
         <DialogContent data-testid="dialog-change-plan">

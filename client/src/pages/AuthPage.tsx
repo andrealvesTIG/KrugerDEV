@@ -25,6 +25,7 @@ export default function AuthPage() {
   const [lastName, setLastName] = useState("");
   const [magicLinkEmail, setMagicLinkEmail] = useState("");
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
 
   const { data: microsoftStatus } = useQuery<{ configured: boolean }>({
     queryKey: ["/api/auth/microsoft/status"],
@@ -36,6 +37,12 @@ export default function AuthPage() {
     if (error) {
       toast({ title: "Authentication Error", description: error, variant: "destructive" });
       window.history.replaceState({}, "", "/auth");
+    }
+    
+    const ref = params.get("ref");
+    if (ref) {
+      setReferralCode(ref);
+      setMode("register");
     }
   }, [search, toast]);
 
@@ -63,7 +70,7 @@ export default function AuthPage() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string }) => {
+    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string }) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -147,7 +154,7 @@ export default function AuthPage() {
     if (mode === "login") {
       loginMutation.mutate({ email, password });
     } else if (mode === "register") {
-      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined });
+      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined });
     } else if (mode === "forgot-password") {
       forgotPasswordMutation.mutate({ email });
     } else if (mode === "magic-link") {
@@ -232,6 +239,15 @@ export default function AuthPage() {
             </div>
           ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === "register" && referralCode && (
+              <div className="p-3 rounded-md bg-primary/10 border border-primary/20 text-center" data-testid="banner-referral">
+                <p className="text-sm font-medium text-primary">
+                  You were referred by a friend
+                </p>
+                <p className="text-xs text-muted-foreground">Code: {referralCode}</p>
+              </div>
+            )}
+            
             {mode === "register" && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
