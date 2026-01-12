@@ -47,6 +47,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: UpsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
+  deleteUser(id: string): Promise<void>;
 
   // Organizations
   getOrganizations(): Promise<Organization[]>;
@@ -288,6 +289,13 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    // First remove all organization memberships
+    await db.delete(organizationMembers).where(eq(organizationMembers.userId, id));
+    // Then delete the user
+    await db.delete(users).where(eq(users.id, id));
   }
 
   // Organizations
