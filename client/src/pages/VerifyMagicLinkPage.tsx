@@ -35,9 +35,19 @@ export default function VerifyMagicLinkPage() {
     mutationFn: async (data: { organizationId: number; industry?: string; customIndustry?: string }) => {
       return apiRequest('POST', '/api/demo-data/generate', data);
     },
-    onSuccess: (response: any) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+    onSuccess: async (response: any) => {
+      // Invalidate all relevant queries to ensure dashboard shows fresh data
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/projects'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/organizations'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/risks'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/milestones'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/issues'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/tasks'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] }),
+      ]);
       toast({
         title: "Demo Data Generated",
         description: `Created ${response.stats?.portfolios || 0} portfolios, ${response.stats?.projects || 0} projects`,
@@ -62,7 +72,12 @@ export default function VerifyMagicLinkPage() {
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    // Invalidate queries to ensure fresh data is loaded
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] }),
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] }),
+    ]);
     setLocation("/");
   };
 
