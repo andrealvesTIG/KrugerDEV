@@ -356,7 +356,7 @@ export default function Billing() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Stripe integration coming soon.
+                Payment methods are managed through PayPal.
               </p>
             </CardContent>
           </Card>
