@@ -1259,6 +1259,108 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // --- Organization Invites ---
+  app.get('/api/organizations/:id/invites', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const invites = await storage.getOrganizationInvites(orgId);
+      res.json(invites);
+    } catch (err) {
+      res.json([]);
+    }
+  });
+
+  app.post('/api/organizations/:id/invites', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const currentUserId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const { emails, role } = req.body;
+      
+      if (!emails || !Array.isArray(emails) || emails.length === 0) {
+        return res.status(400).json({ message: 'Emails array is required' });
+      }
+      
+      const results: { success: string[]; skipped: string[]; errors: string[] } = {
+        success: [],
+        skipped: [],
+        errors: []
+      };
+      
+      const existingMembers = await storage.getOrganizationMembers(orgId);
+      const existingInvites = await storage.getOrganizationInvites(orgId);
+      const allUsers = await storage.getAllUsers();
+      
+      for (const email of emails) {
+        const normalizedEmail = email.trim().toLowerCase();
+        
+        if (!normalizedEmail || !normalizedEmail.includes('@')) {
+          results.errors.push(`Invalid email: ${email}`);
+          continue;
+        }
+        
+        const existingUser = allUsers.find(u => u.email?.toLowerCase() === normalizedEmail);
+        if (existingUser && existingMembers.some(m => m.userId === existingUser.id)) {
+          results.skipped.push(`${normalizedEmail} is already a member`);
+          continue;
+        }
+        
+        const pendingInvite = existingInvites.find(i => 
+          i.email.toLowerCase() === normalizedEmail && i.status === 'pending'
+        );
+        if (pendingInvite) {
+          results.skipped.push(`${normalizedEmail} already has a pending invite`);
+          continue;
+        }
+        
+        try {
+          await storage.createOrganizationInvite({
+            organizationId: orgId,
+            email: normalizedEmail,
+            role: role || 'member',
+            invitedBy: currentUserId,
+            status: 'pending'
+          });
+          results.success.push(normalizedEmail);
+        } catch (err) {
+          results.errors.push(`Failed to invite ${normalizedEmail}`);
+        }
+      }
+      
+      res.status(201).json(results);
+    } catch (err) {
+      console.error('Failed to create invites:', err);
+      res.status(500).json({ message: 'Failed to create invites' });
+    }
+  });
+
+  app.delete('/api/organizations/:id/invites/:inviteId', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const inviteId = Number(req.params.inviteId);
+      const currentUserId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      await storage.cancelOrganizationInvite(inviteId);
+      res.status(204).send();
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to cancel invite' });
+    }
+  });
+
   // --- Recycle Bin ---
   app.get('/api/organizations/:id/recycle-bin', async (req, res) => {
     try {
