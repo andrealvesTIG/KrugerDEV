@@ -64,16 +64,12 @@ export default function SignInPage() {
             </div>
             <CardTitle className="text-2xl">Check Your Email</CardTitle>
             <CardDescription>
-              We sent a sign-in link to <strong>{email}</strong>
+              We sent a link to <strong>{email}</strong>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground text-center">
-              If you have an account with this email, you'll receive a sign-in link. The link will expire in 15 minutes.
-            </p>
-            <p className="text-sm text-muted-foreground text-center">
-              Don't have an account?{" "}
-              <Link href="/auth?mode=signup" className="text-primary hover:underline">Sign up here</Link>
+              Click the link in your email to continue. The link will expire in 15 minutes.
             </p>
             <Button 
               variant="outline" 
@@ -103,7 +99,7 @@ export default function SignInPage() {
           </div>
           <CardTitle className="text-2xl">Sign In</CardTitle>
           <CardDescription>
-            Sign in to FridayReport.AI without a password
+            Enter your email to sign in or create an account
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

@@ -498,6 +498,14 @@ export async function setupAuth(app: Express) {
         });
       }
 
+      // Verify this is a signup token (not a signin token)
+      if (magicToken.type && magicToken.type !== "signup") {
+        return res.status(400).json({ 
+          message: "Invalid link type. Please use the correct verification link.",
+          invalidType: true
+        });
+      }
+
       // Check if user was created in the meantime (race condition)
       const [existingUser] = await db.select().from(users).where(eq(users.email, magicToken.email)).limit(1);
       
@@ -564,11 +572,11 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  // Passwordless sign-in - request (for existing users)
+  // Passwordless authentication - request (handles both new and existing users)
   app.post("/api/auth/passwordless/request", async (req, res) => {
     try {
       const { email } = req.body;
-      console.log("Passwordless sign-in request for:", email);
+      console.log("Passwordless auth request for:", email);
 
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
@@ -597,47 +605,59 @@ export async function setupAuth(app: Express) {
       // Check if user exists
       const [existingUser] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
       
-      if (!existingUser) {
-        // Don't reveal that user doesn't exist - send generic message
-        console.log("Passwordless sign-in: user not found for", normalizedEmail);
-        return res.json({ 
-          message: "If an account exists with this email, you will receive a sign-in link shortly.",
-          success: true
-        });
-      }
-
       // Generate secure token
       const token = crypto.randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-      // Store token with type indicator
-      await db.insert(magicLinkTokens).values({
-        email: normalizedEmail,
-        token,
-        expiresAt,
-      });
-
-      // Build verification URL for sign-in
+      // Build app URL
       const appUrl = process.env.APP_URL 
         || process.env.REPLIT_DOMAINS?.split(',')[0] 
           ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`
           : 'https://fridayreport.ai';
-      const verifyUrl = `${appUrl}/signin/verify?token=${token}`;
 
-      // Send email
-      const emailSent = await sendPasswordlessSignInEmail(normalizedEmail, existingUser.firstName || "there", verifyUrl);
-      
-      if (!emailSent) {
-        console.log("Passwordless sign-in email not sent (no email service configured)");
+      if (existingUser) {
+        // Existing user - send sign-in email
+        console.log("Passwordless: existing user found, sending sign-in email");
+        
+        await db.insert(magicLinkTokens).values({
+          email: normalizedEmail,
+          token,
+          type: "signin",
+          expiresAt,
+        });
+
+        const verifyUrl = `${appUrl}/signin/verify?token=${token}`;
+        const emailSent = await sendPasswordlessSignInEmail(normalizedEmail, existingUser.firstName || "there", verifyUrl);
+        
+        if (!emailSent) {
+          console.log("Passwordless sign-in email not sent (no email service configured)");
+        }
+      } else {
+        // New user - send sign-up email (like magic link flow)
+        console.log("Passwordless: new user, sending sign-up email");
+        
+        await db.insert(magicLinkTokens).values({
+          email: normalizedEmail,
+          token,
+          type: "signup",
+          expiresAt,
+        });
+
+        const verifyUrl = `${appUrl}/auth/verify?token=${token}`;
+        const emailSent = await sendMagicLinkEmail(normalizedEmail, verifyUrl);
+        
+        if (!emailSent) {
+          console.log("Passwordless sign-up email not sent (no email service configured)");
+        }
       }
 
       res.json({ 
-        message: "If an account exists with this email, you will receive a sign-in link shortly.",
+        message: "Check your email for a link to continue.",
         success: true
       });
     } catch (error) {
-      console.error("Passwordless sign-in request error:", error);
-      res.status(500).json({ message: "Failed to send sign-in link" });
+      console.error("Passwordless auth request error:", error);
+      res.status(500).json({ message: "Failed to send authentication link" });
     }
   });
 
@@ -665,6 +685,14 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ 
           message: "Invalid or expired link",
           expired: true
+        });
+      }
+
+      // Verify this is a signin token (not a signup token)
+      if (magicToken.type && magicToken.type !== "signin") {
+        return res.status(400).json({ 
+          message: "Invalid link type. Please use the correct verification link.",
+          invalidType: true
         });
       }
 
