@@ -5683,6 +5683,11 @@ Return ONLY valid JSON, no markdown or explanations.`;
       const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
       
       const transactions = await storage.getBillingTransactions(userId, orgId, limit, offset);
+      
+      // Prevent caching of billing history
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching billing history:", error);
