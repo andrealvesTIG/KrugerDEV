@@ -1631,22 +1631,24 @@ function CreditCostsTab() {
                   <TableCell>{cost.displayName}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{cost.description || '-'}</TableCell>
                   <TableCell className="text-right font-mono">
-                    {editingCost?.resourceType === cost.resourceType ? (
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={newCreditCost}
-                        onChange={(e) => setNewCreditCost(parseInt(e.target.value) || 0)}
-                        className="w-24 ml-auto text-right"
-                        data-testid={`input-credit-cost-${cost.resourceType}`}
-                      />
-                    ) : (
-                      <span className="font-semibold">{cost.creditCost}</span>
-                    )}
-                    <span className="text-muted-foreground text-xs ml-1">
-                      ({(cost.creditCost / 100).toFixed(2)} credits)
-                    </span>
+                    <div className="flex items-center justify-end gap-2">
+                      {editingCost?.resourceType === cost.resourceType ? (
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={newCreditCost}
+                          onChange={(e) => setNewCreditCost(parseInt(e.target.value) || 0)}
+                          className="w-24 text-right"
+                          data-testid={`input-credit-cost-${cost.resourceType}`}
+                        />
+                      ) : (
+                        <span className="font-semibold">{cost.creditCost}</span>
+                      )}
+                      <span className="text-muted-foreground text-xs whitespace-nowrap">
+                        ({typeof cost.creditCost === 'number' ? (cost.creditCost / 100).toFixed(2) : '0'} credits)
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     {editingCost?.resourceType === cost.resourceType ? (

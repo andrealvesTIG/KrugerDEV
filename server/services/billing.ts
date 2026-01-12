@@ -713,7 +713,14 @@ export async function getAllCreditCosts(): Promise<Array<{ resourceType: string;
   const result = await db.execute(
     sql`SELECT resource_type, credit_cost, display_name, description FROM resource_credit_costs WHERE is_active = true ORDER BY credit_cost DESC`
   );
-  return result.rows as any[];
+  
+  // Map snake_case database columns to camelCase
+  return (result.rows as any[]).map(row => ({
+    resourceType: row.resource_type,
+    creditCost: Number(row.credit_cost),
+    displayName: row.display_name,
+    description: row.description
+  }));
 }
 
 // Update a credit cost (for Super Admin)
