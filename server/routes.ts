@@ -5609,22 +5609,32 @@ Return ONLY valid JSON, no markdown or explanations.`;
       // Get the organization IDs associated with this user for counting entities
       const userMemberships = await storage.getUserOrganizations(userId);
       const userOrgIds = userMemberships.map(m => m.organizationId);
+      const { inArray } = await import("drizzle-orm");
       
       // Count actual entities from the database
-      const [projectCount] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(projects)
-        .where(userOrgIds.length > 0 ? sql`${projects.organizationId} IN (${sql.join(userOrgIds.map(id => sql`${id}`), sql`, `)})` : sql`1=0`);
+      let projectCountResult = 0;
+      let taskCountResult = 0;
+      let documentCountResult = 0;
       
-      const [taskCount] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(tasks)
-        .where(userOrgIds.length > 0 ? sql`${tasks.organizationId} IN (${sql.join(userOrgIds.map(id => sql`${id}`), sql`, `)})` : sql`1=0`);
-      
-      const [documentCount] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(projectDocuments)
-        .where(userOrgIds.length > 0 ? sql`${projectDocuments.organizationId} IN (${sql.join(userOrgIds.map(id => sql`${id}`), sql`, `)})` : sql`1=0`);
+      if (userOrgIds.length > 0) {
+        const [projectRow] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(projects)
+          .where(inArray(projects.organizationId, userOrgIds));
+        projectCountResult = projectRow?.count || 0;
+        
+        const [taskRow] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(tasks)
+          .where(inArray(tasks.organizationId, userOrgIds));
+        taskCountResult = taskRow?.count || 0;
+        
+        const [documentRow] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(projectDocuments)
+          .where(inArray(projectDocuments.organizationId, userOrgIds));
+        documentCountResult = documentRow?.count || 0;
+      }
       
       // Get AI runs from usage rollups (these are event-based)
       const rollupUsage = await billingProvider.getUsageSummary(subscription.id);
@@ -5632,9 +5642,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
       
       // Build usage summary with actual entity counts
       const usage: Record<string, { usedUnits: number }> = {
-        PROJECTS: { usedUnits: projectCount?.count || 0 },
-        TASKS: { usedUnits: taskCount?.count || 0 },
-        DOCUMENTS: { usedUnits: documentCount?.count || 0 },
+        PROJECTS: { usedUnits: projectCountResult },
+        TASKS: { usedUnits: taskCountResult },
+        DOCUMENTS: { usedUnits: documentCountResult },
         AI_RUNS: { usedUnits: aiRunsUsed },
       };
       
