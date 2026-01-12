@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -794,10 +794,39 @@ function PlansTab() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newPlan, setNewPlan] = useState({ code: "", name: "", description: "", monthlyPriceCents: 0, maxSeats: "" });
   const [deletePlanId, setDeletePlanId] = useState<number | null>(null);
+  const [isSyncingPayPal, setIsSyncingPayPal] = useState(false);
 
   const { data: plans, isLoading } = useQuery<PlanData[]>({
     queryKey: ['/api/billing/plans']
   });
+
+  const syncPayPalPlans = async () => {
+    setIsSyncingPayPal(true);
+    try {
+      const res = await fetch('/api/admin/paypal/sync-plans', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to sync PayPal plans');
+      }
+      const result = await res.json();
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      toast({ 
+        title: "PayPal Plans Synced", 
+        description: `Successfully synced ${result.plans?.length || 0} plans with PayPal.` 
+      });
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to sync PayPal plans", 
+        variant: "destructive" 
+      });
+    }
+    setIsSyncingPayPal(false);
+  };
 
   const createPlan = useMutation({
     mutationFn: async (data: { code: string; name: string; description?: string; monthlyPriceCents?: number; maxSeats?: number }) => {
@@ -901,10 +930,25 @@ function PlansTab() {
             </CardTitle>
             <CardDescription>Configure pricing, quotas, and features for each plan</CardDescription>
           </div>
-          <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-plan">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Plan
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={syncPayPalPlans} 
+              disabled={isSyncingPayPal}
+              data-testid="button-sync-paypal"
+            >
+              {isSyncingPayPal ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Wallet className="h-4 w-4 mr-2" />
+              )}
+              Sync PayPal Plans
+            </Button>
+            <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-plan">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Plan
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>

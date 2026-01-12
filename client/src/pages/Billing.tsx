@@ -671,46 +671,55 @@ export default function Billing() {
               })}
             </div>
             
-            {changePlanDialog && changePlanDialog.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && changePlanDialog.paypalPlanId && (
+            {changePlanDialog && changePlanDialog.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && (
               <div className="mt-4 pt-4 border-t">
-                <p className="text-sm text-muted-foreground mb-3">Subscribe with PayPal for secure recurring payments:</p>
-                <PayPalSubscriptionButton
-                  planId={changePlanDialog.paypalPlanId}
-                  onSuccess={async (subscriptionId, subscriptionData) => {
-                    try {
-                      await apiRequest('POST', '/api/billing/subscription/paypal', {
-                        planCode: changePlanDialog.code,
-                        paypalSubscriptionId: subscriptionId,
-                      });
-                      queryClient.invalidateQueries({ queryKey: ['/api/billing/subscription'] });
-                      queryClient.invalidateQueries({ queryKey: ['/api/billing/usage'] });
-                      setChangePlanDialog(null);
-                      toast({ 
-                        title: "Subscription Active!", 
-                        description: `Your ${changePlanDialog.name} plan subscription is now active.` 
-                      });
-                    } catch (error) {
-                      toast({ 
-                        title: "Error", 
-                        description: "Failed to activate subscription. Please contact support.", 
-                        variant: "destructive" 
-                      });
-                    }
-                  }}
-                  onError={(error) => {
-                    toast({ 
-                      title: "Payment Error", 
-                      description: "There was an issue with your payment. Please try again.", 
-                      variant: "destructive" 
-                    });
-                  }}
-                  onCancel={() => {
-                    toast({ 
-                      title: "Payment Cancelled", 
-                      description: "Your subscription was not processed." 
-                    });
-                  }}
-                />
+                {changePlanDialog.paypalPlanId ? (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-3">Subscribe with PayPal for secure recurring payments:</p>
+                    <PayPalSubscriptionButton
+                      planId={changePlanDialog.paypalPlanId}
+                      onSuccess={async (subscriptionId, subscriptionData) => {
+                        try {
+                          await apiRequest('POST', '/api/billing/subscription/paypal', {
+                            planCode: changePlanDialog.code,
+                            paypalSubscriptionId: subscriptionId,
+                          });
+                          queryClient.invalidateQueries({ queryKey: ['/api/billing/subscription'] });
+                          queryClient.invalidateQueries({ queryKey: ['/api/billing/usage'] });
+                          setChangePlanDialog(null);
+                          toast({ 
+                            title: "Subscription Active!", 
+                            description: `Your ${changePlanDialog.name} plan subscription is now active.` 
+                          });
+                        } catch (error) {
+                          toast({ 
+                            title: "Error", 
+                            description: "Failed to activate subscription. Please contact support.", 
+                            variant: "destructive" 
+                          });
+                        }
+                      }}
+                      onError={(error) => {
+                        toast({ 
+                          title: "Payment Error", 
+                          description: "There was an issue with your payment. Please try again.", 
+                          variant: "destructive" 
+                        });
+                      }}
+                      onCancel={() => {
+                        toast({ 
+                          title: "Payment Cancelled", 
+                          description: "Your subscription was not processed." 
+                        });
+                      }}
+                    />
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50">
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Payment processing is being set up. Please check back shortly.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -718,14 +727,14 @@ export default function Billing() {
             <Button variant="outline" onClick={() => setChangePlanDialog(null)} data-testid="button-cancel-plan-change">
               Cancel
             </Button>
-            {(!changePlanDialog?.monthlyPriceCents || changePlanDialog.monthlyPriceCents === 0 || !changePlanDialog?.paypalPlanId) && (
+            {(!changePlanDialog?.monthlyPriceCents || changePlanDialog.monthlyPriceCents === 0) && (
               <Button 
                 onClick={() => changePlanDialog && changePlanMutation.mutate(changePlanDialog.code)}
                 disabled={changePlanMutation.isPending}
                 data-testid="button-confirm-plan-change"
               >
                 {changePlanMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {changePlanDialog?.code === "FREE" ? "Downgrade to Free" : "Confirm Change"}
+                Downgrade to Free
               </Button>
             )}
           </DialogFooter>
