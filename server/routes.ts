@@ -6299,6 +6299,8 @@ Return ONLY valid JSON, no markdown or explanations.`;
           const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
           const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
+          const { billingTransactions } = await import("@shared/schema");
+
           if (existingSub) {
             // Update existing subscription
             await db.update(subscriptions)
@@ -6310,6 +6312,25 @@ Return ONLY valid JSON, no markdown or explanations.`;
                 currentPeriodEnd: periodEnd,
               })
               .where(eq(subscriptions.id, existingSub.id));
+            
+            // Record the initial subscription transaction
+            if (plan.monthlyPriceCents && plan.monthlyPriceCents > 0) {
+              await db.insert(billingTransactions).values({
+                subscriptionId: existingSub.id,
+                userId,
+                provider: "paypal",
+                externalTransactionId: paypalSubscriptionId,
+                amountCents: plan.monthlyPriceCents,
+                currency: "USD",
+                status: "COMPLETED",
+                description: `${plan.name} subscription activated`,
+                planName: plan.name,
+                periodStart,
+                periodEnd,
+                paymentMethodType: "paypal",
+                createdAt: now,
+              });
+            }
             
             res.json({ success: true, subscriptionId: existingSub.id });
           } else {
@@ -6348,6 +6369,25 @@ Return ONLY valid JSON, no markdown or explanations.`;
                 overageUnits: 0,
                 overageCostMicrocents: 0,
                 hardCapHit: false,
+              });
+            }
+
+            // Record the initial subscription transaction
+            if (plan.monthlyPriceCents && plan.monthlyPriceCents > 0) {
+              await db.insert(billingTransactions).values({
+                subscriptionId: newSub.id,
+                userId,
+                provider: "paypal",
+                externalTransactionId: paypalSubscriptionId,
+                amountCents: plan.monthlyPriceCents,
+                currency: "USD",
+                status: "COMPLETED",
+                description: `${plan.name} subscription activated`,
+                planName: plan.name,
+                periodStart,
+                periodEnd,
+                paymentMethodType: "paypal",
+                createdAt: now,
               });
             }
 
