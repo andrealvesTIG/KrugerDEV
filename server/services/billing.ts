@@ -494,3 +494,79 @@ export class MockBillingProvider implements BillingProvider {
 }
 
 export const billingProvider = new MockBillingProvider();
+
+// Meter codes used throughout the application
+export const METER_CODES = {
+  PROJECTS: "projects",
+  TASKS: "tasks",
+  DOCUMENTS: "documents",
+  AI_RUNS: "ai_runs",
+} as const;
+
+export type MeterCode = (typeof METER_CODES)[keyof typeof METER_CODES];
+
+// Helper function to check and enforce limits before resource creation
+export async function checkAndEnforceLimit(
+  userId: string,
+  meterCode: MeterCode,
+  unitsToAdd: number = 1
+): Promise<{ allowed: boolean; error?: string; remaining?: number }> {
+  try {
+    const subscription = await billingProvider.getSubscriptionForUser(userId);
+    if (!subscription) {
+      // Create a free subscription if none exists
+      await billingProvider.ensureUserHasSubscription(userId);
+      const newSub = await billingProvider.getSubscriptionForUser(userId);
+      if (!newSub) {
+        return { allowed: false, error: "Unable to verify subscription" };
+      }
+      const result = await billingProvider.checkLimit(newSub.id, meterCode, unitsToAdd);
+      if (!result.allowed) {
+        return { 
+          allowed: false, 
+          error: result.reason || `You've reached your plan limit for ${meterCode}. Please upgrade your plan.`,
+          remaining: result.remaining ?? undefined
+        };
+      }
+      return { allowed: true, remaining: result.remaining ?? undefined };
+    }
+
+    const result = await billingProvider.checkLimit(subscription.id, meterCode, unitsToAdd);
+    if (!result.allowed) {
+      return { 
+        allowed: false, 
+        error: result.reason || `You've reached your plan limit for ${meterCode}. Please upgrade your plan.`,
+        remaining: result.remaining ?? undefined
+      };
+    }
+    return { allowed: true, remaining: result.remaining ?? undefined };
+  } catch (error) {
+    console.error("Error checking limit:", error);
+    // Allow the operation if there's an error checking limits (fail open)
+    return { allowed: true };
+  }
+}
+
+// Helper function to record usage after successful resource creation
+export async function recordResourceUsage(
+  userId: string,
+  meterCode: MeterCode,
+  resourceId: string | number,
+  units: number = 1
+): Promise<void> {
+  try {
+    const subscription = await billingProvider.getSubscriptionForUser(userId);
+    if (!subscription) return;
+
+    await billingProvider.recordUsage({
+      subscriptionId: subscription.id,
+      meterCode,
+      units,
+      actorUserId: userId,
+      requestId: `${meterCode}_${resourceId}_${Date.now()}`,
+    });
+  } catch (error) {
+    console.error("Error recording usage:", error);
+    // Don't fail the operation if usage recording fails
+  }
+}
