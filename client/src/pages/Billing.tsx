@@ -571,7 +571,7 @@ export default function Billing() {
             return (
               <Card 
                 key={plan.id} 
-                className={`flex-1 min-w-[220px] max-w-[280px] ${isCurrentPlan ? "border-primary" : ""}`} 
+                className={`flex-1 min-w-[220px] max-w-[280px] flex flex-col ${isCurrentPlan ? "border-primary" : ""}`} 
                 data-testid={`card-plan-${plan.code.toLowerCase()}`}
               >
                 <CardHeader className="pb-2">
@@ -602,7 +602,7 @@ export default function Billing() {
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0 pb-3">
+                <CardContent className="pt-0 pb-3 flex-1">
                   <div className="space-y-3">
                     {/* Plan description - parse bullet points */}
                     {plan.description && (
