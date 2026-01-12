@@ -214,8 +214,8 @@ function GeneralSection({ organization }: { organization: Organization }) {
         },
       });
 
-      // Update organization with new logo URL
-      await updateLogoMutation.mutateAsync(`/objects/${objectPath}`);
+      // Update organization with new logo URL (objectPath already includes /objects/ prefix)
+      await updateLogoMutation.mutateAsync(objectPath);
     } catch (error) {
       console.error('Error uploading logo:', error);
       toast({
