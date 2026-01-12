@@ -1995,11 +1995,21 @@ export async function registerRoutes(
   <title>Project Status Report - ${project.name}</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 0; background: #f3f4f6;">
-  <div style="background: linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 1px;">PROJECT STATUS REPORT</h1>
-    <p style="color: #94a3b8; margin: 10px 0 0 0; font-size: 14px;">${reportDate}</p>
-    <p style="color: #f97316; margin: 6px 0 0 0; font-size: 18px; font-weight: 600;">${project.name}</p>
+  <!--[if mso]>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="background-color: #1e3a5f; padding: 30px; text-align: center;">
+  <![endif]-->
+  <div style="background-color: #1e3a5f; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="color: #ffffff !important; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 1px; mso-line-height-rule: exactly;">PROJECT STATUS REPORT</h1>
+    <p style="color: #cbd5e1 !important; margin: 10px 0 0 0; font-size: 14px; mso-line-height-rule: exactly;">${reportDate}</p>
+    <p style="color: #f97316 !important; margin: 6px 0 0 0; font-size: 18px; font-weight: 600; mso-line-height-rule: exactly;">${project.name}</p>
   </div>
+  <!--[if mso]>
+      </td>
+    </tr>
+  </table>
+  <![endif]-->
   
   <div style="background: #ffffff; padding: 30px;">
     
