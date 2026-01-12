@@ -87,7 +87,11 @@ function parseMppFile(fileBuffer: Buffer): Array<{
     if (error.stderr) {
       console.error('STDERR:', error.stderr);
     }
-    throw new Error('Failed to parse MPP file. Please ensure it is a valid Microsoft Project file.');
+    if (error.stdout) {
+      console.error('STDOUT:', error.stdout);
+    }
+    console.error('Full error:', error);
+    throw new Error(`Failed to parse MPP file: ${error.message || 'Unknown error'}. Please ensure it is a valid Microsoft Project file.`);
   } finally {
     // Clean up temp file
     try {
@@ -3598,9 +3602,10 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         ...mppImport,
         taskCount: parsedTasks.length,
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error uploading MPP file:", err);
-      res.status(500).json({ message: "Error processing file" });
+      const errorMessage = err.message || "Error processing file";
+      res.status(500).json({ message: errorMessage });
     }
   });
 
