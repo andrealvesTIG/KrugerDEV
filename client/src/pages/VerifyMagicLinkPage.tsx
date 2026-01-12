@@ -46,11 +46,14 @@ export default function VerifyMagicLinkPage() {
 
         setState("success");
         
-        // Redirect immediately, user data will be fetched on dashboard
+        // Ensure auth query is refreshed before redirect
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+        
+        // Give user feedback then redirect
         setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
           setLocation("/");
-        }, 1500);
+        }, 1000);
       } catch (error) {
         setState("error");
         setErrorMessage("An error occurred while verifying your link");

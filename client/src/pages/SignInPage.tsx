@@ -69,7 +69,11 @@ export default function SignInPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground text-center">
-              Click the link in the email to sign in to your account. The link will expire in 15 minutes.
+              If you have an account with this email, you'll receive a sign-in link. The link will expire in 15 minutes.
+            </p>
+            <p className="text-sm text-muted-foreground text-center">
+              Don't have an account?{" "}
+              <Link href="/auth?mode=signup" className="text-primary hover:underline">Sign up here</Link>
             </p>
             <Button 
               variant="outline" 
