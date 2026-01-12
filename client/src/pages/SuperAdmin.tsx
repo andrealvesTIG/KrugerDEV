@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -886,7 +887,7 @@ function PlansTab() {
   });
 
   const updatePlan = useMutation({
-    mutationFn: async (data: { id: number; name?: string; description?: string; monthlyPriceCents?: number; maxSeats?: number }) => {
+    mutationFn: async (data: { id: number; name?: string; description?: string; monthlyPriceCents?: number | null; maxSeats?: number }) => {
       return apiRequest('PUT', `/api/admin/plans/${data.id}`, data);
     },
     onSuccess: () => {
@@ -930,7 +931,8 @@ function PlansTab() {
   };
 
   const formatPrice = (cents: number | null) => {
-    if (cents === null || cents === 0) return "Free";
+    if (cents === null) return "Contact Us";
+    if (cents === 0) return "Free";
     return `$${(cents / 100).toFixed(2)}/mo`;
   };
 
@@ -1083,17 +1085,35 @@ function PlansTab() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="plan-price">Monthly Price ($)</Label>
-                  <Input
-                    id="plan-price"
-                    type="number"
-                    step="0.01"
-                    value={(editingPlan.monthlyPriceCents || 0) / 100}
-                    onChange={(e) => setEditingPlan({ 
-                      ...editingPlan, 
-                      monthlyPriceCents: Math.round(parseFloat(e.target.value || "0") * 100) 
-                    })}
-                    data-testid="input-plan-price"
-                  />
+                  <div className="space-y-2">
+                    <Input
+                      id="plan-price"
+                      type="number"
+                      step="0.01"
+                      value={editingPlan.monthlyPriceCents === null ? "" : (editingPlan.monthlyPriceCents || 0) / 100}
+                      onChange={(e) => setEditingPlan({ 
+                        ...editingPlan, 
+                        monthlyPriceCents: Math.round(parseFloat(e.target.value || "0") * 100) 
+                      })}
+                      disabled={editingPlan.monthlyPriceCents === null}
+                      placeholder={editingPlan.monthlyPriceCents === null ? "Contact Us" : "0.00"}
+                      data-testid="input-plan-price"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="contact-us-pricing"
+                        checked={editingPlan.monthlyPriceCents === null}
+                        onCheckedChange={(checked) => setEditingPlan({
+                          ...editingPlan,
+                          monthlyPriceCents: checked ? null : 0
+                        })}
+                        data-testid="checkbox-contact-us-pricing"
+                      />
+                      <Label htmlFor="contact-us-pricing" className="text-xs text-muted-foreground cursor-pointer">
+                        Contact Us pricing (custom/enterprise)
+                      </Label>
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="plan-description">Description</Label>
@@ -1246,7 +1266,7 @@ function PlansTab() {
                     id: editingPlan.id,
                     name: editingPlan.name,
                     description: editingPlan.description || undefined,
-                    monthlyPriceCents: editingPlan.monthlyPriceCents || 0,
+                    monthlyPriceCents: editingPlan.monthlyPriceCents,
                     maxSeats: editingPlan.maxSeats || undefined,
                   })}
                   disabled={updatePlan.isPending}

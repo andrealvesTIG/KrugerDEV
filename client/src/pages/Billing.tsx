@@ -122,9 +122,14 @@ function formatPrice(microcents: number): string {
   return `$${(microcents / 1000000).toFixed(2)}`;
 }
 
-function formatPlanPrice(cents: number | null | undefined): string {
-  if (!cents || cents === 0) return "Free";
+function formatPlanPrice(cents: number | null | undefined, isContactUs?: boolean): string {
+  if (cents === null || cents === undefined) return "Contact Us";
+  if (cents === 0) return "Free";
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+function isContactUsPlan(plan: PlanWithRules): boolean {
+  return plan.monthlyPriceCents === null;
 }
 
 function getLimit(rules: PlanWithRules['meterRules'], meterCode: string): { included: number | null; hardCap: number | null; overage: number | null } {
@@ -500,6 +505,16 @@ export default function Billing() {
                     <Button size="sm" variant="outline" className="w-full" disabled data-testid={`button-plan-${plan.code.toLowerCase()}-current`}>
                       Current
                     </Button>
+                  ) : isContactUsPlan(plan) ? (
+                    <Button 
+                      size="sm"
+                      variant="outline"
+                      className="w-full" 
+                      onClick={() => setChangePlanDialog(plan)}
+                      data-testid={`button-plan-${plan.code.toLowerCase()}-contact`}
+                    >
+                      Contact Sales
+                    </Button>
                   ) : (
                     <Button 
                       size="sm"
@@ -819,11 +834,17 @@ export default function Billing() {
       <Dialog open={!!changePlanDialog} onOpenChange={(open) => !open && setChangePlanDialog(null)}>
         <DialogContent data-testid="dialog-change-plan">
           <DialogHeader>
-            <DialogTitle>Change to {changePlanDialog?.name} Plan</DialogTitle>
+            <DialogTitle>
+              {changePlanDialog && isContactUsPlan(changePlanDialog) 
+                ? `Interested in ${changePlanDialog?.name}?` 
+                : `Change to ${changePlanDialog?.name} Plan`}
+            </DialogTitle>
             <DialogDescription>
-              {changePlanDialog?.code === "FREE" 
-                ? "Downgrading will reduce your usage limits. Any usage over the new limits may be affected."
-                : `You're about to ${currentPlan?.code === "FREE" ? "upgrade" : "switch"} to the ${changePlanDialog?.name} plan at ${formatPlanPrice(changePlanDialog?.monthlyPriceCents)}/month.`}
+              {changePlanDialog && isContactUsPlan(changePlanDialog) 
+                ? "Our Enterprise plan offers custom pricing tailored to your organization's needs."
+                : changePlanDialog?.code === "FREE" 
+                  ? "Downgrading will reduce your usage limits. Any usage over the new limits may be affected."
+                  : `You're about to ${currentPlan?.code === "FREE" ? "upgrade" : "switch"} to the ${changePlanDialog?.name} plan at ${formatPlanPrice(changePlanDialog?.monthlyPriceCents)}/month.`}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -842,7 +863,23 @@ export default function Billing() {
               })}
             </div>
             
-            {changePlanDialog && changePlanDialog.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && (
+            {changePlanDialog && isContactUsPlan(changePlanDialog) ? (
+              <div className="mt-4 pt-4 border-t">
+                <div className="p-4 rounded-md bg-muted/50 text-center">
+                  <p className="text-sm font-medium mb-2">Get a Custom Quote</p>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Contact our sales team to discuss your organization's specific requirements and get custom pricing.
+                  </p>
+                  <Button 
+                    variant="default"
+                    onClick={() => window.open('mailto:sales@fridayreport.ai?subject=Enterprise Plan Inquiry', '_blank')}
+                    data-testid="button-contact-sales"
+                  >
+                    Contact Sales
+                  </Button>
+                </div>
+              </div>
+            ) : changePlanDialog && changePlanDialog.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && (
               <div className="mt-4 pt-4 border-t">
                 {changePlanDialog.paypalPlanId ? (
                   <>
