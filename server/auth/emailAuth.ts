@@ -547,8 +547,18 @@ export async function setupAuth(app: Express) {
       await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
 
       // Auto-accept any pending invites and ensure organization
+      let organizationCreated = false;
+      let organizationId: number | null = null;
+      let organizationName: string | null = null;
+      
       try {
-        await ensureUserOrganization(newUser.id, magicToken.email);
+        const orgResult = await ensureUserOrganization(newUser.id, magicToken.email);
+        organizationCreated = orgResult.created === true;
+        // Always set org details if organization exists, regardless of created flag
+        if (orgResult.organization) {
+          organizationId = orgResult.organization.id;
+          organizationName = orgResult.organization.name;
+        }
       } catch (err) {
         console.error("Error ensuring organization for new user:", err);
       }
@@ -564,7 +574,11 @@ export async function setupAuth(app: Express) {
 
       res.json({ 
         success: true,
-        message: "Account created successfully"
+        message: "Account created successfully",
+        isNewUser: true,
+        organizationCreated,
+        organizationId,
+        organizationName
       });
     } catch (error) {
       console.error("Magic link verify error:", error);
