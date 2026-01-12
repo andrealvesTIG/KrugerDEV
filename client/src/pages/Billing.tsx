@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2 } from "lucide-react";
+import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle } from "lucide-react";
 import { SiPaypal } from "react-icons/si";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
@@ -80,6 +80,28 @@ interface ReferralStats {
 
 interface UsageSummary {
   [meterCode: string]: UsageRollup;
+}
+
+interface BillingTransaction {
+  id: number;
+  subscriptionId: number | null;
+  userId: string | null;
+  orgId: number | null;
+  provider: string;
+  externalTransactionId: string | null;
+  externalInvoiceId: string | null;
+  amountCents: number;
+  currency: string;
+  status: string;
+  description: string | null;
+  planName: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  paymentMethodType: string | null;
+  paymentMethodLast4: string | null;
+  receiptUrl: string | null;
+  failureReason: string | null;
+  createdAt: string;
 }
 
 const meterIcons: Record<string, typeof Sparkles> = {
@@ -193,6 +215,19 @@ export default function Billing() {
     enabled: !!user && !!subscription,
   });
 
+  const { data: billingHistory, isLoading: historyLoading } = useQuery<BillingTransaction[]>({
+    queryKey: ['/api/billing/history', currentOrganization?.id],
+    queryFn: async () => {
+      const url = currentOrganization?.id 
+        ? `/api/billing/history?orgId=${currentOrganization.id}&limit=50`
+        : '/api/billing/history?limit=50';
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch billing history');
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
   const requestPayoutMutation = useMutation({
     mutationFn: async (email: string) => {
       return apiRequest('POST', '/api/referral/request-payout', { paypalEmail: email });
@@ -285,10 +320,14 @@ export default function Billing() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="billing" data-testid="tab-billing">
             <CreditCard className="h-4 w-4 mr-2" />
             Billing
+          </TabsTrigger>
+          <TabsTrigger value="history" data-testid="tab-history">
+            <History className="h-4 w-4 mr-2" />
+            History
           </TabsTrigger>
           <TabsTrigger value="referrals" data-testid="tab-referrals">
             <Gift className="h-4 w-4 mr-2" />
@@ -477,6 +516,95 @@ export default function Billing() {
           })}
         </div>
       </div>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-5 mt-4">
+          <Card data-testid="card-payment-history">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <History className="h-4 w-4" />
+                Payment History
+              </CardTitle>
+              <CardDescription className="text-xs">
+                View your past payments and invoices
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !billingHistory || billingHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <History className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No payment history yet</p>
+                  <p className="text-xs mt-1">Your payments will appear here once you upgrade to a paid plan</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {billingHistory.map((transaction) => (
+                    <div 
+                      key={transaction.id} 
+                      className="flex items-center justify-between p-3 border rounded-md"
+                      data-testid={`transaction-${transaction.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full ${
+                          transaction.status === "COMPLETED" 
+                            ? "bg-green-500/10 text-green-600" 
+                            : transaction.status === "FAILED" 
+                              ? "bg-destructive/10 text-destructive" 
+                              : "bg-muted text-muted-foreground"
+                        }`}>
+                          {transaction.status === "COMPLETED" ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                          ) : transaction.status === "FAILED" ? (
+                            <XCircle className="h-4 w-4" />
+                          ) : (
+                            <Clock className="h-4 w-4" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {transaction.description || transaction.planName || "Payment"}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{format(new Date(transaction.createdAt), "MMM d, yyyy")}</span>
+                            {transaction.provider && (
+                              <>
+                                <span className="text-muted-foreground/50">|</span>
+                                <span className="capitalize">{transaction.provider}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm font-semibold ${
+                          transaction.status === "COMPLETED" 
+                            ? "text-foreground" 
+                            : transaction.status === "FAILED" 
+                              ? "text-destructive" 
+                              : "text-muted-foreground"
+                        }`}>
+                          ${(transaction.amountCents / 100).toFixed(2)} {transaction.currency}
+                        </p>
+                        <Badge 
+                          variant={
+                            transaction.status === "COMPLETED" ? "default" : 
+                            transaction.status === "FAILED" ? "destructive" : "secondary"
+                          }
+                          className="text-xs"
+                        >
+                          {transaction.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="referrals" className="space-y-5 mt-4">
