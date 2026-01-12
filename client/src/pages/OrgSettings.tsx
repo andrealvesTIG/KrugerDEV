@@ -4,6 +4,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -148,10 +149,40 @@ export default function OrgSettings() {
   );
 }
 
-// General settings section with logo upload
+// General settings section with logo upload and name editing
 function GeneralSection({ organization }: { organization: Organization }) {
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
+  const [orgName, setOrgName] = useState(organization.name);
+  const [isEditingName, setIsEditingName] = useState(false);
+
+  // Sync orgName when organization changes
+  useEffect(() => {
+    setOrgName(organization.name);
+  }, [organization.name]);
+
+  const updateNameMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest('PUT', `/api/organizations/${organization.id}`, { name });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/organizations'] });
+      setIsEditingName(false);
+      toast({
+        title: "Name updated",
+        description: "Organization name has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update organization name. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
   
   const updateLogoMutation = useMutation({
     mutationFn: async (logoUrl: string | null) => {
@@ -248,6 +279,74 @@ function GeneralSection({ organization }: { organization: Organization }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Organization Name Section */}
+        <div className="space-y-4">
+          <div>
+            <Label className="text-base font-medium">Organization Name</Label>
+            <p className="text-sm text-muted-foreground">
+              The name of your organization as it appears throughout the application.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {isEditingName ? (
+              <>
+                <Input
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  placeholder="Enter organization name"
+                  className="max-w-md"
+                  data-testid="input-org-name"
+                />
+                <Button
+                  onClick={() => {
+                    if (orgName.trim()) {
+                      updateNameMutation.mutate(orgName.trim());
+                    }
+                  }}
+                  disabled={!orgName.trim() || orgName.trim() === organization.name || updateNameMutation.isPending}
+                  data-testid="button-save-org-name"
+                >
+                  {updateNameMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save'
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setOrgName(organization.name);
+                    setIsEditingName(false);
+                  }}
+                  disabled={updateNameMutation.isPending}
+                  data-testid="button-cancel-org-name"
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="text-lg font-medium">{orgName}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditingName(true)}
+                  data-testid="button-edit-org-name"
+                >
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Edit
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <Separator />
+
         {/* Company Logo Section */}
         <div className="space-y-4">
           <div>
