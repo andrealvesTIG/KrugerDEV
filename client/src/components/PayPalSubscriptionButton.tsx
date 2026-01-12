@@ -27,16 +27,14 @@ export default function PayPalSubscriptionButton({
 
   useEffect(() => {
     const loadPayPalSDK = async () => {
-      // Check if PayPal SDK is already loaded with correct settings
+      // Check if PayPal SDK is already loaded
       const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]');
-      if (existingScript && existingScript.getAttribute('src')?.includes('disable-funding')) {
-        if ((window as any).paypal?.Buttons) {
-          setSdkReady(true);
-          return;
-        }
+      if (existingScript && (window as any).paypal?.Buttons) {
+        setSdkReady(true);
+        return;
       }
       
-      // Remove any existing PayPal SDK scripts to ensure fresh load with correct params
+      // Remove any existing PayPal SDK scripts to ensure fresh load
       if (existingScript) {
         existingScript.remove();
         delete (window as any).paypal;
@@ -55,8 +53,8 @@ export default function PayPalSubscriptionButton({
         }
 
         const script = document.createElement("script");
-        // Only show credit/debit card option - disable PayPal button and other funding sources
-        script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&vault=true&intent=subscription&enable-funding=card&disable-funding=paypal,paylater,venmo,credit`;
+        // Load SDK with card funding enabled, disable other options except paypal (needed for SDK to work)
+        script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&vault=true&intent=subscription&disable-funding=paylater,venmo,credit`;
         script.async = true;
         script.onload = () => setSdkReady(true);
         script.onerror = () => {
@@ -88,12 +86,14 @@ export default function PayPalSubscriptionButton({
     const container = buttonContainerRef.current;
     paypalButtonRendered.current = true;
 
-    const buttons = paypal.Buttons({
+    // Render only the card button by specifying fundingSource
+    const cardButton = paypal.Buttons({
+      fundingSource: paypal.FUNDING.CARD,
       style: {
         shape: "rect",
-        color: "gold",
+        color: "black",
         layout: "vertical",
-        label: "subscribe",
+        label: "pay",
       },
       createSubscription: async (data: any, actions: any) => {
         return actions.subscription.create({
@@ -125,7 +125,12 @@ export default function PayPalSubscriptionButton({
       },
     });
     
-    buttons.render(container);
+    // Check if card button is eligible before rendering
+    if (cardButton.isEligible()) {
+      cardButton.render(container);
+    } else {
+      setSdkError("Card payments are not available for this account");
+    }
 
     return () => {
       paypalButtonRendered.current = false;
@@ -138,7 +143,7 @@ export default function PayPalSubscriptionButton({
   if (disabled) {
     return (
       <Button disabled className={className}>
-        Subscribe with PayPal
+        Subscribe with Card
       </Button>
     );
   }
@@ -156,7 +161,7 @@ export default function PayPalSubscriptionButton({
     return (
       <Button disabled className={className}>
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        Loading PayPal...
+        Loading Payment...
       </Button>
     );
   }
