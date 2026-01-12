@@ -5586,6 +5586,8 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
     try {
       const { billingProvider } = await import("./services/billing");
+      const { projects, tasks, projectDocuments, usageRollups } = await import("@shared/schema");
+      const { sql } = await import("drizzle-orm");
       const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
       
       let subscription;
@@ -5604,7 +5606,38 @@ Return ONLY valid JSON, no markdown or explanations.`;
         return res.json({});
       }
       
-      const usage = await billingProvider.getUsageSummary(subscription.id);
+      // Get the organization IDs associated with this user for counting entities
+      const userMemberships = await storage.getUserOrganizations(userId);
+      const userOrgIds = userMemberships.map(m => m.organizationId);
+      
+      // Count actual entities from the database
+      const [projectCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(projects)
+        .where(userOrgIds.length > 0 ? sql`${projects.organizationId} IN (${sql.join(userOrgIds.map(id => sql`${id}`), sql`, `)})` : sql`1=0`);
+      
+      const [taskCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(userOrgIds.length > 0 ? sql`${tasks.organizationId} IN (${sql.join(userOrgIds.map(id => sql`${id}`), sql`, `)})` : sql`1=0`);
+      
+      const [documentCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(projectDocuments)
+        .where(userOrgIds.length > 0 ? sql`${projectDocuments.organizationId} IN (${sql.join(userOrgIds.map(id => sql`${id}`), sql`, `)})` : sql`1=0`);
+      
+      // Get AI runs from usage rollups (these are event-based)
+      const rollupUsage = await billingProvider.getUsageSummary(subscription.id);
+      const aiRunsUsed = rollupUsage["AI_RUNS"]?.usedUnits || 0;
+      
+      // Build usage summary with actual entity counts
+      const usage: Record<string, { usedUnits: number }> = {
+        PROJECTS: { usedUnits: projectCount?.count || 0 },
+        TASKS: { usedUnits: taskCount?.count || 0 },
+        DOCUMENTS: { usedUnits: documentCount?.count || 0 },
+        AI_RUNS: { usedUnits: aiRunsUsed },
+      };
+      
       res.json(usage);
     } catch (error) {
       console.error("Error fetching usage:", error);
