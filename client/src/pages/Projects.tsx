@@ -383,8 +383,16 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
         onOpenChange(false);
         form.reset();
       },
-      onError: (err) => {
-        toast({ title: "Error", description: err.message, variant: "destructive" });
+      onError: (err: any) => {
+        if (err.limitExceeded) {
+          toast({ 
+            title: "Plan Limit Reached", 
+            description: `${err.message} Visit the Billing page to upgrade.`,
+            variant: "destructive" 
+          });
+        } else {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
       }
     });
   };

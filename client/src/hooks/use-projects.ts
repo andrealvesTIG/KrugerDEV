@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type CreateProjectRequest, type UpdateProjectRequest } from "@shared/routes";
-import type { ProjectChangeLog } from "@shared/schema";
+import { api, buildUrl } from "@shared/routes";
+import type { ProjectChangeLog, InsertProject } from "@shared/schema";
 
 export function useProjects(organizationId?: number | null, portfolioId?: number) {
   return useQuery({
@@ -35,14 +35,20 @@ export function useProject(id: number) {
 export function useCreateProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: CreateProjectRequest) => {
+    mutationFn: async (data: InsertProject) => {
       const res = await fetch(api.projects.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create project");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const error = new Error(errorData.message || "Failed to create project");
+        (error as any).limitExceeded = errorData.limitExceeded;
+        (error as any).resourceType = errorData.resourceType;
+        throw error;
+      }
       return api.projects.create.responses[201].parse(await res.json());
     },
     onSuccess: () => {
@@ -54,7 +60,7 @@ export function useCreateProject() {
 export function useUpdateProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: UpdateProjectRequest & { id: number }) => {
+    mutationFn: async ({ id, ...data }: Partial<InsertProject> & { id: number }) => {
       const url = buildUrl(api.projects.update.path, { id });
       const res = await fetch(url, {
         method: "PUT",
