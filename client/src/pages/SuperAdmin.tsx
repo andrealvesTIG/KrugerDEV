@@ -1166,47 +1166,68 @@ function PlansTab() {
                       const hardCapRule = creditsRules.find(r => r.ruleType === 'HARD_CAP');
                       const overageRule = creditsRules.find(r => r.ruleType === 'METERED_OVERAGE');
                       
+                      const saveAllCredits = async () => {
+                        const promises = [];
+                        if (quotaRule) {
+                          promises.push(updateRule.mutateAsync({ 
+                            planId: editingPlan.id, 
+                            ruleId: quotaRule.id, 
+                            includedUnitsMonthly: quotaRule.includedUnitsMonthly ?? undefined 
+                          }));
+                        }
+                        if (hardCapRule) {
+                          promises.push(updateRule.mutateAsync({ 
+                            planId: editingPlan.id, 
+                            ruleId: hardCapRule.id, 
+                            hardCapUnits: hardCapRule.hardCapUnits ?? undefined 
+                          }));
+                        }
+                        if (overageRule) {
+                          promises.push(updateRule.mutateAsync({ 
+                            planId: editingPlan.id, 
+                            ruleId: overageRule.id, 
+                            overageUnitPriceMicrocents: overageRule.overageUnitPriceMicrocents ?? undefined 
+                          }));
+                        }
+                        await Promise.all(promises);
+                      };
+                      
                       return (
                         <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
-                          <div className="flex items-center gap-2">
-                            <Wallet className="h-5 w-5 text-primary" />
-                            <span className="font-medium">Monthly Credits</span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Wallet className="h-5 w-5 text-primary" />
+                              <span className="font-medium">Monthly Credits</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={saveAllCredits}
+                              disabled={updateRule.isPending}
+                              data-testid="button-save-all-credits"
+                            >
+                              {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                              Save Credits
+                            </Button>
                           </div>
                           
                           <div className="grid grid-cols-2 gap-4">
                             {quotaRule && (
                               <div className="space-y-2">
                                 <Label className="text-sm">Included Credits</Label>
-                                <div className="flex items-center gap-2">
-                                  <Input
-                                    type="number"
-                                    value={quotaRule.includedUnitsMonthly || ""}
-                                    onChange={(e) => {
-                                      const newRules = editingRules.map(r => 
-                                        r.id === quotaRule.id 
-                                          ? { ...r, includedUnitsMonthly: parseInt(e.target.value) || null } 
-                                          : r
-                                      );
-                                      setEditingRules(newRules);
-                                    }}
-                                    placeholder="0"
-                                    data-testid="input-credits-quota"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      updateRule.mutate({ 
-                                        planId: editingPlan.id, 
-                                        ruleId: quotaRule.id, 
-                                        includedUnitsMonthly: quotaRule.includedUnitsMonthly ?? undefined 
-                                      });
-                                    }}
-                                    disabled={updateRule.isPending}
-                                    data-testid="button-save-credits-quota"
-                                  >
-                                    {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                                  </Button>
-                                </div>
+                                <Input
+                                  type="number"
+                                  value={quotaRule.includedUnitsMonthly || ""}
+                                  onChange={(e) => {
+                                    const newRules = editingRules.map(r => 
+                                      r.id === quotaRule.id 
+                                        ? { ...r, includedUnitsMonthly: parseInt(e.target.value) || null } 
+                                        : r
+                                    );
+                                    setEditingRules(newRules);
+                                  }}
+                                  placeholder="0"
+                                  data-testid="input-credits-quota"
+                                />
                                 <p className="text-xs text-muted-foreground">
                                   Credits included each billing cycle
                                 </p>
@@ -1216,36 +1237,20 @@ function PlansTab() {
                             {hardCapRule && (
                               <div className="space-y-2">
                                 <Label className="text-sm">Hard Cap</Label>
-                                <div className="flex items-center gap-2">
-                                  <Input
-                                    type="number"
-                                    value={hardCapRule.hardCapUnits || ""}
-                                    onChange={(e) => {
-                                      const newRules = editingRules.map(r => 
-                                        r.id === hardCapRule.id 
-                                          ? { ...r, hardCapUnits: parseInt(e.target.value) || null } 
-                                          : r
-                                      );
-                                      setEditingRules(newRules);
-                                    }}
-                                    placeholder="No limit"
-                                    data-testid="input-credits-cap"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      updateRule.mutate({ 
-                                        planId: editingPlan.id, 
-                                        ruleId: hardCapRule.id, 
-                                        hardCapUnits: hardCapRule.hardCapUnits ?? undefined 
-                                      });
-                                    }}
-                                    disabled={updateRule.isPending}
-                                    data-testid="button-save-credits-cap"
-                                  >
-                                    {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                                  </Button>
-                                </div>
+                                <Input
+                                  type="number"
+                                  value={hardCapRule.hardCapUnits || ""}
+                                  onChange={(e) => {
+                                    const newRules = editingRules.map(r => 
+                                      r.id === hardCapRule.id 
+                                        ? { ...r, hardCapUnits: parseInt(e.target.value) || null } 
+                                        : r
+                                    );
+                                    setEditingRules(newRules);
+                                  }}
+                                  placeholder="No limit"
+                                  data-testid="input-credits-cap"
+                                />
                                 <p className="text-xs text-muted-foreground">
                                   Maximum credits allowed (blocks usage when reached)
                                 </p>
@@ -1274,20 +1279,6 @@ function PlansTab() {
                                   data-testid="input-credits-overage"
                                 />
                                 <span className="text-sm text-muted-foreground">per credit</span>
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    updateRule.mutate({ 
-                                      planId: editingPlan.id, 
-                                      ruleId: overageRule.id, 
-                                      overageUnitPriceMicrocents: overageRule.overageUnitPriceMicrocents ?? undefined 
-                                    });
-                                  }}
-                                  disabled={updateRule.isPending}
-                                  data-testid="button-save-credits-overage"
-                                >
-                                  {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                                </Button>
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 Price per credit when usage exceeds included quota
