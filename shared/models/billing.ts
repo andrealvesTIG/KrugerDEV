@@ -34,6 +34,12 @@ export type MemberRole = typeof memberRoleEnum[number];
 export const memberStatusEnum = ["INVITED", "ACTIVE"] as const;
 export type MemberStatus = typeof memberStatusEnum[number];
 
+export const referralStatusEnum = ["PENDING", "SIGNED_UP", "CONVERTED", "PAID_OUT"] as const;
+export type ReferralStatus = typeof referralStatusEnum[number];
+
+export const payoutStatusEnum = ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] as const;
+export type PayoutStatus = typeof payoutStatusEnum[number];
+
 export const plans = pgTable("plans", {
   id: serial("id").primaryKey(),
   code: text("code").notNull().unique(),
@@ -300,6 +306,80 @@ export const seatAssignmentsRelations = relations(seatAssignments, ({ one }) => 
   }),
 }));
 
+// Referral Program Tables
+
+export const referralCodes = pgTable("referral_codes", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  code: text("code").notNull().unique(),
+  commissionPercent: integer("commission_percent").notNull().default(10),
+  isActive: boolean("is_active").default(true),
+  totalReferrals: integer("total_referrals").default(0),
+  totalEarningsCents: integer("total_earnings_cents").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_referral_codes_user_id").on(table.userId),
+  uniqueIndex("idx_referral_codes_code").on(table.code),
+]);
+
+export const referrals = pgTable("referrals", {
+  id: serial("id").primaryKey(),
+  referralCodeId: integer("referral_code_id").references(() => referralCodes.id).notNull(),
+  referrerId: varchar("referrer_id").references(() => users.id).notNull(),
+  referredUserId: varchar("referred_user_id").references(() => users.id),
+  referredEmail: text("referred_email"),
+  status: text("status").notNull().default("PENDING"),
+  signedUpAt: timestamp("signed_up_at"),
+  convertedAt: timestamp("converted_at"),
+  conversionAmountCents: integer("conversion_amount_cents"),
+  commissionAmountCents: integer("commission_amount_cents"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_referrals_referrer_id").on(table.referrerId),
+  index("idx_referrals_referred_user_id").on(table.referredUserId),
+  index("idx_referrals_code_id").on(table.referralCodeId),
+]);
+
+export const referralPayouts = pgTable("referral_payouts", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  status: text("status").notNull().default("PENDING"),
+  paypalEmail: text("paypal_email"),
+  paypalTransactionId: text("paypal_transaction_id"),
+  processedAt: timestamp("processed_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_referral_payouts_user_id").on(table.userId),
+]);
+
+export const referralCodesRelations = relations(referralCodes, ({ one, many }) => ({
+  user: one(users, {
+    fields: [referralCodes.userId],
+    references: [users.id],
+  }),
+  referrals: many(referrals),
+}));
+
+export const referralsRelations = relations(referrals, ({ one }) => ({
+  referralCode: one(referralCodes, {
+    fields: [referrals.referralCodeId],
+    references: [referralCodes.id],
+  }),
+  referrer: one(users, {
+    fields: [referrals.referrerId],
+    references: [users.id],
+  }),
+}));
+
+export const referralPayoutsRelations = relations(referralPayouts, ({ one }) => ({
+  user: one(users, {
+    fields: [referralPayouts.userId],
+    references: [users.id],
+  }),
+}));
+
 export const insertPlanSchema = createInsertSchema(plans).omit({ id: true, createdAt: true });
 export const insertMeterSchema = createInsertSchema(meters).omit({ id: true, createdAt: true });
 export const insertPlanMeterRuleSchema = createInsertSchema(planMeterRules).omit({ id: true, createdAt: true });
@@ -334,3 +414,14 @@ export type InvoiceRecord = typeof invoiceRecords.$inferSelect;
 export type InsertInvoiceRecord = z.infer<typeof insertInvoiceRecordSchema>;
 export type SeatAssignment = typeof seatAssignments.$inferSelect;
 export type InsertSeatAssignment = z.infer<typeof insertSeatAssignmentSchema>;
+
+export const insertReferralCodeSchema = createInsertSchema(referralCodes).omit({ id: true, createdAt: true });
+export const insertReferralSchema = createInsertSchema(referrals).omit({ id: true, createdAt: true });
+export const insertReferralPayoutSchema = createInsertSchema(referralPayouts).omit({ id: true, createdAt: true });
+
+export type ReferralCode = typeof referralCodes.$inferSelect;
+export type InsertReferralCode = z.infer<typeof insertReferralCodeSchema>;
+export type Referral = typeof referrals.$inferSelect;
+export type InsertReferral = z.infer<typeof insertReferralSchema>;
+export type ReferralPayout = typeof referralPayouts.$inferSelect;
+export type InsertReferralPayout = z.infer<typeof insertReferralPayoutSchema>;
