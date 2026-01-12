@@ -606,8 +606,10 @@ export default function Billing() {
                   <div className="space-y-2">
                     {/* Show credits allocation */}
                     {(() => {
-                      const creditsRule = planRules?.find((r: any) => r.meterCode === 'credits');
-                      const creditsLimit = creditsRule?.includedUnitsMonthly || creditsRule?.hardCapUnits || 0;
+                      const creditsRules = planRules?.filter((r: any) => r.meterCode === 'credits') || [];
+                      const quotaRule = creditsRules.find((r: any) => r.ruleType === 'INCLUDED_QUOTA');
+                      const hardCapRule = creditsRules.find((r: any) => r.ruleType === 'HARD_CAP');
+                      const creditsLimit = quotaRule?.includedUnitsMonthly || hardCapRule?.hardCapUnits || 0;
                       
                       // Calculate capacity estimates based on credit costs
                       // Default costs: Project=5, Task=1, Issue=1, Risk=1
@@ -1069,8 +1071,10 @@ export default function Billing() {
             <h4 className="font-medium mb-3">New Plan Limits:</h4>
             <div className="space-y-2">
               {(() => {
-                const creditsRule = changePlanDialog?.meterRules?.find((r: any) => r.meterCode === 'credits');
-                const creditsLimit = creditsRule?.includedUnitsMonthly || creditsRule?.hardCapUnits;
+                const creditsRules = changePlanDialog?.meterRules?.filter((r: any) => r.meterCode === 'credits') || [];
+                const quotaRule = creditsRules.find((r: any) => r.ruleType === 'INCLUDED_QUOTA');
+                const hardCapRule = creditsRules.find((r: any) => r.ruleType === 'HARD_CAP');
+                const creditsLimit = quotaRule?.includedUnitsMonthly || hardCapRule?.hardCapUnits;
                 return (
                   <div className="flex items-center gap-3 text-sm">
                     <Wallet className="h-4 w-4 text-primary" />
