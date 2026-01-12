@@ -32,6 +32,7 @@ import Integrations from "@/pages/Integrations";
 import Billing from "@/pages/Billing";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import VerifyMagicLinkPage from "@/pages/VerifyMagicLinkPage";
 import Embed from "@/pages/Embed";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyStatement from "@/pages/PrivacyStatement";
@@ -137,6 +138,7 @@ function App() {
             <Toaster />
             <Switch>
               <Route path="/auth" component={AuthPage} />
+              <Route path="/auth/verify" component={VerifyMagicLinkPage} />
               <Route path="/reset-password" component={ResetPasswordPage} />
               <Route>
                 <Router />

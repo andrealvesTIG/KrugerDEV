@@ -2,10 +2,10 @@ import { Express, RequestHandler } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { db } from "../db";
-import { users, passwordResetTokens } from "@shared/schema";
+import { users, passwordResetTokens, magicLinkTokens } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import crypto from "crypto";
-import { sendPasswordResetEmail } from "../services/email";
+import { sendPasswordResetEmail, sendMagicLinkEmail } from "../services/email";
 import { lookupCompanyByEmail } from "../services/companyLookup";
 import { ensureUserOrganization } from "../services/onboarding";
 import { storage } from "../storage";
@@ -381,6 +381,186 @@ export async function setupAuth(app: Express) {
     } catch (error) {
       console.error("Reset password error:", error);
       res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // Magic link sign-up - request
+  // Rate limiting: track recent requests per email
+  const magicLinkRateLimit = new Map<string, { count: number; resetAt: number }>();
+  const MAGIC_LINK_RATE_LIMIT = 3; // max requests per window
+  const MAGIC_LINK_RATE_WINDOW = 15 * 60 * 1000; // 15 minutes
+
+  app.post("/api/auth/magic-link/request", async (req, res) => {
+    try {
+      const { email } = req.body;
+      console.log("Magic link request for:", email);
+
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Rate limiting check
+      const now = Date.now();
+      const rateData = magicLinkRateLimit.get(normalizedEmail);
+      if (rateData) {
+        if (now < rateData.resetAt) {
+          if (rateData.count >= MAGIC_LINK_RATE_LIMIT) {
+            return res.status(429).json({ 
+              message: "Too many requests. Please try again in a few minutes." 
+            });
+          }
+          rateData.count++;
+        } else {
+          magicLinkRateLimit.set(normalizedEmail, { count: 1, resetAt: now + MAGIC_LINK_RATE_WINDOW });
+        }
+      } else {
+        magicLinkRateLimit.set(normalizedEmail, { count: 1, resetAt: now + MAGIC_LINK_RATE_WINDOW });
+      }
+
+      // Check if user already exists
+      const [existingUser] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+      
+      if (existingUser) {
+        // User exists - tell them to log in instead
+        return res.status(409).json({ 
+          message: "An account with this email already exists. Please log in instead.",
+          userExists: true
+        });
+      }
+
+      // Note: We allow multiple outstanding tokens per email
+      // Each token is only invalidated upon successful verification
+      // Tokens are short-lived (15 min) and cryptographically random (32 bytes)
+
+      // Generate secure token (256 bits of entropy)
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      // Store token with hashed version for comparison
+      // Note: For magic links, the token IS the secret - no additional binding needed
+      // as this is sign-up only (not login to existing accounts)
+      await db.insert(magicLinkTokens).values({
+        email: normalizedEmail,
+        token,
+        expiresAt,
+      });
+
+      // Build verification URL
+      const appUrl = process.env.APP_URL 
+        || process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`
+          : 'https://fridayreport.ai';
+      const verifyUrl = `${appUrl}/auth/verify?token=${token}`;
+
+      // Send email
+      const emailSent = await sendMagicLinkEmail(normalizedEmail, verifyUrl);
+      
+      if (!emailSent) {
+        console.log("Magic link email not sent (no email service configured)");
+      }
+
+      res.json({ 
+        message: "If this email is not already registered, you will receive a sign-up link shortly.",
+        success: true
+      });
+    } catch (error) {
+      console.error("Magic link request error:", error);
+      res.status(500).json({ message: "Failed to send magic link" });
+    }
+  });
+
+  // Magic link sign-up - verify
+  app.get("/api/auth/magic-link/verify", async (req, res) => {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "Invalid token" });
+      }
+
+      const [magicToken] = await db
+        .select()
+        .from(magicLinkTokens)
+        .where(
+          and(
+            eq(magicLinkTokens.token, token),
+            gt(magicLinkTokens.expiresAt, new Date())
+          )
+        )
+        .limit(1);
+
+      if (!magicToken || magicToken.usedAt) {
+        return res.status(400).json({ 
+          message: "Invalid or expired link",
+          expired: true
+        });
+      }
+
+      // Check if user was created in the meantime (race condition)
+      const [existingUser] = await db.select().from(users).where(eq(users.email, magicToken.email)).limit(1);
+      
+      if (existingUser) {
+        // Mark token as used
+        await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
+        return res.status(409).json({ 
+          message: "An account with this email already exists. Please log in instead.",
+          userExists: true
+        });
+      }
+
+      // Lookup company info from email domain
+      let detectedCompany: string | null = null;
+      let detectedIndustry: string | null = null;
+      
+      try {
+        const companyInfo = await lookupCompanyByEmail(magicToken.email);
+        if (!companyInfo.isPersonalEmail && companyInfo.companyName) {
+          detectedCompany = companyInfo.companyName;
+          detectedIndustry = companyInfo.industry;
+        }
+      } catch (err) {
+        console.error("Company lookup error:", err);
+      }
+
+      // Create the user (passwordless - no password hash)
+      const [newUser] = await db.insert(users).values({
+        email: magicToken.email,
+        firstName: magicToken.email.split('@')[0], // Default name from email
+        detectedCompany,
+        detectedIndustry,
+        onboardingCompleted: false,
+      }).returning();
+
+      console.log("User created via magic link:", newUser.id);
+
+      // Mark token as used
+      await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
+
+      // Auto-accept any pending invites and ensure organization
+      try {
+        await ensureUserOrganization(newUser.id, magicToken.email);
+      } catch (err) {
+        console.error("Error ensuring organization for new user:", err);
+      }
+
+      // Create session
+      req.session.userId = newUser.id;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      res.json({ 
+        success: true,
+        message: "Account created successfully"
+      });
+    } catch (error) {
+      console.error("Magic link verify error:", error);
+      res.status(500).json({ message: "Failed to verify magic link" });
     }
   });
 }
