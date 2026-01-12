@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { users, organizations, organizationMembers, portfolios, projects, risks, milestones, issues, tasks } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { extractDomain, isPersonalEmailDomain, lookupCompanyByDomain } from "./companyLookup";
 
 interface OnboardingData {
@@ -487,8 +487,12 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
 
   const domainSlug = domainToSlug(domain);
   
+  // Only match active (non-deactivated) organizations
   const [existingOrg] = await db.select().from(organizations)
-    .where(eq(organizations.slug, domainSlug))
+    .where(and(
+      eq(organizations.slug, domainSlug),
+      isNull(organizations.deactivatedAt)
+    ))
     .limit(1);
   
   if (existingOrg) {
