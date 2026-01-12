@@ -1024,6 +1024,37 @@ export async function registerRoutes(
     }
   });
 
+  // Delete user (Super Admin only)
+  app.delete('/api/users/:userId', async (req, res) => {
+    try {
+      const currentUserId = getUserIdFromRequest(req);
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      // Check if current user is super admin
+      const currentUser = await storage.getUser(currentUserId);
+      if (!currentUser || currentUser.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super Admin access required' });
+      }
+
+      const targetUserId = req.params.userId;
+
+      // Prevent deleting yourself
+      if (targetUserId === currentUserId) {
+        return res.status(400).json({ message: 'Cannot delete your own account' });
+      }
+
+      // Delete the user (this also removes organization memberships)
+      await storage.deleteUser(targetUserId);
+      
+      res.json({ success: true, message: 'User deleted successfully' });
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      res.status(500).json({ message: 'Failed to delete user' });
+    }
+  });
+
   // --- Organizations ---
   app.get('/api/organizations', async (req, res) => {
     try {
