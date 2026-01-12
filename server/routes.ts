@@ -5609,7 +5609,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
       // Get the organization IDs associated with this user for counting entities
       const userMemberships = await storage.getUserOrganizations(userId);
       const userOrgIds = userMemberships.map(m => m.organizationId);
-      const { inArray } = await import("drizzle-orm");
+      const { inArray, eq } = await import("drizzle-orm");
       
       // Count actual entities from the database
       let projectCountResult = 0;
@@ -5617,22 +5617,27 @@ Return ONLY valid JSON, no markdown or explanations.`;
       let documentCountResult = 0;
       
       if (userOrgIds.length > 0) {
+        // Count projects in user's organizations
         const [projectRow] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(projects)
           .where(inArray(projects.organizationId, userOrgIds));
         projectCountResult = projectRow?.count || 0;
         
+        // Count tasks in projects that belong to user's organizations
         const [taskRow] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(tasks)
-          .where(inArray(tasks.organizationId, userOrgIds));
+          .innerJoin(projects, eq(tasks.projectId, projects.id))
+          .where(inArray(projects.organizationId, userOrgIds));
         taskCountResult = taskRow?.count || 0;
         
+        // Count documents in projects that belong to user's organizations
         const [documentRow] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(projectDocuments)
-          .where(inArray(projectDocuments.organizationId, userOrgIds));
+          .innerJoin(projects, eq(projectDocuments.projectId, projects.id))
+          .where(inArray(projects.organizationId, userOrgIds));
         documentCountResult = documentRow?.count || 0;
       }
       
