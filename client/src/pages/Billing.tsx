@@ -530,9 +530,11 @@ export default function Billing() {
                       size="sm"
                       variant="outline"
                       className="w-full" 
-                      onClick={() => setChangePlanDialog(plan)}
+                      onClick={() => enterpriseInquiryMutation.mutate(plan.name)}
+                      disabled={enterpriseInquiryMutation.isPending}
                       data-testid={`button-plan-${plan.code.toLowerCase()}-contact`}
                     >
+                      {enterpriseInquiryMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                       Contact Sales
                     </Button>
                   ) : (
