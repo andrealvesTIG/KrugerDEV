@@ -1959,6 +1959,8 @@ export async function registerRoutes(
       const issues = await storage.getIssues(projectId);
       const milestones = await storage.getMilestones(projectId);
       const financials = await storage.getProjectFinancials(projectId);
+      const changeRequests = await storage.getChangeRequests(projectId);
+      const documents = await storage.getProjectDocuments(projectId);
       
       const completed = tasks.filter(t => t.status === "Completed" || t.progress === 100).length;
       const inProgress = tasks.filter(t => t.status === "In Progress").length;
@@ -1971,14 +1973,19 @@ export async function registerRoutes(
       const projectBudget = parseFloat(project.budget?.toString() || "0");
       const totalBudget = budget > 0 ? budget : projectBudget;
       const forecast = planned > 0 ? planned : totalBudget;
+      const variance = totalBudget - actual;
       
-      const openRisks = risks.filter(r => r.status === "Open" && !r.deletedAt).slice(0, 3);
-      const openIssues = issues.filter(i => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt).slice(0, 3);
+      const allOpenRisks = risks.filter(r => r.status === "Open" && !r.deletedAt);
+      const allOpenIssues = issues.filter(i => (i.status === "Open" || i.status === "In Progress") && !i.deletedAt);
+      const openRisks = allOpenRisks.slice(0, 5);
+      const openIssues = allOpenIssues.slice(0, 5);
+      const riskHigh = allOpenRisks.filter(r => r.impact === "High" || r.probability === "High").length;
+      const issueCritical = allOpenIssues.filter(i => i.priority === "Critical" || i.priority === "High").length;
       
       const majorMilestones = milestones
         .filter(m => !m.deletedAt)
         .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-        .slice(0, 4);
+        .slice(0, 6);
       
       const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('en-US', {
@@ -2083,6 +2090,10 @@ export async function registerRoutes(
               <td style="padding: 4px 0; color: #374151;">Forecast</td>
               <td style="padding: 4px 0; text-align: right; font-weight: 600; color: #1f2937;">${formatCurrency(forecast)}</td>
             </tr>
+            <tr style="border-top: 1px solid #e5e7eb;">
+              <td style="padding: 8px 0 4px 0; color: #374151; font-weight: 600;">Variance</td>
+              <td style="padding: 8px 0 4px 0; text-align: right; font-weight: 600; color: ${variance < 0 ? '#dc2626' : '#16a34a'};">${formatCurrency(variance)}</td>
+            </tr>
           </table>
           
         </td>
@@ -2110,22 +2121,38 @@ export async function registerRoutes(
                 <span style="font-size: 11px; color: #6b7280;">Budget</span>
               </td>
               <td style="padding: 8px;">
-                <div style="width: 40px; height: 40px; border-radius: 50%; background: #22c55e; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center;">
-                  <span style="color: white; font-size: 16px;">✓</span>
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: ${riskHigh > 2 ? '#ef4444' : riskHigh > 0 ? '#eab308' : '#22c55e'}; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center;">
+                  <span style="color: white; font-size: 16px;">!</span>
                 </div>
-                <span style="font-size: 11px; color: #6b7280;">Resources</span>
+                <span style="font-size: 11px; color: #6b7280;">Risk</span>
               </td>
             </tr>
           </table>
           
           <h2 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Key Risks & Issues</h2>
+          <div style="margin-bottom: 12px;">
+            <table width="100%" style="margin-bottom: 12px;">
+              <tr>
+                <td width="50%" style="background: #fef3c7; border-radius: 4px; padding: 8px; text-align: center;">
+                  <div style="font-size: 18px; font-weight: 700; color: #d97706;">${allOpenRisks.length}</div>
+                  <div style="font-size: 10px; color: #92400e;">Open Risks</div>
+                </td>
+                <td width="50%" style="background: #fee2e2; border-radius: 4px; padding: 8px; text-align: center;">
+                  <div style="font-size: 18px; font-weight: 700; color: #dc2626;">${allOpenIssues.length}</div>
+                  <div style="font-size: 10px; color: #991b1b;">Open Issues</div>
+                </td>
+              </tr>
+            </table>
+            <p style="font-size: 11px; color: #6b7280; margin: 0 0 12px 0;">High/Critical: <span style="color: #dc2626; font-weight: 600;">${riskHigh + issueCritical}</span></p>
+          </div>
           <div style="margin-bottom: 24px;">
             ${openRisks.length === 0 && openIssues.length === 0 
               ? '<p style="color: #6b7280; font-size: 13px; margin: 0;">No open risks or issues</p>'
-              : [...openRisks, ...openIssues].map(item => `
-                <div style="display: flex; align-items: flex-start; margin-bottom: 6px;">
-                  <span style="color: #f59e0b; margin-right: 8px; font-size: 10px;">▲</span>
-                  <span style="font-size: 12px; color: #374151;">${'title' in item ? item.title : ''}</span>
+              : [...openRisks.map(r => ({...r, itemType: 'RISK', itemPriority: r.impact})), ...openIssues.map(i => ({...i, itemType: 'ISSUE', itemPriority: i.priority}))].slice(0, 5).map(item => `
+                <div style="display: flex; align-items: center; margin-bottom: 6px; padding: 4px 0; border-bottom: 1px solid #f3f4f6;">
+                  <span style="background: ${item.itemType === 'RISK' ? '#fef3c7' : '#fee2e2'}; color: ${item.itemType === 'RISK' ? '#d97706' : '#dc2626'}; font-size: 8px; padding: 2px 6px; border-radius: 2px; margin-right: 8px; font-weight: 600;">${item.itemType}</span>
+                  <span style="font-size: 12px; color: #374151; flex: 1;">${item.title || ''}</span>
+                  <span style="background: ${item.itemPriority === 'High' || item.itemPriority === 'Critical' ? '#fee2e2' : item.itemPriority === 'Medium' ? '#fef3c7' : '#f3f4f6'}; color: ${item.itemPriority === 'High' || item.itemPriority === 'Critical' ? '#dc2626' : item.itemPriority === 'Medium' ? '#d97706' : '#6b7280'}; font-size: 9px; padding: 2px 6px; border-radius: 2px;">${item.itemPriority || 'Medium'}</span>
                 </div>
               `).join('')
             }
@@ -2163,10 +2190,66 @@ export async function registerRoutes(
       <p style="margin: 8px 0 0 0; font-size: 12px; color: #6b7280;">${project.completionPercentage || 0}% Complete</p>
     </div>
     
-    <div style="display: flex; gap: 8px;">
+    <div style="display: flex; gap: 8px; margin-bottom: 24px;">
       <span style="background: #e5e7eb; color: #374151; padding: 4px 12px; border-radius: 4px; font-size: 12px;">${project.status}</span>
       <span style="background: ${project.priority === 'Critical' ? '#fef2f2' : '#e5e7eb'}; color: ${project.priority === 'Critical' ? '#dc2626' : '#374151'}; padding: 4px 12px; border-radius: 4px; font-size: 12px;">${project.priority}</span>
     </div>
+    
+    ${changeRequests.length > 0 ? `
+    <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+      <h3 style="margin: 0 0 12px 0; color: #1f2937; font-size: 14px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Change Requests (${changeRequests.length})</h3>
+      <table width="100%" style="font-size: 12px;">
+        ${changeRequests.slice(0, 5).map(cr => {
+          const statusColor = cr.status === 'approved' ? '#16a34a' : cr.status === 'rejected' ? '#dc2626' : '#6b7280';
+          return `
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 6px 0; color: #374151;">${cr.title || 'Untitled'}</td>
+            <td style="padding: 6px 0; color: #6b7280; text-transform: capitalize;">${(cr.type || 'scope').replace('_', ' ')}</td>
+            <td style="padding: 6px 0; text-align: right; color: ${statusColor}; text-transform: capitalize;">${(cr.status || 'pending').replace('_', ' ')}</td>
+          </tr>
+          `;
+        }).join('')}
+      </table>
+      ${changeRequests.length > 5 ? `<p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-style: italic;">+ ${changeRequests.length - 5} more change requests</p>` : ''}
+    </div>
+    ` : ''}
+    
+    ${documents.length > 0 ? `
+    <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+      <h3 style="margin: 0 0 12px 0; color: #1f2937; font-size: 14px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">Project Documents (${documents.length})</h3>
+      <table width="100%" style="font-size: 12px;">
+        ${documents.slice(0, 5).map(doc => `
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 6px 0; color: #374151;">${doc.title || 'Untitled'}</td>
+            <td style="padding: 6px 0; color: #6b7280; text-transform: capitalize;">${(doc.category || 'general').replace('_', ' ')}</td>
+            <td style="padding: 6px 0; text-align: right; color: #6b7280;">v${doc.version || '1.0'}</td>
+          </tr>
+        `).join('')}
+      </table>
+      ${documents.length > 5 ? `<p style="margin: 8px 0 0 0; font-size: 11px; color: #6b7280; font-style: italic;">+ ${documents.length - 5} more documents</p>` : ''}
+    </div>
+    ` : ''}
+    
+    <table width="100%" cellpadding="0" cellspacing="8" style="margin-bottom: 16px;">
+      <tr>
+        <td width="25%" style="background: #f9fafb; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: #3b82f6;">${tasks.length}</div>
+          <div style="font-size: 11px; color: #6b7280;">Total Tasks</div>
+        </td>
+        <td width="25%" style="background: #f9fafb; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: #22c55e;">${Math.round((completed / total) * 100)}%</div>
+          <div style="font-size: 11px; color: #6b7280;">Complete</div>
+        </td>
+        <td width="25%" style="background: #f9fafb; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: #3b82f6;">${milestones.filter(m => !m.deletedAt).length}</div>
+          <div style="font-size: 11px; color: #6b7280;">Milestones</div>
+        </td>
+        <td width="25%" style="background: #f9fafb; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 24px; font-weight: 700; color: #f59e0b;">${allOpenRisks.length + allOpenIssues.length}</div>
+          <div style="font-size: 11px; color: #6b7280;">Open Items</div>
+        </td>
+      </tr>
+    </table>
     
   </div>
   
@@ -2194,6 +2277,7 @@ FINANCIALS
 - Budget: ${formatCurrency(totalBudget)}
 - Actual: ${formatCurrency(actual)}
 - Forecast: ${formatCurrency(forecast)}
+- Variance: ${formatCurrency(variance)}
 
 PROJECT HEALTH
 - Overall: ${project.health || 'Green'}
@@ -2219,6 +2303,20 @@ ${formatDate(project.startDate)} → ${formatDate(project.endDate)}
 ${project.completionPercentage || 0}% Complete
 
 Status: ${project.status} | Priority: ${project.priority}
+
+${changeRequests.length > 0 ? `CHANGE REQUESTS (${changeRequests.length})
+${changeRequests.slice(0, 5).map(cr => `- ${cr.title || 'Untitled'} (${(cr.type || 'scope').replace('_', ' ')}) - ${(cr.status || 'pending').replace('_', ' ')}`).join('\n')}
+${changeRequests.length > 5 ? `+ ${changeRequests.length - 5} more change requests` : ''}
+` : ''}
+${documents.length > 0 ? `PROJECT DOCUMENTS (${documents.length})
+${documents.slice(0, 5).map(doc => `- ${doc.title || 'Untitled'} (${(doc.category || 'general').replace('_', ' ')}) - v${doc.version || '1.0'}`).join('\n')}
+${documents.length > 5 ? `+ ${documents.length - 5} more documents` : ''}
+` : ''}
+SUMMARY STATISTICS
+- Total Tasks: ${tasks.length}
+- Completion: ${Math.round((completed / total) * 100)}%
+- Milestones: ${milestones.filter(m => !m.deletedAt).length}
+- Open Items: ${allOpenRisks.length + allOpenIssues.length}
 
 ---
 Generated by FridayReport.AI
