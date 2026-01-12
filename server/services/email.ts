@@ -266,7 +266,15 @@ Simply log in with your Microsoft account to get started.
     </div>
     
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${appUrl}" style="display: inline-block; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600;">Accept Invitation</a>
+      <!--[if mso]>
+      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${appUrl}" style="height:48px;v-text-anchor:middle;width:200px;" arcsize="13%" strokecolor="#ea580c" fillcolor="#f97316">
+        <w:anchorlock/>
+        <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:bold;">Accept Invitation</center>
+      </v:roundrect>
+      <![endif]-->
+      <!--[if !mso]><!-->
+      <a href="${appUrl}" style="display: inline-block; background-color: #f97316; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 16px; mso-hide: all;">Accept Invitation</a>
+      <!--<![endif]-->
     </div>
     
     <p style="font-size: 14px; color: #6b7280;">Simply sign in with your Microsoft account to join the organization.</p>
