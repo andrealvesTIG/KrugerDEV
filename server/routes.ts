@@ -1245,6 +1245,19 @@ export async function registerRoutes(
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
+      // Check seat limit before adding member
+      const { checkSeatLimit } = await import("./services/billing");
+      const seatCheck = await checkSeatLimit(orgId, 1);
+      if (!seatCheck.allowed) {
+        return res.status(403).json({ 
+          message: seatCheck.reason || 'Seat limit reached. Please upgrade your plan.',
+          limitExceeded: true,
+          resourceType: 'seats',
+          currentSeats: seatCheck.currentSeats,
+          maxSeats: seatCheck.maxSeats
+        });
+      }
+      
       const { userId, role } = req.body;
       const member = await storage.addOrganizationMember({
         organizationId: orgId,
@@ -1322,15 +1335,41 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'Emails array is required' });
       }
       
+      // Check seat limit before sending invites
+      // Count pending invites as they will become members
+      const { checkSeatLimit } = await import("./services/billing");
+      const existingMembers = await storage.getOrganizationMembers(orgId);
+      const existingInvites = await storage.getOrganizationInvites(orgId);
+      const pendingInviteCount = existingInvites.filter(i => i.status === 'pending').length;
+      
+      // Check if adding new invites would exceed limit
+      // We need to consider: current members + pending invites + new invites
+      const seatCheck = await checkSeatLimit(orgId, 0);
+      const currentTotal = existingMembers.length + pendingInviteCount;
+      const maxSeats = seatCheck.maxSeats;
+      
+      if (maxSeats !== null && currentTotal >= maxSeats) {
+        return res.status(403).json({ 
+          message: `Your plan allows ${maxSeats} seat${maxSeats === 1 ? '' : 's'}. You have ${existingMembers.length} member${existingMembers.length === 1 ? '' : 's'} and ${pendingInviteCount} pending invite${pendingInviteCount === 1 ? '' : 's'}. Please upgrade your plan to invite more team members.`,
+          limitExceeded: true,
+          resourceType: 'seats',
+          currentSeats: existingMembers.length,
+          pendingInvites: pendingInviteCount,
+          maxSeats: maxSeats
+        });
+      }
+      
+      // Calculate how many more invites we can send
+      const availableSlots = maxSeats !== null ? maxSeats - currentTotal : Infinity;
+      
       const results: { success: string[]; skipped: string[]; errors: string[] } = {
         success: [],
         skipped: [],
         errors: []
       };
       
-      const existingMembers = await storage.getOrganizationMembers(orgId);
-      const existingInvites = await storage.getOrganizationInvites(orgId);
       const allUsers = await storage.getAllUsers();
+      let invitesSent = 0;
       
       for (const email of emails) {
         const normalizedEmail = email.trim().toLowerCase();
@@ -1354,6 +1393,12 @@ export async function registerRoutes(
           continue;
         }
         
+        // Check if we've reached the seat limit
+        if (invitesSent >= availableSlots) {
+          results.errors.push(`${normalizedEmail}: Seat limit reached. Upgrade to invite more.`);
+          continue;
+        }
+        
         try {
           await storage.createOrganizationInvite({
             organizationId: orgId,
@@ -1363,6 +1408,7 @@ export async function registerRoutes(
             status: 'pending'
           });
           results.success.push(normalizedEmail);
+          invitesSent++;
           
           // Send invitation email
           const org = await storage.getOrganization(orgId);

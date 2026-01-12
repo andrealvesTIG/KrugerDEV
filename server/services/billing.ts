@@ -13,6 +13,7 @@ import {
   invoiceRecords,
   seatAssignments,
   billingAuditLogs,
+  organizationMembers,
   Plan,
   Meter,
   PlanMeterRule,
@@ -41,8 +42,17 @@ export interface RecordUsageResult {
   rollup?: UsageRollup;
 }
 
+export interface SeatLimitResult {
+  allowed: boolean;
+  currentSeats: number;
+  maxSeats: number | null;
+  remaining: number | null;
+  reason?: string;
+}
+
 export interface BillingProvider {
   checkLimit(subscriptionId: number, meterCode: string, unitsToAdd?: number): Promise<UsageCheckResult>;
+  checkSeatLimit(orgId: number, seatsToAdd?: number): Promise<SeatLimitResult>;
   recordUsage(params: {
     subscriptionId: number;
     meterCode: string;
@@ -88,6 +98,72 @@ export class MockBillingProvider implements BillingProvider {
       .where(and(eq(subscriptions.orgId, orgId), eq(subscriptions.status, "ACTIVE")))
       .limit(1);
     return subscription || null;
+  }
+
+  async checkSeatLimit(orgId: number, seatsToAdd: number = 1): Promise<SeatLimitResult> {
+    // Get the subscription for this org
+    const subscription = await this.getSubscriptionForOrg(orgId);
+    
+    if (!subscription) {
+      // No subscription means Free plan with default limit of 1 seat
+      const currentSeats = await this.getOrgMemberCount(orgId);
+      return {
+        allowed: currentSeats + seatsToAdd <= 1,
+        currentSeats,
+        maxSeats: 1,
+        remaining: Math.max(0, 1 - currentSeats),
+        reason: currentSeats + seatsToAdd > 1 ? 'Free plan allows only 1 seat. Please upgrade to add more team members.' : undefined
+      };
+    }
+
+    // Get the plan for this subscription
+    const [plan] = await db
+      .select()
+      .from(plans)
+      .where(eq(plans.id, subscription.planId))
+      .limit(1);
+
+    if (!plan) {
+      return {
+        allowed: false,
+        currentSeats: 0,
+        maxSeats: 0,
+        remaining: 0,
+        reason: 'Plan not found'
+      };
+    }
+
+    // Get current member count
+    const currentSeats = await this.getOrgMemberCount(orgId);
+
+    // If maxSeats is null, unlimited seats
+    if (plan.maxSeats === null) {
+      return {
+        allowed: true,
+        currentSeats,
+        maxSeats: null,
+        remaining: null
+      };
+    }
+
+    const remaining = Math.max(0, plan.maxSeats - currentSeats);
+    const allowed = currentSeats + seatsToAdd <= plan.maxSeats;
+
+    return {
+      allowed,
+      currentSeats,
+      maxSeats: plan.maxSeats,
+      remaining,
+      reason: !allowed ? `Your ${plan.name} plan allows ${plan.maxSeats} seat${plan.maxSeats === 1 ? '' : 's'}. You currently have ${currentSeats}. Please upgrade to add more team members.` : undefined
+    };
+  }
+
+  private async getOrgMemberCount(orgId: number): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.organizationId, orgId));
+    return Number(result[0]?.count || 0);
   }
 
   async createSubscription(params: {
@@ -732,4 +808,9 @@ export async function updateCreditCost(
   await db.execute(
     sql`UPDATE resource_credit_costs SET credit_cost = ${creditCost}, updated_at = NOW(), updated_by = ${updatedBy} WHERE resource_type = ${resourceType}`
   );
+}
+
+// Check seat limit for an organization
+export async function checkSeatLimit(orgId: number, seatsToAdd: number = 1): Promise<SeatLimitResult> {
+  return billingProvider.checkSeatLimit(orgId, seatsToAdd);
 }
