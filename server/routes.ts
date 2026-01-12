@@ -6319,6 +6319,113 @@ Return ONLY valid JSON, no markdown or explanations.`;
         }
       });
 
+      // PayPal Webhook handler for recording payment transactions
+      app.post("/api/webhooks/paypal", async (req, res) => {
+        try {
+          const { event_type, resource, create_time } = req.body;
+          console.log("[PayPal Webhook] Received event:", event_type);
+
+          // Handle subscription payment events
+          if (event_type === "PAYMENT.SALE.COMPLETED" || event_type === "BILLING.SUBSCRIPTION.PAYMENT.COMPLETED") {
+            const paypalSubscriptionId = resource?.billing_agreement_id || resource?.id;
+            const transactionId = resource?.id;
+            const amount = resource?.amount?.total || resource?.gross_amount?.value;
+            const currency = resource?.amount?.currency || resource?.gross_amount?.currency_code || "USD";
+            
+            if (paypalSubscriptionId && transactionId && amount) {
+              const { subscriptions, plans, billingTransactions } = await import("@shared/schema");
+              
+              // Find the subscription by PayPal subscription ID
+              const [subscription] = await db.select({
+                sub: subscriptions,
+                plan: plans,
+              }).from(subscriptions)
+                .leftJoin(plans, eq(subscriptions.planId, plans.id))
+                .where(eq(subscriptions.paypalSubscriptionId, paypalSubscriptionId));
+              
+              if (subscription) {
+                const amountCents = Math.round(parseFloat(amount) * 100);
+                
+                // Check if we already recorded this transaction (idempotency)
+                const [existingTx] = await db.select().from(billingTransactions)
+                  .where(eq(billingTransactions.externalTransactionId, transactionId));
+                
+                if (!existingTx) {
+                  // Record the payment transaction
+                  await db.insert(billingTransactions).values({
+                    subscriptionId: subscription.sub.id,
+                    userId: subscription.sub.userId,
+                    orgId: subscription.sub.orgId,
+                    provider: "paypal",
+                    externalTransactionId: transactionId,
+                    amountCents,
+                    currency: currency.toUpperCase(),
+                    status: "COMPLETED",
+                    description: `${subscription.plan?.name || 'Subscription'} payment`,
+                    planName: subscription.plan?.name,
+                    periodStart: subscription.sub.currentPeriodStart,
+                    periodEnd: subscription.sub.currentPeriodEnd,
+                    paymentMethodType: "paypal",
+                    metadata: { event_type, resource_id: resource?.id },
+                    createdAt: new Date(create_time || Date.now()),
+                  });
+                  console.log(`[PayPal Webhook] Recorded payment of $${(amountCents / 100).toFixed(2)} for subscription ${subscription.sub.id}`);
+                }
+              }
+            }
+          }
+          
+          // Handle failed payment events
+          if (event_type === "BILLING.SUBSCRIPTION.PAYMENT.FAILED" || event_type === "PAYMENT.SALE.DENIED") {
+            const paypalSubscriptionId = resource?.billing_agreement_id || resource?.id;
+            const transactionId = resource?.id;
+            const amount = resource?.amount?.total || resource?.gross_amount?.value;
+            const currency = resource?.amount?.currency || resource?.gross_amount?.currency_code || "USD";
+            const failureReason = resource?.status_details?.reason || "Payment failed";
+            
+            if (paypalSubscriptionId && transactionId) {
+              const { subscriptions, plans, billingTransactions } = await import("@shared/schema");
+              
+              const [subscription] = await db.select({
+                sub: subscriptions,
+                plan: plans,
+              }).from(subscriptions)
+                .leftJoin(plans, eq(subscriptions.planId, plans.id))
+                .where(eq(subscriptions.paypalSubscriptionId, paypalSubscriptionId));
+              
+              if (subscription) {
+                const amountCents = amount ? Math.round(parseFloat(amount) * 100) : 0;
+                
+                await db.insert(billingTransactions).values({
+                  subscriptionId: subscription.sub.id,
+                  userId: subscription.sub.userId,
+                  orgId: subscription.sub.orgId,
+                  provider: "paypal",
+                  externalTransactionId: transactionId,
+                  amountCents,
+                  currency: currency?.toUpperCase() || "USD",
+                  status: "FAILED",
+                  description: `Failed payment for ${subscription.plan?.name || 'Subscription'}`,
+                  planName: subscription.plan?.name,
+                  failureReason,
+                  paymentMethodType: "paypal",
+                  metadata: { event_type, resource_id: resource?.id },
+                  createdAt: new Date(create_time || Date.now()),
+                });
+                console.log(`[PayPal Webhook] Recorded failed payment for subscription ${subscription.sub.id}`);
+              }
+            }
+          }
+
+          // Always respond 200 to acknowledge receipt
+          res.status(200).json({ received: true });
+        } catch (error) {
+          console.error("[PayPal Webhook] Error processing webhook:", error);
+          // Still return 200 to avoid PayPal retries on non-critical errors
+          res.status(200).json({ received: true, error: "Processing error logged" });
+        }
+      });
+
       console.log("[routes] PayPal Subscription routes registered successfully");
     } catch (error) {
       console.warn("[routes] PayPal routes not registered - credentials may be invalid:", error);
