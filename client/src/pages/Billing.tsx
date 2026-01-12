@@ -82,17 +82,17 @@ interface UsageSummary {
 }
 
 const meterIcons: Record<string, typeof Sparkles> = {
-  ai_runs: Sparkles,
-  documents: FileText,
-  projects: FolderKanban,
-  tasks: CheckSquare,
+  AI_RUNS: Sparkles,
+  DOCUMENTS: FileText,
+  PROJECTS: FolderKanban,
+  TASKS: CheckSquare,
 };
 
 const meterLabels: Record<string, string> = {
-  ai_runs: "AI Runs",
-  documents: "Documents",
-  projects: "Projects",
-  tasks: "Tasks",
+  AI_RUNS: "AI Runs",
+  DOCUMENTS: "Documents",
+  PROJECTS: "Projects",
+  TASKS: "Tasks",
 };
 
 function formatPrice(microcents: number): string {
@@ -107,7 +107,9 @@ function formatPlanPrice(cents: number | null | undefined): string {
 function getLimit(rules: PlanWithRules['meterRules'], meterCode: string): { included: number | null; hardCap: number | null; overage: number | null } {
   if (!rules) return { included: null, hardCap: null, overage: null };
   
-  const meterRules = rules.filter(r => r.meterCode === meterCode);
+  // Plan rules use lowercase meterCode, but our display keys are uppercase
+  const lowerMeterCode = meterCode.toLowerCase();
+  const meterRules = rules.filter(r => r.meterCode === lowerMeterCode);
   let included: number | null = null;
   let hardCap: number | null = null;
   let overage: number | null = null;
