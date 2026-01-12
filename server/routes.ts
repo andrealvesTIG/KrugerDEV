@@ -5734,24 +5734,26 @@ Return ONLY valid JSON, no markdown or explanations.`;
         creditsUsed = rollup?.usedUnits || 0;
       }
       
+      // Plan meter rules store credits as actual credits (not hundredths)
+      // Usage rollups also store in actual credits
       const limit = creditsHardCap !== null ? creditsHardCap : creditsIncluded;
       const remaining = Math.max(0, limit - creditsUsed);
       
       // Get credit costs for display
       const creditCosts = await getAllCreditCosts();
       
-      // Return credits-based usage (in hundredths, divide by 100 for display)
+      // Return credits-based usage - plan limits are in actual credits, not hundredths
       res.json({
         credits: {
-          used: creditsUsed / 100,
-          included: creditsIncluded / 100,
-          hardCap: creditsHardCap !== null ? creditsHardCap / 100 : null,
-          remaining: remaining / 100,
-          limit: limit / 100
+          used: creditsUsed,
+          included: creditsIncluded,
+          hardCap: creditsHardCap,
+          remaining: remaining,
+          limit: limit
         },
         creditCosts: creditCosts.map(c => ({
           ...c,
-          creditCost: c.creditCost / 100 // Convert to display format
+          creditCost: c.creditCost / 100 // Credit costs table uses hundredths, convert for display
         }))
       });
     } catch (error) {

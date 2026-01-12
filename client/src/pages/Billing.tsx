@@ -448,10 +448,10 @@ export default function Billing() {
                     />
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">
-                        {usage.credits.used.toFixed(1)} / {usage.credits.limit.toFixed(0)} credits used
+                        {usage.credits.used.toLocaleString()} / {usage.credits.limit.toLocaleString()} credits used
                       </span>
                       <span className={`font-medium ${usage.credits.remaining <= 0 ? 'text-destructive' : 'text-primary'}`}>
-                        {usage.credits.remaining.toFixed(1)} remaining
+                        {usage.credits.remaining.toLocaleString()} remaining
                       </span>
                     </div>
                   </div>
