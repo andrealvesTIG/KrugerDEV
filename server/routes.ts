@@ -4926,6 +4926,15 @@ Return ONLY valid JSON, no markdown or explanations.`;
         max_tokens: 4000,
       });
       
+      // Track AI usage after successful API call
+      const { recordUsageOnly } = await import("./services/usage-tracker");
+      await recordUsageOnly({
+        userId,
+        meterCode: "ai_runs",
+        units: 1,
+        action: "ai_generate_project",
+      });
+      
       const content = response.choices[0]?.message?.content;
       if (!content) {
         return res.status(500).json({ message: "AI did not return a response" });
