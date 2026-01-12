@@ -301,7 +301,9 @@ export class DatabaseStorage implements IStorage {
     await db.delete(organizationAccessRequests).where(eq(organizationAccessRequests.userId, id));
     // 4. Delete organization memberships
     await db.delete(organizationMembers).where(eq(organizationMembers.userId, id));
-    // 5. Finally delete the user
+    // 5. Handle organizations owned by this user - set ownerId to null
+    await db.update(organizations).set({ ownerId: null }).where(eq(organizations.ownerId, id));
+    // 6. Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
 
