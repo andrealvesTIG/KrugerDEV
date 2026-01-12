@@ -681,31 +681,32 @@ export async function checkCreditLimit(
       }
     }
 
-    const creditCost = await getResourceCreditCost(resourceType);
-    const creditsUsed = await getTotalCreditsUsed(subscription.id);
+    const creditCostHundredths = await getResourceCreditCost(resourceType);
+    const creditsUsedHundredths = await getTotalCreditsUsed(subscription.id);
     const { included, hardCap } = await getCreditsLimit(subscription.id);
     
-    const limit = hardCap !== null ? hardCap : included;
-    const creditsRemaining = Math.max(0, limit - creditsUsed);
+    // Plan limits are stored as actual credits, convert to hundredths for comparison
+    const limitHundredths = (hardCap !== null ? hardCap : included) * 100;
+    const creditsRemainingHundredths = Math.max(0, limitHundredths - creditsUsedHundredths);
     
-    // Convert from hundredths to display format
-    const displayCreditsRequired = creditCost / 100;
-    const displayRemaining = creditsRemaining / 100;
-    const displayLimit = limit / 100;
+    // Convert from hundredths to display format (actual credits)
+    const displayCreditsRequired = creditCostHundredths / 100;
+    const displayRemaining = creditsRemainingHundredths / 100;
+    const displayLimit = limitHundredths / 100;
     
-    if (creditsUsed + creditCost > limit) {
+    if (creditsUsedHundredths + creditCostHundredths > limitHundredths) {
       return {
         allowed: false,
-        error: `You need ${displayCreditsRequired} credits but only have ${displayRemaining} remaining. Your plan includes ${displayLimit} credits. Please upgrade your plan.`,
-        creditsRequired: creditCost,
-        creditsRemaining
+        error: `You need ${displayCreditsRequired} credits but only have ${displayRemaining.toLocaleString()} remaining. Your plan includes ${displayLimit.toLocaleString()} credits. Please upgrade your plan.`,
+        creditsRequired: creditCostHundredths,
+        creditsRemaining: creditsRemainingHundredths
       };
     }
     
     return { 
       allowed: true, 
-      creditsRequired: creditCost,
-      creditsRemaining
+      creditsRequired: creditCostHundredths,
+      creditsRemaining: creditsRemainingHundredths
     };
   } catch (error) {
     console.error("Error checking credit limit:", error);
@@ -736,7 +737,8 @@ export async function checkAndEnforceLimit(
   return {
     allowed: result.allowed,
     error: result.error,
-    remaining: result.creditsRemaining ? result.creditsRemaining / 100 : undefined
+    // creditsRemaining is in hundredths, convert to actual credits for display
+    remaining: result.creditsRemaining !== undefined ? result.creditsRemaining / 100 : undefined
   };
 }
 
