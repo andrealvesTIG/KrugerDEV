@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2 } from "lucide-react";
+import { SiPaypal } from "react-icons/si";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -176,6 +177,20 @@ export default function Billing() {
   const { data: referralStats, isLoading: referralLoading } = useQuery<ReferralStats>({
     queryKey: ['/api/referral/stats'],
     enabled: !!user,
+  });
+
+  interface PaymentMethod {
+    hasPaymentMethod: boolean;
+    type?: string;
+    email?: string;
+    payerId?: string;
+    name?: string;
+    status?: string;
+  }
+
+  const { data: paymentMethod, isLoading: paymentLoading } = useQuery<PaymentMethod>({
+    queryKey: ['/api/billing/payment-method'],
+    enabled: !!user && !!subscription,
   });
 
   const requestPayoutMutation = useMutation({
@@ -347,19 +362,48 @@ export default function Billing() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-dashed bg-muted/30">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">No payment method</span>
+              {paymentLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
-                <Button size="sm" variant="outline" disabled data-testid="button-add-payment-method">
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Payment methods are managed through PayPal.
-              </p>
+              ) : paymentMethod?.hasPaymentMethod ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-muted/30">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-md bg-blue-500/10">
+                        <SiPaypal className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">PayPal</p>
+                        {paymentMethod.email && (
+                          <p className="text-xs text-muted-foreground">{paymentMethod.email}</p>
+                        )}
+                        {paymentMethod.name && !paymentMethod.email && (
+                          <p className="text-xs text-muted-foreground">{paymentMethod.name}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {paymentMethod.status === "ACTIVE" ? "Active" : paymentMethod.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Your payment method is managed through your PayPal account.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-dashed bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">No payment method</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    A payment method will be added when you subscribe to a paid plan via PayPal.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

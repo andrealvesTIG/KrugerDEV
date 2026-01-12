@@ -6019,6 +6019,76 @@ Return ONLY valid JSON, no markdown or explanations.`;
       app.get("/api/paypal/subscription/:subscriptionId", getSubscription);
       app.post("/api/paypal/subscription/:subscriptionId/cancel", cancelSubscription);
       app.post("/api/paypal/subscription/:subscriptionId/activate", activateSubscription);
+      
+      // Get payment method from user's active PayPal subscription
+      app.get("/api/billing/payment-method", async (req, res) => {
+        const userId = getUserIdFromRequest(req);
+        if (!userId) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+        
+        try {
+          const { billingProvider } = await import("./services/billing");
+          const subscription = await billingProvider.getSubscriptionForUser(userId);
+          
+          if (!subscription?.paypalSubscriptionId) {
+            return res.json({ hasPaymentMethod: false });
+          }
+          
+          // Fetch PayPal subscription details
+          const PAYPAL_API_BASE = process.env.NODE_ENV === "production"
+            ? "https://api-m.paypal.com"
+            : "https://api-m.sandbox.paypal.com";
+          
+          const auth = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString("base64");
+          const tokenRes = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Basic ${auth}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: "grant_type=client_credentials",
+          });
+          
+          if (!tokenRes.ok) {
+            return res.json({ hasPaymentMethod: true, type: "paypal" });
+          }
+          
+          const { access_token } = await tokenRes.json();
+          
+          const subRes = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions/${subscription.paypalSubscriptionId}`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${access_token}`,
+              "Content-Type": "application/json",
+            },
+          });
+          
+          if (!subRes.ok) {
+            return res.json({ hasPaymentMethod: true, type: "paypal" });
+          }
+          
+          const subData = await subRes.json();
+          
+          // Extract subscriber info
+          const subscriber = subData.subscriber || {};
+          const payerEmail = subscriber.email_address || null;
+          const payerId = subscriber.payer_id || null;
+          const payerName = subscriber.name ? `${subscriber.name.given_name || ""} ${subscriber.name.surname || ""}`.trim() : null;
+          
+          res.json({
+            hasPaymentMethod: true,
+            type: "paypal",
+            email: payerEmail,
+            payerId: payerId,
+            name: payerName,
+            status: subData.status,
+          });
+        } catch (error) {
+          console.error("Error fetching payment method:", error);
+          res.status(500).json({ message: "Failed to fetch payment method" });
+        }
+      });
 
       // Admin: Sync all billing plans to PayPal
       app.post("/api/admin/paypal/sync-plans", async (req, res) => {
