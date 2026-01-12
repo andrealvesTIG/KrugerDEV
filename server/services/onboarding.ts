@@ -533,9 +533,20 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
     console.error('Company lookup failed during auto-org creation:', error);
   }
 
+  // Check if slug already exists (including deactivated orgs) and generate unique slug if needed
+  let finalSlug = domainSlug;
+  const [existingSlug] = await db.select().from(organizations)
+    .where(eq(organizations.slug, domainSlug))
+    .limit(1);
+  
+  if (existingSlug) {
+    // Generate a unique slug by adding a random suffix
+    finalSlug = `${domainSlug}-${Math.random().toString(36).substring(2, 8)}`;
+  }
+
   const [newOrg] = await db.insert(organizations).values({
     name: companyName,
-    slug: domainSlug,
+    slug: finalSlug,
     description: `${companyName} organization`,
     ownerId: userId,
   }).returning();
