@@ -168,10 +168,21 @@ export function Sidebar() {
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
   const { isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen } = useSidebarState();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const stored = localStorage.getItem('sidebarCollapsedGroups');
     return stored ? JSON.parse(stored) : {};
   });
+  
+  // Reset load failure states when organization/user changes
+  useEffect(() => {
+    setLogoLoadFailed(false);
+  }, [currentOrganization?.logoUrl]);
+  
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [user?.avatarUrl, user?.profileImageUrl]);
 
   const toggleGroupCollapse = (groupId: string) => {
     setCollapsedGroups(prev => {
@@ -248,12 +259,13 @@ export function Sidebar() {
           {!isCollapsed && (
             <>
               <img 
-                src={currentOrganization?.logoUrl || logoIcon} 
+                src={logoLoadFailed || !currentOrganization?.logoUrl ? logoIcon : currentOrganization.logoUrl} 
                 alt={currentOrganization?.name || "FridayReport.AI"} 
-                className="h-8 w-8 flex-shrink-0 object-contain" 
+                className="h-8 w-8 flex-shrink-0 object-contain"
+                onError={() => setLogoLoadFailed(true)}
               />
               <span className="text-lg font-display font-bold tracking-tight">
-                {currentOrganization?.logoUrl ? currentOrganization.name : "FridayReport.AI"}
+                {currentOrganization?.logoUrl && !logoLoadFailed ? currentOrganization.name : "FridayReport.AI"}
               </span>
             </>
           )}
@@ -449,8 +461,15 @@ export function Sidebar() {
                   >
                     {(() => {
                       const display = getAvatarDisplay(user);
-                      if (display.type === 'image') {
-                        return <img src={display.url} alt="Avatar" className="h-8 w-8 rounded-full border border-slate-600" />;
+                      if (display.type === 'image' && !avatarLoadFailed) {
+                        return (
+                          <img 
+                            src={display.url} 
+                            alt="Avatar" 
+                            className="h-8 w-8 rounded-full border border-slate-600"
+                            onError={() => setAvatarLoadFailed(true)}
+                          />
+                        );
                       } else if (display.type === 'emoji') {
                         return (
                           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 border border-slate-600">
@@ -480,8 +499,15 @@ export function Sidebar() {
               >
                 {(() => {
                   const display = getAvatarDisplay(user);
-                  if (display.type === 'image') {
-                    return <img src={display.url} alt="Avatar" className="h-10 w-10 rounded-full border border-slate-600" />;
+                  if (display.type === 'image' && !avatarLoadFailed) {
+                    return (
+                      <img 
+                        src={display.url} 
+                        alt="Avatar" 
+                        className="h-10 w-10 rounded-full border border-slate-600"
+                        onError={() => setAvatarLoadFailed(true)}
+                      />
+                    );
                   } else if (display.type === 'emoji') {
                     return (
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 border border-slate-600">

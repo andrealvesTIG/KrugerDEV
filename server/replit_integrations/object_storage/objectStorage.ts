@@ -11,6 +11,71 @@ import {
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
+// Retry configuration for transient failures (NOT auth failures - those are not retryable)
+const RETRY_CONFIG = {
+  maxRetries: 2,
+  initialDelayMs: 100,
+  maxDelayMs: 1000,
+  backoffMultiplier: 2,
+};
+
+// Check if error is a persistent auth/permission issue (NOT retryable)
+function isAuthError(error: any): boolean {
+  return (
+    error?.status === 401 ||
+    error?.status === 403 ||
+    error?.response?.status === 401 ||
+    error?.response?.status === 403 ||
+    error?.message?.includes('no allowed resources') ||
+    error?.message?.includes('Unauthorized')
+  );
+}
+
+// Check if error is potentially transient (network issues, timeouts)
+function isTransientError(error: any): boolean {
+  return (
+    error?.code === 'ECONNRESET' ||
+    error?.code === 'ETIMEDOUT' ||
+    error?.code === 'ENOTFOUND' ||
+    error?.status === 503 ||
+    error?.status === 502 ||
+    error?.status === 504
+  );
+}
+
+// Helper function to retry operations with exponential backoff (only for transient errors)
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  operationName: string
+): Promise<T> {
+  let lastError: Error | null = null;
+  let delay = RETRY_CONFIG.initialDelayMs;
+
+  for (let attempt = 1; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Auth errors are NOT retryable - fail immediately
+      if (isAuthError(error)) {
+        throw error;
+      }
+      
+      // Only retry transient errors
+      if (!isTransientError(error) || attempt === RETRY_CONFIG.maxRetries) {
+        throw error;
+      }
+      
+      console.log(`[ObjectStorage] ${operationName} attempt ${attempt} failed (transient), retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay = Math.min(delay * RETRY_CONFIG.backoffMultiplier, RETRY_CONFIG.maxDelayMs);
+    }
+  }
+  
+  throw lastError;
+}
+
 // The object storage client is used to interact with the object storage service.
 export const objectStorageClient = new Storage({
   credentials: {
@@ -76,29 +141,34 @@ export class ObjectStorageService {
 
   // Search for a public object from the search paths.
   async searchPublicObject(filePath: string): Promise<File | null> {
-    for (const searchPath of this.getPublicObjectSearchPaths()) {
-      const fullPath = `${searchPath}/${filePath}`;
+    return withRetry(async () => {
+      for (const searchPath of this.getPublicObjectSearchPaths()) {
+        const fullPath = `${searchPath}/${filePath}`;
 
-      // Full path format: /<bucket_name>/<object_name>
-      const { bucketName, objectName } = parseObjectPath(fullPath);
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
+        // Full path format: /<bucket_name>/<object_name>
+        const { bucketName, objectName } = parseObjectPath(fullPath);
+        const bucket = objectStorageClient.bucket(bucketName);
+        const file = bucket.file(objectName);
 
-      // Check if file exists
-      const [exists] = await file.exists();
-      if (exists) {
-        return file;
+        // Check if file exists
+        const [exists] = await file.exists();
+        if (exists) {
+          return file;
+        }
       }
-    }
 
-    return null;
+      return null;
+    }, 'searchPublicObject');
   }
 
   // Downloads an object to the response.
   async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
     try {
-      // Get file metadata
-      const [metadata] = await file.getMetadata();
+      // Get file metadata with retry
+      const [metadata] = await withRetry(
+        () => file.getMetadata(),
+        'getMetadata'
+      );
       // Get the ACL policy for the object.
       const aclPolicy = await getObjectAclPolicy(file);
       const isPublic = aclPolicy?.visibility === "public";
@@ -145,13 +215,16 @@ export class ObjectStorageService {
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
-    // Sign URL for PUT method with TTL
-    return signObjectURL({
-      bucketName,
-      objectName,
-      method: "PUT",
-      ttlSec: 900,
-    });
+    // Sign URL for PUT method with TTL, with retry
+    return withRetry(
+      () => signObjectURL({
+        bucketName,
+        objectName,
+        method: "PUT",
+        ttlSec: 900,
+      }),
+      'signObjectURL'
+    );
   }
 
   // Gets the object entity file from the object path.
@@ -174,7 +247,12 @@ export class ObjectStorageService {
     const { bucketName, objectName } = parseObjectPath(objectEntityPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const objectFile = bucket.file(objectName);
-    const [exists] = await objectFile.exists();
+    
+    // Check existence with retry
+    const [exists] = await withRetry(
+      () => objectFile.exists(),
+      'checkFileExists'
+    );
     if (!exists) {
       throw new ObjectNotFoundError();
     }

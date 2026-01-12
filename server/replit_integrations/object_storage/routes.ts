@@ -1,6 +1,18 @@
 import type { Express } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 
+// Check if error is a persistent auth/permission issue
+function isAuthError(error: any): boolean {
+  return (
+    error?.status === 401 ||
+    error?.status === 403 ||
+    error?.response?.status === 401 ||
+    error?.response?.status === 403 ||
+    error?.message?.includes('no allowed resources') ||
+    error?.message?.includes('Unauthorized')
+  );
+}
+
 /**
  * Register object storage routes for file uploads.
  *
@@ -74,11 +86,21 @@ export function registerObjectStorageRoutes(app: Express): void {
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       await objectStorageService.downloadObject(objectFile, res);
-    } catch (error) {
-      console.error("Error serving object:", error);
+    } catch (error: any) {
+      // Auth errors indicate storage is not accessible - return 503 with clear message
+      if (isAuthError(error)) {
+        console.warn("[ObjectStorage] Auth error accessing object:", req.path);
+        return res.status(503).json({ 
+          error: "Object storage temporarily unavailable",
+          message: "The storage service is not accessible in this environment"
+        });
+      }
+      
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ error: "Object not found" });
       }
+      
+      console.error("Error serving object:", error);
       return res.status(500).json({ error: "Failed to serve object" });
     }
   });

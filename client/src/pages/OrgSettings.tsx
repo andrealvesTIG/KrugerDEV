@@ -309,11 +309,17 @@ function GeneralSection({ organization }: { organization: Organization }) {
   const [isUploading, setIsUploading] = useState(false);
   const [orgName, setOrgName] = useState(organization.name);
   const [isEditingName, setIsEditingName] = useState(false);
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 
   // Sync orgName when organization changes
   useEffect(() => {
     setOrgName(organization.name);
   }, [organization.name]);
+  
+  // Reset logo load failure when logo URL changes
+  useEffect(() => {
+    setLogoLoadFailed(false);
+  }, [organization.logoUrl]);
 
   const updateNameMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -514,11 +520,12 @@ function GeneralSection({ organization }: { organization: Organization }) {
             {/* Logo Preview */}
             <div className="flex flex-col items-center gap-2">
               <div className="h-24 w-24 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/50">
-                {organization.logoUrl ? (
+                {organization.logoUrl && !logoLoadFailed ? (
                   <img 
                     src={organization.logoUrl} 
                     alt="Company Logo" 
                     className="h-full w-full object-contain"
+                    onError={() => setLogoLoadFailed(true)}
                   />
                 ) : (
                   <Image className="h-8 w-8 text-muted-foreground/50" />
