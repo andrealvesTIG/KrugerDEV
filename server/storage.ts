@@ -292,9 +292,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: string): Promise<void> {
-    // First remove all organization memberships
+    // Remove foreign key references before deleting user
+    // 1. Unlink resources (set userId to null since it's nullable)
+    await db.update(resources).set({ userId: null }).where(eq(resources.userId, id));
+    // 2. Delete notifications for this user
+    await db.delete(notifications).where(or(eq(notifications.userId, id), eq(notifications.fromUserId, id)));
+    // 3. Delete organization access requests
+    await db.delete(organizationAccessRequests).where(eq(organizationAccessRequests.userId, id));
+    // 4. Delete organization memberships
     await db.delete(organizationMembers).where(eq(organizationMembers.userId, id));
-    // Then delete the user
+    // 5. Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
 

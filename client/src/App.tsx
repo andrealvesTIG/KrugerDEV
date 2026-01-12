@@ -33,6 +33,8 @@ import Billing from "@/pages/Billing";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import VerifyMagicLinkPage from "@/pages/VerifyMagicLinkPage";
+import SignInPage from "@/pages/SignInPage";
+import VerifySignInPage from "@/pages/VerifySignInPage";
 import Embed from "@/pages/Embed";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyStatement from "@/pages/PrivacyStatement";
@@ -139,6 +141,8 @@ function App() {
             <Switch>
               <Route path="/auth" component={AuthPage} />
               <Route path="/auth/verify" component={VerifyMagicLinkPage} />
+              <Route path="/signin" component={SignInPage} />
+              <Route path="/signin/verify" component={VerifySignInPage} />
               <Route path="/reset-password" component={ResetPasswordPage} />
               <Route>
                 <Router />

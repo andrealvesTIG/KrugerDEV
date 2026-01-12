@@ -5,7 +5,7 @@ import { db } from "../db";
 import { users, passwordResetTokens, magicLinkTokens } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import crypto from "crypto";
-import { sendPasswordResetEmail, sendMagicLinkEmail } from "../services/email";
+import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail } from "../services/email";
 import { lookupCompanyByEmail } from "../services/companyLookup";
 import { ensureUserOrganization } from "../services/onboarding";
 import { storage } from "../storage";
@@ -561,6 +561,146 @@ export async function setupAuth(app: Express) {
     } catch (error) {
       console.error("Magic link verify error:", error);
       res.status(500).json({ message: "Failed to verify magic link" });
+    }
+  });
+
+  // Passwordless sign-in - request (for existing users)
+  app.post("/api/auth/passwordless/request", async (req, res) => {
+    try {
+      const { email } = req.body;
+      console.log("Passwordless sign-in request for:", email);
+
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Rate limiting check (reuse same rate limiter)
+      const now = Date.now();
+      const rateData = magicLinkRateLimit.get(normalizedEmail);
+      if (rateData) {
+        if (now < rateData.resetAt) {
+          if (rateData.count >= MAGIC_LINK_RATE_LIMIT) {
+            return res.status(429).json({ 
+              message: "Too many requests. Please try again in a few minutes." 
+            });
+          }
+          rateData.count++;
+        } else {
+          magicLinkRateLimit.set(normalizedEmail, { count: 1, resetAt: now + MAGIC_LINK_RATE_WINDOW });
+        }
+      } else {
+        magicLinkRateLimit.set(normalizedEmail, { count: 1, resetAt: now + MAGIC_LINK_RATE_WINDOW });
+      }
+
+      // Check if user exists
+      const [existingUser] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+      
+      if (!existingUser) {
+        // Don't reveal that user doesn't exist - send generic message
+        console.log("Passwordless sign-in: user not found for", normalizedEmail);
+        return res.json({ 
+          message: "If an account exists with this email, you will receive a sign-in link shortly.",
+          success: true
+        });
+      }
+
+      // Generate secure token
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      // Store token with type indicator
+      await db.insert(magicLinkTokens).values({
+        email: normalizedEmail,
+        token,
+        expiresAt,
+      });
+
+      // Build verification URL for sign-in
+      const appUrl = process.env.APP_URL 
+        || process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`
+          : 'https://fridayreport.ai';
+      const verifyUrl = `${appUrl}/signin/verify?token=${token}`;
+
+      // Send email
+      const emailSent = await sendPasswordlessSignInEmail(normalizedEmail, existingUser.firstName || "there", verifyUrl);
+      
+      if (!emailSent) {
+        console.log("Passwordless sign-in email not sent (no email service configured)");
+      }
+
+      res.json({ 
+        message: "If an account exists with this email, you will receive a sign-in link shortly.",
+        success: true
+      });
+    } catch (error) {
+      console.error("Passwordless sign-in request error:", error);
+      res.status(500).json({ message: "Failed to send sign-in link" });
+    }
+  });
+
+  // Passwordless sign-in - verify
+  app.get("/api/auth/passwordless/verify", async (req, res) => {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "Invalid token" });
+      }
+
+      const [magicToken] = await db
+        .select()
+        .from(magicLinkTokens)
+        .where(
+          and(
+            eq(magicLinkTokens.token, token),
+            gt(magicLinkTokens.expiresAt, new Date())
+          )
+        )
+        .limit(1);
+
+      if (!magicToken || magicToken.usedAt) {
+        return res.status(400).json({ 
+          message: "Invalid or expired link",
+          expired: true
+        });
+      }
+
+      // Find the user
+      const [existingUser] = await db.select().from(users).where(eq(users.email, magicToken.email)).limit(1);
+      
+      if (!existingUser) {
+        // Mark token as used
+        await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
+        return res.status(400).json({ 
+          message: "User not found. Please sign up instead.",
+          userNotFound: true
+        });
+      }
+
+      // Mark token as used
+      await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
+
+      console.log("Passwordless sign-in successful for user:", existingUser.id);
+
+      // Create session
+      req.session.userId = existingUser.id;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      res.json({ 
+        success: true,
+        message: "Signed in successfully"
+      });
+    } catch (error) {
+      console.error("Passwordless sign-in verify error:", error);
+      res.status(500).json({ message: "Failed to verify sign-in link" });
     }
   });
 }
