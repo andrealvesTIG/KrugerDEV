@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -2162,6 +2162,18 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     }
   });
 
+  const resendInvite = useMutation({
+    mutationFn: async (inviteId: number) => {
+      return apiRequest('POST', `/api/organizations/${organizationId}/invites/${inviteId}/resend`);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Invitation email resent" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to resend invitation", variant: "destructive" });
+    }
+  });
+
   const updateMemberRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
       return apiRequest('PUT', `/api/organizations/${organizationId}/members/${userId}`, { role });
@@ -2336,7 +2348,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
                   <TableHead>Role</TableHead>
                   <TableHead>Invited</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
+                  <TableHead className="w-[120px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2351,15 +2363,27 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
                       <Badge variant="secondary" className="capitalize">{invite.status}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => cancelInvite.mutate(invite.id)}
-                        title="Cancel invite"
-                        data-testid={`button-cancel-invite-${invite.id}`}
-                      >
-                        <X className="h-4 w-4 text-slate-400 hover:text-red-500" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => resendInvite.mutate(invite.id)}
+                          disabled={resendInvite.isPending}
+                          title="Resend invitation email"
+                          data-testid={`button-resend-invite-${invite.id}`}
+                        >
+                          <RefreshCw className={`h-4 w-4 text-slate-400 hover:text-blue-500 ${resendInvite.isPending ? 'animate-spin' : ''}`} />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => cancelInvite.mutate(invite.id)}
+                          title="Cancel invite"
+                          data-testid={`button-cancel-invite-${invite.id}`}
+                        >
+                          <X className="h-4 w-4 text-slate-400 hover:text-red-500" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

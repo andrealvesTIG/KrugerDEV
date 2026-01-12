@@ -1383,6 +1383,58 @@ export async function registerRoutes(
     }
   });
 
+  // Resend invite email
+  app.post('/api/organizations/:id/invites/:inviteId/resend', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const inviteId = Number(req.params.inviteId);
+      const currentUserId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      // Get the invite
+      const invites = await storage.getOrganizationInvites(orgId);
+      const invite = invites.find(i => i.id === inviteId);
+      
+      if (!invite) {
+        return res.status(404).json({ message: 'Invite not found' });
+      }
+      
+      if (invite.status !== 'pending') {
+        return res.status(400).json({ message: 'Can only resend pending invites' });
+      }
+      
+      // Get org and inviter info for email
+      const org = await storage.getOrganization(orgId);
+      const inviter = currentUserId ? await storage.getUser(currentUserId) : null;
+      const inviterName = inviter 
+        ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') || inviter.email || 'An administrator'
+        : 'An administrator';
+      const appUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'https://fridayreport.ai';
+      
+      if (org) {
+        await sendOrganizationInviteEmail(
+          invite.email,
+          org.name,
+          inviterName,
+          invite.role,
+          appUrl
+        );
+      }
+      
+      res.json({ message: 'Invitation email resent successfully' });
+    } catch (err) {
+      console.error('Failed to resend invite:', err);
+      res.status(500).json({ message: 'Failed to resend invite' });
+    }
+  });
+
   // --- Organization Access Requests ---
   
   // Create access request (for users without admin access)
