@@ -603,24 +603,53 @@ export default function Billing() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0 pb-3">
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {/* Show credits allocation */}
                     {(() => {
                       const creditsRule = planRules?.find((r: any) => r.meterCode === 'credits');
-                      const creditsLimit = creditsRule?.includedUnitsMonthly || creditsRule?.hardCapUnits;
+                      const creditsLimit = creditsRule?.includedUnitsMonthly || creditsRule?.hardCapUnits || 0;
+                      
+                      // Calculate capacity estimates based on credit costs
+                      // Default costs: Project=5, Task=1, Issue=1, Risk=1
+                      const projectCost = usage?.creditCosts?.find(c => c.resourceType === 'projects')?.creditCost || 5;
+                      const taskCost = usage?.creditCosts?.find(c => c.resourceType === 'tasks')?.creditCost || 1;
+                      const issueCost = usage?.creditCosts?.find(c => c.resourceType === 'issues')?.creditCost || 1;
+                      
+                      const maxProjects = creditsLimit ? Math.floor(creditsLimit / projectCost) : null;
+                      const maxTasks = creditsLimit ? Math.floor(creditsLimit / taskCost) : null;
+                      const maxIssues = creditsLimit ? Math.floor(creditsLimit / issueCost) : null;
+                      
                       return (
-                        <div className="flex items-center gap-2 text-xs">
-                          <Check className="h-3 w-3 text-primary flex-shrink-0" />
-                          <Wallet className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                          <span className="font-medium">
-                            {creditsLimit ? `${creditsLimit.toLocaleString()} credits/month` : 'Unlimited credits'}
-                          </span>
-                        </div>
+                        <>
+                          <div className="flex items-center gap-2 text-xs">
+                            <Check className="h-3 w-3 text-primary flex-shrink-0" />
+                            <Wallet className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="font-medium">
+                              {creditsLimit ? `${creditsLimit.toLocaleString()} credits/month` : 'Unlimited credits'}
+                            </span>
+                          </div>
+                          {creditsLimit > 0 && (
+                            <div className="ml-5 space-y-0.5">
+                              <p className="text-[10px] text-muted-foreground">Estimated capacity:</p>
+                              <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px]">
+                                <span className="text-muted-foreground">
+                                  <FolderKanban className="h-2.5 w-2.5 inline mr-0.5" />
+                                  {maxProjects?.toLocaleString()} projects
+                                </span>
+                                <span className="text-muted-foreground">
+                                  <CheckSquare className="h-2.5 w-2.5 inline mr-0.5" />
+                                  {maxTasks?.toLocaleString()} tasks
+                                </span>
+                                <span className="text-muted-foreground">
+                                  <AlertTriangle className="h-2.5 w-2.5 inline mr-0.5" />
+                                  {maxIssues?.toLocaleString()} issues
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       );
                     })()}
-                    <div className="text-[10px] text-muted-foreground ml-5">
-                      Use credits to create projects, tasks, issues, and more
-                    </div>
                   </div>
                 </CardContent>
                 <CardFooter className="pt-0">
@@ -656,6 +685,64 @@ export default function Billing() {
           })}
         </div>
       </div>
+
+      {/* Credit Pricing Section */}
+      <Card data-testid="card-credit-pricing">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Wallet className="h-4 w-4" />
+            Credit Pricing
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Each action costs credits. Mix and match resources based on your needs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {usageLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : usage?.creditCosts && usage.creditCosts.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {usage.creditCosts.map((cost) => {
+                const icons: Record<string, typeof FolderKanban> = {
+                  projects: FolderKanban,
+                  tasks: CheckSquare,
+                  issues: AlertTriangle,
+                  risks: AlertTriangle,
+                  documents: FileText,
+                  resources: Users,
+                  resource_assignments: Users,
+                  ai_runs: Sparkles
+                };
+                const Icon = icons[cost.resourceType] || Zap;
+                
+                return (
+                  <div 
+                    key={cost.resourceType} 
+                    className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30"
+                    data-testid={`credit-price-${cost.resourceType}`}
+                  >
+                    <div className="p-2 rounded-md bg-primary/10">
+                      <Icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{cost.displayName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {cost.creditCost} {cost.creditCost === 1 ? 'credit' : 'credits'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground text-center py-4">
+              Credit pricing information not available
+            </div>
+          )}
+        </CardContent>
+      </Card>
         </TabsContent>
 
         <TabsContent value="history" className="space-y-5 mt-4">
