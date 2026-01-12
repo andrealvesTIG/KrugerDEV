@@ -27,9 +27,19 @@ export default function PayPalSubscriptionButton({
 
   useEffect(() => {
     const loadPayPalSDK = async () => {
-      if ((window as any).paypal?.Buttons) {
-        setSdkReady(true);
-        return;
+      // Check if PayPal SDK is already loaded with correct settings
+      const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]');
+      if (existingScript && existingScript.getAttribute('src')?.includes('disable-funding')) {
+        if ((window as any).paypal?.Buttons) {
+          setSdkReady(true);
+          return;
+        }
+      }
+      
+      // Remove any existing PayPal SDK scripts to ensure fresh load with correct params
+      if (existingScript) {
+        existingScript.remove();
+        delete (window as any).paypal;
       }
 
       try {

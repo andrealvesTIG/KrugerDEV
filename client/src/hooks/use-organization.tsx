@@ -57,11 +57,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     if (currentOrganization && organizations.length > 0) {
       const updatedOrg = organizations.find(o => o.id === currentOrganization.id);
       if (updatedOrg) {
-        // Create a new object to force React to recognize the change
-        setCurrentOrganization({ ...updatedOrg });
+        // Only update if data actually changed (compare stringified to avoid infinite loops)
+        const currentStr = JSON.stringify(currentOrganization);
+        const updatedStr = JSON.stringify(updatedOrg);
+        if (currentStr !== updatedStr) {
+          setCurrentOrganization(updatedOrg);
+        }
       }
     }
-  }, [organizations]);
+  }, [organizations, currentOrganization]);
 
   return (
     <OrganizationContext.Provider value={{
