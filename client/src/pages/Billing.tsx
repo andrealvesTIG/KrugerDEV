@@ -170,6 +170,8 @@ function formatLimit(limits: { included: number | null; hardCap: number | null; 
   return "Unlimited";
 }
 
+type BillingPeriod = "monthly" | "yearly";
+
 export default function Billing() {
   const { user, isLoading: authLoading } = useAuth();
   const { currentOrganization } = useOrganization();
@@ -178,6 +180,42 @@ export default function Billing() {
   const [activeTab, setActiveTab] = useState("billing");
   const [paypalEmail, setPaypalEmail] = useState("");
   const [payoutDialogOpen, setPayoutDialogOpen] = useState(false);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
+
+  const YEARLY_DISCOUNT = 0.10; // 10% discount for yearly billing
+  
+  function getPriceForPeriod(monthlyPriceCents: number | null | undefined): { 
+    displayPrice: string; 
+    periodLabel: string; 
+    annualTotal?: string;
+    savings?: string;
+  } {
+    if (monthlyPriceCents === null || monthlyPriceCents === undefined) {
+      return { displayPrice: "Contact Us", periodLabel: "" };
+    }
+    if (monthlyPriceCents === 0) {
+      return { displayPrice: "Free", periodLabel: "" };
+    }
+    
+    const monthlyPrice = monthlyPriceCents / 100;
+    
+    if (billingPeriod === "yearly") {
+      const discountedMonthly = monthlyPrice * (1 - YEARLY_DISCOUNT);
+      const annualTotal = discountedMonthly * 12;
+      const savings = monthlyPrice * 12 * YEARLY_DISCOUNT;
+      return { 
+        displayPrice: `$${discountedMonthly.toFixed(2)}`,
+        periodLabel: "/mo",
+        annualTotal: `$${annualTotal.toFixed(2)}/year`,
+        savings: `Save $${savings.toFixed(2)}`
+      };
+    }
+    
+    return { 
+      displayPrice: `$${monthlyPrice.toFixed(2)}`,
+      periodLabel: "/mo"
+    };
+  }
 
   const { data: plans, isLoading: plansLoading } = useQuery<PlanWithRules[]>({
     queryKey: ['/api/billing/plans'],
@@ -474,11 +512,39 @@ export default function Billing() {
       )}
 
       <div className="space-y-3">
-        <h2 className="text-lg font-display font-semibold">Plans</h2>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <h2 className="text-lg font-display font-semibold">Plans</h2>
+          <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg" data-testid="billing-period-toggle">
+            <button
+              onClick={() => setBillingPeriod("monthly")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                billingPeriod === "monthly" 
+                  ? "bg-background text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="button-billing-monthly"
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingPeriod("yearly")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                billingPeriod === "yearly" 
+                  ? "bg-background text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="button-billing-yearly"
+            >
+              Yearly
+              <Badge variant="default" className="text-[10px] px-1.5 py-0">Save 10%</Badge>
+            </button>
+          </div>
+        </div>
         <div className="flex flex-wrap gap-4">
           {sortedPlans?.map((plan) => {
             const isCurrentPlan = currentPlan?.code === plan.code;
             const planRules = plan.meterRules || [];
+            const priceInfo = getPriceForPeriod(plan.monthlyPriceCents);
 
             return (
               <Card 
@@ -497,10 +563,20 @@ export default function Billing() {
                   </div>
                   <div className="mt-1">
                     <span className="text-2xl font-bold" data-testid={`price-${plan.code.toLowerCase()}`}>
-                      {formatPlanPrice(plan.monthlyPriceCents)}
+                      {priceInfo.displayPrice}
                     </span>
-                    {plan.monthlyPriceCents != null && plan.monthlyPriceCents > 0 && (
-                      <span className="text-muted-foreground text-xs">/mo</span>
+                    {priceInfo.periodLabel && (
+                      <span className="text-muted-foreground text-xs">{priceInfo.periodLabel}</span>
+                    )}
+                    {priceInfo.annualTotal && (
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {priceInfo.annualTotal}
+                      </div>
+                    )}
+                    {priceInfo.savings && billingPeriod === "yearly" && plan.monthlyPriceCents && plan.monthlyPriceCents > 0 && (
+                      <Badge variant="outline" className="text-[10px] mt-1 text-green-600 border-green-600/30">
+                        {priceInfo.savings}
+                      </Badge>
                     )}
                   </div>
                 </CardHeader>
@@ -866,7 +942,13 @@ export default function Billing() {
                 ? "Our Enterprise plan offers custom pricing tailored to your organization's needs."
                 : changePlanDialog?.code === "FREE" 
                   ? "Downgrading will reduce your usage limits. Any usage over the new limits may be affected."
-                  : `You're about to ${currentPlan?.code === "FREE" ? "upgrade" : "switch"} to the ${changePlanDialog?.name} plan at ${formatPlanPrice(changePlanDialog?.monthlyPriceCents)}/month.`}
+                  : (() => {
+                      const dialogPriceInfo = getPriceForPeriod(changePlanDialog?.monthlyPriceCents);
+                      const billingLabel = billingPeriod === "yearly" 
+                        ? `${dialogPriceInfo.displayPrice}/mo (${dialogPriceInfo.annualTotal} billed annually)`
+                        : `${dialogPriceInfo.displayPrice}/month`;
+                      return `You're about to ${currentPlan?.code === "FREE" ? "upgrade" : "switch"} to the ${changePlanDialog?.name} plan at ${billingLabel}.`;
+                    })()}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -905,6 +987,13 @@ export default function Billing() {
               </div>
             ) : changePlanDialog && changePlanDialog.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && (
               <div className="mt-4 pt-4 border-t">
+                {billingPeriod === "yearly" && (
+                  <div className="mb-3 p-2 rounded-md bg-amber-500/10 border border-amber-500/20">
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      Yearly billing coming soon! Currently subscribing monthly. You'll receive the yearly rate once available.
+                    </p>
+                  </div>
+                )}
                 {changePlanDialog.paypalPlanId ? (
                   <>
                     <p className="text-sm text-muted-foreground mb-3">Subscribe with PayPal for secure recurring payments:</p>
