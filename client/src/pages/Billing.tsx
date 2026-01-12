@@ -511,16 +511,16 @@ export default function Billing() {
         </div>
       )}
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <h2 className="text-lg font-display font-semibold">Plans</h2>
-          <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg" data-testid="billing-period-toggle">
+      <div className="space-y-4">
+        <h2 className="text-lg font-display font-semibold text-center">Plans</h2>
+        <div className="flex justify-center">
+          <div className="flex items-center gap-1 p-1.5 bg-muted rounded-xl border shadow-sm" data-testid="billing-period-toggle">
             <button
               onClick={() => setBillingPeriod("monthly")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all ${
                 billingPeriod === "monthly" 
-                  ? "bg-background text-foreground shadow-sm" 
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-primary text-primary-foreground shadow-md" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10"
               }`}
               data-testid="button-billing-monthly"
             >
@@ -528,15 +528,15 @@ export default function Billing() {
             </button>
             <button
               onClick={() => setBillingPeriod("yearly")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+              className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 ${
                 billingPeriod === "yearly" 
-                  ? "bg-background text-foreground shadow-sm" 
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-primary text-primary-foreground shadow-md" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10"
               }`}
               data-testid="button-billing-yearly"
             >
               Yearly
-              <Badge variant="default" className="text-[10px] px-1.5 py-0">Save 10%</Badge>
+              <Badge className="bg-green-500 hover:bg-green-500 text-white text-[10px] px-1.5 py-0.5">Save 10%</Badge>
             </button>
           </div>
         </div>
