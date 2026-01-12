@@ -512,25 +512,57 @@ export async function checkAndEnforceLimit(
   unitsToAdd: number = 1
 ): Promise<{ allowed: boolean; error?: string; remaining?: number }> {
   try {
-    const subscription = await billingProvider.getSubscriptionForUser(userId);
+    let subscription = await billingProvider.getSubscriptionForUser(userId);
     if (!subscription) {
       // Create a free subscription if none exists
       await billingProvider.ensureUserHasSubscription(userId);
-      const newSub = await billingProvider.getSubscriptionForUser(userId);
-      if (!newSub) {
+      subscription = await billingProvider.getSubscriptionForUser(userId);
+      if (!subscription) {
         return { allowed: false, error: "Unable to verify subscription" };
       }
-      const result = await billingProvider.checkLimit(newSub.id, meterCode, unitsToAdd);
-      if (!result.allowed) {
-        return { 
-          allowed: false, 
-          error: result.reason || `You've reached your plan limit for ${meterCode}. Please upgrade your plan.`,
-          remaining: result.remaining ?? undefined
-        };
-      }
-      return { allowed: true, remaining: result.remaining ?? undefined };
     }
 
+    // Get the hard cap for this meter from plan rules
+    const [meter] = await db.select().from(meters).where(eq(meters.code, meterCode)).limit(1);
+    if (!meter) {
+      return { allowed: true }; // No meter defined, allow
+    }
+
+    const rules = await db
+      .select()
+      .from(planMeterRules)
+      .where(
+        and(
+          eq(planMeterRules.planId, subscription.planId),
+          eq(planMeterRules.meterId, meter.id)
+        )
+      );
+
+    const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
+    const hardCap = hardCapRule?.hardCapUnits;
+    
+    if (hardCap === null || hardCap === undefined) {
+      return { allowed: true }; // No hard cap, allow
+    }
+
+    // For projects, count directly from database based on what user created
+    if (meterCode === METER_CODES.PROJECTS) {
+      const result = await db.execute(
+        sql`SELECT COUNT(*)::int as count FROM projects WHERE created_by = ${userId}`
+      );
+      const currentUsage = (result.rows[0] as any)?.count || 0;
+      
+      if (currentUsage + unitsToAdd > hardCap) {
+        return {
+          allowed: false,
+          error: `You've reached your plan limit of ${hardCap} projects. Please upgrade your plan.`,
+          remaining: Math.max(0, hardCap - currentUsage)
+        };
+      }
+      return { allowed: true, remaining: Math.max(0, hardCap - currentUsage) };
+    }
+
+    // For other meters, use the rollup-based check
     const result = await billingProvider.checkLimit(subscription.id, meterCode, unitsToAdd);
     if (!result.allowed) {
       return { 

@@ -5687,39 +5687,48 @@ Return ONLY valid JSON, no markdown or explanations.`;
         return res.json({});
       }
       
-      // Get the organization IDs associated with this user for counting entities
-      const userMemberships = await storage.getUserOrganizations(userId);
-      const userOrgIds = userMemberships.map(m => m.organizationId);
-      const { inArray, eq } = await import("drizzle-orm");
+      const { inArray, eq, and, or, isNull } = await import("drizzle-orm");
       
-      // Count actual entities from the database
+      // Count actual entities from the database based on subscription type
       let projectCountResult = 0;
       let taskCountResult = 0;
       let documentCountResult = 0;
       
-      if (userOrgIds.length > 0) {
-        // Count projects in user's organizations
+      if (subscription.subjectType === "ORG" && subscription.orgId) {
+        // For org subscription, count resources in that specific org
         const [projectRow] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(projects)
-          .where(inArray(projects.organizationId, userOrgIds));
+          .where(eq(projects.organizationId, subscription.orgId));
         projectCountResult = projectRow?.count || 0;
         
-        // Count tasks in projects that belong to user's organizations
         const [taskRow] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(tasks)
           .innerJoin(projects, eq(tasks.projectId, projects.id))
-          .where(inArray(projects.organizationId, userOrgIds));
+          .where(eq(projects.organizationId, subscription.orgId));
         taskCountResult = taskRow?.count || 0;
         
-        // Count documents in projects that belong to user's organizations
         const [documentRow] = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(projectDocuments)
           .innerJoin(projects, eq(projectDocuments.projectId, projects.id))
-          .where(inArray(projects.organizationId, userOrgIds));
+          .where(eq(projects.organizationId, subscription.orgId));
         documentCountResult = documentRow?.count || 0;
+      } else {
+        // For user subscription, count resources created by this user
+        // Projects: count where the user created them using raw SQL
+        const projectResult = await db.execute(
+          sql`SELECT COUNT(*)::int as count FROM projects WHERE created_by = ${userId}`
+        );
+        projectCountResult = (projectResult.rows[0] as any)?.count || 0;
+        
+        // Tasks: count from usage rollups since tasks are linked to projects, not users directly
+        const rollupUsage = await billingProvider.getUsageSummary(subscription.id);
+        taskCountResult = rollupUsage["tasks"]?.usedUnits || 0;
+        
+        // Documents: count from usage rollups
+        documentCountResult = rollupUsage["documents"]?.usedUnits || 0;
       }
       
       // Get AI runs from usage rollups (these are event-based)
