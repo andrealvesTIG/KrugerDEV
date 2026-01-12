@@ -6,7 +6,9 @@ import {
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
   changeRequests, projectDocuments, projectComments, notifications, statusReportHistory,
+  billingTransactions,
   type User, type UpsertUser,
+  type BillingTransaction, type InsertBillingTransaction,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
   type OrganizationInvite, type InsertOrganizationInvite,
@@ -268,6 +270,11 @@ export interface IStorage {
   getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]>;
   upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]>;
   resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]>;
+
+  // Billing Transactions
+  getBillingTransactions(userId?: string, orgId?: number, limit?: number, offset?: number): Promise<BillingTransaction[]>;
+  getBillingTransaction(id: number): Promise<BillingTransaction | undefined>;
+  createBillingTransaction(transaction: InsertBillingTransaction): Promise<BillingTransaction>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2251,6 +2258,36 @@ export class DatabaseStorage implements IStorage {
 
   async createStatusReportHistory(report: InsertStatusReportHistory): Promise<StatusReportHistory> {
     const [created] = await db.insert(statusReportHistory).values(report).returning();
+    return created;
+  }
+
+  // Billing Transactions
+  async getBillingTransactions(userId?: string, orgId?: number, limit: number = 50, offset: number = 0): Promise<BillingTransaction[]> {
+    const conditions = [];
+    if (userId) {
+      conditions.push(eq(billingTransactions.userId, userId));
+    }
+    if (orgId) {
+      conditions.push(eq(billingTransactions.orgId, orgId));
+    }
+    
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    return await db.select()
+      .from(billingTransactions)
+      .where(whereClause)
+      .orderBy(desc(billingTransactions.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getBillingTransaction(id: number): Promise<BillingTransaction | undefined> {
+    const [transaction] = await db.select().from(billingTransactions).where(eq(billingTransactions.id, id));
+    return transaction;
+  }
+
+  async createBillingTransaction(transaction: InsertBillingTransaction): Promise<BillingTransaction> {
+    const [created] = await db.insert(billingTransactions).values(transaction).returning();
     return created;
   }
 }
