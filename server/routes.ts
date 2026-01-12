@@ -1075,11 +1075,38 @@ export async function registerRoutes(
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure } = req.body;
-      const updated = await storage.updateOrganization(orgId, { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure });
+      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl } = req.body;
+      const updated = await storage.updateOrganization(orgId, { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl });
       res.json(updated);
     } catch (err) {
       res.status(500).json({ message: 'Failed to update organization' });
+    }
+  });
+
+  // Organization logo upload URL
+  app.post('/api/organizations/:id/logo/upload-url', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
+      const objectStorageService = new ObjectStorageService();
+      
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+      res.json({ uploadURL, objectPath });
+    } catch (err) {
+      console.error("Error generating logo upload URL:", err);
+      res.status(500).json({ message: 'Failed to generate upload URL' });
     }
   });
 
