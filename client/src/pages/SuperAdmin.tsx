@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -759,6 +759,7 @@ interface PlanData {
   monthlyPriceCents: number | null;
   maxSeats: number | null;
   isActive: boolean | null;
+  displayOrder: number | null;
   meterRules: Array<{
     meterCode: string;
     meterName: string;
@@ -826,6 +827,33 @@ function PlansTab() {
       });
     }
     setIsSyncingPayPal(false);
+  };
+
+  const sortedPlans = plans ? [...plans].sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)) : [];
+
+  const reorderPlans = useMutation({
+    mutationFn: async (orderedIds: number[]) => {
+      return apiRequest('PUT', '/api/admin/plans/reorder', { orderedIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      toast({ title: "Success", description: "Plan order updated" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to reorder plans", variant: "destructive" });
+    }
+  });
+
+  const movePlan = (planId: number, direction: 'up' | 'down') => {
+    const currentIndex = sortedPlans.findIndex(p => p.id === planId);
+    if (currentIndex === -1) return;
+    
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= sortedPlans.length) return;
+    
+    const newOrder = [...sortedPlans];
+    [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
+    reorderPlans.mutate(newOrder.map(p => p.id));
   };
 
   const createPlan = useMutation({
@@ -954,6 +982,7 @@ function PlansTab() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-16">Order</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Monthly Price</TableHead>
                 <TableHead>Max Seats</TableHead>
@@ -962,8 +991,32 @@ function PlansTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {plans?.map(plan => (
+              {sortedPlans.map((plan, index) => (
                 <TableRow key={plan.id} data-testid={`plan-row-${plan.id}`}>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => movePlan(plan.id, 'up')}
+                        disabled={index === 0 || reorderPlans.isPending}
+                        data-testid={`button-move-plan-up-${plan.id}`}
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => movePlan(plan.id, 'down')}
+                        disabled={index === sortedPlans.length - 1 || reorderPlans.isPending}
+                        data-testid={`button-move-plan-down-${plan.id}`}
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium">{plan.name}</div>
                     <div className="text-sm text-muted-foreground">{plan.code}</div>

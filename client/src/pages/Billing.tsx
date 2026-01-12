@@ -228,10 +228,7 @@ export default function Billing() {
   }
 
   const currentPlan = subscription?.plan || plans?.find(p => p.code === "FREE");
-  const sortedPlans = plans?.sort((a, b) => {
-    const order = ["FREE", "BASIC", "TEAM"];
-    return order.indexOf(a.code) - order.indexOf(b.code);
-  });
+  const sortedPlans = plans ? [...plans].sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)) : [];
 
   const copyReferralLink = () => {
     if (referralStats?.code) {
