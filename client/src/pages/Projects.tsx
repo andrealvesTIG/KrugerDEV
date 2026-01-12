@@ -27,6 +27,7 @@ import { motion } from "framer-motion";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
 
@@ -363,6 +364,8 @@ export default function Projects() {
 function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }: { open: boolean, onOpenChange: (o: boolean) => void, portfolios: any[], organizationId?: number }) {
   const { toast } = useToast();
   const createMutation = useCreateProject();
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+  const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
   
   const form = useForm<InsertProject>({
     resolver: zodResolver(insertProjectSchema),
@@ -385,11 +388,9 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
       },
       onError: (err: any) => {
         if (err.limitExceeded) {
-          toast({ 
-            title: "Plan Limit Reached", 
-            description: `${err.message} Visit the Billing page to upgrade.`,
-            variant: "destructive" 
-          });
+          setLimitError({ message: err.message, resourceType: err.resourceType });
+          setLimitDialogOpen(true);
+          onOpenChange(false);
         } else {
           toast({ title: "Error", description: err.message, variant: "destructive" });
         }
@@ -398,6 +399,13 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   };
 
   return (
+    <>
+    <LimitExceededDialog
+      open={limitDialogOpen}
+      onOpenChange={setLimitDialogOpen}
+      resourceType={limitError?.resourceType}
+      message={limitError?.message}
+    />
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all">
@@ -486,6 +494,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
