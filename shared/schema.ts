@@ -370,6 +370,38 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Status Report History (Weekly status reports archive)
+export const statusReportHistory = pgTable("status_report_history", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  reportDate: date("report_date").notNull(), // The date the report covers
+  weekNumber: integer("week_number"), // ISO week number for weekly tracking
+  yearNumber: integer("year_number"), // Year for the week
+  executiveSummary: text("executive_summary"),
+  reportType: text("report_type").default("weekly"), // weekly, monthly, quarterly, adhoc
+  recipientEmail: text("recipient_email"), // Who it was sent to
+  sentAt: timestamp("sent_at"), // When the email was sent
+  pdfFileUrl: text("pdf_file_url"), // URL to stored PDF in object storage
+  pdfFileName: text("pdf_file_name"),
+  // Snapshot data at time of report
+  projectHealth: text("project_health"),
+  projectStatus: text("project_status"),
+  completionPercentage: integer("completion_percentage"),
+  totalBudget: numeric("total_budget"),
+  actualSpent: numeric("actual_spent"),
+  forecastAmount: numeric("forecast_amount"),
+  openRisksCount: integer("open_risks_count"),
+  openIssuesCount: integer("open_issues_count"),
+  completedMilestonesCount: integer("completed_milestones_count"),
+  totalMilestonesCount: integer("total_milestones_count"),
+  // Metadata
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
+});
+
 // Project Financials (Budget/Plan/Actuals with CapEx/OpEx breakdown)
 export const projectFinancials = pgTable("project_financials", {
   id: serial("id").primaryKey(),
@@ -794,6 +826,7 @@ export const insertProjectDocumentSchema = createInsertSchema(projectDocuments).
 
 export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
@@ -877,6 +910,9 @@ export type InsertProjectComment = z.infer<typeof insertProjectCommentSchema>;
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type StatusReportHistory = typeof statusReportHistory.$inferSelect;
+export type InsertStatusReportHistory = z.infer<typeof insertStatusReportHistorySchema>;
 
 export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;

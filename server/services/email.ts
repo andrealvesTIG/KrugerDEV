@@ -15,18 +15,26 @@ function getResendClient(): Resend | null {
   return resend;
 }
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+}
+
 export async function sendEmail({
   to,
   subject,
   text,
   html,
   from,
+  attachments,
 }: {
   to: string;
   subject: string;
   text: string;
   html?: string;
   from?: string;
+  attachments?: EmailAttachment[];
 }): Promise<boolean> {
   const client = getResendClient();
   
@@ -34,19 +42,38 @@ export async function sendEmail({
     console.log("Email would be sent to:", to);
     console.log("Subject:", subject);
     console.log("Body:", text);
+    if (attachments) {
+      console.log("Attachments:", attachments.map(a => a.filename).join(", "));
+    }
     return false;
   }
 
   try {
     const fromAddress = from || process.env.RESEND_FROM_EMAIL || "FridayReport.AI <onboarding@resend.dev>";
     
-    const { data, error } = await client.emails.send({
+    const emailPayload: {
+      from: string;
+      to: string[];
+      subject: string;
+      text: string;
+      html: string;
+      attachments?: { filename: string; content: Buffer }[];
+    } = {
       from: fromAddress,
       to: [to],
       subject,
       text,
       html: html || text,
-    });
+    };
+    
+    if (attachments && attachments.length > 0) {
+      emailPayload.attachments = attachments.map(att => ({
+        filename: att.filename,
+        content: Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content, 'base64'),
+      }));
+    }
+    
+    const { data, error } = await client.emails.send(emailPayload);
 
     if (error) {
       console.error("Failed to send email:", error);

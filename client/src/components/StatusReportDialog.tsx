@@ -48,15 +48,39 @@ export function StatusReportDialog({
 
   const emailMutation = useMutation({
     mutationFn: async () => {
+      const doc = (
+        <ProjectStatusReportPDF
+          project={project}
+          risks={risks}
+          issues={issues}
+          milestones={milestones}
+          financials={financials}
+          tasks={tasks}
+          changeRequests={changeRequests}
+          documents={documents}
+          executiveSummary={executiveSummary}
+        />
+      );
+      
+      const blob = await pdf(doc).toBlob();
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      
+      const pdfFileName = `${project.name.replace(/[^a-z0-9]/gi, "_")}_Comprehensive_Status_Report.pdf`;
+      
       return apiRequest("POST", `/api/projects/${project.id}/status-report/email`, {
         recipientEmail,
-        executiveSummary
+        executiveSummary,
+        pdfBase64: base64,
+        pdfFileName
       });
     },
     onSuccess: () => {
       toast({
         title: "Report Sent",
-        description: `Status report sent to ${recipientEmail}`
+        description: `Status report with PDF attachment sent to ${recipientEmail}`
       });
       onOpenChange(false);
     },

@@ -5,7 +5,7 @@ import {
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
-  changeRequests, projectDocuments, projectComments, notifications,
+  changeRequests, projectDocuments, projectComments, notifications, statusReportHistory,
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
@@ -33,6 +33,7 @@ import {
   type ProjectDocument, type InsertProjectDocument, type UpdateProjectDocumentRequest,
   type ProjectComment, type InsertProjectComment,
   type Notification, type InsertNotification,
+  type StatusReportHistory, type InsertStatusReportHistory,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
@@ -241,6 +242,11 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: number): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
+
+  // Status Report History
+  getStatusReportHistory(projectId: number): Promise<StatusReportHistory[]>;
+  getStatusReportHistoryByOrg(organizationId: number): Promise<StatusReportHistory[]>;
+  createStatusReportHistory(report: InsertStatusReportHistory): Promise<StatusReportHistory>;
 
   // Intake Workflow Steps
   getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]>;
@@ -2106,6 +2112,24 @@ export class DatabaseStorage implements IStorage {
     ];
     
     return this.upsertIntakeWorkflowSteps(organizationId, defaultSteps);
+  }
+
+  // Status Report History
+  async getStatusReportHistory(projectId: number): Promise<StatusReportHistory[]> {
+    return await db.select().from(statusReportHistory)
+      .where(eq(statusReportHistory.projectId, projectId))
+      .orderBy(desc(statusReportHistory.createdAt));
+  }
+
+  async getStatusReportHistoryByOrg(organizationId: number): Promise<StatusReportHistory[]> {
+    return await db.select().from(statusReportHistory)
+      .where(eq(statusReportHistory.organizationId, organizationId))
+      .orderBy(desc(statusReportHistory.createdAt));
+  }
+
+  async createStatusReportHistory(report: InsertStatusReportHistory): Promise<StatusReportHistory> {
+    const [created] = await db.insert(statusReportHistory).values(report).returning();
+    return created;
   }
 }
 
