@@ -45,7 +45,8 @@ export default function PayPalSubscriptionButton({
         }
 
         const script = document.createElement("script");
-        script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&vault=true&intent=subscription`;
+        // disable-funding=paypal shows only credit/debit card options
+        script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&vault=true&intent=subscription&disable-funding=paypal,paylater,venmo,credit`;
         script.async = true;
         script.onload = () => setSdkReady(true);
         script.onerror = () => {
