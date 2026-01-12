@@ -7,6 +7,7 @@ import { lookupCompanyByEmail } from "../services/companyLookup";
 import { ensureUserOrganization } from "../services/onboarding";
 import crypto from "crypto";
 import { objectStorageClient } from "../replit_integrations/object_storage/objectStorage";
+import { storage } from "../storage";
 
 async function fetchAndUploadMicrosoftPhoto(accessToken: string, userId: string): Promise<string | null> {
   try {
@@ -304,6 +305,16 @@ export async function setupMicrosoftAuth(app: Express) {
         }
       } catch (orgError) {
         console.error("Error ensuring user organization:", orgError);
+      }
+
+      // Claim any pending organization invites for this email
+      try {
+        const claimedMembers = await storage.claimInvitesForUser(email, existingUser.id);
+        if (claimedMembers.length > 0) {
+          console.log(`Claimed ${claimedMembers.length} org invite(s) for Microsoft user: ${existingUser.email}`);
+        }
+      } catch (inviteError) {
+        console.error("Error claiming organization invites:", inviteError);
       }
 
       req.session.userId = existingUser.id;

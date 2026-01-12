@@ -8,6 +8,7 @@ import crypto from "crypto";
 import { sendPasswordResetEmail } from "../services/email";
 import { lookupCompanyByEmail } from "../services/companyLookup";
 import { ensureUserOrganization } from "../services/onboarding";
+import { storage } from "../storage";
 
 const PgSession = connectPgSimple(session);
 
@@ -126,6 +127,16 @@ export async function setupAuth(app: Express) {
         console.error("Error ensuring user organization:", orgError);
       }
 
+      // Claim any pending organization invites for this email
+      try {
+        const claimedMembers = await storage.claimInvitesForUser(email, newUser.id);
+        if (claimedMembers.length > 0) {
+          console.log(`Claimed ${claimedMembers.length} org invite(s) for new user: ${email}`);
+        }
+      } catch (inviteError) {
+        console.error("Error claiming organization invites:", inviteError);
+      }
+
       req.session.userId = newUser.id;
       
       await new Promise<void>((resolve, reject) => {
@@ -178,6 +189,16 @@ export async function setupAuth(app: Express) {
         }
       } catch (orgError) {
         console.error("Error ensuring user organization:", orgError);
+      }
+
+      // Claim any pending organization invites for this email
+      try {
+        const claimedMembers = await storage.claimInvitesForUser(email, user.id);
+        if (claimedMembers.length > 0) {
+          console.log(`Claimed ${claimedMembers.length} org invite(s) for existing user: ${email}`);
+        }
+      } catch (inviteError) {
+        console.error("Error claiming organization invites:", inviteError);
       }
 
       req.session.userId = user.id;
