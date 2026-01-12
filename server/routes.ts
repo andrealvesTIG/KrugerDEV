@@ -5670,6 +5670,26 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // Get billing/payment history
+  app.get('/api/billing/history', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
+      
+      const transactions = await storage.getBillingTransactions(userId, orgId, limit, offset);
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching billing history:", error);
+      res.status(500).json({ message: "Failed to fetch billing history" });
+    }
+  });
+
   // Create subscription
   app.post('/api/billing/subscription', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
