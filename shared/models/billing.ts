@@ -384,6 +384,53 @@ export const referralPayoutsRelations = relations(referralPayouts, ({ one }) => 
   }),
 }));
 
+// Payment History / Transactions Table
+export const transactionStatusEnum = ["PENDING", "COMPLETED", "FAILED", "REFUNDED"] as const;
+export type TransactionStatus = typeof transactionStatusEnum[number];
+
+export const billingTransactions = pgTable("billing_transactions", {
+  id: serial("id").primaryKey(),
+  subscriptionId: integer("subscription_id").references(() => subscriptions.id),
+  userId: varchar("user_id").references(() => users.id),
+  orgId: integer("org_id"),
+  provider: text("provider").notNull().default("paypal"),
+  externalTransactionId: text("external_transaction_id"),
+  externalInvoiceId: text("external_invoice_id"),
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  status: text("status").notNull().default("COMPLETED"),
+  description: text("description"),
+  planName: text("plan_name"),
+  periodStart: timestamp("period_start"),
+  periodEnd: timestamp("period_end"),
+  paymentMethodType: text("payment_method_type"),
+  paymentMethodLast4: text("payment_method_last4"),
+  receiptUrl: text("receipt_url"),
+  failureReason: text("failure_reason"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_billing_transactions_user_id").on(table.userId),
+  index("idx_billing_transactions_org_id").on(table.orgId),
+  index("idx_billing_transactions_subscription_id").on(table.subscriptionId),
+  index("idx_billing_transactions_created_at").on(table.createdAt),
+]);
+
+export const billingTransactionsRelations = relations(billingTransactions, ({ one }) => ({
+  subscription: one(subscriptions, {
+    fields: [billingTransactions.subscriptionId],
+    references: [subscriptions.id],
+  }),
+  user: one(users, {
+    fields: [billingTransactions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const insertBillingTransactionSchema = createInsertSchema(billingTransactions).omit({ id: true, createdAt: true });
+export type BillingTransaction = typeof billingTransactions.$inferSelect;
+export type InsertBillingTransaction = z.infer<typeof insertBillingTransactionSchema>;
+
 export const insertPlanSchema = createInsertSchema(plans).omit({ id: true, createdAt: true });
 export const insertMeterSchema = createInsertSchema(meters).omit({ id: true, createdAt: true });
 export const insertPlanMeterRuleSchema = createInsertSchema(planMeterRules).omit({ id: true, createdAt: true });
