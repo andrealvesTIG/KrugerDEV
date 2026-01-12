@@ -5743,6 +5743,39 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // Reorder plans (super admin only) - MUST be before :id route
+  app.put('/api/admin/plans/reorder', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { plans } = await import("@shared/schema");
+      const { orderedIds } = req.body;
+      
+      if (!Array.isArray(orderedIds)) {
+        return res.status(400).json({ message: "orderedIds must be an array" });
+      }
+
+      for (let i = 0; i < orderedIds.length; i++) {
+        await db.update(plans)
+          .set({ displayOrder: i })
+          .where(eq(plans.id, orderedIds[i]));
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error reordering plans:", error);
+      res.status(500).json({ message: "Failed to reorder plans" });
+    }
+  });
+
   // Update a plan (super admin only)
   app.put('/api/admin/plans/:id', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
@@ -5808,39 +5841,6 @@ Return ONLY valid JSON, no markdown or explanations.`;
     } catch (error) {
       console.error("Error deleting plan:", error);
       res.status(500).json({ message: "Failed to delete plan" });
-    }
-  });
-
-  // Reorder plans (super admin only)
-  app.put('/api/admin/plans/reorder', async (req, res) => {
-    const userId = req.session?.userId || (req.user as any)?.id;
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const user = await storage.getUser(userId);
-    if (user?.role !== 'super_admin') {
-      return res.status(403).json({ message: "Super admin access required" });
-    }
-
-    try {
-      const { plans } = await import("@shared/schema");
-      const { orderedIds } = req.body;
-      
-      if (!Array.isArray(orderedIds)) {
-        return res.status(400).json({ message: "orderedIds must be an array" });
-      }
-
-      for (let i = 0; i < orderedIds.length; i++) {
-        await db.update(plans)
-          .set({ displayOrder: i })
-          .where(eq(plans.id, orderedIds[i]));
-      }
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error reordering plans:", error);
-      res.status(500).json({ message: "Failed to reorder plans" });
     }
   });
 
