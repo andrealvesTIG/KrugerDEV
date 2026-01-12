@@ -67,7 +67,8 @@ function parseMppFile(fileBuffer: Buffer): Array<{
     const libDir = path.join(process.cwd(), 'lib');
     const jars = [
       'mpxj.jar', 'poi.jar', 'poi-ooxml.jar', 'commons-io.jar',
-      'commons-collections4.jar', 'commons-compress.jar', 'log4j-api.jar', 'xmlbeans.jar'
+      'commons-collections4.jar', 'commons-compress.jar', 'log4j-api.jar', 'xmlbeans.jar',
+      'rtfparserkit.jar'
     ].map(jar => path.join(libDir, jar)).join(':');
     
     const classpath = `${jars}:${libDir}`;
