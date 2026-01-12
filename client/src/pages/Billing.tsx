@@ -603,7 +603,19 @@ export default function Billing() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0 pb-3">
-                  <div className="space-y-2">
+                  <div className="space-y-3">
+                    {/* Plan description - parse bullet points */}
+                    {plan.description && (
+                      <div className="space-y-1.5">
+                        {plan.description.split(' - ').filter(Boolean).slice(0, 4).map((feature, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-xs text-muted-foreground">
+                            <Check className="h-3 w-3 text-primary flex-shrink-0 mt-0.5" />
+                            <span>{feature.replace(/^- /, '').trim()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
                     {/* Show credits allocation */}
                     {(() => {
                       const creditsRules = planRules?.filter((r: any) => r.meterCode === 'credits') || [];
@@ -612,44 +624,42 @@ export default function Billing() {
                       const creditsLimit = quotaRule?.includedUnitsMonthly || hardCapRule?.hardCapUnits || 0;
                       
                       // Calculate capacity estimates based on credit costs
-                      // Default costs: Project=5, Task=1, Issue=1, Risk=1
-                      const projectCost = usage?.creditCosts?.find(c => c.resourceType === 'projects')?.creditCost || 5;
-                      const taskCost = usage?.creditCosts?.find(c => c.resourceType === 'tasks')?.creditCost || 1;
-                      const issueCost = usage?.creditCosts?.find(c => c.resourceType === 'issues')?.creditCost || 1;
+                      const projectCost = usage?.creditCosts?.find(c => c.resourceType === 'project')?.creditCost || 5;
+                      const taskCost = usage?.creditCosts?.find(c => c.resourceType === 'task')?.creditCost || 1;
+                      const issueCost = usage?.creditCosts?.find(c => c.resourceType === 'issue')?.creditCost || 1;
                       
                       const maxProjects = creditsLimit ? Math.floor(creditsLimit / projectCost) : null;
                       const maxTasks = creditsLimit ? Math.floor(creditsLimit / taskCost) : null;
                       const maxIssues = creditsLimit ? Math.floor(creditsLimit / issueCost) : null;
                       
                       return (
-                        <>
+                        <div className="pt-2 border-t space-y-1.5">
                           <div className="flex items-center gap-2 text-xs">
-                            <Check className="h-3 w-3 text-primary flex-shrink-0" />
-                            <Wallet className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <Wallet className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                             <span className="font-medium">
                               {creditsLimit ? `${creditsLimit.toLocaleString()} credits/month` : 'Unlimited credits'}
                             </span>
                           </div>
                           {creditsLimit > 0 && (
-                            <div className="ml-5 space-y-0.5">
-                              <p className="text-[10px] text-muted-foreground">Estimated capacity:</p>
-                              <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px]">
-                                <span className="text-muted-foreground">
-                                  <FolderKanban className="h-2.5 w-2.5 inline mr-0.5" />
-                                  {maxProjects?.toLocaleString()} projects
-                                </span>
-                                <span className="text-muted-foreground">
-                                  <CheckSquare className="h-2.5 w-2.5 inline mr-0.5" />
-                                  {maxTasks?.toLocaleString()} tasks
-                                </span>
-                                <span className="text-muted-foreground">
-                                  <AlertTriangle className="h-2.5 w-2.5 inline mr-0.5" />
-                                  {maxIssues?.toLocaleString()} issues
-                                </span>
-                              </div>
+                            <div className="ml-5 text-[10px] text-muted-foreground">
+                              Up to {maxProjects?.toLocaleString()} projects, {maxTasks?.toLocaleString()} tasks, {maxIssues?.toLocaleString()} issues
                             </div>
                           )}
-                        </>
+                          {plan.maxSeats && (
+                            <div className="flex items-center gap-2 text-xs">
+                              <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="text-muted-foreground">
+                                Up to {plan.maxSeats} {plan.maxSeats === 1 ? 'seat' : 'seats'}
+                              </span>
+                            </div>
+                          )}
+                          {!plan.maxSeats && (
+                            <div className="flex items-center gap-2 text-xs">
+                              <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="text-muted-foreground">Unlimited seats</span>
+                            </div>
+                          )}
+                        </div>
                       );
                     })()}
                   </div>
