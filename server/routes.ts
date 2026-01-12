@@ -1561,6 +1561,62 @@ export async function registerRoutes(
       res.status(500).json({ message: 'Failed to get access request status' });
     }
   });
+
+  // Resend access request notification (for the requesting user)
+  app.post('/api/organizations/:id/access-requests/:requestId/resend', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const requestId = Number(req.params.requestId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
+      // Get all access requests to find this one
+      const allRequests = await storage.getOrganizationAccessRequests(orgId);
+      const request = allRequests.find(r => r.id === requestId);
+      
+      if (!request) {
+        return res.status(404).json({ message: 'Access request not found' });
+      }
+      
+      // Only the requester can resend their own request
+      if (request.userId !== userId) {
+        return res.status(403).json({ message: 'You can only resend your own access requests' });
+      }
+      
+      if (request.status !== 'pending') {
+        return res.status(400).json({ message: 'Can only resend pending requests' });
+      }
+      
+      // Get organization and requester info
+      const org = await storage.getOrganization(orgId);
+      const requester = await storage.getUser(userId);
+      const requesterName = [requester?.firstName, requester?.lastName].filter(Boolean).join(' ') || requester?.email || 'Unknown User';
+      
+      // Send email notifications to all org admins
+      const members = await storage.getOrganizationMembers(orgId);
+      const admins = members.filter(m => m.role === 'org_admin');
+      
+      for (const admin of admins) {
+        const adminUser = await storage.getUser(admin.userId);
+        if (adminUser?.email && org) {
+          await sendAccessRequestNotification(
+            adminUser.email,
+            requesterName,
+            org.name,
+            request.message
+          );
+        }
+      }
+      
+      res.json({ message: 'Access request notification resent successfully' });
+    } catch (err) {
+      console.error('Failed to resend access request:', err);
+      res.status(500).json({ message: 'Failed to resend access request' });
+    }
+  });
   
   // Approve access request
   app.post('/api/organizations/:id/access-requests/:requestId/approve', async (req, res) => {

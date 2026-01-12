@@ -176,6 +176,26 @@ function NoAdminAccessView({ organization }: { organization: Organization }) {
     },
   });
 
+  // Mutation for resending access request notification
+  const resendRequestMutation = useMutation({
+    mutationFn: async (requestId: number) => {
+      return await apiRequest('POST', `/api/organizations/${organization.id}/access-requests/${requestId}/resend`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Notification Resent",
+        description: "Your access request has been resent to the organization administrators.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to resend request notification",
+        variant: "destructive",
+      });
+    },
+  });
+
   const hasPendingRequest = accessStatus?.hasPendingRequest;
   const pendingRequest = accessStatus?.request;
 
@@ -191,7 +211,7 @@ function NoAdminAccessView({ organization }: { organization: Organization }) {
       {statusLoading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : hasPendingRequest ? (
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-3">
           <Badge variant="secondary" className="flex items-center gap-2">
             <Clock className="h-3 w-3" />
             Request Pending
@@ -201,6 +221,25 @@ function NoAdminAccessView({ organization }: { organization: Organization }) {
               Submitted {format(new Date(pendingRequest.createdAt), 'MMM d, yyyy')}
             </p>
           )}
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => pendingRequest && resendRequestMutation.mutate(pendingRequest.id)}
+            disabled={resendRequestMutation.isPending}
+            data-testid="button-resend-request"
+          >
+            {resendRequestMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Resending...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Resend Request
+              </>
+            )}
+          </Button>
         </div>
       ) : (
         <Button 
