@@ -368,7 +368,7 @@ export default function Billing() {
 
       <div className="space-y-3">
         <h2 className="text-lg font-display font-semibold">Plans</h2>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="flex flex-wrap gap-4">
           {sortedPlans?.map((plan) => {
             const isCurrentPlan = currentPlan?.code === plan.code;
             const planRules = plan.meterRules || [];
@@ -376,7 +376,7 @@ export default function Billing() {
             return (
               <Card 
                 key={plan.id} 
-                className={isCurrentPlan ? "border-primary" : ""} 
+                className={`flex-1 min-w-[220px] max-w-[280px] ${isCurrentPlan ? "border-primary" : ""}`} 
                 data-testid={`card-plan-${plan.code.toLowerCase()}`}
               >
                 <CardHeader className="pb-2">
