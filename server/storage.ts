@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, portfolios, projects, risks, milestones, issues, tasks,
-  organizations, organizationMembers, taskChangeLogs, taskDependencies, projectFinancials,
+  organizations, organizationMembers, organizationInvites, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, riskChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
@@ -9,6 +9,7 @@ import {
   type User, type UpsertUser,
   type Organization, type InsertOrganization,
   type OrganizationMember, type InsertOrganizationMember,
+  type OrganizationInvite, type InsertOrganizationInvite,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
@@ -63,6 +64,13 @@ export interface IStorage {
   addOrganizationMember(member: InsertOrganizationMember): Promise<OrganizationMember>;
   updateOrganizationMemberRole(organizationId: number, userId: string, role: string): Promise<OrganizationMember>;
   removeOrganizationMember(organizationId: number, userId: string): Promise<void>;
+
+  // Organization Invites
+  getOrganizationInvites(organizationId: number): Promise<OrganizationInvite[]>;
+  getPendingInvitesByEmail(email: string): Promise<OrganizationInvite[]>;
+  createOrganizationInvite(invite: InsertOrganizationInvite): Promise<OrganizationInvite>;
+  cancelOrganizationInvite(id: number): Promise<void>;
+  claimInvitesForUser(email: string, userId: string): Promise<OrganizationMember[]>;
 
   // Portfolios
   getPortfolios(organizationId?: number): Promise<Portfolio[]>;
@@ -360,6 +368,64 @@ export class DatabaseStorage implements IStorage {
         eq(organizationMembers.organizationId, organizationId),
         eq(organizationMembers.userId, userId)
       ));
+  }
+
+  // Organization Invites
+  async getOrganizationInvites(organizationId: number): Promise<OrganizationInvite[]> {
+    return await db.select().from(organizationInvites)
+      .where(eq(organizationInvites.organizationId, organizationId))
+      .orderBy(desc(organizationInvites.createdAt));
+  }
+
+  async getPendingInvitesByEmail(email: string): Promise<OrganizationInvite[]> {
+    return await db.select().from(organizationInvites)
+      .where(and(
+        eq(organizationInvites.email, email.toLowerCase()),
+        eq(organizationInvites.status, "pending")
+      ));
+  }
+
+  async createOrganizationInvite(invite: InsertOrganizationInvite): Promise<OrganizationInvite> {
+    const [created] = await db.insert(organizationInvites)
+      .values({ ...invite, email: invite.email.toLowerCase() })
+      .returning();
+    return created;
+  }
+
+  async cancelOrganizationInvite(id: number): Promise<void> {
+    await db.update(organizationInvites)
+      .set({ status: "cancelled" })
+      .where(eq(organizationInvites.id, id));
+  }
+
+  async claimInvitesForUser(email: string, userId: string): Promise<OrganizationMember[]> {
+    const pendingInvites = await this.getPendingInvitesByEmail(email);
+    const claimedMembers: OrganizationMember[] = [];
+
+    for (const invite of pendingInvites) {
+      const existingMember = await db.select().from(organizationMembers)
+        .where(and(
+          eq(organizationMembers.organizationId, invite.organizationId),
+          eq(organizationMembers.userId, userId)
+        ));
+
+      if (existingMember.length === 0) {
+        const [member] = await db.insert(organizationMembers)
+          .values({
+            organizationId: invite.organizationId,
+            userId: userId,
+            role: invite.role
+          })
+          .returning();
+        claimedMembers.push(member);
+      }
+
+      await db.update(organizationInvites)
+        .set({ status: "accepted", acceptedAt: new Date() })
+        .where(eq(organizationInvites.id, invite.id));
+    }
+
+    return claimedMembers;
   }
 
   // Portfolios
