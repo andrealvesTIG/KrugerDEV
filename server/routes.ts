@@ -6,7 +6,7 @@ import { z } from "zod";
 import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { setupMicrosoftAuth } from "./auth/microsoftAuth";
-import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification } from "./services/email";
+import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -1332,6 +1332,28 @@ export async function registerRoutes(
             status: 'pending'
           });
           results.success.push(normalizedEmail);
+          
+          // Send invitation email
+          const org = await storage.getOrganization(orgId);
+          const inviter = currentUserId ? await storage.getUser(currentUserId) : null;
+          const inviterName = inviter 
+            ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') || inviter.email || 'An administrator'
+            : 'An administrator';
+          const appUrl = process.env.REPLIT_DEV_DOMAIN 
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+            : process.env.REPLIT_DOMAINS?.split(',')[0] 
+              ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+              : 'https://fridayreport.ai';
+          
+          if (org) {
+            await sendOrganizationInviteEmail(
+              normalizedEmail,
+              org.name,
+              inviterName,
+              role || 'member',
+              appUrl
+            );
+          }
         } catch (err) {
           results.errors.push(`Failed to invite ${normalizedEmail}`);
         }
