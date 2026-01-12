@@ -1896,8 +1896,26 @@ interface OrganizationInvite {
   acceptedAt: string | null;
 }
 
+// Common public email domains to exclude from corporate filtering
+const PUBLIC_EMAIL_DOMAINS = [
+  'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com',
+  'aol.com', 'icloud.com', 'me.com', 'mac.com', 'protonmail.com', 'proton.me',
+  'mail.com', 'zoho.com', 'yandex.com', 'gmx.com', 'gmx.net', 'fastmail.com',
+  'tutanota.com', 'hey.com', 'pm.me', 'inbox.com', 'hushmail.com'
+];
+
+function getEmailDomain(email: string): string | null {
+  const parts = email.split('@');
+  return parts.length === 2 ? parts[1].toLowerCase() : null;
+}
+
+function isPublicEmailDomain(domain: string): boolean {
+  return PUBLIC_EMAIL_DOMAINS.includes(domain.toLowerCase());
+}
+
 function MembersSection({ organizationId, orgName }: { organizationId: number; orgName: string }) {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -2035,7 +2053,37 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
   });
 
   const existingMemberIds = members.map(m => m.userId);
-  const availableUsers = allUsers?.filter(u => !existingMemberIds.includes(u.id)) || [];
+  
+  // Get current user's email domain for corporate filtering
+  const currentUserDomain = currentUser?.email ? getEmailDomain(currentUser.email) : null;
+  const isCurrentUserCorporate = currentUserDomain && !isPublicEmailDomain(currentUserDomain);
+  
+  // Filter available users:
+  // 1. Current user must have a corporate email domain to see other users
+  // 2. Only show users with matching corporate domain
+  // 3. Exclude users who are already members
+  // 4. Exclude users with public email domains
+  const availableUsers = useMemo(() => {
+    // If current user doesn't have a corporate email, show empty list
+    if (!isCurrentUserCorporate || !currentUserDomain) {
+      return [];
+    }
+    
+    return allUsers?.filter(u => {
+      // Must not be an existing member
+      if (existingMemberIds.includes(u.id)) return false;
+      
+      // Must have an email
+      if (!u.email) return false;
+      
+      const userDomain = getEmailDomain(u.email);
+      if (!userDomain) return false;
+      
+      // Must match current user's corporate domain
+      return userDomain === currentUserDomain;
+    }) || [];
+  }, [allUsers, existingMemberIds, isCurrentUserCorporate, currentUserDomain]);
+  
   const pendingInvites = invites.filter(i => i.status === 'pending');
 
   if (isLoading) return <Loader2 className="animate-spin" />;
