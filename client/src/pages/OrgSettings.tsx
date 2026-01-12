@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -1786,21 +1786,34 @@ function RecycleBinSection({ organizationId }: { organizationId: number }) {
   );
 }
 
+interface OrganizationInvite {
+  id: number;
+  organizationId: number;
+  email: string;
+  role: string;
+  status: string;
+  invitedBy: string | null;
+  createdAt: string | null;
+  acceptedAt: string | null;
+}
+
 function MembersSection({ organizationId, orgName }: { organizationId: number; orgName: string }) {
   const { toast } = useToast();
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<string>("member");
+  const [inviteEmails, setInviteEmails] = useState<string>("");
+  const [inviteRole, setInviteRole] = useState<string>("member");
+  const [inviteResult, setInviteResult] = useState<{ success: string[]; skipped: string[]; errors: string[] } | null>(null);
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
 
-  const { data: members, isLoading } = useQuery<EnrichedMember[]>({
-    queryKey: ['/api/organizations', organizationId, 'members'],
-    queryFn: async () => {
-      const res = await fetch(`/api/organizations/${organizationId}/members`);
-      if (!res.ok) return []; // Return empty array on error (e.g., 403 access denied)
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
-    }
+  const { data: members = [], isLoading } = useQuery<EnrichedMember[]>({
+    queryKey: [`/api/organizations/${organizationId}/members`],
+  });
+
+  const { data: invites = [] } = useQuery<OrganizationInvite[]>({
+    queryKey: [`/api/organizations/${organizationId}/invites`],
   });
 
   const { data: allUsers } = useQuery<User[]>({
@@ -1812,11 +1825,92 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
       return apiRequest('POST', `/api/organizations/${organizationId}/members`, { userId, role });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'members'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/members`] });
       toast({ title: "Success", description: "Member added to organization" });
       setIsAddMemberOpen(false);
       setSelectedUserId("");
       setSelectedRole("member");
+    }
+  });
+
+  const inviteMembers = useMutation({
+    mutationFn: async ({ emails, role }: { emails: string[]; role: string }) => {
+      const res = await apiRequest('POST', `/api/organizations/${organizationId}/invites`, { emails, role });
+      return res.json() as Promise<{ success: string[]; skipped: string[]; errors: string[] }>;
+    },
+    onSuccess: (result: { success: string[]; skipped: string[]; errors: string[] }) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/invites`] });
+      setInviteResult(result);
+      
+      // Only close dialog and clear form if all invites succeeded with no errors
+      if (result.errors.length === 0 && result.success.length > 0) {
+        toast({ 
+          title: "Invites Sent", 
+          description: `${result.success.length} invite(s) sent successfully`
+        });
+        setIsInviteOpen(false);
+        setInviteEmails("");
+        setInviteRole("member");
+        setInviteResult(null);
+      } else if (result.success.length === 0 && result.skipped.length > 0 && result.errors.length === 0) {
+        // All were skipped (already exists)
+        toast({ 
+          title: "No New Invites", 
+          description: "All emails already have pending invites or are members"
+        });
+        setIsInviteOpen(false);
+        setInviteEmails("");
+        setInviteRole("member");
+        setInviteResult(null);
+      }
+      // If there are errors, keep dialog open so user can see the result
+    },
+    onError: async (error: Error) => {
+      // Try to extract structured error from response
+      // apiRequest throws with format "status: responseText"
+      let errorMessage = "Failed to send invites";
+      const msg = error.message;
+      
+      // Extract the content after "status:" prefix
+      const colonIndex = msg.indexOf(':');
+      if (colonIndex > -1) {
+        const responseText = msg.substring(colonIndex + 1).trim();
+        
+        // Check if response looks like JSON (starts with { or [)
+        if (responseText.startsWith('{') || responseText.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(responseText);
+            if (parsed?.error) {
+              errorMessage = parsed.error;
+            }
+            if (parsed?.errors && Array.isArray(parsed.errors)) {
+              // Server returned structured validation errors - keep dialog open
+              setInviteResult({ success: [], skipped: [], errors: parsed.errors });
+              return; // Don't close dialog, user can correct and retry
+            }
+          } catch {
+            // Failed to parse JSON, use the raw text
+            errorMessage = responseText || errorMessage;
+          }
+        } else {
+          // Plain text error message
+          errorMessage = responseText || errorMessage;
+        }
+      }
+      
+      // Show error as toast but keep dialog open for retry
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+      // Don't clear inviteEmails - user can correct and retry
+    }
+  });
+
+  const cancelInvite = useMutation({
+    mutationFn: async (inviteId: number) => {
+      return apiRequest('DELETE', `/api/organizations/${organizationId}/invites/${inviteId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/invites`] });
+      toast({ title: "Success", description: "Invite cancelled" });
     }
   });
 
@@ -1825,7 +1919,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
       return apiRequest('PUT', `/api/organizations/${organizationId}/members/${userId}`, { role });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'members'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/members`] });
       toast({ title: "Success", description: "Member role updated" });
     }
   });
@@ -1835,14 +1929,15 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
       return apiRequest('DELETE', `/api/organizations/${organizationId}/members/${userId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'members'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/members`] });
       toast({ title: "Success", description: "Member removed from organization" });
       setRemoveMemberId(null);
     }
   });
 
-  const existingMemberIds = members?.map(m => m.userId) || [];
+  const existingMemberIds = members.map(m => m.userId);
   const availableUsers = allUsers?.filter(u => !existingMemberIds.includes(u.id)) || [];
+  const pendingInvites = invites.filter(i => i.status === 'pending');
 
   if (isLoading) return <Loader2 className="animate-spin" />;
 
@@ -1856,10 +1951,16 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
           </CardTitle>
           <CardDescription>Manage who has access to this organization</CardDescription>
         </div>
-        <Button onClick={() => setIsAddMemberOpen(true)} data-testid="button-add-member">
-          <UserPlus className="h-4 w-4 mr-2" />
-          Add Member
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsInviteOpen(true)} data-testid="button-invite-member">
+            <Mail className="h-4 w-4 mr-2" />
+            Invite by Email
+          </Button>
+          <Button onClick={() => setIsAddMemberOpen(true)} data-testid="button-add-member">
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Existing User
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -1873,7 +1974,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
             </TableRow>
           </TableHeader>
           <TableBody>
-            {members?.map(member => (
+            {members.map(member => (
               <TableRow key={member.id} data-testid={`member-row-${member.id}`}>
                 <TableCell className="font-medium">
                   {member.user?.firstName} {member.user?.lastName}
@@ -1911,10 +2012,147 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
             ))}
           </TableBody>
         </Table>
-        {members?.length === 0 && (
+        {members.length === 0 && (
           <div className="text-center py-8 text-slate-500">No members in this organization yet.</div>
         )}
+
+        {/* Pending Invites Section */}
+        {pendingInvites.length > 0 && (
+          <div className="mt-8 pt-6 border-t">
+            <h4 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Pending Invites ({pendingInvites.length})
+            </h4>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Invited</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingInvites.map(invite => (
+                  <TableRow key={invite.id} data-testid={`invite-row-${invite.id}`}>
+                    <TableCell className="font-medium">{invite.email}</TableCell>
+                    <TableCell className="capitalize">{invite.role}</TableCell>
+                    <TableCell>
+                      {invite.createdAt ? format(new Date(invite.createdAt), 'MMM d, yyyy') : 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="capitalize">{invite.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => cancelInvite.mutate(invite.id)}
+                        title="Cancel invite"
+                        data-testid={`button-cancel-invite-${invite.id}`}
+                      >
+                        <X className="h-4 w-4 text-slate-400 hover:text-red-500" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </CardContent>
+
+      {/* Invite by Email Dialog */}
+      <Dialog open={isInviteOpen} onOpenChange={(open) => {
+        setIsInviteOpen(open);
+        if (!open) {
+          setInviteResult(null);
+          setInviteEmails("");
+          setInviteRole("member");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite Team Members</DialogTitle>
+            <DialogDescription>
+              Enter email addresses to invite new team members. They will be added to the organization when they log in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Show result details if there were any issues */}
+            {inviteResult && (inviteResult.errors.length > 0 || inviteResult.skipped.length > 0) && (
+              <div className="space-y-2 p-3 rounded-md border bg-muted/50">
+                {inviteResult.success.length > 0 && (
+                  <div className="text-sm text-green-600 dark:text-green-400">
+                    Sent: {inviteResult.success.join(', ')}
+                  </div>
+                )}
+                {inviteResult.skipped.length > 0 && (
+                  <div className="text-sm text-amber-600 dark:text-amber-400">
+                    Skipped: {inviteResult.skipped.join(', ')}
+                  </div>
+                )}
+                {inviteResult.errors.length > 0 && (
+                  <div className="text-sm text-red-600 dark:text-red-400">
+                    Failed: {inviteResult.errors.join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Email Addresses</Label>
+              <Textarea
+                placeholder="Enter emails separated by commas, e.g.: john@example.com, jane@example.com"
+                value={inviteEmails}
+                onChange={(e) => {
+                  setInviteEmails(e.target.value);
+                  setInviteResult(null); // Clear result when user edits
+                }}
+                className="min-h-[100px]"
+                data-testid="input-invite-emails"
+              />
+              <p className="text-xs text-muted-foreground">
+                Separate multiple emails with commas
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="org_admin">Org Admin</SelectItem>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsInviteOpen(false);
+              setInviteResult(null);
+              setInviteEmails("");
+              setInviteRole("member");
+            }}>Cancel</Button>
+            <Button 
+              onClick={() => {
+                const emailList = inviteEmails.split(',').map(e => e.trim()).filter(e => e.length > 0);
+                if (emailList.length > 0) {
+                  setInviteResult(null);
+                  inviteMembers.mutate({ emails: emailList, role: inviteRole });
+                }
+              }}
+              disabled={!inviteEmails.trim() || inviteMembers.isPending}
+              data-testid="button-confirm-invite"
+            >
+              {inviteMembers.isPending ? 'Sending...' : 'Send Invites'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
         <DialogContent>
