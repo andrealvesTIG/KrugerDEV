@@ -411,6 +411,131 @@ If you didn't request this, you can safely ignore this email.
   return sendEmail({ to: email, subject, text, html });
 }
 
+export async function sendEnterpriseInquiryEmail(
+  userEmail: string,
+  userName: string,
+  planName: string,
+  organizationName?: string
+): Promise<{ userSent: boolean; salesSent: boolean }> {
+  const salesEmail = "sales@fridayreport.ai";
+  const subject = `Enterprise Plan Inquiry - ${userName}`;
+  
+  const userText = `
+Hi ${userName},
+
+Thank you for your interest in our ${planName} plan!
+
+We've received your inquiry and our sales team will reach out to you shortly to discuss custom pricing options tailored to your organization's needs.
+
+In the meantime, if you have any questions, feel free to reply to this email or contact us at ${salesEmail}.
+
+Best regards,
+The FridayReport.AI Team
+`;
+
+  const userHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
+  </div>
+  
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="margin-top: 0; color: #1f2937;">Thank You for Your Interest!</h2>
+    
+    <p>Hi ${userName},</p>
+    
+    <p>Thank you for your interest in our <strong>${planName}</strong> plan!</p>
+    
+    <div style="background: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0;">
+      <p style="margin: 0;">We've received your inquiry and our sales team will reach out to you shortly to discuss custom pricing options tailored to your organization's needs.</p>
+    </div>
+    
+    <p>In the meantime, if you have any questions, feel free to reply to this email or contact us at <a href="mailto:${salesEmail}" style="color: #f97316;">${salesEmail}</a>.</p>
+    
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    
+    <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
+      Best regards,<br>The FridayReport.AI Team
+    </p>
+  </div>
+</body>
+</html>
+`;
+
+  const salesText = `
+New Enterprise Inquiry
+
+A user has expressed interest in the ${planName} plan.
+
+User Details:
+- Name: ${userName}
+- Email: ${userEmail}
+${organizationName ? `- Organization: ${organizationName}` : ''}
+
+Please follow up with this lead as soon as possible.
+
+- FridayReport.AI System
+`;
+
+  const salesHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">New Enterprise Lead</h1>
+  </div>
+  
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="margin-top: 0; color: #1f2937;">Enterprise Plan Inquiry</h2>
+    
+    <p>A user has expressed interest in the <strong>${planName}</strong> plan.</p>
+    
+    <div style="background: #ecfdf5; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #10b981;">
+      <h3 style="margin: 0 0 15px 0; color: #065f46;">User Details</h3>
+      <p style="margin: 5px 0;"><strong>Name:</strong> ${userName}</p>
+      <p style="margin: 5px 0;"><strong>Email:</strong> <a href="mailto:${userEmail}" style="color: #f97316;">${userEmail}</a></p>
+      ${organizationName ? `<p style="margin: 5px 0;"><strong>Organization:</strong> ${organizationName}</p>` : ''}
+    </div>
+    
+    <p><strong>Action Required:</strong> Please follow up with this lead as soon as possible.</p>
+    
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    
+    <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
+      This is an automated notification from FridayReport.AI
+    </p>
+  </div>
+</body>
+</html>
+`;
+
+  const userSent = await sendEmail({ 
+    to: userEmail, 
+    subject: `Your ${planName} Inquiry - FridayReport.AI`, 
+    text: userText, 
+    html: userHtml 
+  });
+  
+  const salesSent = await sendEmail({ 
+    to: salesEmail, 
+    subject, 
+    text: salesText, 
+    html: salesHtml 
+  });
+  
+  return { userSent, salesSent };
+}
+
 export async function sendPasswordlessSignInEmail(
   email: string,
   firstName: string,

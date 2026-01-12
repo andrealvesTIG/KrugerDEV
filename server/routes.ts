@@ -5690,6 +5690,46 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // Enterprise plan inquiry - sends email to both user and sales
+  app.post('/api/billing/enterprise-inquiry', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const { planName, organizationName } = req.body;
+      
+      if (!planName) {
+        return res.status(400).json({ message: "Plan name is required" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
+      
+      const { sendEnterpriseInquiryEmail } = await import("./services/email");
+      const result = await sendEnterpriseInquiryEmail(
+        user.email,
+        userName,
+        planName,
+        organizationName
+      );
+      
+      res.json({ 
+        success: result.userSent || result.salesSent,
+        userEmailSent: result.userSent,
+        salesEmailSent: result.salesSent
+      });
+    } catch (error) {
+      console.error("Error sending enterprise inquiry:", error);
+      res.status(500).json({ message: "Failed to send inquiry" });
+    }
+  });
+
   // Create subscription
   app.post('/api/billing/subscription', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;

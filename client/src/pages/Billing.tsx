@@ -266,6 +266,26 @@ export default function Billing() {
     },
   });
 
+  const enterpriseInquiryMutation = useMutation({
+    mutationFn: async (planName: string) => {
+      return apiRequest('POST', '/api/billing/enterprise-inquiry', { planName });
+    },
+    onSuccess: () => {
+      toast({ 
+        title: "Inquiry Sent!", 
+        description: "We've received your inquiry and will contact you shortly." 
+      });
+      setChangePlanDialog(null);
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Error", 
+        description: "Failed to send inquiry. Please try again or email sales@fridayreport.ai directly.", 
+        variant: "destructive" 
+      });
+    },
+  });
+
   if (authLoading || plansLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -872,9 +892,11 @@ export default function Billing() {
                   </p>
                   <Button 
                     variant="default"
-                    onClick={() => window.open('mailto:sales@fridayreport.ai?subject=Enterprise Plan Inquiry', '_blank')}
+                    onClick={() => enterpriseInquiryMutation.mutate(changePlanDialog.name)}
+                    disabled={enterpriseInquiryMutation.isPending}
                     data-testid="button-contact-sales"
                   >
+                    {enterpriseInquiryMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Contact Sales
                   </Button>
                 </div>
