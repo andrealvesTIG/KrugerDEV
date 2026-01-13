@@ -2,11 +2,12 @@ import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { DashboardActionBar } from "./DashboardActionBar";
+import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
 import { ProjectCardCompact, ProjectCardCompactSkeleton } from "./ProjectCardCompact";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
   FolderKanban, ArrowRight, Activity, Target, BarChart3
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, Area, AreaChart } from "recharts";
+import { isWithinInterval, parseISO } from "date-fns";
 import type { ProjectIntake, Risk, Issue } from "@shared/schema";
 
 const COLORS = {
@@ -36,7 +38,7 @@ const COLORS = {
 
 export function ExecutiveDashboard() {
   const { currentOrganization } = useOrganization();
-  const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [, setLocation] = useLocation();
@@ -101,12 +103,28 @@ export function ExecutiveDashboard() {
     },
   });
   
-  const projects = (projectsData ?? []).filter(p => {
-    if (sourceFilter === "all") return true;
-    if (sourceFilter === "manual") return p.source === "manual" || !p.source;
-    if (sourceFilter === "imported") return p.source === "imported";
-    return true;
-  });
+  const projects = useMemo(() => {
+    return (projectsData ?? []).filter(p => {
+      if (filters.portfolioId && p.portfolioId !== filters.portfolioId) return false;
+      if (filters.projectId && p.id !== filters.projectId) return false;
+      if (filters.health && p.health !== filters.health) return false;
+      if (filters.dateRange.from || filters.dateRange.to) {
+        const startDate = p.startDate ? new Date(p.startDate) : null;
+        if (startDate) {
+          if (filters.dateRange.from && filters.dateRange.to) {
+            if (!isWithinInterval(startDate, { start: filters.dateRange.from, end: filters.dateRange.to })) {
+              return false;
+            }
+          } else if (filters.dateRange.from && startDate < filters.dateRange.from) {
+            return false;
+          } else if (filters.dateRange.to && startDate > filters.dateRange.to) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+  }, [projectsData, filters]);
 
   const { data: intakes = [], isLoading: intakesLoading } = useQuery<ProjectIntake[]>({
     queryKey: ['/api/project-intakes', currentOrganization?.id],
@@ -200,18 +218,10 @@ export function ExecutiveDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2 justify-between">
-        <div className="flex items-center gap-2">
-          <Select value={sourceFilter} onValueChange={setSourceFilter}>
-            <SelectTrigger className="w-[140px] h-8 text-xs" data-testid="select-dashboard-source-filter">
-              <SelectValue placeholder="Filter" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" data-testid="select-option-all">All Projects</SelectItem>
-              <SelectItem value="manual" data-testid="select-option-manual">Created</SelectItem>
-              <SelectItem value="imported" data-testid="select-option-imported">Imported</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="flex flex-wrap items-center gap-4 justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Executive Overview</h2>
+          <p className="text-sm text-muted-foreground">High-level view of projects, portfolios, and organizational health.</p>
         </div>
         <div className="flex items-center gap-2">
           <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
@@ -262,6 +272,15 @@ export function ExecutiveDashboard() {
           <DashboardActionBar title="Executive Dashboard" dashboardType="executive" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
         </div>
       </div>
+
+      <DashboardFilters
+        portfolios={portfolios || []}
+        projects={projectsData || []}
+        filters={filters}
+        onFiltersChange={setFilters}
+        showResource={false}
+        showPriority={false}
+      />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-3 hover-elevate cursor-pointer" onClick={() => setLocation("/projects")} data-testid="kpi-total-projects">

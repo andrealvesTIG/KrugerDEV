@@ -7,7 +7,8 @@ import {
   RisksIssuesDashboard,
   ResourceDashboard,
   ResourceManagementDashboard,
-  TimesheetReportDashboard
+  TimesheetReportDashboard,
+  IntakeDashboard
 } from "@/components/dashboard";
 import { 
   LayoutDashboard, 
@@ -15,12 +16,14 @@ import {
   ShieldAlert, 
   Users, 
   UserCog, 
-  Clock 
+  Clock,
+  FileInput
 } from "lucide-react";
 
 const DASHBOARD_TABS = [
   { id: "executive", label: "Executive", icon: LayoutDashboard },
   { id: "portfolios", label: "Portfolios", icon: FolderKanban },
+  { id: "intake", label: "Intake", icon: FileInput },
   { id: "risks-issues", label: "Risks & Issues", icon: ShieldAlert },
   { id: "resource", label: "Resource", icon: Users },
   { id: "resource-management", label: "Resource Management", icon: UserCog },
@@ -104,6 +107,10 @@ export default function Dashboard() {
 
         <TabsContent value="portfolios" className="mt-6" data-testid="content-portfolios">
           <PortfoliosDashboard />
+        </TabsContent>
+
+        <TabsContent value="intake" className="mt-6" data-testid="content-intake">
+          <IntakeDashboard />
         </TabsContent>
 
         <TabsContent value="risks-issues" className="mt-6" data-testid="content-risks-issues">
