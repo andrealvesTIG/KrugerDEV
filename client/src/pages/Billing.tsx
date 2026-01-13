@@ -1307,7 +1307,7 @@ export default function Billing() {
                 Downgrade to Free
               </Button>
             )}
-            {user?.role === 'super_admin' && changePlanDialog?.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && (
+            {user?.role === 'super_admin' && changePlanDialog?.monthlyPriceCents != null && changePlanDialog.monthlyPriceCents > 0 && (
               <Button 
                 onClick={() => changePlanDialog && changePlanMutation.mutate(changePlanDialog.code)}
                 disabled={changePlanMutation.isPending}
