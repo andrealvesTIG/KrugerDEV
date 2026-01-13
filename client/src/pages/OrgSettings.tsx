@@ -2162,54 +2162,17 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
       }
       // If there are errors, keep dialog open so user can see the result
     },
-    onError: async (error: Error) => {
-      // Try to extract structured error from response
-      // apiRequest throws with format "status: responseText"
-      let errorMessage = "Failed to send invites";
-      const msg = error.message;
-      
-      // Extract the content after "status:" prefix
-      const colonIndex = msg.indexOf(':');
-      if (colonIndex > -1) {
-        const responseText = msg.substring(colonIndex + 1).trim();
-        
-        // Check if response looks like JSON (starts with { or [)
-        if (responseText.startsWith('{') || responseText.startsWith('[')) {
-          try {
-            const parsed = JSON.parse(responseText);
-            
-            // Check for seat limit exceeded - show upgrade dialog
-            if (parsed?.limitExceeded && parsed?.resourceType === 'seats') {
-              setIsInviteOpen(false);
-              setUpgradeMessage(parsed.message || 'You have reached your seat limit. Please upgrade your plan to invite more team members.');
-              setShowUpgradeDialog(true);
-              return;
-            }
-            
-            if (parsed?.error) {
-              errorMessage = parsed.error;
-            }
-            if (parsed?.message) {
-              errorMessage = parsed.message;
-            }
-            if (parsed?.errors && Array.isArray(parsed.errors)) {
-              // Server returned structured validation errors - keep dialog open
-              setInviteResult({ success: [], skipped: [], errors: parsed.errors });
-              return; // Don't close dialog, user can correct and retry
-            }
-          } catch {
-            // Failed to parse JSON, use the raw text
-            errorMessage = responseText || errorMessage;
-          }
-        } else {
-          // Plain text error message
-          errorMessage = responseText || errorMessage;
-        }
+    onError: async (error: Error & { limitExceeded?: boolean; resourceType?: string }) => {
+      // Check for seat limit exceeded - apiRequest attaches these as error properties
+      if (error.limitExceeded && error.resourceType === 'seats') {
+        setIsInviteOpen(false);
+        setUpgradeMessage(error.message || 'You have reached your seat limit. Please upgrade your plan to invite more team members.');
+        setShowUpgradeDialog(true);
+        return;
       }
       
-      // Show error as toast but keep dialog open for retry
-      toast({ title: "Error", description: errorMessage, variant: "destructive" });
-      // Don't clear inviteEmails - user can correct and retry
+      // For other errors, show as toast
+      toast({ title: "Error", description: error.message || "Failed to send invites", variant: "destructive" });
     }
   });
 
