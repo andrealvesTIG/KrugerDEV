@@ -1,8 +1,12 @@
+import { useState } from "react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useResources } from "@/hooks/use-resources";
+import { useProjects } from "@/hooks/use-projects";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import { useAllTasks } from "@/hooks/use-tasks";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardActionBar } from "./DashboardActionBar";
+import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,7 +29,10 @@ const COLORS = {
 export function ResourceManagementDashboard() {
   const { currentOrganization } = useOrganization();
   const { data: resources, isLoading: resourcesLoading } = useResources(currentOrganization?.id ?? null);
+  const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
+  const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
   const { data: tasks, isLoading: tasksLoading } = useAllTasks();
+  const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
 
   const { data: timesheetData = [], isLoading: timesheetLoading } = useQuery<{ weekStart: string; hours: number }[]>({
     queryKey: ['/api/dashboard/utilization', currentOrganization?.id],
@@ -161,9 +168,23 @@ export function ResourceManagementDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold">Resource Management</h2>
+          <p className="text-sm text-muted-foreground">Resource capacity, workload, and bottleneck analysis.</p>
+        </div>
         <DashboardActionBar title="Resource Management Dashboard" dashboardType="resource-management" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
       </div>
+
+      <DashboardFilters
+        portfolios={portfolios || []}
+        projects={projectsData || []}
+        resources={resources || []}
+        filters={filters}
+        onFiltersChange={setFilters}
+        showHealth={false}
+        showPriority={false}
+      />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-3 hover-elevate" data-testid="kpi-utilization">

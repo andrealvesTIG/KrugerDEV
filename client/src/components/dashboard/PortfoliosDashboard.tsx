@@ -1,8 +1,10 @@
+import { useState, useMemo } from "react";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
 import { useLocation } from "wouter";
 import { DashboardActionBar } from "./DashboardActionBar";
+import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
 import { ProjectCardCompact } from "./ProjectCardCompact";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, FolderKanban, Target, TrendingUp, DollarSign, ArrowRight, Activity, BarChart3 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import { isWithinInterval } from "date-fns";
 
 const COLORS = {
   Green: "#10b981",
@@ -28,9 +31,40 @@ const PORTFOLIO_COLORS = [COLORS.Blue, COLORS.Purple, COLORS.Teal, COLORS.Pink, 
 
 export function PortfoliosDashboard() {
   const { currentOrganization } = useOrganization();
-  const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
-  const { data: projects, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
+  const { data: portfoliosData, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
+  const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
   const [, setLocation] = useLocation();
+  const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
+
+  const portfolios = useMemo(() => {
+    return (portfoliosData ?? []).filter(p => {
+      if (filters.portfolioId && p.id !== filters.portfolioId) return false;
+      return true;
+    });
+  }, [portfoliosData, filters.portfolioId]);
+
+  const projects = useMemo(() => {
+    return (projectsData ?? []).filter(p => {
+      if (filters.portfolioId && p.portfolioId !== filters.portfolioId) return false;
+      if (filters.projectId && p.id !== filters.projectId) return false;
+      if (filters.health && p.health !== filters.health) return false;
+      if (filters.dateRange.from || filters.dateRange.to) {
+        const startDate = p.startDate ? new Date(p.startDate) : null;
+        if (startDate) {
+          if (filters.dateRange.from && filters.dateRange.to) {
+            if (!isWithinInterval(startDate, { start: filters.dateRange.from, end: filters.dateRange.to })) {
+              return false;
+            }
+          } else if (filters.dateRange.from && startDate < filters.dateRange.from) {
+            return false;
+          } else if (filters.dateRange.to && startDate > filters.dateRange.to) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+  }, [projectsData, filters]);
 
   if (portfoliosLoading || projectsLoading) {
     return (
@@ -111,9 +145,22 @@ export function PortfoliosDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold">Portfolio Overview</h2>
+          <p className="text-sm text-muted-foreground">Portfolio health, budgets, and project distribution.</p>
+        </div>
         <DashboardActionBar title="Portfolios Dashboard" dashboardType="portfolios" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
       </div>
+
+      <DashboardFilters
+        portfolios={portfoliosData || []}
+        projects={projectsData || []}
+        filters={filters}
+        onFiltersChange={setFilters}
+        showResource={false}
+        showPriority={false}
+      />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-3 hover-elevate cursor-pointer" onClick={() => setLocation("/portfolios")} data-testid="kpi-total-portfolios">

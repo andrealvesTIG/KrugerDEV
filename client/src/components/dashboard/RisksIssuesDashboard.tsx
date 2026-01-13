@@ -1,7 +1,10 @@
+import { useState, useMemo } from "react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useProjects } from "@/hooks/use-projects";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardActionBar } from "./DashboardActionBar";
+import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,10 +34,12 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 export function RisksIssuesDashboard() {
   const { currentOrganization } = useOrganization();
-  const { data: projects, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
+  const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
+  const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
   const [, setLocation] = useLocation();
+  const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
 
-  const { data: allRisks = [], isLoading: risksLoading } = useQuery<Risk[]>({
+  const { data: allRisksData = [], isLoading: risksLoading } = useQuery<Risk[]>({
     queryKey: ['/api/risks/all', currentOrganization?.id],
     queryFn: async () => {
       const res = await fetch(`/api/risks?organizationId=${currentOrganization?.id}`);
@@ -53,7 +58,36 @@ export function RisksIssuesDashboard() {
     },
   });
 
-  if (projectsLoading || risksLoading || issuesLoading) {
+  const projects = useMemo(() => {
+    return (projectsData ?? []).filter(p => {
+      if (filters.portfolioId && p.portfolioId !== filters.portfolioId) return false;
+      if (filters.projectId && p.id !== filters.projectId) return false;
+      if (filters.health && p.health !== filters.health) return false;
+      return true;
+    });
+  }, [projectsData, filters]);
+
+  const filteredProjectIds = useMemo(() => new Set(projects.map(p => p.id)), [projects]);
+
+  const allRisks = useMemo(() => {
+    return allRisksData.filter(r => {
+      if (filters.projectId && r.projectId !== filters.projectId) return false;
+      if (filters.portfolioId && !filteredProjectIds.has(r.projectId)) return false;
+      if (filters.priority && r.impact !== filters.priority) return false;
+      return true;
+    });
+  }, [allRisksData, filters, filteredProjectIds]);
+
+  const filteredIssues = useMemo(() => {
+    return allIssues.filter(i => {
+      if (filters.projectId && i.projectId !== filters.projectId) return false;
+      if (filters.portfolioId && !filteredProjectIds.has(i.projectId)) return false;
+      if (filters.priority && i.priority !== filters.priority) return false;
+      return true;
+    });
+  }, [allIssues, filters, filteredProjectIds]);
+
+  if (projectsLoading || risksLoading || issuesLoading || portfoliosLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -64,7 +98,7 @@ export function RisksIssuesDashboard() {
   const handleExportCsv = () => {
     const headers = ["Type", "Title", "Status", "Priority/Impact", "Project"];
     const riskRows = allRisks.map(r => ["Risk", r.title, r.status, r.impact, getProjectName(r.projectId)]);
-    const issueRows = allIssues.map(i => ["Issue", i.title, i.status, i.priority, getProjectName(i.projectId)]);
+    const issueRows = filteredIssues.map(i => ["Issue", i.title, i.status, i.priority, getProjectName(i.projectId)]);
     const csv = [headers.join(","), ...riskRows.map(r => r.join(",")), ...issueRows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -76,7 +110,7 @@ export function RisksIssuesDashboard() {
   };
 
   const getProjectName = (projectId: number) => {
-    const project = projects?.find(p => p.id === projectId);
+    const project = projectsData?.find(p => p.id === projectId);
     return project?.name || "Unknown";
   };
 
@@ -85,10 +119,10 @@ export function RisksIssuesDashboard() {
   const closedRisks = allRisks.filter(r => r.status === "Closed").length;
   const highRisks = allRisks.filter(r => r.probability === "High" || r.impact === "High").length;
 
-  const openIssues = allIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
-  const resolvedIssues = allIssues.filter(i => i.status === "Resolved" || i.status === "Closed").length;
-  const criticalIssues = allIssues.filter(i => i.priority === "Critical").length;
-  const highIssues = allIssues.filter(i => i.priority === "High").length;
+  const openIssues = filteredIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
+  const resolvedIssues = filteredIssues.filter(i => i.status === "Resolved" || i.status === "Closed").length;
+  const criticalIssues = filteredIssues.filter(i => i.priority === "Critical").length;
+  const highIssues = filteredIssues.filter(i => i.priority === "High").length;
 
   const riskStatusData = [
     { name: "Open", value: openRisks, color: COLORS.Red },
@@ -97,10 +131,10 @@ export function RisksIssuesDashboard() {
   ].filter(d => d.value > 0);
 
   const issuesByPriority = [
-    { name: "Critical", value: allIssues.filter(i => i.priority === "Critical").length, color: COLORS.Red },
-    { name: "High", value: allIssues.filter(i => i.priority === "High").length, color: COLORS.Orange },
-    { name: "Medium", value: allIssues.filter(i => i.priority === "Medium").length, color: COLORS.Yellow },
-    { name: "Low", value: allIssues.filter(i => i.priority === "Low").length, color: COLORS.Blue },
+    { name: "Critical", value: filteredIssues.filter(i => i.priority === "Critical").length, color: COLORS.Red },
+    { name: "High", value: filteredIssues.filter(i => i.priority === "High").length, color: COLORS.Orange },
+    { name: "Medium", value: filteredIssues.filter(i => i.priority === "Medium").length, color: COLORS.Yellow },
+    { name: "Low", value: filteredIssues.filter(i => i.priority === "Low").length, color: COLORS.Blue },
   ];
 
   const probabilityMap: Record<string, number> = { Low: 1, Medium: 2, High: 3 };
@@ -125,7 +159,7 @@ export function RisksIssuesDashboard() {
     ...allRisks
       .filter(r => (r.status === "Open" || r.status === "Identified") && (r.probability === "High" || r.impact === "High"))
       .map(r => ({ id: r.id, title: r.title, type: "Risk" as const, severity: r.impact || "Medium", projectId: r.projectId })),
-    ...allIssues
+    ...filteredIssues
       .filter(i => (i.status === "Open" || i.status === "In Progress") && (i.priority === "Critical" || i.priority === "High"))
       .map(i => ({ id: i.id, title: i.title, type: "Issue" as const, severity: i.priority || "Medium", projectId: i.projectId })),
   ].slice(0, 12);
@@ -135,14 +169,27 @@ export function RisksIssuesDashboard() {
     name: p.name.length > 15 ? p.name.substring(0, 15) + "..." : p.name,
     fullName: p.name,
     risks: allRisks.filter(r => r.projectId === p.id && (r.status === "Open" || r.status === "Identified")).length,
-    issues: allIssues.filter(i => i.projectId === p.id && (i.status === "Open" || i.status === "In Progress")).length,
+    issues: filteredIssues.filter(i => i.projectId === p.id && (i.status === "Open" || i.status === "In Progress")).length,
   })).filter(p => p.risks > 0 || p.issues > 0).sort((a, b) => (b.risks + b.issues) - (a.risks + a.issues)).slice(0, 6);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold">Risks & Issues</h2>
+          <p className="text-sm text-muted-foreground">Monitor and track project risks and issues across portfolios.</p>
+        </div>
         <DashboardActionBar title="Risks & Issues Dashboard" dashboardType="risks-issues" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
       </div>
+
+      <DashboardFilters
+        portfolios={portfolios || []}
+        projects={projectsData || []}
+        filters={filters}
+        onFiltersChange={setFilters}
+        showResource={false}
+        showHealth={false}
+      />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-3 hover-elevate" data-testid="kpi-open-risks">

@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useResources } from "@/hooks/use-resources";
+import { useProjects } from "@/hooks/use-projects";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardActionBar } from "./DashboardActionBar";
+import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -24,6 +28,9 @@ const COLORS = {
 export function TimesheetReportDashboard() {
   const { currentOrganization } = useOrganization();
   const { data: resources, isLoading: resourcesLoading } = useResources(currentOrganization?.id ?? null);
+  const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
+  const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
+  const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
 
   const today = new Date();
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -154,10 +161,20 @@ export function TimesheetReportDashboard() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold">Timesheet Report</h2>
-          <p className="text-sm text-muted-foreground">Comprehensive view of your timesheet report metrics and performance.</p>
+          <p className="text-sm text-muted-foreground">Track time logging, compliance, and approval status.</p>
         </div>
         <DashboardActionBar title="Timesheet Report Dashboard" dashboardType="timesheet" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
       </div>
+
+      <DashboardFilters
+        portfolios={portfolios || []}
+        projects={projectsData || []}
+        resources={resources || []}
+        filters={filters}
+        onFiltersChange={setFilters}
+        showHealth={false}
+        showPriority={false}
+      />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-3 hover-elevate" data-testid="kpi-total-hours">
