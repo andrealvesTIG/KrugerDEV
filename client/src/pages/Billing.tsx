@@ -1210,15 +1210,28 @@ export default function Billing() {
                   <p className="text-xs text-muted-foreground mb-4">
                     Contact our sales team to discuss your organization's specific requirements and get custom pricing.
                   </p>
-                  <Button 
-                    variant="default"
-                    onClick={() => enterpriseInquiryMutation.mutate(changePlanDialog.name)}
-                    disabled={enterpriseInquiryMutation.isPending}
-                    data-testid="button-contact-sales"
-                  >
-                    {enterpriseInquiryMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Contact Sales
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    <Button 
+                      variant="default"
+                      onClick={() => enterpriseInquiryMutation.mutate(changePlanDialog.name)}
+                      disabled={enterpriseInquiryMutation.isPending}
+                      data-testid="button-contact-sales"
+                    >
+                      {enterpriseInquiryMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Contact Sales
+                    </Button>
+                    {user?.role === 'super_admin' && (
+                      <Button 
+                        variant="outline"
+                        onClick={() => changePlanMutation.mutate(changePlanDialog.code)}
+                        disabled={changePlanMutation.isPending}
+                        data-testid="button-admin-switch-enterprise"
+                      >
+                        {changePlanMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Switch to Enterprise (Admin)
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : changePlanDialog && changePlanDialog.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && (
@@ -1292,6 +1305,16 @@ export default function Billing() {
               >
                 {changePlanMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Downgrade to Free
+              </Button>
+            )}
+            {user?.role === 'super_admin' && changePlanDialog?.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && (
+              <Button 
+                onClick={() => changePlanDialog && changePlanMutation.mutate(changePlanDialog.code)}
+                disabled={changePlanMutation.isPending}
+                data-testid="button-admin-switch-plan"
+              >
+                {changePlanMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Switch Plan (Admin)
               </Button>
             )}
           </DialogFooter>
