@@ -609,6 +609,10 @@ export const METER_CODES = {
   TASKS: "tasks",
   DOCUMENTS: "documents",
   AI_RUNS: "ai_runs",
+  ISSUES: "issues",
+  RISKS: "risks",
+  RESOURCES: "resources",
+  RESOURCE_ASSIGNMENTS: "resource_assignments",
 } as const;
 
 export type MeterCode = (typeof METER_CODES)[keyof typeof METER_CODES];
@@ -743,6 +747,10 @@ export async function checkAndEnforceLimit(
     tasks: RESOURCE_TYPES.TASK,
     documents: RESOURCE_TYPES.DOCUMENT,
     ai_runs: RESOURCE_TYPES.AI_RUN,
+    issues: RESOURCE_TYPES.ISSUE,
+    risks: RESOURCE_TYPES.RISK,
+    resources: RESOURCE_TYPES.RESOURCE,
+    resource_assignments: RESOURCE_TYPES.RESOURCE_ASSIGNMENT,
   };
   
   const resourceType = meterToResource[meterCode];

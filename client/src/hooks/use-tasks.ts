@@ -18,7 +18,22 @@ export function useAllTasks() {
 
 export function useCreateTask() {
   return useMutation({
-    mutationFn: (data: InsertTask) => apiRequest('POST', '/api/tasks', data),
+    mutationFn: async (data: InsertTask) => {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: 'Failed to create task' }));
+        const error = new Error(errorData.message || 'Failed to create task') as any;
+        error.limitExceeded = errorData.limitExceeded;
+        error.resourceType = errorData.resourceType;
+        throw error;
+      }
+      return res.json();
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });

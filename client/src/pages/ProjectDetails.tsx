@@ -1300,6 +1300,18 @@ function RisksTab({ projectId }: { projectId: number }) {
           }
           toast({ title: "Success", description: "Risk added" });
           setIsDialogOpen(false);
+        },
+        onError: (error: any) => {
+          if (error?.limitExceeded) {
+            toast({ 
+              title: "Credit Limit Reached", 
+              description: error.message || "Please upgrade your plan to create more risks.",
+              variant: "destructive"
+            });
+            setIsDialogOpen(false);
+          } else {
+            toast({ title: "Error", description: error?.message || "Failed to create risk", variant: "destructive" });
+          }
         }
       });
     }

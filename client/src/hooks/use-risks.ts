@@ -25,7 +25,13 @@ export function useCreateRisk() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create risk");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const error = new Error(errorData.message || "Failed to create risk") as any;
+        error.limitExceeded = errorData.limitExceeded;
+        error.resourceType = errorData.resourceType;
+        throw error;
+      }
       return api.risks.create.responses[201].parse(await res.json());
     },
     onSuccess: (data) => {

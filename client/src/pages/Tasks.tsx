@@ -29,6 +29,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertTaskSchema, type Task } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
 const statusColors = {
   "Not Started": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -53,6 +54,8 @@ export default function Tasks() {
   const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+  const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
@@ -239,8 +242,14 @@ export default function Tasks() {
           setIsDialogOpen(false);
         },
         onError: (error: any) => {
-          const msg = error?.message || "Failed to create task";
-          toast({ title: "Error", description: msg, variant: "destructive" });
+          if (error?.limitExceeded) {
+            setLimitError({ message: error.message, resourceType: error.resourceType });
+            setLimitDialogOpen(true);
+            setIsDialogOpen(false);
+          } else {
+            const msg = error?.message || "Failed to create task";
+            toast({ title: "Error", description: msg, variant: "destructive" });
+          }
         }
       });
     }
@@ -249,6 +258,13 @@ export default function Tasks() {
   if (isLoading) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
+    <>
+      <LimitExceededDialog
+        open={limitDialogOpen}
+        onOpenChange={setLimitDialogOpen}
+        resourceType={limitError?.resourceType}
+        message={limitError?.message}
+      />
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -626,6 +642,7 @@ export default function Tasks() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }
 

@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
+import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
 const priorityColors = {
   Low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -56,6 +57,8 @@ export default function Issues() {
   const { toast } = useToast();
   const [deleteIssueData, setDeleteIssueData] = useState<{ id: number; projectId: number } | null>(null);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+  const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
 
   const form = useForm({
     resolver: zodResolver(insertIssueSchema.extend({
@@ -90,6 +93,15 @@ export default function Issues() {
           type: "Bug",
           assignee: ""
         });
+      },
+      onError: (err: any) => {
+        if (err.limitExceeded) {
+          setLimitError({ message: err.message, resourceType: err.resourceType });
+          setLimitDialogOpen(true);
+          setIsDialogOpen(false);
+        } else {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
       }
     });
   };
@@ -115,6 +127,13 @@ export default function Issues() {
   }
 
   return (
+    <>
+      <LimitExceededDialog
+        open={limitDialogOpen}
+        onOpenChange={setLimitDialogOpen}
+        resourceType={limitError?.resourceType}
+        message={limitError?.message}
+      />
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -364,5 +383,6 @@ export default function Issues() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }

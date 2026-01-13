@@ -117,7 +117,15 @@ export default function Resources() {
             notes: (row["Notes"] || row["notes"] || "").toString().trim() || null
           });
           imported++;
-        } catch (err) {
+        } catch (err: any) {
+          if (err?.limitExceeded) {
+            toast({ 
+              title: "Credit Limit Reached", 
+              description: `Imported ${imported} resources. ${err.message || "Please upgrade your plan to import more."}`, 
+              variant: "destructive" 
+            });
+            break;
+          }
           skipped++;
         }
       }
@@ -421,11 +429,20 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
       form.reset();
     } catch (err: any) {
       console.error("Failed to save resource:", err?.message || err);
-      toast({ 
-        title: "Error", 
-        description: err?.message || "Failed to save resource", 
-        variant: "destructive" 
-      });
+      if (err?.limitExceeded) {
+        toast({ 
+          title: "Credit Limit Reached", 
+          description: err.message || "Please upgrade your plan to create more resources.", 
+          variant: "destructive" 
+        });
+        onOpenChange(false);
+      } else {
+        toast({ 
+          title: "Error", 
+          description: err?.message || "Failed to save resource", 
+          variant: "destructive" 
+        });
+      }
     }
   };
 

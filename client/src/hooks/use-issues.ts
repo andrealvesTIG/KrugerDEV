@@ -36,7 +36,13 @@ export function useCreateIssue() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create issue");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const error = new Error(errorData.message || "Failed to create issue") as any;
+        error.limitExceeded = errorData.limitExceeded;
+        error.resourceType = errorData.resourceType;
+        throw error;
+      }
       return api.issues.create.responses[201].parse(await res.json());
     },
     onSuccess: (data) => {

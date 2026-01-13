@@ -34,7 +34,19 @@ export function useCreateResource() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (resource: InsertResource) => {
-      const response = await apiRequest("POST", "/api/resources", resource);
+      const response = await fetch("/api/resources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(resource),
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error(errorData.message || "Failed to create resource") as any;
+        error.limitExceeded = errorData.limitExceeded;
+        error.resourceType = errorData.resourceType;
+        throw error;
+      }
       return response.json();
     },
     onSuccess: (_, variables) => {
