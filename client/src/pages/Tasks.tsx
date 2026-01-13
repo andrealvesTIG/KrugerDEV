@@ -743,6 +743,83 @@ const taskZoomLabels: Record<TaskZoomLevel, string> = {
   '5year': '5 Years'
 };
 
+function GanttTaskRow({ task, projects, onTaskClick, minDate, maxDate, filteredDates, dateFormat, columnWidth }: { 
+  task: Task; 
+  projects: any[]; 
+  onTaskClick: (task: Task) => void;
+  minDate: Date;
+  maxDate: Date;
+  filteredDates: Date[];
+  dateFormat: string;
+  columnWidth: string;
+}) {
+  const { data: taskAssignments } = useTaskResourceAssignments(task.id);
+  
+  const getProjectName = (projectId: number) => {
+    return projects.find(p => p.id === projectId)?.name || "Unknown";
+  };
+
+  const hasValidDates = task.startDate && task.endDate;
+  const start = hasValidDates ? parseISO(task.startDate) : null;
+  const end = hasValidDates ? parseISO(task.endDate) : null;
+  
+  let leftPercent = 0;
+  let widthPercent = 0;
+  
+  if (start && end) {
+    const totalDays = differenceInDays(maxDate, minDate) || 1;
+    const startOffset = differenceInDays(start, minDate);
+    const duration = differenceInDays(end, start) + 1;
+    leftPercent = (startOffset / totalDays) * 100;
+    widthPercent = (duration / totalDays) * 100;
+  }
+
+  return (
+    <div 
+      className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
+      onClick={() => onTaskClick(task)}
+      data-testid={`gantt-task-${task.id}`}
+    >
+      <div className="w-64 flex-shrink-0 border-r p-3">
+        <div className="font-medium text-sm truncate">{task.name}</div>
+        <Link 
+          href={`/projects/${task.projectId}`}
+          onClick={(e) => e.stopPropagation()}
+          className="text-xs text-muted-foreground truncate hover:text-primary hover:underline block"
+          data-testid={`link-project-${task.projectId}`}
+        >
+          {getProjectName(task.projectId)}
+        </Link>
+        {taskAssignments && taskAssignments.length > 0 && (
+          <div className="text-xs text-muted-foreground mt-1 truncate">
+            {taskAssignments.map(a => a.resource.displayName).join(", ")}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 relative p-2">
+        {hasValidDates ? (
+          <div
+            className={cn(
+              "absolute top-2 bottom-2 rounded-md flex items-center px-2 text-xs text-white font-medium",
+              task.status === "Completed" ? "bg-emerald-500" :
+              task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+            )}
+            style={{
+              left: `${Math.max(0, leftPercent)}%`,
+              width: `${Math.min(100 - leftPercent, widthPercent)}%`,
+              minWidth: '60px'
+            }}
+          >
+            <span className="truncate">{task.progress || 0}%</span>
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground italic">No dates set</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void; embedded?: boolean }) {
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<TaskZoomLevel>('month');
@@ -804,10 +881,6 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: 
     if (idx < taskZoomLevels.length - 1) setZoomLevel(taskZoomLevels[idx + 1]);
   };
 
-  const getProjectName = (projectId: number) => {
-    return projects.find(p => p.id === projectId)?.name || "Unknown";
-  };
-
   if (tasks.length === 0) {
     if (embedded) {
       return (
@@ -867,68 +940,19 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: 
             ))}
           </div>
         </div>
-        {tasks.map(task => {
-          const hasValidDates = task.startDate && task.endDate;
-          const start = hasValidDates ? parseISO(task.startDate) : null;
-          const end = hasValidDates ? parseISO(task.endDate) : null;
-          
-          let leftPercent = 0;
-          let widthPercent = 0;
-          
-          if (start && end) {
-            const totalDays = differenceInDays(maxDate, minDate) || 1;
-            const startOffset = differenceInDays(start, minDate);
-            const duration = differenceInDays(end, start) + 1;
-            leftPercent = (startOffset / totalDays) * 100;
-            widthPercent = (duration / totalDays) * 100;
-          }
-
-          return (
-            <div 
-              key={task.id} 
-              className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
-              onClick={() => onTaskClick(task)}
-              data-testid={`gantt-task-${task.id}`}
-            >
-              <div className="w-64 flex-shrink-0 border-r p-3">
-                <div className="font-medium text-sm truncate">{task.name}</div>
-                <Link 
-                  href={`/projects/${task.projectId}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-xs text-muted-foreground truncate hover:text-primary hover:underline block"
-                  data-testid={`link-project-${task.projectId}`}
-                >
-                  {getProjectName(task.projectId)}
-                </Link>
-              </div>
-              <div className="flex-1 relative p-2">
-                {hasValidDates ? (
-                  <div
-                    className={cn(
-                      "absolute top-2 bottom-2 rounded-md flex items-center px-2 text-xs text-white font-medium",
-                      task.status === "Completed" ? "bg-emerald-500" :
-                      task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
-                    )}
-                    style={{
-                      left: `${Math.max(0, leftPercent)}%`,
-                      width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-                      minWidth: '60px'
-                    }}
-                  >
-                    <span className="truncate">{task.progress || 0}%</span>
-                  </div>
-                ) : (
-                  <div className="h-full flex items-center">
-                    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                      <CalendarIcon className="h-3 w-3 mr-1" />
-                      No dates set
-                    </Badge>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {tasks.map(task => (
+          <GanttTaskRow
+            key={task.id}
+            task={task}
+            projects={projects}
+            onTaskClick={onTaskClick}
+            minDate={minDate}
+            maxDate={maxDate}
+            filteredDates={filteredDates}
+            dateFormat={dateFormat}
+            columnWidth={columnWidth}
+          />
+        ))}
       </div>
     </div>
   );
