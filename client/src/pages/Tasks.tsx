@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
-import { useAllTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
+import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
@@ -43,7 +43,7 @@ type GroupBy = "none" | "project" | "portfolio";
 
 export default function Tasks() {
   const { currentOrganization } = useOrganization();
-  const { data: allTasks, isLoading } = useAllTasks();
+  const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total } = usePaginatedTasks(100);
   const { data: projects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
@@ -617,6 +617,27 @@ export default function Tasks() {
           onDeleteTask={handleDeleteTaskFromKanban}
           organizationId={currentOrganization?.id ?? null}
         />
+      )}
+
+      {/* Load More Button */}
+      {hasMore && (
+        <div className="flex justify-center py-4">
+          <Button 
+            onClick={loadMore} 
+            disabled={isLoadingMore}
+            variant="outline"
+            data-testid="button-load-more-tasks"
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>Load More ({tasks.length} of {total} tasks)</>
+            )}
+          </Button>
+        </div>
       )}
 
       {/* Delete Confirmation Dialog */}
