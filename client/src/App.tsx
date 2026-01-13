@@ -29,6 +29,7 @@ import Resources from "@/pages/Resources";
 import ProjectIntakes from "@/pages/ProjectIntakes";
 import IntakeDetails from "@/pages/IntakeDetails";
 import Integrations from "@/pages/Integrations";
+import Timesheets from "@/pages/Timesheets";
 import Billing from "@/pages/Billing";
 import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
@@ -113,6 +114,7 @@ function Router() {
         </Route>
         <GuardedRoute path="/tasks" component={Tasks} moduleKey="tasks" />
         <GuardedRoute path="/issues" component={Issues} moduleKey="issues" />
+        <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />
         <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
         <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
         <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />

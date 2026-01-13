@@ -275,6 +275,7 @@ export const resources = pgTable("resources", {
   skills: text("skills"), // Comma-separated skills
   hourlyRate: numeric("hourly_rate"), // For cost tracking
   isActive: boolean("is_active").default(true),
+  isApprover: boolean("is_approver").default(false), // Can approve timesheets
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
@@ -308,6 +309,26 @@ export const riskResourceAssignments = pgTable("risk_resource_assignments", {
   resourceId: integer("resource_id").references(() => resources.id).notNull(),
   role: text("role"), // Role (e.g., "Owner", "Mitigator")
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Timesheet Entries (Time logging against tasks)
+export const timesheetEntries = pgTable("timesheet_entries", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(), // The user logging time
+  resourceId: integer("resource_id").references(() => resources.id).notNull(), // The resource record
+  taskId: integer("task_id").references(() => tasks.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  entryDate: date("entry_date").notNull(), // The date for this time entry
+  hours: numeric("hours").notNull(), // Hours worked (supports decimals like 0.25, 0.5)
+  notes: text("notes"), // Optional notes for this entry
+  status: text("status").default("Draft"), // Draft, Submitted, Approved, Rejected
+  submittedAt: timestamp("submitted_at"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Change Requests (Project change control)
@@ -845,6 +866,7 @@ export const insertResourceSchema = createInsertSchema(resources).omit({ id: tru
 export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourceAssignments).omit({ id: true, createdAt: true });
 export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
 export const insertRiskResourceAssignmentSchema = createInsertSchema(riskResourceAssignments).omit({ id: true, createdAt: true });
+export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
@@ -921,6 +943,9 @@ export type InsertIssueResourceAssignment = z.infer<typeof insertIssueResourceAs
 export type RiskResourceAssignment = typeof riskResourceAssignments.$inferSelect;
 export type InsertRiskResourceAssignment = z.infer<typeof insertRiskResourceAssignmentSchema>;
 
+export type TimesheetEntry = typeof timesheetEntries.$inferSelect;
+export type InsertTimesheetEntry = z.infer<typeof insertTimesheetEntrySchema>;
+
 export type CostItem = typeof costItems.$inferSelect;
 export type InsertCostItem = z.infer<typeof insertCostItemSchema>;
 
@@ -990,6 +1015,9 @@ export type UpdateChangeRequestRequest = Partial<InsertChangeRequest>;
 
 export type CreateProjectDocumentRequest = InsertProjectDocument;
 export type UpdateProjectDocumentRequest = Partial<InsertProjectDocument>;
+
+export type CreateTimesheetEntryRequest = InsertTimesheetEntry;
+export type UpdateTimesheetEntryRequest = Partial<InsertTimesheetEntry>;
 
 // Recycle Bin Types
 export type RecycleBinItemType = 'portfolio' | 'project' | 'task' | 'risk' | 'milestone' | 'issue';

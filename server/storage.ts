@@ -6,7 +6,7 @@ import {
   resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
   changeRequests, projectDocuments, projectComments, notifications, statusReportHistory,
-  billingTransactions,
+  billingTransactions, timesheetEntries,
   type User, type UpsertUser,
   type BillingTransaction, type InsertBillingTransaction,
   type Organization, type InsertOrganization,
@@ -39,6 +39,7 @@ import {
   type Notification, type InsertNotification,
   type StatusReportHistory, type InsertStatusReportHistory,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
+  type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
@@ -275,6 +276,17 @@ export interface IStorage {
   getBillingTransactions(userId?: string, orgId?: number, limit?: number, offset?: number): Promise<BillingTransaction[]>;
   getBillingTransaction(id: number): Promise<BillingTransaction | undefined>;
   createBillingTransaction(transaction: InsertBillingTransaction): Promise<BillingTransaction>;
+
+  // Timesheet Entries
+  getTimesheetEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<TimesheetEntry[]>;
+  getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]>;
+  getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined>;
+  createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry>;
+  updateTimesheetEntry(id: number, updates: UpdateTimesheetEntryRequest): Promise<TimesheetEntry>;
+  deleteTimesheetEntry(id: number): Promise<void>;
+  submitTimesheetWeek(userId: string, organizationId: number, startDate: string, endDate: string): Promise<void>;
+  approveTimesheetEntry(id: number, approvedBy: string): Promise<TimesheetEntry>;
+  rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2289,6 +2301,78 @@ export class DatabaseStorage implements IStorage {
   async createBillingTransaction(transaction: InsertBillingTransaction): Promise<BillingTransaction> {
     const [created] = await db.insert(billingTransactions).values(transaction).returning();
     return created;
+  }
+
+  // Timesheet Entries
+  async getTimesheetEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<TimesheetEntry[]> {
+    return await db.select().from(timesheetEntries)
+      .where(and(
+        eq(timesheetEntries.userId, userId),
+        eq(timesheetEntries.organizationId, organizationId),
+        sql`${timesheetEntries.entryDate} >= ${startDate}`,
+        sql`${timesheetEntries.entryDate} <= ${endDate}`
+      ))
+      .orderBy(timesheetEntries.entryDate, timesheetEntries.taskId);
+  }
+
+  async getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]> {
+    const conditions = [eq(timesheetEntries.organizationId, organizationId)];
+    if (status) {
+      conditions.push(eq(timesheetEntries.status, status));
+    }
+    return await db.select().from(timesheetEntries)
+      .where(and(...conditions))
+      .orderBy(desc(timesheetEntries.submittedAt), timesheetEntries.userId);
+  }
+
+  async getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined> {
+    const [entry] = await db.select().from(timesheetEntries).where(eq(timesheetEntries.id, id));
+    return entry;
+  }
+
+  async createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry> {
+    const [created] = await db.insert(timesheetEntries).values(entry).returning();
+    return created;
+  }
+
+  async updateTimesheetEntry(id: number, updates: UpdateTimesheetEntryRequest): Promise<TimesheetEntry> {
+    const [updated] = await db.update(timesheetEntries)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(timesheetEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTimesheetEntry(id: number): Promise<void> {
+    await db.delete(timesheetEntries).where(eq(timesheetEntries.id, id));
+  }
+
+  async submitTimesheetWeek(userId: string, organizationId: number, startDate: string, endDate: string): Promise<void> {
+    await db.update(timesheetEntries)
+      .set({ status: "Submitted", submittedAt: new Date(), updatedAt: new Date() })
+      .where(and(
+        eq(timesheetEntries.userId, userId),
+        eq(timesheetEntries.organizationId, organizationId),
+        eq(timesheetEntries.status, "Draft"),
+        sql`${timesheetEntries.entryDate} >= ${startDate}`,
+        sql`${timesheetEntries.entryDate} <= ${endDate}`
+      ));
+  }
+
+  async approveTimesheetEntry(id: number, approvedBy: string): Promise<TimesheetEntry> {
+    const [updated] = await db.update(timesheetEntries)
+      .set({ status: "Approved", approvedBy, approvedAt: new Date(), updatedAt: new Date() })
+      .where(eq(timesheetEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry> {
+    const [updated] = await db.update(timesheetEntries)
+      .set({ status: "Rejected", rejectionReason, updatedAt: new Date() })
+      .where(eq(timesheetEntries.id, id))
+      .returning();
+    return updated;
   }
 }
 

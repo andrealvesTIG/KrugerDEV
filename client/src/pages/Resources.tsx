@@ -311,9 +311,16 @@ export default function Resources() {
                       {resource.hourlyRate ? `$${resource.hourlyRate}/hr` : "-"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={resource.isActive ? "default" : "secondary"} className={resource.isActive ? "bg-emerald-100 text-emerald-700" : ""}>
-                        {resource.isActive ? "Active" : "Inactive"}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={resource.isActive ? "default" : "secondary"} className={resource.isActive ? "bg-emerald-100 text-emerald-700" : ""}>
+                          {resource.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                        {resource.isApprover && (
+                          <Badge variant="outline" className="text-blue-600 border-blue-300">
+                            Approver
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -419,6 +426,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
       skills: resource?.skills || "",
       hourlyRate: resource?.hourlyRate || "",
       isActive: resource?.isActive ?? true,
+      isApprover: resource?.isApprover ?? false,
       notes: resource?.notes || "",
     },
   });
@@ -434,6 +442,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
         skills: resource?.skills || "",
         hourlyRate: resource?.hourlyRate || "",
         isActive: resource?.isActive ?? true,
+        isApprover: resource?.isApprover ?? false,
         notes: resource?.notes || "",
       });
     }
@@ -456,6 +465,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
         skills: data.skills || null,
         hourlyRate: data.hourlyRate || null,
         isActive: data.isActive ?? true,
+        isApprover: data.isApprover ?? false,
         notes: data.notes || null,
       };
       if (isEditing && resource) {
@@ -523,14 +533,27 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
               <Label htmlFor="notes">Notes</Label>
               <Textarea id="notes" {...form.register("notes")} placeholder="Additional notes..." data-testid="input-resource-notes" />
             </div>
-            <div className="col-span-2 flex items-center gap-2">
-              <Switch
-                id="isActive"
-                checked={form.watch("isActive") ?? true}
-                onCheckedChange={(checked) => form.setValue("isActive", checked)}
-                data-testid="switch-resource-active"
-              />
-              <Label htmlFor="isActive">Active</Label>
+            <div className="col-span-2 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="isActive"
+                  checked={form.watch("isActive") ?? true}
+                  onCheckedChange={(checked) => form.setValue("isActive", checked)}
+                  data-testid="switch-resource-active"
+                />
+                <Label htmlFor="isActive">Active</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="isApprover"
+                  checked={form.watch("isApprover") ?? false}
+                  onCheckedChange={(checked) => form.setValue("isApprover", checked)}
+                  data-testid="switch-resource-approver"
+                />
+                <Label htmlFor="isApprover" className="text-sm">
+                  Timesheet Approver
+                </Label>
+              </div>
             </div>
           </div>
           <DialogFooter>

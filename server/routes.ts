@@ -7246,6 +7246,438 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // ==================== TIMESHEETS ====================
+
+  // Get timesheet entries for current user
+  app.get('/api/timesheets', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+
+      if (!organizationId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      const entries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
+      
+      // Enrich with task and project info
+      const enrichedEntries = await Promise.all(entries.map(async (entry) => {
+        const task = await storage.getTask(entry.taskId);
+        const project = task ? await storage.getProject(task.projectId) : null;
+        return { ...entry, task, project };
+      }));
+
+      res.json(enrichedEntries);
+    } catch (error) {
+      console.error('Error getting timesheet entries:', error);
+      res.status(500).json({ message: 'Failed to get timesheet entries' });
+    }
+  });
+
+  // Get timesheet entries for approval (managers/approvers)
+  app.get('/api/timesheets/approval', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      const status = req.query.status as string;
+
+      if (!organizationId) {
+        return res.status(400).json({ message: 'organizationId is required' });
+      }
+
+      // Check if user is an approver
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
+      }
+
+      const entries = await storage.getTimesheetEntriesForApproval(organizationId, status);
+      
+      // Enrich with task, project and user info
+      const enrichedEntries = await Promise.all(entries.map(async (entry) => {
+        const task = await storage.getTask(entry.taskId);
+        const project = task ? await storage.getProject(task.projectId) : null;
+        const resource = await storage.getResource(entry.resourceId);
+        return { ...entry, task, project, resource };
+      }));
+
+      res.json(enrichedEntries);
+    } catch (error) {
+      console.error('Error getting timesheet entries for approval:', error);
+      res.status(500).json({ message: 'Failed to get timesheet entries for approval' });
+    }
+  });
+
+  // Get tasks assigned to current user
+  app.get('/api/timesheets/assigned-tasks', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) {
+        return res.status(400).json({ message: 'organizationId is required' });
+      }
+
+      // Find the resource for this user
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+
+      if (!userResource) {
+        return res.json([]);
+      }
+
+      // Get all tasks and filter to ones assigned to this resource
+      const allTasks = await storage.getAllTasks();
+      const assignedTasks: { task: any; project: any }[] = [];
+
+      for (const task of allTasks) {
+        if (task.deletedAt) continue;
+        const assignments = await storage.getTaskResourceAssignments(task.id);
+        const isAssigned = assignments.some(a => a.resourceId === userResource.id);
+        if (isAssigned) {
+          const project = await storage.getProject(task.projectId);
+          if (project && !project.deletedAt && project.organizationId === organizationId) {
+            assignedTasks.push({ task, project });
+          }
+        }
+      }
+
+      res.json(assignedTasks);
+    } catch (error) {
+      console.error('Error getting assigned tasks:', error);
+      res.status(500).json({ message: 'Failed to get assigned tasks' });
+    }
+  });
+
+  // Get current user's resource record
+  app.get('/api/timesheets/current-resource', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) {
+        return res.status(400).json({ message: 'organizationId is required' });
+      }
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+
+      if (!userResource) {
+        return res.status(404).json({ message: 'Resource not found' });
+      }
+
+      res.json(userResource);
+    } catch (error) {
+      console.error('Error getting current resource:', error);
+      res.status(500).json({ message: 'Failed to get current resource' });
+    }
+  });
+
+  // Create timesheet entry
+  app.post('/api/timesheets', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { organizationId, taskId, projectId, entryDate, hours, notes, resourceId } = req.body;
+
+      if (!organizationId || !taskId || !projectId || !entryDate || hours === undefined) {
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+
+      // Verify user is assigned to this task
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource) {
+        return res.status(403).json({ message: 'You are not a resource in this organization' });
+      }
+
+      const assignments = await storage.getTaskResourceAssignments(taskId);
+      const isAssigned = assignments.some(a => a.resourceId === userResource.id);
+      
+      if (!isAssigned) {
+        return res.status(403).json({ message: 'You are not assigned to this task' });
+      }
+
+      const entry = await storage.createTimesheetEntry({
+        organizationId,
+        userId,
+        resourceId: userResource.id,
+        taskId,
+        projectId,
+        entryDate,
+        hours: String(hours),
+        notes,
+        status: 'Draft',
+      });
+
+      res.json(entry);
+    } catch (error) {
+      console.error('Error creating timesheet entry:', error);
+      res.status(500).json({ message: 'Failed to create timesheet entry' });
+    }
+  });
+
+  // Bulk upsert timesheet entries
+  app.post('/api/timesheets/bulk', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { entries } = req.body;
+      if (!entries || !Array.isArray(entries)) {
+        return res.status(400).json({ message: 'entries array is required' });
+      }
+
+      // Get user's resource to validate assignments
+      const organizationId = entries[0]?.organizationId;
+      if (!organizationId) {
+        return res.status(400).json({ message: 'organizationId is required' });
+      }
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource) {
+        return res.status(403).json({ message: 'You are not a resource in this organization' });
+      }
+
+      // Cache task assignments for validation
+      const taskAssignmentCache: Record<number, boolean> = {};
+      const validateTaskAssignment = async (taskId: number): Promise<boolean> => {
+        if (taskAssignmentCache[taskId] !== undefined) {
+          return taskAssignmentCache[taskId];
+        }
+        const assignments = await storage.getTaskResourceAssignments(taskId);
+        taskAssignmentCache[taskId] = assignments.some(a => a.resourceId === userResource.id);
+        return taskAssignmentCache[taskId];
+      };
+
+      const results = [];
+      for (const entry of entries) {
+        if (entry.id) {
+          // Update existing - verify ownership and draft status
+          const existing = await storage.getTimesheetEntry(entry.id);
+          if (!existing) continue;
+          
+          if (existing.userId !== userId) {
+            continue; // Skip entries not owned by user
+          }
+          
+          if (existing.status !== 'Draft' && existing.status !== 'Rejected') {
+            continue; // Skip non-editable entries
+          }
+          
+          const updated = await storage.updateTimesheetEntry(entry.id, {
+            hours: String(entry.hours),
+            notes: entry.notes,
+          });
+          results.push(updated);
+        } else if (entry.hours > 0) {
+          // Create new - verify task assignment
+          const isAssigned = await validateTaskAssignment(entry.taskId);
+          if (!isAssigned) {
+            continue; // Skip tasks user isn't assigned to
+          }
+          
+          const created = await storage.createTimesheetEntry({
+            organizationId: entry.organizationId,
+            userId,
+            resourceId: userResource.id,
+            taskId: entry.taskId,
+            projectId: entry.projectId,
+            entryDate: entry.entryDate,
+            hours: String(entry.hours),
+            notes: entry.notes,
+            status: 'Draft',
+          });
+          results.push(created);
+        }
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error('Error bulk upserting timesheet entries:', error);
+      res.status(500).json({ message: 'Failed to save timesheet entries' });
+    }
+  });
+
+  // Update timesheet entry
+  app.put('/api/timesheets/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      const entry = await storage.getTimesheetEntry(id);
+      
+      if (!entry) {
+        return res.status(404).json({ message: 'Timesheet entry not found' });
+      }
+
+      if (entry.userId !== userId) {
+        return res.status(403).json({ message: 'You can only edit your own timesheet entries' });
+      }
+
+      if (entry.status !== 'Draft') {
+        return res.status(400).json({ message: 'Only draft entries can be edited' });
+      }
+
+      const { hours, notes } = req.body;
+      const updated = await storage.updateTimesheetEntry(id, {
+        hours: hours !== undefined ? String(hours) : undefined,
+        notes,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating timesheet entry:', error);
+      res.status(500).json({ message: 'Failed to update timesheet entry' });
+    }
+  });
+
+  // Delete timesheet entry
+  app.delete('/api/timesheets/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      const entry = await storage.getTimesheetEntry(id);
+      
+      if (!entry) {
+        return res.status(404).json({ message: 'Timesheet entry not found' });
+      }
+
+      if (entry.userId !== userId) {
+        return res.status(403).json({ message: 'You can only delete your own timesheet entries' });
+      }
+
+      if (entry.status !== 'Draft') {
+        return res.status(400).json({ message: 'Only draft entries can be deleted' });
+      }
+
+      await storage.deleteTimesheetEntry(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting timesheet entry:', error);
+      res.status(500).json({ message: 'Failed to delete timesheet entry' });
+    }
+  });
+
+  // Submit timesheet week for approval
+  app.post('/api/timesheets/submit-week', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { organizationId, startDate, endDate } = req.body;
+      
+      if (!organizationId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      await storage.submitTimesheetWeek(userId, organizationId, startDate, endDate);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error submitting timesheet week:', error);
+      res.status(500).json({ message: 'Failed to submit timesheet week' });
+    }
+  });
+
+  // Approve timesheet entry
+  app.post('/api/timesheets/:id/approve', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      const entry = await storage.getTimesheetEntry(id);
+      
+      if (!entry) {
+        return res.status(404).json({ message: 'Timesheet entry not found' });
+      }
+
+      // Check if user is an approver
+      const resources = await storage.getResources(entry.organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
+      }
+
+      const updated = await storage.approveTimesheetEntry(id, userId);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error approving timesheet entry:', error);
+      res.status(500).json({ message: 'Failed to approve timesheet entry' });
+    }
+  });
+
+  // Reject timesheet entry
+  app.post('/api/timesheets/:id/reject', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      const { rejectionReason } = req.body;
+      
+      const entry = await storage.getTimesheetEntry(id);
+      
+      if (!entry) {
+        return res.status(404).json({ message: 'Timesheet entry not found' });
+      }
+
+      // Check if user is an approver
+      const resources = await storage.getResources(entry.organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'You are not authorized to reject timesheets' });
+      }
+
+      const updated = await storage.rejectTimesheetEntry(id, rejectionReason || '');
+      res.json(updated);
+    } catch (error) {
+      console.error('Error rejecting timesheet entry:', error);
+      res.status(500).json({ message: 'Failed to reject timesheet entry' });
+    }
+  });
+
   // Admin: Get all referral stats (Super Admin only)
   app.get('/api/admin/referrals', async (req, res) => {
     const userId = getUserIdFromRequest(req);
