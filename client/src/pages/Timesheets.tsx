@@ -54,8 +54,7 @@ import {
   ListTodo,
   Trash2,
   History,
-  Plus,
-  Layers
+  Plus
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -682,7 +681,6 @@ export default function Timesheets() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [groupByProject, setGroupByProject] = useState(true);
   const { toast } = useToast();
 
   const dates = useMemo(() => {
@@ -960,16 +958,6 @@ export default function Timesheets() {
                       Today
                     </Button>
 
-                    <Button
-                      variant={groupByProject ? "secondary" : "ghost"}
-                      onClick={() => setGroupByProject(!groupByProject)}
-                      className="gap-2"
-                      data-testid="button-group-by-project"
-                    >
-                      <Layers className="h-4 w-4" />
-                      Group by Project
-                    </Button>
-
                     {hasDraftEntries && viewMode !== "day" && (
                       <Button 
                         onClick={handleSubmitWeek}
@@ -1066,7 +1054,7 @@ export default function Timesheets() {
                     onSave={handleSave}
                     isSaving={bulkUpsert.isPending}
                     viewMode={viewMode}
-                    groupByProject={groupByProject}
+                    groupByProject={true}
                   />
                 </motion.div>
               </AnimatePresence>
