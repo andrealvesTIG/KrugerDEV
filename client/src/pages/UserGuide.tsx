@@ -45,7 +45,10 @@ import {
   Link2,
   ExternalLink,
   Frame,
-  Plug
+  Plug,
+  CreditCard,
+  DollarSign,
+  FileSpreadsheet
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -62,10 +65,12 @@ const sections = [
   { id: "intakes", name: "Project Intakes", icon: Inbox },
   { id: "tasks", name: "Tasks", icon: CheckSquare },
   { id: "issues", name: "Issues", icon: CircleDot },
+  { id: "timesheets", name: "Timesheets", icon: Clock },
   { id: "resources", name: "Resources", icon: UserCog },
   { id: "calendar", name: "Calendar", icon: Calendar },
   { id: "integrations", name: "Integrations", icon: Plug },
   { id: "custom-links", name: "Custom Links", icon: Link2 },
+  { id: "billing", name: "Billing & Credits", icon: CreditCard },
   { id: "organizations", name: "Organizations", icon: Building2 },
   { id: "users", name: "User Management", icon: Users },
   { id: "settings", name: "Settings", icon: Settings },
@@ -488,13 +493,39 @@ const UserGuidePDF = () => (
         <Text style={pdfStyles.heading}>Issue Workflow:</Text>
         <Text style={pdfStyles.listItem}>Open → In Progress → Resolved → Closed</Text>
       </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>7. Timesheets</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Time tracking and project hours management</Text>
+        <Text style={pdfStyles.paragraph}>
+          The Timesheets module allows team members to log time spent on projects and tasks. 
+          Track billable hours, monitor team productivity, and generate time reports.
+        </Text>
+        <Text style={pdfStyles.heading}>Time Entry Features:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Log Hours: Record time spent on specific projects and tasks</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Date Selection: Enter time for any date, past or present</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Billable Flag: Mark time entries as billable or non-billable</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Weekly View: See your time entries organized by week</Text>
+        </View>
+      </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
       <Text style={pdfStyles.pageNumber}>7</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>7. Resources</Text>
+        <Text style={pdfStyles.sectionTitle}>8. Resources</Text>
         <Text style={pdfStyles.sectionSubtitle}>Team member and resource management</Text>
         <Text style={pdfStyles.paragraph}>
           The Resources page helps you manage team members and resources across your organization. 
@@ -529,7 +560,7 @@ const UserGuidePDF = () => (
       </View>
 
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>8. Calendar</Text>
+        <Text style={pdfStyles.sectionTitle}>9. Calendar</Text>
         <Text style={pdfStyles.sectionSubtitle}>Timeline and milestone visualization</Text>
         <Text style={pdfStyles.paragraph}>
           The Calendar view provides a visual timeline of your projects, milestones, and key dates. 
@@ -563,7 +594,50 @@ const UserGuidePDF = () => (
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>9. Organizations</Text>
+        <Text style={pdfStyles.sectionTitle}>10. Billing & Credits</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Subscription plans and usage tracking</Text>
+        <Text style={pdfStyles.paragraph}>
+          FridayReport.AI uses a credit-based billing system. Credits are consumed when creating projects, 
+          tasks, issues, and other items. Each subscription plan includes a monthly credit allocation.
+        </Text>
+        <Text style={pdfStyles.heading}>Subscription Plans:</Text>
+        <View style={pdfStyles.featureBox}>
+          <Text style={pdfStyles.featureTitle}>Free (200 credits/month)</Text>
+          <Text style={pdfStyles.featureDesc}>Perfect for individuals getting started</Text>
+        </View>
+        <View style={pdfStyles.featureBox}>
+          <Text style={pdfStyles.featureTitle}>Professional (500 credits/month)</Text>
+          <Text style={pdfStyles.featureDesc}>Ideal for small teams</Text>
+        </View>
+        <View style={pdfStyles.featureBox}>
+          <Text style={pdfStyles.featureTitle}>Business (1,000 credits/month)</Text>
+          <Text style={pdfStyles.featureDesc}>For growing organizations</Text>
+        </View>
+        <View style={pdfStyles.featureBox}>
+          <Text style={pdfStyles.featureTitle}>Enterprise (100,000 credits/month)</Text>
+          <Text style={pdfStyles.featureDesc}>For large-scale deployments</Text>
+        </View>
+        <Text style={pdfStyles.heading}>Credit Costs:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Projects: 10 credits, Portfolios: 5 credits</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Tasks & Issues: 2 credits each</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Risks & Milestones: 1 credit each</Text>
+        </View>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>9</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>11. Organizations</Text>
         <Text style={pdfStyles.sectionSubtitle}>Multi-organization support and switching</Text>
         <Text style={pdfStyles.paragraph}>
           FridayReport.AI supports multiple organizations. Each organization has its own set of portfolios, 
@@ -581,7 +655,7 @@ const UserGuidePDF = () => (
       </View>
 
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>10. User Management</Text>
+        <Text style={pdfStyles.sectionTitle}>12. User Management</Text>
         <Text style={pdfStyles.sectionSubtitle}>Profile and user settings</Text>
         <Text style={pdfStyles.paragraph}>
           Manage your user profile and account settings through the user menu in the sidebar. 
@@ -606,12 +680,12 @@ const UserGuidePDF = () => (
         </View>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>9</Text>
+      <Text style={pdfStyles.pageNumber}>10</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>11. Settings</Text>
+        <Text style={pdfStyles.sectionTitle}>13. Settings</Text>
         <Text style={pdfStyles.sectionSubtitle}>Application and organization configuration</Text>
         <Text style={pdfStyles.paragraph}>
           Configure application settings, organization preferences, and user-specific options 
@@ -632,12 +706,12 @@ const UserGuidePDF = () => (
         </View>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>10</Text>
+      <Text style={pdfStyles.pageNumber}>11</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>12. Themes</Text>
+        <Text style={pdfStyles.sectionTitle}>14. Themes</Text>
         <Text style={pdfStyles.sectionSubtitle}>Customize your visual experience</Text>
         <Text style={pdfStyles.paragraph}>
           FridayReport.AI supports multiple themes to customize your visual experience. 
@@ -666,7 +740,7 @@ const UserGuidePDF = () => (
         </Text>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>11</Text>
+      <Text style={pdfStyles.pageNumber}>12</Text>
     </Page>
   </Document>
 );
@@ -1217,6 +1291,76 @@ export default function UserGuide() {
               </Card>
             </section>
 
+            <section id="timesheets" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                      <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Timesheets</CardTitle>
+                      <CardDescription>Time tracking and project hours management</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Timesheets module allows team members to log time spent on projects and tasks. 
+                    Track billable hours, monitor team productivity, and generate time reports.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">Time Entry:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Log Hours:</strong> Record time spent on specific projects and tasks</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Date Selection:</strong> Enter time for any date, past or present</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Descriptions:</strong> Add notes describing the work performed</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Billable Flag:</strong> Mark time entries as billable or non-billable</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Views & Reports:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Weekly View</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">See your time entries organized by week</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Project Summary</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Total hours logged per project</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Team Overview</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Manager view of team time entries</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Export</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Export time data to Excel for reporting</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
             <section id="resources" className="scroll-mt-8">
               <Card>
                 <CardHeader>
@@ -1256,7 +1400,33 @@ export default function UserGuide() {
                     </li>
                   </ul>
 
-                  <h4 className="font-semibold text-foreground mt-4">Resource Assignments:</h4>
+                  <h4 className="font-semibold text-foreground mt-4">Excel Import/Export:</h4>
+                  <p className="text-muted-foreground">
+                    Bulk manage resources using Excel spreadsheets for easy data transfer:
+                  </p>
+                  <div className="space-y-3 mt-2">
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Download className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Export to Excel</h5>
+                        <p className="text-sm text-muted-foreground">Download all resources as an Excel file with name, email, title, department, and skills</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <FileSpreadsheet className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Import from Excel</h5>
+                        <p className="text-sm text-muted-foreground">Upload an Excel file to bulk create or update resources. Use the exported template format.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-3 mt-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>Tip:</strong> Export first to get the correct template format, then modify the Excel file and re-import to update resources in bulk.
+                    </p>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-6">Resource Assignments:</h4>
                   <p className="text-muted-foreground">
                     Assign resources to work items throughout the application:
                   </p>
@@ -1445,6 +1615,105 @@ export default function UserGuide() {
                       <span><strong>Remove:</strong> Delete links that are no longer needed</span>
                     </li>
                   </ul>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="billing" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                      <CreditCard className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Billing & Credits</CardTitle>
+                      <CardDescription>Subscription plans and usage tracking</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    FridayReport.AI uses a credit-based billing system. Credits are consumed when creating projects, 
+                    tasks, issues, and other items. Each subscription plan includes a monthly credit allocation.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">Subscription Plans:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border-l-4 border-slate-400">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="secondary">Free</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">200 credits/month - Perfect for individuals getting started</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border-l-4 border-blue-500">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Professional</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">500 credits/month - Ideal for small teams</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border-l-4 border-purple-500">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">Business</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">1,000 credits/month - For growing organizations</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border-l-4 border-amber-500">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Enterprise</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">100,000 credits/month - For large-scale deployments</p>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Credit Costs:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Projects:</strong> 10 credits each</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Portfolios:</strong> 5 credits each</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Tasks:</strong> 2 credits each</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Issues:</strong> 2 credits each</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Risks & Milestones:</strong> 1 credit each</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Managing Your Subscription:</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <BarChart3 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Usage Dashboard</h5>
+                        <p className="text-sm text-muted-foreground">View your current credit balance and usage history in the Billing page</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <TrendingUp className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Upgrade Plan</h5>
+                        <p className="text-sm text-muted-foreground">Upgrade to a higher tier for more credits and features</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <CreditCard className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-foreground">Payment Methods</h5>
+                        <p className="text-sm text-muted-foreground">Pay securely with PayPal for subscription billing</p>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </section>
