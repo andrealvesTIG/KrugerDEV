@@ -35,6 +35,7 @@ const resourceLabels: Record<string, string> = {
   shares: "project share",
   searches: "search",
   integrations: "integration",
+  seats: "team member",
 };
 
 export function LimitExceededDialog({
@@ -47,15 +48,18 @@ export function LimitExceededDialog({
   const [, setLocation] = useLocation();
 
   const resourceLabel = resourceType ? resourceLabels[resourceType] || resourceType : "item";
+  const isSeatsLimit = resourceType === "seats";
 
   const handleUpgrade = () => {
     onOpenChange(false);
     setLocation("/billing");
   };
 
-  const defaultMessage = creditsNeeded 
-    ? `You need ${creditsNeeded} credits to create this ${resourceLabel}, but you don't have enough remaining. Upgrade your plan to get more credits.`
-    : `You've run out of credits for this billing period. Upgrade your plan to continue creating ${resourceLabel}s.`;
+  const defaultMessage = isSeatsLimit
+    ? `You've reached your team member limit. Upgrade your plan to invite more team members.`
+    : creditsNeeded 
+      ? `You need ${creditsNeeded} credits to create this ${resourceLabel}, but you don't have enough remaining. Upgrade your plan to get more credits.`
+      : `You've run out of credits for this billing period. Upgrade your plan to continue creating ${resourceLabel}s.`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,7 +69,7 @@ export function LimitExceededDialog({
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
               <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
             </div>
-            <DialogTitle>Credits Limit Reached</DialogTitle>
+            <DialogTitle>{isSeatsLimit ? "Team Member Limit Reached" : "Credits Limit Reached"}</DialogTitle>
           </div>
           <DialogDescription className="pt-3">
             {message || defaultMessage}
@@ -75,11 +79,12 @@ export function LimitExceededDialog({
           <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Wallet className="h-4 w-4 text-primary" />
-              <span>Upgrade for more credits</span>
+              <span>{isSeatsLimit ? "Upgrade for more team seats" : "Upgrade for more credits"}</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Higher plans include more monthly credits and additional features. 
-              Credits reset at the start of each billing cycle.
+              {isSeatsLimit 
+                ? "Higher plans include more team member seats and additional features for your organization."
+                : "Higher plans include more monthly credits and additional features. Credits reset at the start of each billing cycle."}
             </p>
           </div>
         </div>

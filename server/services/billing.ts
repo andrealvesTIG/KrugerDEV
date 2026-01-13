@@ -105,13 +105,14 @@ export class MockBillingProvider implements BillingProvider {
     const subscription = await this.getSubscriptionForOrg(orgId);
     
     if (!subscription) {
-      // No subscription - allow unlimited seats in development/without billing configured
+      // No subscription means Free plan with default limit of 1 seat
       const currentSeats = await this.getOrgMemberCount(orgId);
       return {
-        allowed: true,
+        allowed: currentSeats + seatsToAdd <= 1,
         currentSeats,
-        maxSeats: null,
-        remaining: null
+        maxSeats: 1,
+        remaining: Math.max(0, 1 - currentSeats),
+        reason: currentSeats + seatsToAdd > 1 ? 'Free plan allows only 1 seat. Please upgrade to add more team members.' : undefined
       };
     }
 

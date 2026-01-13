@@ -26,6 +26,7 @@ import type { Organization, OrganizationMember, User, RecycleBinItem, RecycleBin
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay, UniqueIdentifier } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
 interface EnrichedMember extends OrganizationMember {
   user?: User;
@@ -2085,6 +2086,8 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [inviteResult, setInviteResult] = useState<{ success: string[]; skipped: string[]; errors: string[] } | null>(null);
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [upgradeMessage, setUpgradeMessage] = useState<string>("");
 
   const { data: members = [], isLoading } = useQuery<EnrichedMember[]>({
     queryKey: [`/api/organizations/${organizationId}/members`],
@@ -2174,8 +2177,20 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
         if (responseText.startsWith('{') || responseText.startsWith('[')) {
           try {
             const parsed = JSON.parse(responseText);
+            
+            // Check for seat limit exceeded - show upgrade dialog
+            if (parsed?.limitExceeded && parsed?.resourceType === 'seats') {
+              setIsInviteOpen(false);
+              setUpgradeMessage(parsed.message || 'You have reached your seat limit. Please upgrade your plan to invite more team members.');
+              setShowUpgradeDialog(true);
+              return;
+            }
+            
             if (parsed?.error) {
               errorMessage = parsed.error;
+            }
+            if (parsed?.message) {
+              errorMessage = parsed.message;
             }
             if (parsed?.errors && Array.isArray(parsed.errors)) {
               // Server returned structured validation errors - keep dialog open
@@ -2661,6 +2676,13 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <LimitExceededDialog
+        open={showUpgradeDialog}
+        onOpenChange={setShowUpgradeDialog}
+        resourceType="seats"
+        message={upgradeMessage}
+      />
     </Card>
   );
 }
