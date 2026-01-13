@@ -1,4 +1,5 @@
-import PptxGenJS from "pptxgenjs";
+import pptxgenjs from "pptxgenjs";
+const PptxGenJS = (pptxgenjs as any).default || pptxgenjs;
 import PDFDocument from "pdfkit";
 import { storage } from "../storage";
 import type { Project, Portfolio, Risk, Issue, Resource } from "@shared/schema";
