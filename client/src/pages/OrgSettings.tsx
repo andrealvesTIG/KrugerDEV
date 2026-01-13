@@ -2667,9 +2667,17 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
     onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/intakes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
+      const stats = response.stats || {};
+      const parts = [];
+      if (stats.portfolios) parts.push(`${stats.portfolios} portfolios`);
+      if (stats.projects) parts.push(`${stats.projects} projects`);
+      if (stats.intakes) parts.push(`${stats.intakes} intakes`);
+      if (stats.resources) parts.push(`${stats.resources} resources`);
       toast({
         title: "Demo Data Generated",
-        description: `Created ${response.stats?.portfolios || 0} portfolios, ${response.stats?.projects || 0} projects for ${orgName}`,
+        description: parts.length > 0 ? `Created ${parts.join(', ')} for ${orgName}` : `Demo data created for ${orgName}`,
       });
       setCustomIndustry("");
       setSelectedIndustry("");
@@ -2690,9 +2698,17 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
     onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/intakes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
+      const stats = response.stats || {};
+      const parts = [];
+      if (stats.portfolios) parts.push(`${stats.portfolios} portfolios`);
+      if (stats.projects) parts.push(`${stats.projects} projects`);
+      if (stats.intakes) parts.push(`${stats.intakes} intakes`);
+      if (stats.resources) parts.push(`${stats.resources} resources`);
       toast({
         title: "Demo Data Removed",
-        description: `Removed ${response.stats?.portfolios || 0} portfolios, ${response.stats?.projects || 0} projects from ${orgName}`,
+        description: parts.length > 0 ? `Removed ${parts.join(', ')} from ${orgName}` : `Demo data removed from ${orgName}`,
       });
       setShowRemoveConfirm(false);
     },
@@ -2779,6 +2795,8 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
             <li>4-6 Projects with budgets, statuses, and health indicators</li>
             <li>Tasks, Risks, Milestones, and Issues for each project</li>
             <li>Financial line items with budget vs actual tracking</li>
+            <li>4 Intake pipeline items with various workflow statuses</li>
+            <li>5 Resources with skills and departments</li>
           </ul>
         </div>
 
@@ -2836,7 +2854,7 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
           <DialogHeader>
             <DialogTitle>Remove Demo Data</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove all demo data from {orgName}? This will delete all demo portfolios, projects, tasks, risks, milestones, issues, and financial records.
+              Are you sure you want to remove all demo data from {orgName}? This will delete all demo portfolios, projects, tasks, risks, milestones, issues, intakes, resources, and financial records.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

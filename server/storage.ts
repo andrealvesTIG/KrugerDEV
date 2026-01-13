@@ -174,6 +174,8 @@ export interface IStorage {
     milestones: number;
     issues: number;
     financials: number;
+    intakes: number;
+    resources: number;
   }>;
 
   // Recycle Bin
@@ -979,6 +981,8 @@ export class DatabaseStorage implements IStorage {
     milestones: number;
     issues: number;
     financials: number;
+    intakes: number;
+    resources: number;
   }> {
     const stats = {
       portfolios: 0,
@@ -988,6 +992,8 @@ export class DatabaseStorage implements IStorage {
       milestones: 0,
       issues: 0,
       financials: 0,
+      intakes: 0,
+      resources: 0,
     };
 
     // Get all DEMO projects for this organization (only isDemo=true)
@@ -1061,6 +1067,16 @@ export class DatabaseStorage implements IStorage {
         stats.portfolios++;
       }
     }
+    
+    // Delete DEMO intakes (organization-level)
+    const deletedIntakes = await db.delete(projectIntakes)
+      .where(and(eq(projectIntakes.organizationId, organizationId), eq(projectIntakes.isDemo, true))).returning();
+    stats.intakes = deletedIntakes.length;
+    
+    // Delete DEMO resources (organization-level)
+    const deletedResources = await db.delete(resources)
+      .where(and(eq(resources.organizationId, organizationId), eq(resources.isDemo, true))).returning();
+    stats.resources = deletedResources.length;
     
     return stats;
   }
