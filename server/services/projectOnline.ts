@@ -356,20 +356,16 @@ export async function setupProjectOnlineRoutes(app: Express) {
                 status: task.PercentComplete >= 100 ? "Completed" : "Pending",
               });
             } else {
+              const today = new Date().toISOString().split("T")[0];
               const taskData: any = {
                 projectId: newProject.id,
-                title: taskName,
+                name: taskName,
                 description: null,
-                status: task.PercentComplete >= 100 ? "Done" : task.PercentComplete > 0 ? "In Progress" : "To Do",
-                priority: "Medium",
+                status: task.PercentComplete >= 100 ? "Completed" : task.PercentComplete > 0 ? "In Progress" : "Not Started",
                 progress: Math.round(task.PercentComplete || 0),
+                startDate: task.Start ? new Date(task.Start).toISOString().split("T")[0] : today,
+                endDate: task.Finish ? new Date(task.Finish).toISOString().split("T")[0] : today,
               };
-              if (task.Start) {
-                taskData.startDate = new Date(task.Start).toISOString().split("T")[0];
-              }
-              if (task.Finish) {
-                taskData.dueDate = new Date(task.Finish).toISOString().split("T")[0];
-              }
               await storage.createTask(taskData);
             }
           }
