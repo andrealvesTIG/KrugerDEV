@@ -74,15 +74,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">
-          {getTabLabel(activeTab)} Dashboard
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          Comprehensive view of your {getTabLabel(activeTab).toLowerCase()} metrics and performance.
-        </p>
-      </div>
-
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="w-full flex flex-wrap h-auto gap-1 bg-muted/50 p-1" data-testid="dashboard-tabs">
           {DASHBOARD_TABS.map((tab) => {
