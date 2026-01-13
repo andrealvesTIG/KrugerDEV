@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle } from "lucide-react";
 import ExcelJS from "exceljs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm } from "react-hook-form";
@@ -410,10 +412,29 @@ interface ResourceDialogProps {
   onSuccess: () => void;
 }
 
+interface OrgMember {
+  userId: string;
+  role: string;
+  user?: {
+    id: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    profileImageUrl?: string;
+  };
+}
+
 function ResourceDialog({ open, onOpenChange, organizationId, resource, onSuccess }: ResourceDialogProps) {
   const createResource = useCreateResource();
   const updateResource = useUpdateResource();
   const isEditing = !!resource;
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(resource?.userId || null);
+  
+  // Fetch organization members for user linking
+  const { data: members = [] } = useQuery<OrgMember[]>({
+    queryKey: [`/api/organizations/${organizationId}/members`],
+    enabled: !!organizationId && open,
+  });
 
   const form = useForm<ResourceFormData>({
     resolver: zodResolver(resourceFormSchema),
@@ -445,6 +466,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
         isApprover: resource?.isApprover ?? false,
         notes: resource?.notes || "",
       });
+      setSelectedUserId(resource?.userId || null);
     }
   }, [open, organizationId, resource]);
 
@@ -467,6 +489,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
         isActive: data.isActive ?? true,
         isApprover: data.isApprover ?? false,
         notes: data.notes || null,
+        userId: selectedUserId,
       };
       if (isEditing && resource) {
         await updateResource.mutateAsync({ id: resource.id, updates: resourceData });
@@ -532,6 +555,33 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
             <div className="col-span-2">
               <Label htmlFor="notes">Notes</Label>
               <Textarea id="notes" {...form.register("notes")} placeholder="Additional notes..." data-testid="input-resource-notes" />
+            </div>
+            <div className="col-span-2">
+              <Label htmlFor="userId" className="flex items-center gap-2">
+                <UserCircle className="h-4 w-4" />
+                Link to User Account
+              </Label>
+              <Select
+                value={selectedUserId || "none"}
+                onValueChange={(value) => setSelectedUserId(value === "none" ? null : value)}
+              >
+                <SelectTrigger data-testid="select-resource-user">
+                  <SelectValue placeholder="Select a user account..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No linked user</SelectItem>
+                  {members.map((member) => (
+                    <SelectItem key={member.userId} value={member.userId}>
+                      {member.user?.firstName && member.user?.lastName
+                        ? `${member.user.firstName} ${member.user.lastName}`
+                        : member.user?.email || member.userId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Link this resource to a user account to enable timesheet logging
+              </p>
             </div>
             <div className="col-span-2 flex items-center justify-between gap-4">
               <div className="flex items-center gap-2">
