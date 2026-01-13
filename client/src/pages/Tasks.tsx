@@ -18,7 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
@@ -578,7 +579,7 @@ export default function Tasks() {
 
       {groupBy === "none" ? (
         view === "gantt" ? (
-          <GanttView tasks={tasks || []} projects={projects || []} onTaskClick={openEditDialog} />
+          <GanttView tasks={tasks || []} projects={projects || []} onTaskClick={openEditDialog} organizationId={currentOrganization?.id ?? null} />
         ) : (
           <KanbanView 
             tasks={tasks || []} 
@@ -614,6 +615,7 @@ export default function Tasks() {
             }
           }}
           onDeleteTask={handleDeleteTaskFromKanban}
+          organizationId={currentOrganization?.id ?? null}
         />
       )}
 
@@ -660,6 +662,7 @@ function GroupedTasksView({
   onTaskClick,
   onStatusChange,
   onDeleteTask,
+  organizationId,
 }: {
   groupedTasks: TaskGroup[];
   view: "gantt" | "kanban";
@@ -667,6 +670,7 @@ function GroupedTasksView({
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
   onDeleteTask: (task: Task) => void;
+  organizationId: number | null;
 }) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(groupedTasks.map(g => g.id)));
 
@@ -714,7 +718,7 @@ function GroupedTasksView({
           {expandedGroups.has(group.id) && (
             <CardContent className="pt-0">
               {view === "gantt" ? (
-                <GanttView tasks={group.tasks} projects={projects} onTaskClick={onTaskClick} embedded />
+                <GanttView tasks={group.tasks} projects={projects} onTaskClick={onTaskClick} embedded organizationId={organizationId} />
               ) : (
                 <KanbanView 
                   tasks={group.tasks} 
@@ -743,17 +747,43 @@ const taskZoomLabels: Record<TaskZoomLevel, string> = {
   '5year': '5 Years'
 };
 
-function GanttTaskRow({ task, projects, onTaskClick, minDate, maxDate, filteredDates, dateFormat, columnWidth }: { 
+type TaskGanttColumn = 'task' | 'startDate' | 'endDate' | 'progress' | 'resources';
+
+const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[] = [
+  { id: 'task', label: 'Task', width: 'w-64' },
+  { id: 'startDate', label: 'Start', width: 'w-24' },
+  { id: 'endDate', label: 'End', width: 'w-24' },
+  { id: 'progress', label: '%', width: 'w-14' },
+  { id: 'resources', label: 'Resources', width: 'w-32' },
+];
+
+function GanttTaskRow({ 
+  task, 
+  projects, 
+  onTaskClick, 
+  minDate, 
+  maxDate,
+  visibleColumns,
+  organizationId,
+}: { 
   task: Task; 
   projects: any[]; 
   onTaskClick: (task: Task) => void;
   minDate: Date;
   maxDate: Date;
-  filteredDates: Date[];
-  dateFormat: string;
-  columnWidth: string;
+  visibleColumns: TaskGanttColumn[];
+  organizationId: number | null;
 }) {
   const { data: taskAssignments } = useTaskResourceAssignments(task.id);
+  const updateTaskResources = useUpdateTaskResourceAssignments();
+  const [isEditingResources, setIsEditingResources] = useState(false);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (taskAssignments) {
+      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+    }
+  }, [taskAssignments]);
   
   const getProjectName = (projectId: number) => {
     return projects.find(p => p.id === projectId)?.name || "Unknown";
@@ -774,57 +804,133 @@ function GanttTaskRow({ task, projects, onTaskClick, minDate, maxDate, filteredD
     widthPercent = (duration / totalDays) * 100;
   }
 
+  const assignedNames = taskAssignments && taskAssignments.length > 0
+    ? taskAssignments.map(a => a.resource.displayName).join(", ")
+    : "—";
+
+  const handleSaveResources = () => {
+    updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    setIsEditingResources(false);
+  };
+
+  const progressPercent = task.progress || 0;
+
   return (
     <div 
-      className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
-      onClick={() => onTaskClick(task)}
+      className="flex border-b hover:bg-muted/30 transition-colors group"
       data-testid={`gantt-task-${task.id}`}
     >
-      <div className="w-64 flex-shrink-0 border-r p-3">
-        <div className="font-medium text-sm truncate">{task.name}</div>
-        <Link 
-          href={`/projects/${task.projectId}`}
-          onClick={(e) => e.stopPropagation()}
-          className="text-xs text-muted-foreground truncate hover:text-primary hover:underline block"
-          data-testid={`link-project-${task.projectId}`}
+      {visibleColumns.includes('task') && (
+        <div 
+          className="w-64 flex-shrink-0 border-r p-3 cursor-pointer"
+          onClick={() => onTaskClick(task)}
         >
-          {getProjectName(task.projectId)}
-        </Link>
-        {taskAssignments && taskAssignments.length > 0 && (
-          <div className="text-xs text-muted-foreground mt-1 truncate">
-            {taskAssignments.map(a => a.resource.displayName).join(", ")}
-          </div>
-        )}
-      </div>
-      <div className="flex-1 relative p-2">
+          <div className="font-medium text-sm truncate">{task.name}</div>
+          <Link 
+            href={`/projects/${task.projectId}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-muted-foreground truncate hover:text-primary hover:underline block"
+            data-testid={`link-project-${task.projectId}`}
+          >
+            {getProjectName(task.projectId)}
+          </Link>
+        </div>
+      )}
+      {visibleColumns.includes('startDate') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+          {task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—'}
+        </div>
+      )}
+      {visibleColumns.includes('endDate') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+          {task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—'}
+        </div>
+      )}
+      {visibleColumns.includes('progress') && (
+        <div className="w-14 flex-shrink-0 border-r p-2 text-xs text-center font-medium flex items-center justify-center">
+          {progressPercent}%
+        </div>
+      )}
+      {visibleColumns.includes('resources') && (
+        <div 
+          className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50"
+          onClick={(e) => { e.stopPropagation(); setIsEditingResources(true); }}
+        >
+          {isEditingResources ? (
+            <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+              <ResourceAssignment
+                organizationId={organizationId}
+                selectedResourceIds={selectedResourceIds}
+                onSelectionChange={setSelectedResourceIds}
+                label=""
+              />
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>
+                  <Check className="h-3 w-3" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setIsEditingResources(false)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <span className="truncate block">{assignedNames}</span>
+          )}
+        </div>
+      )}
+      <div className="flex-1 relative p-2 min-h-[40px]">
         {hasValidDates ? (
           <div
             className={cn(
-              "absolute top-2 bottom-2 rounded-md flex items-center px-2 text-xs text-white font-medium",
-              task.status === "Completed" ? "bg-emerald-500" :
-              task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+              "absolute top-2 bottom-2 rounded-md overflow-hidden cursor-pointer",
+              task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
+              task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
             )}
             style={{
               left: `${Math.max(0, leftPercent)}%`,
               width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-              minWidth: '60px'
+              minWidth: '40px'
             }}
+            onClick={() => onTaskClick(task)}
           >
-            <span className="truncate">{task.progress || 0}%</span>
+            <div 
+              className={cn(
+                "h-full transition-all",
+                task.status === "Completed" ? "bg-emerald-500" :
+                task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+              )}
+              style={{ width: `${progressPercent}%` }}
+            />
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-foreground">
+              {progressPercent}%
+            </span>
           </div>
         ) : (
-          <div className="text-xs text-muted-foreground italic">No dates set</div>
+          <div className="h-full flex items-center" onClick={() => onTaskClick(task)}>
+            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
+              <CalendarIcon className="h-3 w-3 mr-1" />
+              No dates
+            </Badge>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void; embedded?: boolean }) {
+function GanttView({ tasks, projects, onTaskClick, embedded = false, organizationId = null }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void; embedded?: boolean; organizationId?: number | null }) {
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<TaskZoomLevel>('month');
+  const [visibleColumns, setVisibleColumns] = useState<TaskGanttColumn[]>(['task', 'startDate', 'endDate', 'progress', 'resources']);
   
-  const { minDate, maxDate, dateRange } = useMemo(() => {
+  const toggleColumn = (col: TaskGanttColumn) => {
+    if (col === 'task') return;
+    setVisibleColumns(prev => 
+      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+    );
+  };
+
+  const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
     const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
     
     let minDate: Date;
@@ -832,44 +938,81 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: 
     
     if (tasksWithDates.length > 0) {
       const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]);
-      minDate = startOfMonth(new Date(Math.min(...dates.map(d => d.getTime()))));
-      maxDate = endOfMonth(new Date(Math.max(...dates.map(d => d.getTime()))));
+      const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
+      const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
+      
+      const totalDays = differenceInDays(latestDate, earliestDate);
+      let autoZoom: TaskZoomLevel = 'month';
+      if (totalDays <= 14) autoZoom = 'day';
+      else if (totalDays <= 60) autoZoom = 'week';
+      else if (totalDays <= 180) autoZoom = 'month';
+      else if (totalDays <= 365) autoZoom = 'quarter';
+      else if (totalDays <= 730) autoZoom = 'year';
+      else autoZoom = '5year';
+      
+      minDate = startOfMonth(earliestDate);
+      maxDate = endOfMonth(latestDate);
+      
+      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: autoZoom };
     } else {
       minDate = startOfMonth(today);
       maxDate = endOfMonth(addDays(today, 60));
+      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: 'month' as TaskZoomLevel };
     }
+  }, [tasks, today]);
+
+  useEffect(() => {
+    setZoomLevel(autoZoomLevel);
+  }, [autoZoomLevel]);
+
+  const { adjustedMinDate, adjustedMaxDate, adjustedDateRange } = useMemo(() => {
+    let adjMinDate = minDate;
+    let adjMaxDate = maxDate;
     
-    // Extend range based on zoom level
     if (zoomLevel === 'quarter') {
-      maxDate = addDays(maxDate, 90);
+      adjMinDate = new Date(minDate.getFullYear(), Math.floor(minDate.getMonth() / 3) * 3, 1);
+      adjMaxDate = new Date(maxDate.getFullYear(), Math.ceil((maxDate.getMonth() + 1) / 3) * 3, 0);
     } else if (zoomLevel === 'year') {
-      maxDate = addDays(maxDate, 365);
+      adjMinDate = new Date(minDate.getFullYear(), 0, 1);
+      adjMaxDate = new Date(maxDate.getFullYear(), 11, 31);
     } else if (zoomLevel === '5year') {
-      maxDate = addDays(maxDate, 1825);
+      const startYear = minDate.getFullYear();
+      adjMinDate = new Date(startYear, 0, 1);
+      adjMaxDate = new Date(startYear + 4, 11, 31);
     }
     
-    const dateRange = eachDayOfInterval({ start: minDate, end: maxDate });
-    return { minDate, maxDate, dateRange };
-  }, [tasks, today, zoomLevel]);
+    const adjustedDateRange = eachDayOfInterval({ start: adjMinDate, end: adjMaxDate });
+    return { adjustedMinDate: adjMinDate, adjustedMaxDate: adjMaxDate, adjustedDateRange };
+  }, [minDate, maxDate, zoomLevel]);
 
   const { filteredDates, dateFormat, columnWidth } = useMemo(() => {
     switch (zoomLevel) {
       case 'day':
-        return { filteredDates: dateRange, dateFormat: 'd', columnWidth: 'min-w-[40px]' };
+        return { filteredDates: adjustedDateRange, dateFormat: 'd', columnWidth: 'min-w-[40px]' };
       case 'week':
-        return { filteredDates: dateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
+        return { filteredDates: adjustedDateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
       case 'month':
-        return { filteredDates: dateRange.filter((_, i) => i % 30 === 0), dateFormat: 'MMM yyyy', columnWidth: 'min-w-[100px]' };
+        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1), dateFormat: 'MMM yyyy', columnWidth: 'min-w-[100px]' };
       case 'quarter':
-        return { filteredDates: dateRange.filter((_, i) => i % 90 === 0), dateFormat: 'QQQ yyyy', columnWidth: 'min-w-[80px]' };
+        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() % 3 === 0), dateFormat: 'QQQ yyyy', columnWidth: 'min-w-[80px]' };
       case 'year':
-        return { filteredDates: dateRange.filter((_, i) => i % 365 === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[80px]' };
+        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[80px]' };
       case '5year':
-        return { filteredDates: dateRange.filter((_, i) => i % 365 === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[60px]' };
+        return { filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0), dateFormat: 'yyyy', columnWidth: 'min-w-[60px]' };
       default:
-        return { filteredDates: dateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
+        return { filteredDates: adjustedDateRange.filter((_, i) => i % 7 === 0), dateFormat: 'MMM d', columnWidth: 'min-w-[100px]' };
     }
-  }, [dateRange, zoomLevel]);
+  }, [adjustedDateRange, zoomLevel]);
+
+  const columnsTotalWidth = useMemo(() => {
+    let w = 0;
+    if (visibleColumns.includes('task')) w += 256;
+    if (visibleColumns.includes('startDate')) w += 96;
+    if (visibleColumns.includes('endDate')) w += 96;
+    if (visibleColumns.includes('progress')) w += 56;
+    if (visibleColumns.includes('resources')) w += 128;
+    return w;
+  }, [visibleColumns]);
 
   const handleZoomIn = () => {
     const idx = taskZoomLevels.indexOf(zoomLevel);
@@ -899,11 +1042,37 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: 
   }
 
   const zoomControls = (
-    <div className="flex items-center gap-2 p-3 border-b bg-muted/30">
-      <span className="text-xs text-muted-foreground">
-        View: {taskZoomLabels[zoomLevel]}
-      </span>
-      <div className="flex items-center gap-1 ml-2">
+    <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-muted-foreground">
+          View: {taskZoomLabels[zoomLevel]}
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1">
+              <Columns3 className="h-3.5 w-3.5" />
+              Columns
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {TASK_GANTT_COLUMNS.map(col => (
+              <DropdownMenuItem 
+                key={col.id}
+                onClick={() => toggleColumn(col.id)}
+                className="gap-2"
+              >
+                <Checkbox 
+                  checked={visibleColumns.includes(col.id)} 
+                  disabled={col.id === 'task'}
+                />
+                {col.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="flex items-center gap-1">
         <Button
           variant="outline"
           size="icon"
@@ -928,10 +1097,24 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: 
 
   const ganttContent = (
     <div className="overflow-x-auto">
-      <div className="min-w-[800px]">
+      <div style={{ minWidth: `${columnsTotalWidth + 400}px` }}>
         {!embedded && zoomControls}
-        <div className="flex border-b bg-muted/50">
-          <div className="w-64 flex-shrink-0 border-r p-3 font-semibold text-sm text-foreground">Task</div>
+        <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+          {visibleColumns.includes('task') && (
+            <div className="w-64 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Task</div>
+          )}
+          {visibleColumns.includes('startDate') && (
+            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Start</div>
+          )}
+          {visibleColumns.includes('endDate') && (
+            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">End</div>
+          )}
+          {visibleColumns.includes('progress') && (
+            <div className="w-14 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground text-center">%</div>
+          )}
+          {visibleColumns.includes('resources') && (
+            <div className="w-32 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Resources</div>
+          )}
           <div className="flex-1 flex">
             {filteredDates.map((date, i) => (
               <div key={i} className={cn("flex-1 p-2 text-center text-xs font-medium text-muted-foreground border-l", columnWidth)}>
@@ -946,11 +1129,10 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false }: { tasks: 
             task={task}
             projects={projects}
             onTaskClick={onTaskClick}
-            minDate={minDate}
-            maxDate={maxDate}
-            filteredDates={filteredDates}
-            dateFormat={dateFormat}
-            columnWidth={columnWidth}
+            minDate={adjustedMinDate}
+            maxDate={adjustedMaxDate}
+            visibleColumns={visibleColumns}
+            organizationId={organizationId}
           />
         ))}
       </div>
