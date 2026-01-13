@@ -1,0 +1,102 @@
+Build a Timesheet Module  where users can log hours only against tasks assigned to them (as a resource). The system must enforce that a user cannot log time to any task not associated with them.
+
+1) Core concepts & data model
+
+ 
+
+User
+ 
+
+Project
+
+ 
+
+Task
+ 
+
+TaskAssignment (controls what each user can log against)
+ 
+
+TimesheetEntry
+
+ 
+
+Uniqueness rule (optional but recommended): prevent duplicates per user+task+date unless you explicitly support multiple entries.
+
+2) Business rules (must enforce)
+
+A user can only create/edit timesheet entries for their own user_id.
+
+A user can only log time against tasks that are assigned to them via TaskAssignment.
+
+Validate hours:
+
+min 0, max 24 per day per user (or configurable)
+
+enforce increments (e.g., 0.25) if possible
+
+Prevent editing if status is not Draft (unless admin).
+
+Optional workflow:
+
+Submit a week for approval
+
+Manager can approve/reject
+
+3) Required UI (best UX possible)
+
+Build two main views:
+
+A) Log Hours View (primary)
+
+Default to current week (Mon–Sun) with a week picker.
+
+Show a grid-style timesheet:
+
+Rows = tasks assigned to the logged-in user
+
+Columns = days of the selected week
+
+Each cell = editable hours input (with quick entry)
+
+Row totals and day totals
+
+Week total at the bottom
+
+Add features:
+
+“Add task” dropdown that only lists assigned tasks not already in grid (or just display all assigned tasks)
+
+Inline notes (expand per entry)
+
+Autosave or “Save Draft”
+
+“Submit Week” button (if workflow enabled)
+
+Clear error messages if user tries to log non-assigned tasks (should be impossible via UI, but still validate server-side)
+
+B) View Timesheets / History View
+
+Filters:
+
+date range (week/month)
+
+project
+
+task
+
+status (Draft/Submitted/Approved/Rejected)
+
+Display:
+
+Table of entries with totals
+
+Group by week and show weekly totals
+
+Export CSV option
+
+If manager/admin:
+
+ability to view team members’ timesheets
+
+approve/reject submitted entries with comments
