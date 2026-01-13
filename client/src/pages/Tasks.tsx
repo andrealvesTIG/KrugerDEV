@@ -134,7 +134,9 @@ export default function Tasks() {
   }, [tasks, groupBy, projectMap, portfolioMap]);
 
   const form = useForm({
-    resolver: zodResolver(insertTaskSchema),
+    resolver: zodResolver(insertTaskSchema.extend({
+      name: insertTaskSchema.shape.name.min(1, "Task name is required")
+    })),
     mode: "onChange",
     defaultValues: {
       projectId: undefined as any,
