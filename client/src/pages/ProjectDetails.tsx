@@ -1992,6 +1992,9 @@ function ProjectGanttTaskRow({
   organizationId,
   onIndent,
   onOutdent,
+  hasChildren,
+  isCollapsed,
+  onToggleCollapse,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -2001,6 +2004,9 @@ function ProjectGanttTaskRow({
   organizationId: number | null;
   onIndent: (task: Task) => void;
   onOutdent: (task: Task) => void;
+  hasChildren: boolean;
+  isCollapsed: boolean;
+  onToggleCollapse: (taskId: number) => void;
 }) {
   const { data: taskAssignments } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2078,13 +2084,33 @@ function ProjectGanttTaskRow({
       </div>
       {visibleColumns.includes('task') && (
         <div 
-          className="w-48 flex-shrink-0 border-r p-2 cursor-pointer"
+          className={cn(
+            "w-48 flex-shrink-0 border-r p-2 cursor-pointer",
+            hasChildren && "font-semibold bg-muted/30"
+          )}
           onClick={() => onTaskClick(task)}
-          style={{ paddingLeft: `${12 + (currentLevel - 1) * 16}px` }}
+          style={{ paddingLeft: `${8 + (currentLevel - 1) * 20}px` }}
         >
-          <div className="font-medium text-sm truncate flex items-center gap-1.5">
+          <div className="font-medium text-sm truncate flex items-center gap-1">
+            {hasChildren ? (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-5 w-5 p-0 flex-shrink-0"
+                onClick={(e) => { e.stopPropagation(); onToggleCollapse(task.id); }}
+                data-testid={`task-toggle-${task.id}`}
+              >
+                {isCollapsed ? (
+                  <ChevronRight className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            ) : (
+              <span className="w-5 flex-shrink-0" />
+            )}
             {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
-            {task.name}
+            <span className="truncate">{task.name}</span>
           </div>
         </div>
       )}
@@ -2230,6 +2256,67 @@ function ProjectGanttView({
       }
     });
   };
+
+  // Collapse/expand state management
+  const [collapsedTasks, setCollapsedTasks] = useState<Set<number>>(new Set());
+
+  const toggleCollapse = (taskId: number) => {
+    setCollapsedTasks(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  // Determine which tasks have children and filter visible tasks
+  // Uses tasks in their original order to preserve hierarchy
+  const { visibleTasks, taskHasChildren } = useMemo(() => {
+    const taskHasChildren: Record<number, boolean> = {};
+
+    // First pass: determine which tasks have children based on outline levels
+    for (let i = 0; i < tasks.length; i++) {
+      const currentTask = tasks[i];
+      const currentLevel = currentTask.outlineLevel || 1;
+      
+      // Check if next task is a child (higher level)
+      if (i + 1 < tasks.length) {
+        const nextTask = tasks[i + 1];
+        const nextLevel = nextTask.outlineLevel || 1;
+        if (nextLevel > currentLevel) {
+          taskHasChildren[currentTask.id] = true;
+        }
+      }
+    }
+
+    // Second pass: filter out collapsed children
+    const visibleTasks: Task[] = [];
+    let skipUntilLevel = -1;
+
+    for (const task of tasks) {
+      const taskLevel = task.outlineLevel || 1;
+
+      // If we're skipping and this task is still a child, skip it
+      if (skipUntilLevel > 0 && taskLevel > skipUntilLevel) {
+        continue;
+      } else {
+        skipUntilLevel = -1;
+      }
+
+      visibleTasks.push(task);
+
+      // If this task is collapsed and has children, skip its children
+      if (collapsedTasks.has(task.id) && taskHasChildren[task.id]) {
+        skipUntilLevel = taskLevel;
+      }
+    }
+
+    return { visibleTasks, taskHasChildren };
+  }, [tasks, collapsedTasks]);
+
   const handleAddTask = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && newTaskName.trim()) {
       onCreateTask(newTaskName.trim());
@@ -2445,12 +2532,12 @@ function ProjectGanttView({
                 ))}
               </div>
             </div>
-            {tasks.length === 0 ? (
+            {visibleTasks.length === 0 && tasks.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground text-sm">
                 No tasks yet. Add your first task below.
               </div>
             ) : (
-              tasks.map(task => (
+              visibleTasks.map(task => (
                 <ProjectGanttTaskRow
                   key={task.id}
                   task={task}
@@ -2461,6 +2548,9 @@ function ProjectGanttView({
                   organizationId={organizationId}
                   onIndent={handleIndent}
                   onOutdent={handleOutdent}
+                  hasChildren={!!taskHasChildren[task.id]}
+                  isCollapsed={collapsedTasks.has(task.id)}
+                  onToggleCollapse={toggleCollapse}
                 />
               ))
             )}
