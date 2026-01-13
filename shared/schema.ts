@@ -540,6 +540,9 @@ export const projectIntakes = pgTable("project_intakes", {
   projectCostComplete: boolean("project_cost_complete").default(false),
   cyberArchComplete: boolean("cyber_arch_complete").default(false),
   pmoSubmitted: boolean("pmo_submitted").default(false),
+  pmoApproved: boolean("pmo_approved").default(false), // PM must approve before conversion to project
+  pmoApprovedAt: timestamp("pmo_approved_at"),
+  pmoApprovedBy: varchar("pmo_approved_by").references(() => users.id),
   
   // Financials tab data
   estimatedBudget: numeric("estimated_budget").default("0"),
