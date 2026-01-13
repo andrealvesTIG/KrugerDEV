@@ -25,7 +25,7 @@ import {
   isSameMonth
 } from "date-fns";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Target, Flag, CheckSquare } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Target, Flag, CheckSquare, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Milestone, Task, Project } from "@shared/schema";
 
@@ -41,11 +41,14 @@ interface CalendarEvent {
   status?: string;
 }
 
+type EventFilter = "all" | "milestone" | "task" | "deadline";
+
 export default function Calendar() {
   const { currentOrganization } = useOrganization();
   const { data: projects = [] } = useProjects(currentOrganization?.id);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewType, setViewType] = useState<ViewType>("month");
+  const [eventFilter, setEventFilter] = useState<EventFilter>("all");
   const [, setLocation] = useLocation();
 
   // Navigate to specific item when clicked
@@ -147,10 +150,41 @@ export default function Calendar() {
     return events;
   }, [projects, orgMilestones, orgTasks, projectMap]);
 
-  // Get events for a specific day
+  // Filter events based on selected filter
+  const filteredEvents = useMemo(() => {
+    if (eventFilter === "all") return calendarEvents;
+    return calendarEvents.filter(event => event.type === eventFilter);
+  }, [calendarEvents, eventFilter]);
+
+  // Get events for a specific day (using filtered events)
   const getEventsForDay = (day: Date) => {
-    return calendarEvents.filter(event => isSameDay(event.date, day));
+    return filteredEvents.filter(event => isSameDay(event.date, day));
   };
+
+  // Jump to nearest upcoming event
+  const jumpToNearestEvent = useCallback(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Find the nearest future event
+    const upcomingEvents = filteredEvents
+      .filter(event => {
+        const eventDate = new Date(event.date);
+        eventDate.setHours(0, 0, 0, 0);
+        return eventDate >= today;
+      })
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    if (upcomingEvents.length > 0) {
+      setCurrentDate(upcomingEvents[0].date);
+    } else {
+      // If no upcoming events, find the most recent past event
+      const pastEvents = filteredEvents.sort((a, b) => b.date.getTime() - a.date.getTime());
+      if (pastEvents.length > 0) {
+        setCurrentDate(pastEvents[0].date);
+      }
+    }
+  }, [filteredEvents]);
 
   // Navigation handlers
   const navigatePrevious = () => {
@@ -327,20 +361,60 @@ export default function Calendar() {
               </motion.h2>
             </AnimatePresence>
 
-            {/* Legend */}
-            <div className="hidden md:flex items-center gap-3 text-xs">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-purple-500" />
-                <span className="text-muted-foreground">Milestones</span>
+            {/* Filter and Jump controls */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center border rounded-lg p-1 gap-1">
+                <Button
+                  variant={eventFilter === "all" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setEventFilter("all")}
+                  className="h-7 px-2 text-xs"
+                  data-testid="filter-all"
+                >
+                  All
+                </Button>
+                <Button
+                  variant={eventFilter === "milestone" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setEventFilter("milestone")}
+                  className="h-7 px-2 text-xs gap-1"
+                  data-testid="filter-milestones"
+                >
+                  <Target className="h-3 w-3" />
+                  Milestones
+                </Button>
+                <Button
+                  variant={eventFilter === "task" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setEventFilter("task")}
+                  className="h-7 px-2 text-xs gap-1"
+                  data-testid="filter-tasks"
+                >
+                  <CheckSquare className="h-3 w-3" />
+                  Tasks
+                </Button>
+                <Button
+                  variant={eventFilter === "deadline" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setEventFilter("deadline")}
+                  className="h-7 px-2 text-xs gap-1"
+                  data-testid="filter-deadlines"
+                >
+                  <Flag className="h-3 w-3" />
+                  Deadlines
+                </Button>
               </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-blue-500" />
-                <span className="text-muted-foreground">Tasks</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-red-500" />
-                <span className="text-muted-foreground">Deadlines</span>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={jumpToNearestEvent}
+                className="h-7 gap-1"
+                data-testid="button-jump-nearest"
+                disabled={filteredEvents.length === 0}
+              >
+                <Zap className="h-3 w-3" />
+                Jump to Next
+              </Button>
             </div>
           </div>
         </CardContent>
