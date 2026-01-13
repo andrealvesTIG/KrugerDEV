@@ -20,6 +20,7 @@ import { usePortfolios } from "@/hooks/use-portfolios";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
+import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
 const WORKFLOW_STEPS = [
   { id: "intake_capture", label: "Intake Capture", shortLabel: "Capture", icon: Lightbulb },
@@ -100,10 +101,18 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
   const [portfolioId, setPortfolioId] = useState<string>("");
   const [fundingSource, setFundingSource] = useState("");
   const [businessUnit, setBu] = useState("");
+  const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
 
   const createIntake = useMutation({
     mutationFn: async (data: any) => {
       const response = await apiRequest('POST', '/api/project-intakes', data);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error(errorData.message || "Failed to create intake") as any;
+        error.limitExceeded = errorData.limitExceeded;
+        error.resourceType = errorData.resourceType;
+        throw error;
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -112,8 +121,12 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
       onOpenChange(false);
       resetForm();
     },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    onError: (err: any) => {
+      if (err.limitExceeded) {
+        setLimitError({ resourceType: err.resourceType || "intakes" });
+      } else {
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+      }
     }
   });
 
@@ -228,6 +241,11 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
           </Button>
         </DialogFooter>
       </DialogContent>
+      <LimitExceededDialog
+        open={!!limitError}
+        onOpenChange={(o) => !o && setLimitError(null)}
+        resourceType={limitError?.resourceType || "intakes"}
+      />
     </Dialog>
   );
 }

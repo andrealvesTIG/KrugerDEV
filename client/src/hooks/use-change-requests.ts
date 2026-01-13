@@ -13,6 +13,13 @@ export function useCreateChangeRequest(projectId: number) {
   return useMutation({
     mutationFn: async (data: Omit<InsertChangeRequest, 'projectId' | 'requestedBy'>) => {
       const res = await apiRequest('POST', `/api/projects/${projectId}/change-requests`, data);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const error = new Error(errorData.message || "Failed to create change request") as any;
+        error.limitExceeded = errorData.limitExceeded;
+        error.resourceType = errorData.resourceType;
+        throw error;
+      }
       return res.json();
     },
     onSuccess: () => {

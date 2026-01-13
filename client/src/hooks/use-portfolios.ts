@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type CreatePortfolioRequest, type UpdatePortfolioRequest } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
+import type { InsertPortfolio, Portfolio } from "@shared/schema";
 
 export function usePortfolios(organizationId?: number | null) {
   return useQuery({
@@ -33,14 +34,20 @@ export function usePortfolio(id: number) {
 export function useCreatePortfolio() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: CreatePortfolioRequest) => {
+    mutationFn: async (data: InsertPortfolio) => {
       const res = await fetch(api.portfolios.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create portfolio");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const error = new Error(errorData.message || "Failed to create portfolio") as any;
+        error.limitExceeded = errorData.limitExceeded;
+        error.resourceType = errorData.resourceType;
+        throw error;
+      }
       return api.portfolios.create.responses[201].parse(await res.json());
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [api.portfolios.list.path] }),
@@ -50,7 +57,7 @@ export function useCreatePortfolio() {
 export function useUpdatePortfolio() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: UpdatePortfolioRequest & { id: number }) => {
+    mutationFn: async ({ id, ...data }: Partial<InsertPortfolio> & { id: number }) => {
       const url = buildUrl(api.portfolios.update.path, { id });
       const res = await fetch(url, {
         method: "PUT",

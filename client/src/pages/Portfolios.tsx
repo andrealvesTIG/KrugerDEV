@@ -21,6 +21,7 @@ import type { InsertPortfolio, Portfolio } from "@shared/schema";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
 export default function Portfolios() {
   const { currentOrganization } = useOrganization();
@@ -350,6 +351,7 @@ export default function Portfolios() {
 function CreatePortfolioDialog({ open, onOpenChange, organizationId }: { open: boolean; onOpenChange: (o: boolean) => void; organizationId?: number }) {
   const { toast } = useToast();
   const createMutation = useCreatePortfolio();
+  const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
   
   const form = useForm<InsertPortfolio>({
     resolver: zodResolver(insertPortfolioSchema),
@@ -363,8 +365,12 @@ function CreatePortfolioDialog({ open, onOpenChange, organizationId }: { open: b
         onOpenChange(false);
         form.reset();
       },
-      onError: (err) => {
-        toast({ title: "Error", description: err.message, variant: "destructive" });
+      onError: (err: any) => {
+        if (err.limitExceeded) {
+          setLimitError({ resourceType: err.resourceType || "portfolios" });
+        } else {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
       }
     });
   };
@@ -401,6 +407,11 @@ function CreatePortfolioDialog({ open, onOpenChange, organizationId }: { open: b
           </DialogFooter>
         </form>
       </DialogContent>
+      <LimitExceededDialog
+        open={!!limitError}
+        onOpenChange={(o) => !o && setLimitError(null)}
+        resourceType={limitError?.resourceType || "portfolios"}
+      />
     </Dialog>
   );
 }

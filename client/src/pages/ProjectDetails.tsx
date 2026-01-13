@@ -13,6 +13,7 @@ import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskRe
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
+import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -3209,6 +3210,7 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ChangeRequest | null>(null);
+  const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -3250,6 +3252,14 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
           toast({ title: "Success", description: "Change request created" });
           setIsDialogOpen(false);
           resetForm();
+        },
+        onError: (err: any) => {
+          if (err.limitExceeded) {
+            setLimitError({ resourceType: err.resourceType || "change_requests" });
+            setIsDialogOpen(false);
+          } else {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
+          }
         }
       });
     }
@@ -3493,6 +3503,11 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
           </div>
         )}
       </CardContent>
+      <LimitExceededDialog
+        open={!!limitError}
+        onOpenChange={(o) => !o && setLimitError(null)}
+        resourceType={limitError?.resourceType || "change_requests"}
+      />
     </Card>
   );
 }
