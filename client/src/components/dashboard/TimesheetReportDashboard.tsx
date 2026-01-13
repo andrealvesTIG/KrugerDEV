@@ -151,7 +151,11 @@ export function TimesheetReportDashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold">Timesheet Report</h2>
+          <p className="text-sm text-muted-foreground">Comprehensive view of your timesheet report metrics and performance.</p>
+        </div>
         <DashboardActionBar title="Timesheet Report Dashboard" dashboardType="timesheet" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
       </div>
 
