@@ -5763,7 +5763,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
       
       // Get credits used from rollups
       const cycle = await billingProvider.getOrCreateBillingCycle(subscription.id);
-      let creditsUsed = 0;
+      let creditsUsedHundredths = 0;
       
       if (creditsMeter) {
         const [rollup] = await db
@@ -5777,11 +5777,13 @@ Return ONLY valid JSON, no markdown or explanations.`;
           )
           .limit(1);
         
-        creditsUsed = rollup?.usedUnits || 0;
+        creditsUsedHundredths = rollup?.usedUnits || 0;
       }
       
-      // Plan meter rules store credits as actual credits (not hundredths)
-      // Usage rollups also store in actual credits
+      // Convert usage from hundredths to actual credits for display
+      // Plan meter rules store credits as actual credits (200, 500, etc.)
+      // Usage rollups store in hundredths (500 = 5 credits)
+      const creditsUsed = creditsUsedHundredths / 100;
       const limit = creditsHardCap !== null ? creditsHardCap : creditsIncluded;
       const remaining = Math.max(0, limit - creditsUsed);
       
