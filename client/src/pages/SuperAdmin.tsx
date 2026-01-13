@@ -1166,48 +1166,11 @@ function PlansTab() {
                       const hardCapRule = creditsRules.find(r => r.ruleType === 'HARD_CAP');
                       const overageRule = creditsRules.find(r => r.ruleType === 'METERED_OVERAGE');
                       
-                      const saveAllCredits = async () => {
-                        const promises = [];
-                        if (quotaRule) {
-                          promises.push(updateRule.mutateAsync({ 
-                            planId: editingPlan.id, 
-                            ruleId: quotaRule.id, 
-                            includedUnitsMonthly: quotaRule.includedUnitsMonthly ?? undefined 
-                          }));
-                        }
-                        if (hardCapRule) {
-                          promises.push(updateRule.mutateAsync({ 
-                            planId: editingPlan.id, 
-                            ruleId: hardCapRule.id, 
-                            hardCapUnits: hardCapRule.hardCapUnits ?? undefined 
-                          }));
-                        }
-                        if (overageRule) {
-                          promises.push(updateRule.mutateAsync({ 
-                            planId: editingPlan.id, 
-                            ruleId: overageRule.id, 
-                            overageUnitPriceMicrocents: overageRule.overageUnitPriceMicrocents ?? undefined 
-                          }));
-                        }
-                        await Promise.all(promises);
-                      };
-                      
                       return (
                         <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Wallet className="h-5 w-5 text-primary" />
-                              <span className="font-medium">Monthly Credits</span>
-                            </div>
-                            <Button
-                              size="sm"
-                              onClick={saveAllCredits}
-                              disabled={updateRule.isPending}
-                              data-testid="button-save-all-credits"
-                            >
-                              {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                              Save Credits
-                            </Button>
+                          <div className="flex items-center gap-2">
+                            <Wallet className="h-5 w-5 text-primary" />
+                            <span className="font-medium">Monthly Credits</span>
                           </div>
                           
                           <div className="grid grid-cols-2 gap-4">
@@ -1324,7 +1287,6 @@ function PlansTab() {
                                 <TableHead>Meter</TableHead>
                                 <TableHead>Type</TableHead>
                                 <TableHead>Value</TableHead>
-                                <TableHead className="text-right">Save</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1370,24 +1332,6 @@ function PlansTab() {
                                       />
                                     )}
                                   </TableCell>
-                                  <TableCell className="text-right">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => {
-                                        const updates: any = {};
-                                        if (rule.ruleType === "INCLUDED_QUOTA") {
-                                          updates.includedUnitsMonthly = rule.includedUnitsMonthly;
-                                        } else if (rule.ruleType === "HARD_CAP") {
-                                          updates.hardCapUnits = rule.hardCapUnits;
-                                        }
-                                        updateRule.mutate({ planId: editingPlan.id, ruleId: rule.id, ...updates });
-                                      }}
-                                      disabled={updateRule.isPending}
-                                    >
-                                      {updateRule.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                                    </Button>
-                                  </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
@@ -1404,18 +1348,35 @@ function PlansTab() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => updatePlan.mutate({
-                    id: editingPlan.id,
-                    name: editingPlan.name,
-                    description: editingPlan.description || undefined,
-                    monthlyPriceCents: editingPlan.monthlyPriceCents,
-                    maxSeats: editingPlan.maxSeats || undefined,
-                  })}
-                  disabled={updatePlan.isPending}
+                  onClick={async () => {
+                    // Save plan details
+                    await updatePlan.mutateAsync({
+                      id: editingPlan.id,
+                      name: editingPlan.name,
+                      description: editingPlan.description || undefined,
+                      monthlyPriceCents: editingPlan.monthlyPriceCents,
+                      maxSeats: editingPlan.maxSeats || undefined,
+                    });
+                    
+                    // Save all meter rules
+                    const promises = editingRules.map(rule => {
+                      const updates: any = {};
+                      if (rule.ruleType === 'INCLUDED_QUOTA') {
+                        updates.includedUnitsMonthly = rule.includedUnitsMonthly ?? undefined;
+                      } else if (rule.ruleType === 'HARD_CAP') {
+                        updates.hardCapUnits = rule.hardCapUnits ?? undefined;
+                      } else if (rule.ruleType === 'METERED_OVERAGE') {
+                        updates.overageUnitPriceMicrocents = rule.overageUnitPriceMicrocents ?? undefined;
+                      }
+                      return updateRule.mutateAsync({ planId: editingPlan.id, ruleId: rule.id, ...updates });
+                    });
+                    await Promise.all(promises);
+                  }}
+                  disabled={updatePlan.isPending || updateRule.isPending}
                   data-testid="button-save-plan"
                 >
-                  {updatePlan.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Save Plan
+                  {(updatePlan.isPending || updateRule.isPending) ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Save Changes
                 </Button>
               </DialogFooter>
             </div>
