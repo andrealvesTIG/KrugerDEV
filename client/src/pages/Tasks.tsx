@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -747,9 +747,11 @@ const taskZoomLabels: Record<TaskZoomLevel, string> = {
   '5year': '5 Years'
 };
 
-type TaskGanttColumn = 'task' | 'startDate' | 'endDate' | 'progress' | 'resources';
+type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'progress' | 'resources';
 
 const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[] = [
+  { id: 'actions', label: '', width: 'w-10' },
+  { id: 'outlineLevel', label: 'Level', width: 'w-14' },
   { id: 'task', label: 'Task', width: 'w-64' },
   { id: 'startDate', label: 'Start', width: 'w-24' },
   { id: 'endDate', label: 'End', width: 'w-24' },
@@ -765,6 +767,8 @@ function GanttTaskRow({
   maxDate,
   visibleColumns,
   organizationId,
+  onIndent,
+  onOutdent,
 }: { 
   task: Task; 
   projects: any[]; 
@@ -773,6 +777,8 @@ function GanttTaskRow({
   maxDate: Date;
   visibleColumns: TaskGanttColumn[];
   organizationId: number | null;
+  onIndent: (task: Task) => void;
+  onOutdent: (task: Task) => void;
 }) {
   const { data: taskAssignments } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -814,16 +820,61 @@ function GanttTaskRow({
   };
 
   const progressPercent = task.progress || 0;
+  const outlineLevel = task.outlineLevel || 1;
+  const canIndent = outlineLevel < 6;
+  const canOutdent = outlineLevel > 1;
 
   return (
     <div 
       className="flex border-b hover:bg-muted/30 transition-colors group"
       data-testid={`gantt-task-${task.id}`}
     >
+      {visibleColumns.includes('actions') && (
+        <div className="w-10 flex-shrink-0 border-r p-1 flex items-center justify-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                data-testid={`button-task-actions-${task.id}`}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem 
+                onClick={(e) => { e.stopPropagation(); onIndent(task); }}
+                disabled={!canIndent}
+                data-testid={`button-indent-task-${task.id}`}
+              >
+                <Indent className="h-4 w-4 mr-2" />
+                {canIndent ? `Indent (Level ${outlineLevel} → ${outlineLevel + 1})` : 'Indent (Max level reached)'}
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={(e) => { e.stopPropagation(); onOutdent(task); }}
+                disabled={!canOutdent}
+                data-testid={`button-outdent-task-${task.id}`}
+              >
+                <Outdent className="h-4 w-4 mr-2" />
+                {canOutdent ? `Outdent (Level ${outlineLevel} → ${outlineLevel - 1})` : 'Outdent (Top level reached)'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+      {visibleColumns.includes('outlineLevel') && (
+        <div className="w-14 flex-shrink-0 border-r p-2 flex items-center justify-center">
+          <Badge variant="outline" className="text-xs font-mono">
+            {outlineLevel}
+          </Badge>
+        </div>
+      )}
       {visibleColumns.includes('task') && (
         <div 
           className="w-64 flex-shrink-0 border-r p-3 cursor-pointer"
           onClick={() => onTaskClick(task)}
+          style={{ paddingLeft: `${12 + (outlineLevel - 1) * 16}px` }}
         >
           <div className="font-medium text-sm truncate">{task.name}</div>
           <Link 
@@ -921,13 +972,51 @@ function GanttTaskRow({
 function GanttView({ tasks, projects, onTaskClick, embedded = false, organizationId = null }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void; embedded?: boolean; organizationId?: number | null }) {
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<TaskZoomLevel>('month');
-  const [visibleColumns, setVisibleColumns] = useState<TaskGanttColumn[]>(['task', 'startDate', 'endDate', 'progress', 'resources']);
+  const [visibleColumns, setVisibleColumns] = useState<TaskGanttColumn[]>(['actions', 'outlineLevel', 'task', 'startDate', 'endDate', 'progress', 'resources']);
+  const updateTask = useUpdateTask();
+  const { toast } = useToast();
   
   const toggleColumn = (col: TaskGanttColumn) => {
-    if (col === 'task') return;
+    if (col === 'task' || col === 'actions') return;
     setVisibleColumns(prev => 
       prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
     );
+  };
+
+  const handleIndent = (task: Task) => {
+    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
+    const newLevel = Math.min(6, currentLevel + 1);
+    if (currentLevel >= 6 || newLevel > 6) {
+      toast({ title: "Cannot indent", description: "Maximum outline level (6) reached", variant: "destructive" });
+      return;
+    }
+    updateTask.mutate({ 
+      id: task.id, 
+      projectId: task.projectId, 
+      outlineLevel: newLevel 
+    }, {
+      onSuccess: () => {
+        toast({ title: "Updated", description: `Task indented to level ${newLevel}` });
+      }
+    });
+  };
+
+  const handleOutdent = (task: Task) => {
+    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
+    const newLevel = Math.max(1, currentLevel - 1);
+    if (currentLevel <= 1 || newLevel < 1) {
+      toast({ title: "Cannot outdent", description: "Minimum outline level (1) reached", variant: "destructive" });
+      return;
+    }
+    updateTask.mutate({ 
+      id: task.id, 
+      projectId: task.projectId, 
+      outlineLevel: newLevel 
+    }, {
+      onSuccess: () => {
+        toast({ title: "Updated", description: `Task outdented to level ${newLevel}` });
+      }
+    });
   };
 
   const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
@@ -1006,6 +1095,8 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
 
   const columnsTotalWidth = useMemo(() => {
     let w = 0;
+    if (visibleColumns.includes('actions')) w += 40;
+    if (visibleColumns.includes('outlineLevel')) w += 56;
     if (visibleColumns.includes('task')) w += 256;
     if (visibleColumns.includes('startDate')) w += 96;
     if (visibleColumns.includes('endDate')) w += 96;
@@ -1064,9 +1155,9 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
               >
                 <Checkbox 
                   checked={visibleColumns.includes(col.id)} 
-                  disabled={col.id === 'task'}
+                  disabled={col.id === 'task' || col.id === 'actions'}
                 />
-                {col.label}
+                {col.label || col.id}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -1100,6 +1191,12 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
       <div style={{ minWidth: `${columnsTotalWidth + 400}px` }}>
         {!embedded && zoomControls}
         <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+          {visibleColumns.includes('actions') && (
+            <div className="w-10 flex-shrink-0 border-r p-2"></div>
+          )}
+          {visibleColumns.includes('outlineLevel') && (
+            <div className="w-14 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground text-center">Level</div>
+          )}
           {visibleColumns.includes('task') && (
             <div className="w-64 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Task</div>
           )}
@@ -1133,6 +1230,8 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
             maxDate={adjustedMaxDate}
             visibleColumns={visibleColumns}
             organizationId={organizationId}
+            onIndent={handleIndent}
+            onOutdent={handleOutdent}
           />
         ))}
       </div>
