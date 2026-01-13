@@ -1234,7 +1234,7 @@ export default function Billing() {
                   </div>
                 </div>
               </div>
-            ) : changePlanDialog && changePlanDialog.monthlyPriceCents && changePlanDialog.monthlyPriceCents > 0 && (
+            ) : changePlanDialog && changePlanDialog.monthlyPriceCents != null && changePlanDialog.monthlyPriceCents > 0 ? (
               <div className="mt-4 pt-4 border-t">
                 {billingPeriod === "yearly" && (
                   <div className="mb-3 p-2 rounded-md bg-amber-500/10 border border-amber-500/20">
@@ -1291,7 +1291,7 @@ export default function Billing() {
                   </div>
                 )}
               </div>
-            )}
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setChangePlanDialog(null)} data-testid="button-cancel-plan-change">
