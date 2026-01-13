@@ -1,26 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
-import { useUpdateIssueResourceAssignments } from "@/hooks/use-resources";
+import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical } from "lucide-react";
+import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertIssueSchema } from "@shared/schema";
+import { insertIssueSchema, type Issue } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
+
+function IssueResourceDisplay({ issueId }: { issueId: number }) {
+  const { data: assignments, isLoading } = useIssueResourceAssignments(issueId);
+  
+  if (isLoading) return <span className="text-muted-foreground">Loading...</span>;
+  if (!assignments || assignments.length === 0) return null;
+  
+  const names = assignments.map(a => a.resource.displayName).join(", ");
+  return <span>Assigned: {names}</span>;
+}
 
 const priorityColors = {
   Low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -48,15 +58,19 @@ export default function Issues() {
   const { data: issues, isLoading } = useAllIssues();
   const { data: projects } = useProjects(currentOrganization?.id);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const createIssue = useCreateIssue();
+  const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
   const updateIssueResources = useUpdateIssueResourceAssignments();
   const { toast } = useToast();
   const [deleteIssueData, setDeleteIssueData] = useState<{ id: number; projectId: number } | null>(null);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [editResourceIds, setEditResourceIds] = useState<number[]>([]);
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
   const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
 
@@ -70,10 +84,64 @@ export default function Issues() {
       description: "",
       priority: "Medium",
       status: "Open",
-      type: "Bug",
-      assignee: ""
+      type: "Bug"
     }
   });
+
+  const editForm = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      priority: "Medium",
+      status: "Open",
+      type: "Bug"
+    }
+  });
+
+  const { data: editingIssueResources } = useIssueResourceAssignments(editingIssue?.id || null);
+  const [resourcesInitialized, setResourcesInitialized] = useState(false);
+
+  useEffect(() => {
+    if (isEditDialogOpen && editingIssueResources && !resourcesInitialized) {
+      setEditResourceIds(editingIssueResources.map(a => a.resource.id));
+      setResourcesInitialized(true);
+    }
+  }, [isEditDialogOpen, editingIssueResources, resourcesInitialized]);
+
+  const openEditDialog = (issue: Issue) => {
+    setEditingIssue(issue);
+    setResourcesInitialized(false);
+    editForm.reset({
+      title: issue.title,
+      description: issue.description || "",
+      priority: issue.priority || "Medium",
+      status: issue.status || "Open",
+      type: issue.type || "Bug"
+    });
+    setEditResourceIds([]);
+    setIsEditDialogOpen(true);
+  };
+
+  const onEditSubmit = (data: any) => {
+    if (!editingIssue) return;
+    updateIssue.mutate({ 
+      id: editingIssue.id, 
+      projectId: editingIssue.projectId,
+      ...data 
+    }, {
+      onSuccess: () => {
+        updateIssueResources.mutate({ issueId: editingIssue.id, resourceIds: editResourceIds });
+        toast({ title: "Success", description: "Issue updated successfully" });
+        setIsEditDialogOpen(false);
+        setEditingIssue(null);
+        setEditResourceIds([]);
+        setResourcesInitialized(false);
+      },
+      onError: (err: Error) => {
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+      }
+    });
+  };
 
   const onSubmit = (data: any) => {
     createIssue.mutate(data, {
@@ -90,8 +158,7 @@ export default function Issues() {
           description: "",
           priority: "Medium",
           status: "Open",
-          type: "Bug",
-          assignee: ""
+          type: "Bug"
         });
       },
       onError: (err: any) => {
@@ -152,27 +219,35 @@ export default function Issues() {
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Project</Label>
+                <Label>Project <span className="text-destructive">*</span></Label>
                 <Controller
                   control={form.control}
                   name="projectId"
-                  render={({ field }) => (
-                    <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value?.toString()}>
-                      <SelectTrigger data-testid="select-project">
-                        <SelectValue placeholder="Select a project" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projects?.map(p => (
-                          <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  render={({ field, fieldState }) => (
+                    <>
+                      <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value?.toString()}>
+                        <SelectTrigger data-testid="select-project" className={fieldState.error ? "border-destructive" : ""}>
+                          <SelectValue placeholder="Select a project" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projects?.map(p => (
+                            <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldState.error && (
+                        <p className="text-sm text-destructive">{fieldState.error.message}</p>
+                      )}
+                    </>
                   )}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Title</Label>
-                <Input {...form.register("title")} data-testid="input-issue-title" placeholder="Brief description of the issue" />
+                <Label>Title <span className="text-destructive">*</span></Label>
+                <Input {...form.register("title")} data-testid="input-issue-title" placeholder="Brief description of the issue" className={form.formState.errors.title ? "border-destructive" : ""} />
+                {form.formState.errors.title && (
+                  <p className="text-sm text-destructive">{form.formState.errors.title.message as string}</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -219,10 +294,6 @@ export default function Issues() {
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Input {...form.register("description")} data-testid="input-issue-description" placeholder="Detailed description" />
-              </div>
-              <div className="space-y-2">
-                <Label>Assignee</Label>
-                <Input {...form.register("assignee")} data-testid="input-issue-assignee" placeholder="Name of assignee" />
               </div>
               <ResourceAssignment
                 organizationId={currentOrganization?.id || null}
@@ -319,7 +390,7 @@ export default function Issues() {
                         <Link href={`/projects/${issue.projectId}`}>
                           <span className="hover:text-primary cursor-pointer">{getProjectName(issue.projectId)}</span>
                         </Link>
-                        {issue.assignee && <span>Assigned to: {issue.assignee}</span>}
+                        <IssueResourceDisplay issueId={issue.id} />
                       </div>
                     </div>
                   </div>
@@ -334,6 +405,13 @@ export default function Issues() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem 
+                        onClick={() => openEditDialog(issue)}
+                        data-testid={`menu-edit-issue-${issue.id}`}
+                      >
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
                       <DropdownMenuItem 
                         onClick={() => setDeleteIssueData({ id: issue.id, projectId: issue.projectId })}
                         className="text-red-600 focus:text-red-600"
@@ -355,6 +433,101 @@ export default function Issues() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Issue Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Issue</DialogTitle>
+            <DialogDescription>Update the issue details below</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input {...editForm.register("title")} data-testid="input-edit-issue-title" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Controller
+                  control={editForm.control}
+                  name="type"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value || "Bug"}>
+                      <SelectTrigger data-testid="select-edit-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Bug">Bug</SelectItem>
+                        <SelectItem value="Enhancement">Enhancement</SelectItem>
+                        <SelectItem value="Task">Task</SelectItem>
+                        <SelectItem value="Question">Question</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Controller
+                  control={editForm.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value || "Medium"}>
+                      <SelectTrigger data-testid="select-edit-priority">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Controller
+                control={editForm.control}
+                name="status"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value || "Open"}>
+                    <SelectTrigger data-testid="select-edit-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Open">Open</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Resolved">Resolved</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input {...editForm.register("description")} data-testid="input-edit-issue-description" />
+            </div>
+            <ResourceAssignment
+              organizationId={currentOrganization?.id || null}
+              selectedResourceIds={editResourceIds}
+              onSelectionChange={setEditResourceIds}
+              label="Assigned Resources"
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={updateIssue.isPending} data-testid="button-update-issue">
+                {updateIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Issue
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteIssueData !== null} onOpenChange={() => setDeleteIssueData(null)}>
