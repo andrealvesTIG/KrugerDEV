@@ -104,7 +104,19 @@ export const portfolios = pgTable("portfolios", {
   name: text("name").notNull(),
   description: text("description"),
   strategy: text("strategy"), // Strategic alignment description
-  managerId: varchar("manager_id").references(() => users.id), // Changed to varchar to match users.id
+  managerId: varchar("manager_id").references(() => users.id), // Portfolio Manager
+  businessOwnerId: varchar("business_owner_id").references(() => users.id), // Business Owner/Executive Sponsor
+  strategicObjective: text("strategic_objective"), // Key business objective this portfolio supports
+  budgetAllocated: numeric("budget_allocated"), // Total budget allocated to portfolio
+  budgetSpent: numeric("budget_spent"), // Total budget spent across projects
+  targetStartDate: date("target_start_date"), // Portfolio timeline start
+  targetEndDate: date("target_end_date"), // Portfolio timeline end
+  riskTolerance: text("risk_tolerance"), // Low, Medium, High - acceptable risk level
+  performanceMetrics: text("performance_metrics"), // KPIs for portfolio success
+  status: text("status").default("Active"), // Active, On Hold, Closed, Archived
+  healthScore: text("health_score").default("Green"), // Green, Yellow, Red - overall health
+  department: text("department"), // Primary department/business unit
+  notes: text("notes"), // Additional notes
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"), // Soft delete timestamp
   deletedBy: varchar("deleted_by").references(() => users.id), // Who deleted it
@@ -117,16 +129,41 @@ export const projects = pgTable("projects", {
   organizationId: integer("organization_id").references(() => organizations.id),
   portfolioId: integer("portfolio_id").references(() => portfolios.id),
   name: text("name").notNull(),
+  projectCode: text("project_code"), // Unique project identifier (e.g., "PRJ-2025-001")
   description: text("description"),
   status: text("status").notNull().default("Initiation"), // Initiation, Planning, Execution, Monitoring, Closing
   priority: text("priority").notNull().default("Medium"), // Low, Medium, High, Critical
+  projectType: text("project_type"), // Internal, External, Strategic, Operational, Regulatory
+  methodology: text("methodology"), // Waterfall, Agile, Hybrid, Scrum, Kanban
   startDate: date("start_date"),
   endDate: date("end_date"),
+  baselineStartDate: date("baseline_start_date"), // Original planned start
+  baselineEndDate: date("baseline_end_date"), // Original planned end
+  actualStartDate: date("actual_start_date"), // When work actually started
+  actualEndDate: date("actual_end_date"), // When work actually finished
   budget: numeric("budget").notNull().default("0"),
-  managerId: varchar("manager_id").references(() => users.id), // Changed to varchar to match users.id
+  actualCost: numeric("actual_cost").default("0"), // Actual spend to date
+  forecastCost: numeric("forecast_cost"), // Projected final cost
+  managerId: varchar("manager_id").references(() => users.id), // Project Manager
+  businessSponsorId: varchar("business_sponsor_id").references(() => users.id), // Executive Sponsor
+  businessOwnerId: varchar("business_owner_id").references(() => users.id), // Product/Business Owner
+  technicalLeadId: varchar("technical_lead_id").references(() => users.id), // Technical Lead
   completionPercentage: integer("completion_percentage").default(0),
   health: text("health").default("Green"), // Green, Yellow, Red
+  scheduleVariance: integer("schedule_variance"), // Days ahead/behind schedule (negative = behind)
+  costVariance: numeric("cost_variance"), // Budget variance (negative = over budget)
+  scope: text("scope"), // Project scope statement
+  objectives: text("objectives"), // Key project objectives
+  successCriteria: text("success_criteria"), // How success will be measured
+  constraints: text("constraints"), // Known constraints
+  assumptions: text("assumptions"), // Project assumptions
+  dependencies: text("dependencies"), // External dependencies
+  department: text("department"), // Primary department
+  category: text("category"), // Project category (IT, Marketing, Operations, etc.)
+  businessValue: text("business_value"), // Expected business value/ROI
+  riskLevel: text("risk_level"), // Low, Medium, High - overall risk assessment
   source: text("source").default("manual"), // "manual" = created in app, "imported" = from MPP/external file
+  notes: text("notes"), // Additional notes
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
@@ -137,12 +174,28 @@ export const projects = pgTable("projects", {
 export const risks = pgTable("risks", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
+  riskNumber: text("risk_number"), // Auto-generated (e.g., "RISK-001")
   title: text("title").notNull(),
   description: text("description"),
-  probability: text("probability"), // Low, Medium, High
-  impact: text("impact"), // Low, Medium, High
-  status: text("status").default("Open"), // Open, Mitigated, Closed
+  category: text("category"), // Technical, Schedule, Resource, External, Organizational, Financial
+  probability: text("probability"), // Very Low, Low, Medium, High, Very High
+  impact: text("impact"), // Very Low, Low, Medium, High, Very High
+  riskScore: integer("risk_score"), // Calculated score (probability x impact)
+  status: text("status").default("Open"), // Identified, Open, In Mitigation, Mitigated, Closed, Accepted
+  responseStrategy: text("response_strategy"), // Avoid, Transfer, Mitigate, Accept
   mitigationPlan: text("mitigation_plan"),
+  contingencyPlan: text("contingency_plan"), // Backup plan if risk occurs
+  triggerEvents: text("trigger_events"), // What triggers this risk
+  residualRisk: text("residual_risk"), // Remaining risk after mitigation
+  ownerId: varchar("owner_id").references(() => users.id), // Risk owner
+  reviewerId: varchar("reviewer_id").references(() => users.id), // Risk reviewer
+  identifiedDate: date("identified_date"), // When risk was identified
+  targetResolutionDate: date("target_resolution_date"),
+  actualResolutionDate: date("actual_resolution_date"),
+  impactCost: numeric("impact_cost"), // Potential cost if risk materializes
+  impactSchedule: text("impact_schedule"), // Schedule impact description
+  proximity: text("proximity"), // Imminent, Near-term, Mid-term, Long-term
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
@@ -153,14 +206,26 @@ export const risks = pgTable("risks", {
 export const milestones = pgTable("milestones", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
+  milestoneNumber: text("milestone_number"), // Auto-generated (e.g., "MS-001")
   title: text("title").notNull(),
   description: text("description"),
+  milestoneType: text("milestone_type"), // Governance, Deliverable, Phase Gate, External, Payment
   dueDate: date("due_date").notNull(),
+  baselineDueDate: date("baseline_due_date"), // Original planned due date
+  actualCompletionDate: date("actual_completion_date"),
   startDate: date("start_date"),
   completed: boolean("completed").default(false),
-  status: text("status").default("Backlog"), // Backlog, To Do, In Progress, Done
+  status: text("status").default("Backlog"), // Backlog, To Do, In Progress, Done, Delayed
   priority: text("priority").default("Medium"), // Low, Medium, High, Critical
+  ownerId: varchar("owner_id").references(() => users.id), // Milestone owner
   assignee: text("assignee"),
+  deliverables: text("deliverables"), // Expected deliverables for this milestone
+  acceptanceCriteria: text("acceptance_criteria"), // Criteria for completion
+  dependencies: text("dependencies"), // Dependencies on other milestones/tasks
+  successMetrics: text("success_metrics"), // How success will be measured
+  stakeholders: text("stakeholders"), // Key stakeholders
+  phase: text("phase"), // Project phase this milestone belongs to
+  notes: text("notes"),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
@@ -170,12 +235,32 @@ export const milestones = pgTable("milestones", {
 export const issues = pgTable("issues", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
+  issueNumber: text("issue_number"), // Auto-generated (e.g., "ISS-001")
   title: text("title").notNull(),
   description: text("description"),
+  category: text("category"), // Technical, Process, Resource, External, Scope
   priority: text("priority").default("Medium"), // Low, Medium, High, Critical
-  status: text("status").default("Open"), // Open, In Progress, Resolved, Closed
-  type: text("type").default("Bug"), // Bug, Enhancement, Task, Question
+  severity: text("severity"), // Minor, Moderate, Major, Critical, Blocker
+  status: text("status").default("Open"), // Open, In Progress, Pending, Resolved, Closed, Escalated
+  type: text("type").default("Bug"), // Bug, Enhancement, Task, Question, Defect, Support
+  escalationLevel: text("escalation_level"), // None, Team Lead, Manager, Director, Executive
   assignee: text("assignee"),
+  assigneeId: varchar("assignee_id").references(() => users.id), // Issue assignee
+  reporterId: varchar("reporter_id").references(() => users.id), // Who reported the issue
+  reportedBy: text("reported_by"), // Name of reporter (for external reports)
+  reportedDate: date("reported_date"),
+  targetResolutionDate: date("target_resolution_date"),
+  actualResolutionDate: date("actual_resolution_date"),
+  resolution: text("resolution"), // How the issue was resolved
+  rootCause: text("root_cause"), // Root cause analysis
+  impactDescription: text("impact_description"), // Impact on project
+  impactCost: numeric("impact_cost"), // Cost impact
+  impactSchedule: text("impact_schedule"), // Schedule impact
+  relatedTaskId: integer("related_task_id").references(() => tasks.id), // Related task
+  stepsToReproduce: text("steps_to_reproduce"), // For bugs
+  environment: text("environment"), // Environment where issue occurred
+  labels: text("labels"), // Comma-separated labels
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
@@ -186,16 +271,39 @@ export const issues = pgTable("issues", {
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
+  taskNumber: text("task_number"), // Auto-generated (e.g., "TASK-001")
+  wbs: text("wbs"), // Work Breakdown Structure code (e.g., "1.2.3")
   name: text("name").notNull(),
   description: text("description"),
+  taskType: text("task_type"), // Work, Milestone, Summary, Fixed Duration, Fixed Units
+  priority: text("priority").default("Medium"), // Low, Medium, High, Critical
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
+  baselineStartDate: date("baseline_start_date"), // Original planned start
+  baselineEndDate: date("baseline_end_date"), // Original planned end
+  actualStartDate: date("actual_start_date"), // When work actually started
+  actualEndDate: date("actual_end_date"), // When work actually finished
   durationDays: integer("duration_days"), // Duration in days - auto-calculates endDate if set
+  estimatedHours: numeric("estimated_hours"), // Estimated effort in hours
+  actualHours: numeric("actual_hours"), // Actual hours worked
+  remainingHours: numeric("remaining_hours"), // Remaining effort
   progress: integer("progress").default(0), // 0-100 percentage
-  status: text("status").default("Not Started"), // Not Started, In Progress, Completed
+  status: text("status").default("Not Started"), // Not Started, In Progress, On Hold, Completed, Cancelled
+  constraintType: text("constraint_type"), // ASAP, ALAP, Start No Earlier Than, Finish No Later Than, Must Start On, Must Finish On
+  constraintDate: date("constraint_date"), // Date for constraint if applicable
   assignee: text("assignee"),
+  ownerId: varchar("owner_id").references(() => users.id), // Task owner/lead
+  outlineLevel: integer("outline_level"), // Hierarchy level (1, 2, 3...)
   parentId: integer("parent_id"), // For subtasks/dependencies
   isMilestone: boolean("is_milestone").default(false), // Show task on project timeline
+  isSummary: boolean("is_summary").default(false), // Is a summary/parent task
+  isCritical: boolean("is_critical").default(false), // On critical path
+  cost: numeric("cost"), // Budget for this task
+  actualCost: numeric("actual_cost"), // Actual cost incurred
+  phase: text("phase"), // Project phase this task belongs to
+  category: text("category"), // Task category
+  labels: text("labels"), // Comma-separated labels
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
@@ -268,14 +376,33 @@ export const resources = pgTable("resources", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   userId: varchar("user_id").references(() => users.id), // Links to organization member user (for auto-synced resources)
+  resourceCode: text("resource_code"), // Unique identifier (e.g., "EMP-001")
+  resourceType: text("resource_type"), // Employee, Contractor, Vendor, Equipment, Material
   displayName: text("display_name").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
   email: text("email"),
+  phone: text("phone"),
   title: text("title"), // Job title/role
   department: text("department"),
+  costCenter: text("cost_center"), // Cost center for billing
+  location: text("location"), // Office location
+  timezone: text("timezone"), // Resource timezone
+  managerId: varchar("manager_id").references(() => users.id), // Direct manager
   skills: text("skills"), // Comma-separated skills
-  hourlyRate: numeric("hourly_rate"), // For cost tracking
+  certifications: text("certifications"), // Comma-separated certifications
+  experienceLevel: text("experience_level"), // Junior, Mid-Level, Senior, Lead, Principal
+  hourlyRate: numeric("hourly_rate"), // Standard hourly rate
+  overtimeRate: numeric("overtime_rate"), // Overtime hourly rate
+  costRate: numeric("cost_rate"), // Internal cost rate
+  weeklyCapacity: numeric("weekly_capacity").default("40"), // Hours per week available
+  availability: integer("availability").default(100), // Percentage availability (0-100)
+  startDate: date("start_date"), // When resource started
+  endDate: date("end_date"), // When resource contract ends (if applicable)
   isActive: boolean("is_active").default(true),
   isApprover: boolean("is_approver").default(false), // Can approve timesheets
+  isBillable: boolean("is_billable").default(true), // Can be billed to clients
+  photoUrl: text("photo_url"), // Profile photo URL
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
