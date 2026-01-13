@@ -27,16 +27,21 @@ export function ShareReportDialog({ open, onOpenChange, dashboardType, organizat
 
   const shareMutation = useMutation({
     mutationFn: async () => {
+      if (!organizationId || organizationId === 0) {
+        throw new Error("No organization selected");
+      }
+      if (emails.length === 0) {
+        throw new Error("No recipients specified");
+      }
       const formats: string[] = [];
       if (includePptx) formats.push("pptx");
       
-      const res = await apiRequest("POST", `/api/dashboard/${dashboardType}/share`, {
+      return apiRequest("POST", `/api/dashboard/${dashboardType}/share`, {
         recipients: emails,
         organizationId,
         formats,
         message,
       });
-      return res.json();
     },
     onSuccess: (data) => {
       toast({
@@ -46,10 +51,16 @@ export function ShareReportDialog({ open, onOpenChange, dashboardType, organizat
       onOpenChange(false);
       resetForm();
     },
-    onError: () => {
+    onError: (error: Error) => {
+      let description = "Could not send the report. Please try again.";
+      if (error.message === "No organization selected") {
+        description = "Please select an organization first";
+      } else if (error.message === "No recipients specified") {
+        description = "Please add at least one recipient email";
+      }
       toast({
         title: "Share Failed",
-        description: "Could not send the report. Please try again.",
+        description,
         variant: "destructive",
       });
     },

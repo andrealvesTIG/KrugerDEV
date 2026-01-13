@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Share2, Copy, FileText, Table, Loader2, FileSpreadsheet, Mail } from "lucide-react";
+import { Download, Share2, Copy, Table, Loader2, FileSpreadsheet, Mail } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { ShareReportDialog } from "./ShareReportDialog";
 
 interface DashboardActionBarProps {
@@ -21,10 +20,18 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
 
   const exportPptxMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/dashboard/${dashboardType}/export`, {
-        format: "pptx",
-        organizationId,
+      if (!organizationId || organizationId === 0) {
+        throw new Error("No organization selected");
+      }
+      const response = await fetch(`/api/dashboard/${dashboardType}/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ format: "pptx", organizationId }),
       });
+      if (!response.ok) {
+        throw new Error("Export failed");
+      }
       return response.blob();
     },
     onSuccess: (blob) => {
@@ -41,10 +48,12 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
         description: "PowerPoint has been downloaded",
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Export Failed",
-        description: "Could not generate PowerPoint",
+        description: error.message === "No organization selected" 
+          ? "Please select an organization first" 
+          : "Could not generate PowerPoint",
         variant: "destructive",
       });
     },
@@ -69,13 +78,14 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
   };
 
   const isExporting = exportPptxMutation.isPending;
+  const isOrgReady = organizationId && organizationId > 0;
 
   return (
     <>
       <div className={`flex items-center gap-2 ${className}`}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2" data-testid="button-download-dashboard">
+            <Button variant="outline" size="sm" className="gap-2" disabled={!isOrgReady} data-testid="button-download-dashboard">
               {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Export
             </Button>
@@ -83,7 +93,7 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
           <DropdownMenuContent align="end">
             <DropdownMenuItem 
               onClick={() => exportPptxMutation.mutate()} 
-              disabled={isExporting}
+              disabled={isExporting || !isOrgReady}
               data-testid="menu-export-pptx"
             >
               <FileSpreadsheet className="h-4 w-4 mr-2 text-orange-500" />
@@ -92,7 +102,7 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
             {onExportCsv && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleExportCsv} data-testid="menu-export-csv">
+                <DropdownMenuItem onClick={handleExportCsv} disabled={!isOrgReady} data-testid="menu-export-csv">
                   <Table className="h-4 w-4 mr-2" />
                   Export as CSV
                 </DropdownMenuItem>
@@ -103,7 +113,7 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2" data-testid="button-share-dashboard">
+            <Button variant="outline" size="sm" className="gap-2" disabled={!isOrgReady} data-testid="button-share-dashboard">
               <Share2 className="h-4 w-4" />
               Share
             </Button>
@@ -114,7 +124,7 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
               Copy Link
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setShareDialogOpen(true)} data-testid="menu-share-email">
+            <DropdownMenuItem onClick={() => setShareDialogOpen(true)} disabled={!isOrgReady} data-testid="menu-share-email">
               <Mail className="h-4 w-4 mr-2" />
               Share via Email
             </DropdownMenuItem>
