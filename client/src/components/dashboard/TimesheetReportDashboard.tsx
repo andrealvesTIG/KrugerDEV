@@ -152,7 +152,7 @@ export function TimesheetReportDashboard() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end">
-        <DashboardActionBar title="Timesheet Report Dashboard" onExportCsv={handleExportCsv} />
+        <DashboardActionBar title="Timesheet Report Dashboard" dashboardType="timesheet" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

@@ -129,7 +129,7 @@ export function ResourceDashboard() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end">
-        <DashboardActionBar title="Resource Dashboard" onExportCsv={handleExportCsv} />
+        <DashboardActionBar title="Resource Dashboard" dashboardType="resource" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

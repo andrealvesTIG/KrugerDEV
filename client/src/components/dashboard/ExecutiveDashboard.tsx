@@ -259,7 +259,7 @@ export function ExecutiveDashboard() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <DashboardActionBar title="Executive Dashboard" onExportCsv={handleExportCsv} />
+          <DashboardActionBar title="Executive Dashboard" dashboardType="executive" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
         </div>
       </div>
 

@@ -7789,5 +7789,111 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // Dashboard Export Routes
+  app.post('/api/dashboard/:type/export', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { type } = req.params;
+      const { format, organizationId } = req.body;
+      
+      if (!organizationId) {
+        return res.status(400).json({ message: 'Organization ID is required' });
+      }
+      
+      const { getDashboardDataForExport, generateDashboardPowerPoint, generateDashboardHTML } = await import('./services/dashboardExport');
+      const data = await getDashboardDataForExport(type, organizationId);
+      
+      if (format === 'pptx') {
+        const buffer = await generateDashboardPowerPoint(data);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+        res.setHeader('Content-Disposition', `attachment; filename="${type}-dashboard.pptx"`);
+        res.send(buffer);
+      } else if (format === 'html') {
+        const html = generateDashboardHTML(data);
+        res.setHeader('Content-Type', 'text/html');
+        res.send(html);
+      } else {
+        res.status(400).json({ message: 'Invalid format. Use pptx or html' });
+      }
+    } catch (error) {
+      console.error('Error exporting dashboard:', error);
+      res.status(500).json({ message: 'Failed to export dashboard' });
+    }
+  });
+
+  // Dashboard Share Route
+  app.post('/api/dashboard/:type/share', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { type } = req.params;
+      const { recipients, organizationId, formats, message } = req.body;
+      
+      if (!organizationId || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
+        return res.status(400).json({ message: 'Organization ID and recipients are required' });
+      }
+      
+      const { getDashboardDataForExport, generateDashboardPowerPoint, generateDashboardHTML } = await import('./services/dashboardExport');
+      const { sendEmail } = await import('./services/email');
+      
+      const data = await getDashboardDataForExport(type, organizationId);
+      const htmlContent = generateDashboardHTML(data);
+      
+      const attachments: { filename: string; content: Buffer; contentType?: string }[] = [];
+      
+      if (formats?.includes('pptx')) {
+        const pptxBuffer = await generateDashboardPowerPoint(data);
+        attachments.push({
+          filename: `${type}-dashboard.pptx`,
+          content: pptxBuffer,
+          contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        });
+      }
+      
+      const user = await storage.getUser(userId);
+      const senderName = user?.firstName || user?.email || 'A colleague';
+      
+      const emailHtml = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+            <h1 style="color: white; margin: 0; font-size: 20px;">FridayReport.AI</h1>
+          </div>
+          <p><strong>${senderName}</strong> has shared a dashboard report with you.</p>
+          ${message ? `<p style="background: #f3f4f6; padding: 12px; border-radius: 6px; font-style: italic;">"${message}"</p>` : ''}
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+          ${htmlContent}
+        </div>
+      `;
+      
+      let successCount = 0;
+      for (const email of recipients) {
+        const success = await sendEmail({
+          to: email,
+          subject: `${data.title} - Shared Report`,
+          text: `${senderName} has shared a ${data.title} report with you.`,
+          html: emailHtml,
+          attachments,
+        });
+        if (success) successCount++;
+      }
+      
+      res.json({ 
+        success: true, 
+        sent: successCount, 
+        total: recipients.length 
+      });
+    } catch (error) {
+      console.error('Error sharing dashboard:', error);
+      res.status(500).json({ message: 'Failed to share dashboard' });
+    }
+  });
+
   return httpServer;
 }
