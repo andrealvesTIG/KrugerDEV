@@ -352,7 +352,12 @@ export async function getDashboardDataForExport(
     
     case "resource":
     case "resource-management": {
-      const resources: Resource[] = await storage.getResources(organizationId);
+      let resources: Resource[] = [];
+      try {
+        resources = await storage.getResources(organizationId);
+      } catch (e) {
+        console.error("Error fetching resources for export:", e);
+      }
       const activeResources = resources.filter((r: Resource) => r.isActive);
       
       return {
@@ -376,8 +381,18 @@ export async function getDashboardDataForExport(
     }
     
     case "timesheet": {
-      const resources: Resource[] = await storage.getResources(organizationId);
-      const timesheets = await storage.getTimesheetEntriesForApproval(organizationId);
+      let resources: Resource[] = [];
+      let timesheets: any[] = [];
+      try {
+        resources = await storage.getResources(organizationId);
+      } catch (e) {
+        console.error("Error fetching resources for export:", e);
+      }
+      try {
+        timesheets = await storage.getTimesheetEntriesForApproval(organizationId);
+      } catch (e) {
+        console.error("Error fetching timesheets for export:", e);
+      }
       
       const totalHours = timesheets.reduce((sum: number, t) => sum + Number(t.hours || 0), 0);
       
