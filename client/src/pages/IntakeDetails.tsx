@@ -341,14 +341,21 @@ export default function IntakeDetails() {
                       <XCircle className="h-4 w-4 mr-1" />
                       Reject
                     </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => approveIntake.mutate()}
-                      disabled={approveIntake.isPending}
-                    >
-                      <Check className="h-4 w-4 mr-1" />
-                      {approveIntake.isPending ? "Converting..." : "Approve & Convert"}
-                    </Button>
+                    <div className="relative group">
+                      <Button
+                        size="sm"
+                        onClick={() => approveIntake.mutate()}
+                        disabled={approveIntake.isPending || !(formData.pmoApproved ?? intake.pmoApproved)}
+                      >
+                        <Check className="h-4 w-4 mr-1" />
+                        {approveIntake.isPending ? "Converting..." : "Approve & Convert"}
+                      </Button>
+                      {!(formData.pmoApproved ?? intake.pmoApproved) && (
+                        <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md shadow-md whitespace-nowrap z-50 border">
+                          PM approval required before converting
+                        </div>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <Button size="sm" onClick={handleNextStep} disabled={updateIntake.isPending}>
@@ -666,6 +673,44 @@ export default function IntakeDetails() {
                   Security review completed and approved
                 </Label>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gavel className="h-5 w-5 text-primary" />
+                PM Approval
+              </CardTitle>
+              <CardDescription>
+                PM approval is required before this intake can be converted to a project
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2 p-4 rounded-md bg-muted/50">
+                <Checkbox 
+                  id="pmoApproved"
+                  checked={formData.pmoApproved ?? intake.pmoApproved ?? false}
+                  onCheckedChange={(checked) => handleFieldChange('pmoApproved', checked)}
+                  disabled={isLocked}
+                  data-testid="checkbox-pmo-approved"
+                />
+                <Label htmlFor="pmoApproved" className="text-sm cursor-pointer font-medium">
+                  PM has reviewed and approved this intake for project conversion
+                </Label>
+              </div>
+              {(formData.pmoApproved ?? intake.pmoApproved) && (
+                <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
+                  <Check className="h-4 w-4" />
+                  PM approval granted. This intake is ready for conversion by an admin.
+                </p>
+              )}
+              {!(formData.pmoApproved ?? intake.pmoApproved) && !isLocked && (
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  PM approval is required before the "Approve & Convert" button can be used.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
