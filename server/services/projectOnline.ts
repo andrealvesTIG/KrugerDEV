@@ -343,19 +343,22 @@ export async function setupProjectOnlineRoutes(app: Express) {
 
           for (const task of tasks) {
             if (task.IsSummary) continue;
+            
+            const taskName = task.Name || task.Title || `Task ${task.Id || 'Unknown'}`;
+            if (!taskName) continue;
 
             if (task.IsMilestone) {
               const milestoneDueDate = task.Finish ? new Date(task.Finish).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
               await storage.createMilestone({
                 projectId: newProject.id,
-                title: task.Name,
+                title: taskName,
                 dueDate: milestoneDueDate,
                 status: task.PercentComplete >= 100 ? "Completed" : "Pending",
               });
             } else {
               const taskData: any = {
                 projectId: newProject.id,
-                title: task.Name,
+                title: taskName,
                 description: null,
                 status: task.PercentComplete >= 100 ? "Done" : task.PercentComplete > 0 ? "In Progress" : "To Do",
                 priority: "Medium",
