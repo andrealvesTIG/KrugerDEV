@@ -51,8 +51,14 @@ export default function Calendar() {
   // Navigate to specific item when clicked
   const handleEventClick = useCallback((event: CalendarEvent) => {
     if (event.projectId) {
-      // Navigate to the project page - milestones, tasks, and deadlines all go to project
-      setLocation(`/projects/${event.projectId}`);
+      // Navigate to the project page with appropriate tab based on event type
+      let tab = 'summary';
+      if (event.type === 'task') {
+        tab = 'tasks';
+      } else if (event.type === 'milestone') {
+        tab = 'summary'; // Milestones are shown in summary
+      }
+      setLocation(`/projects/${event.projectId}?tab=${tab}`);
     }
   }, [setLocation]);
 

@@ -144,6 +144,11 @@ export default function ProjectDetails() {
   const { currentOrganization } = useOrganization();
   const [, setLocation] = useLocation();
 
+  // Read tab from URL query parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialTab = urlParams.get('tab') || 'summary';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
   // Redirect if project doesn't belong to current organization
   useEffect(() => {
     if (project && currentOrganization && project.organizationId !== currentOrganization.id) {
@@ -349,7 +354,7 @@ export default function ProjectDetails() {
         endDate={project.endDate}
       />
 
-      <Tabs defaultValue="summary" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl flex-wrap gap-1 h-auto">
           <TabsTrigger value="summary" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-summary">Project Summary</TabsTrigger>
           <TabsTrigger value="tasks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-tasks">Tasks</TabsTrigger>
