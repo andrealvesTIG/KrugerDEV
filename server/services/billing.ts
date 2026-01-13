@@ -331,14 +331,24 @@ export class MockBillingProvider implements BillingProvider {
     const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
     const overageRule = rules.find((r) => r.ruleType === "METERED_OVERAGE");
 
-    const includedQuota = quotaRule?.includedUnitsMonthly || 0;
-    const hardCap = hardCapRule?.hardCapUnits;
+    // For credits meter: plan limits are stored as actual credits, but usage is in hundredths
+    // Multiply plan limits by 100 to convert to hundredths for comparison
+    const isCredits = meterCode === "credits";
+    const multiplier = isCredits ? 100 : 1;
+    
+    const includedQuota = (quotaRule?.includedUnitsMonthly || 0) * multiplier;
+    const hardCap = hardCapRule?.hardCapUnits !== null && hardCapRule?.hardCapUnits !== undefined 
+      ? hardCapRule.hardCapUnits * multiplier 
+      : null;
     const projectedUsage = currentUsage + unitsToAdd;
 
-    if (hardCap !== null && hardCap !== undefined && projectedUsage > hardCap) {
+    if (hardCap !== null && projectedUsage > hardCap) {
+      // Convert back to display units for error message
+      const displayLimit = isCredits ? hardCap / 100 : hardCap;
+      const displayCurrent = isCredits ? currentUsage / 100 : currentUsage;
       return {
         allowed: false,
-        reason: `Hard cap reached for ${meterCode}. Limit: ${hardCap}`,
+        reason: `Credit limit reached. You have ${displayLimit - displayCurrent} credits remaining.`,
         currentUsage,
         limit: hardCap,
         remaining: Math.max(0, hardCap - currentUsage),
