@@ -1073,7 +1073,17 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(projectIntakes.organizationId, organizationId), eq(projectIntakes.isDemo, true))).returning();
     stats.intakes = deletedIntakes.length;
     
-    // Delete DEMO resources (organization-level)
+    // Delete DEMO resources and their assignments (organization-level)
+    const demoResources = await db.select().from(resources)
+      .where(and(eq(resources.organizationId, organizationId), eq(resources.isDemo, true)));
+    
+    for (const resource of demoResources) {
+      // Delete any task/issue/risk resource assignments for this demo resource
+      await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, resource.id));
+      await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, resource.id));
+      await db.delete(riskResourceAssignments).where(eq(riskResourceAssignments.resourceId, resource.id));
+    }
+    
     const deletedResources = await db.delete(resources)
       .where(and(eq(resources.organizationId, organizationId), eq(resources.isDemo, true))).returning();
     stats.resources = deletedResources.length;
