@@ -251,8 +251,12 @@ export class MockBillingProvider implements BillingProvider {
 
       for (const meterId of meterIds) {
         const meterRules = rules.filter((r) => r.meters.id === meterId);
+        const meterInfo = meterRules[0]?.meters;
         const quotaRule = meterRules.find((r) => r.plan_meter_rules.ruleType === "INCLUDED_QUOTA");
-        const includedUnits = quotaRule?.plan_meter_rules.includedUnitsMonthly || 0;
+        const rawIncludedUnits = quotaRule?.plan_meter_rules.includedUnitsMonthly || 0;
+        // Credits meter stores values in hundredths (500 = 5 credits), so multiply plan values by 100
+        const isCredits = meterInfo?.code === 'credits';
+        const includedUnits = rawIncludedUnits * (isCredits ? 100 : 1);
 
         await db.insert(usageRollups).values({
           billingCycleId: newCycle.id,
@@ -448,8 +452,10 @@ export class MockBillingProvider implements BillingProvider {
     const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
     const overageRule = rules.find((r) => r.ruleType === "METERED_OVERAGE");
 
-    const includedQuota = quotaRule?.includedUnitsMonthly || 0;
-    const hardCap = hardCapRule?.hardCapUnits;
+    // Credits meter stores values in hundredths (500 = 5 credits), so multiply plan values by 100
+    const isCredits = params.meterCode === 'credits';
+    const includedQuota = (quotaRule?.includedUnitsMonthly || 0) * (isCredits ? 100 : 1);
+    const hardCap = hardCapRule?.hardCapUnits ? hardCapRule.hardCapUnits * (isCredits ? 100 : 1) : null;
 
     const [currentRollup] = await db
       .select()

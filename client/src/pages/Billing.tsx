@@ -251,6 +251,8 @@ export default function Billing() {
       return res.json();
     },
     enabled: !!user && !!subscription,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const { data: referralStats, isLoading: referralLoading } = useQuery<ReferralStats>({
