@@ -69,7 +69,7 @@ export function ProjectOnlineImportWizard({
   const connectMutation = useMutation({
     mutationFn: async (url: string) => {
       const response = await apiRequest("POST", "/api/project-online/connect", { siteUrl: url });
-      return response;
+      return response.json();
     },
     onSuccess: (data: any) => {
       if (data.authUrl) {
@@ -83,7 +83,9 @@ export function ProjectOnlineImportWizard({
 
   const disconnectMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", "/api/project-online/disconnect", {});
+      const response = await apiRequest("POST", "/api/project-online/disconnect", {});
+      const text = await response.text();
+      return text ? JSON.parse(text) : {};
     },
     onSuccess: () => {
       refetchStatus();
@@ -95,11 +97,12 @@ export function ProjectOnlineImportWizard({
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", "/api/project-online/import", {
+      const response = await apiRequest("POST", "/api/project-online/import", {
         projectIds: selectedProjects,
         organizationId,
         portfolioId: targetPortfolioId !== "none" ? parseInt(targetPortfolioId) : null,
       });
+      return response.json();
     },
     onSuccess: (data: any) => {
       setImportedCount(data.imported || 0);
