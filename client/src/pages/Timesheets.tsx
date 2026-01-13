@@ -38,8 +38,13 @@ import {
   MessageSquare,
   Loader2,
   AlertCircle,
-  CalendarDays
+  CalendarDays,
+  FolderOpen,
+  StickyNote
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isToday, parseISO, isSameDay, startOfDay, endOfDay } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -65,6 +70,96 @@ function formatDateKey(date: Date): string {
   return format(date, "yyyy-MM-dd");
 }
 
+interface TaskRowProps {
+  task: Task;
+  project: Project;
+  dates: Date[];
+  entries: TimesheetEntryWithDetails[];
+  gridData: Record<string, Record<string, { hours: string; notes: string; id?: number }>>;
+  handleHoursChange: (taskId: number, dateKey: string, value: string) => void;
+  getRowTotal: (taskId: number) => number;
+  openNoteEditor: (taskId: number, dateKey: string) => void;
+  index: number;
+  indented?: boolean;
+}
+
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, getRowTotal, openNoteEditor, index, indented }: TaskRowProps) {
+  return (
+    <motion.tr 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03 }}
+      className="border-t border-border hover:bg-muted/30 transition-colors"
+    >
+      <td className={`p-3 sticky left-0 bg-card z-10 ${indented ? 'pl-8' : ''}`}>
+        <div className="font-medium text-foreground truncate max-w-[180px]" title={task.name}>
+          {task.name}
+        </div>
+        {!indented && (
+          <div className="text-xs text-muted-foreground truncate max-w-[180px]" title={project.name}>
+            {project.name}
+          </div>
+        )}
+      </td>
+      {dates.map(date => {
+        const dateKey = formatDateKey(date);
+        const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
+        const status = entry?.status;
+        const isEditable = !status || status === "Draft" || status === "Rejected";
+        const hasNote = !!(gridData[task.id]?.[dateKey]?.notes);
+        
+        return (
+          <td key={dateKey} className={`p-2 text-center ${isToday(date) ? "bg-primary/5" : ""}`}>
+            <div className="relative group">
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={gridData[task.id]?.[dateKey]?.hours || ""}
+                onChange={(e) => handleHoursChange(task.id, dateKey, e.target.value)}
+                placeholder="0"
+                disabled={!isEditable}
+                className={`w-full text-center h-9 pr-7 ${
+                  !isEditable ? "bg-muted cursor-not-allowed" : ""
+                } ${status === "Approved" ? "border-green-500/50" : ""} ${
+                  status === "Rejected" ? "border-red-500/50" : ""
+                }`}
+                data-testid={`input-hours-${task.id}-${dateKey}`}
+              />
+              {status && status !== "Draft" && (
+                <div className="absolute -top-1 -right-1">
+                  {status === "Approved" && <Check className="h-3 w-3 text-green-500" />}
+                  {status === "Submitted" && <Clock className="h-3 w-3 text-amber-500" />}
+                  {status === "Rejected" && <X className="h-3 w-3 text-red-500" />}
+                </div>
+              )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => openNoteEditor(task.id, dateKey)}
+                    className={`absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-opacity ${
+                      hasNote ? 'opacity-100 text-primary' : 'opacity-0 group-hover:opacity-60 text-muted-foreground'
+                    }`}
+                    data-testid={`button-note-${task.id}-${dateKey}`}
+                  >
+                    <StickyNote className="h-3 w-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {hasNote ? gridData[task.id]?.[dateKey]?.notes : "Add note"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </td>
+        );
+      })}
+      <td className="p-3 text-center font-medium bg-muted/30 tabular-nums">
+        {getRowTotal(task.id).toFixed(1)}
+      </td>
+    </motion.tr>
+  );
+}
+
 interface TimesheetGridProps {
   dates: Date[];
   assignedTasks: { task: Task; project: Project }[];
@@ -72,11 +167,14 @@ interface TimesheetGridProps {
   onSave: (data: Record<string, Record<string, { hours: number; notes: string; id?: number }>>) => void;
   isSaving: boolean;
   viewMode: ViewMode;
+  groupByProject: boolean;
 }
 
-function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode }: TimesheetGridProps) {
+function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject }: TimesheetGridProps) {
   const [gridData, setGridData] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
+  const [noteText, setNoteText] = useState("");
 
   useEffect(() => {
     const data: Record<string, Record<string, { hours: string; notes: string; id?: number }>> = {};
@@ -107,6 +205,37 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     }));
     setHasChanges(true);
   };
+
+  const handleNoteSave = (taskId: number, dateKey: string) => {
+    setGridData(prev => ({
+      ...prev,
+      [taskId]: {
+        ...prev[taskId],
+        [dateKey]: { ...prev[taskId]?.[dateKey], notes: noteText }
+      }
+    }));
+    setHasChanges(true);
+    setEditingNote(null);
+    setNoteText("");
+  };
+
+  const openNoteEditor = (taskId: number, dateKey: string) => {
+    setNoteText(gridData[taskId]?.[dateKey]?.notes || "");
+    setEditingNote({ taskId, dateKey });
+  };
+
+  // Group tasks by project
+  const groupedTasks = useMemo(() => {
+    if (!groupByProject) return null;
+    const groups: Record<number, { project: Project; tasks: { task: Task; project: Project }[] }> = {};
+    for (const item of assignedTasks) {
+      if (!groups[item.project.id]) {
+        groups[item.project.id] = { project: item.project, tasks: [] };
+      }
+      groups[item.project.id].tasks.push(item);
+    }
+    return Object.values(groups);
+  }, [assignedTasks, groupByProject]);
 
   const handleSave = () => {
     const formattedData: Record<string, Record<string, { hours: number; notes: string; id?: number }>> = {};
@@ -179,61 +308,53 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
             </tr>
           </thead>
           <tbody>
-            {assignedTasks.map(({ task, project }, index) => (
-              <motion.tr 
-                key={task.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.03 }}
-                className="border-t border-border hover:bg-muted/30 transition-colors"
-              >
-                <td className="p-3 sticky left-0 bg-card z-10">
-                  <div className="font-medium text-foreground truncate max-w-[180px]" title={task.name}>
-                    {task.name}
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate max-w-[180px]" title={project.name}>
-                    {project.name}
-                  </div>
-                </td>
-                {dates.map(date => {
-                  const dateKey = formatDateKey(date);
-                  const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
-                  const status = entry?.status;
-                  const isEditable = !status || status === "Draft" || status === "Rejected";
-                  
-                  return (
-                    <td key={dateKey} className={`p-2 text-center ${isToday(date) ? "bg-primary/5" : ""}`}>
-                      <div className="relative">
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={gridData[task.id]?.[dateKey]?.hours || ""}
-                          onChange={(e) => handleHoursChange(task.id, dateKey, e.target.value)}
-                          placeholder="0"
-                          disabled={!isEditable}
-                          className={`w-full text-center h-9 ${
-                            !isEditable ? "bg-muted cursor-not-allowed" : ""
-                          } ${status === "Approved" ? "border-green-500/50" : ""} ${
-                            status === "Rejected" ? "border-red-500/50" : ""
-                          }`}
-                          data-testid={`input-hours-${task.id}-${dateKey}`}
-                        />
-                        {status && status !== "Draft" && (
-                          <div className="absolute -top-1 -right-1">
-                            {status === "Approved" && <Check className="h-3 w-3 text-green-500" />}
-                            {status === "Submitted" && <Clock className="h-3 w-3 text-amber-500" />}
-                            {status === "Rejected" && <X className="h-3 w-3 text-red-500" />}
-                          </div>
-                        )}
+            {groupByProject && groupedTasks ? (
+              groupedTasks.map((group, groupIndex) => (
+                <>
+                  <tr key={`group-${group.project.id}`} className="bg-muted/70 border-t border-border">
+                    <td colSpan={dates.length + 2} className="p-2 sticky left-0 z-10">
+                      <div className="flex items-center gap-2 font-medium text-foreground">
+                        <FolderOpen className="h-4 w-4 text-primary" />
+                        {group.project.name}
+                        <Badge variant="secondary" className="text-xs">
+                          {group.tasks.length} {group.tasks.length === 1 ? 'task' : 'tasks'}
+                        </Badge>
                       </div>
                     </td>
-                  );
-                })}
-                <td className="p-3 text-center font-medium bg-muted/30 tabular-nums">
-                  {getRowTotal(task.id).toFixed(1)}
-                </td>
-              </motion.tr>
-            ))}
+                  </tr>
+                  {group.tasks.map(({ task, project }, index) => (
+                    <TaskRow 
+                      key={task.id}
+                      task={task}
+                      project={project}
+                      dates={dates}
+                      entries={entries}
+                      gridData={gridData}
+                      handleHoursChange={handleHoursChange}
+                      getRowTotal={getRowTotal}
+                      openNoteEditor={openNoteEditor}
+                      index={groupIndex * 10 + index}
+                      indented
+                    />
+                  ))}
+                </>
+              ))
+            ) : (
+              assignedTasks.map(({ task, project }, index) => (
+                <TaskRow 
+                  key={task.id}
+                  task={task}
+                  project={project}
+                  dates={dates}
+                  entries={entries}
+                  gridData={gridData}
+                  handleHoursChange={handleHoursChange}
+                  getRowTotal={getRowTotal}
+                  openNoteEditor={openNoteEditor}
+                  index={index}
+                />
+              ))
+            )}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border bg-muted/50 font-medium">
@@ -273,6 +394,41 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
           )}
         </Button>
       </div>
+
+      {/* Note editing dialog */}
+      <Dialog open={!!editingNote} onOpenChange={(open) => !open && setEditingNote(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <StickyNote className="h-5 w-5 text-primary" />
+              Add Note
+            </DialogTitle>
+            <DialogDescription>
+              Add a note to describe what you worked on
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="What did you work on?"
+              className="min-h-[100px]"
+              data-testid="input-entry-note"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingNote(null)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => editingNote && handleNoteSave(editingNote.taskId, editingNote.dateKey)}
+              data-testid="button-save-note"
+            >
+              Save Note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -452,6 +608,8 @@ export default function Timesheets() {
   const [viewMode, setViewMode] = useState<ViewMode>("workweek");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState("log");
+  const [groupByProject, setGroupByProject] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const { toast } = useToast();
 
   const dates = useMemo(() => {
@@ -583,7 +741,7 @@ export default function Timesheets() {
           <Card>
             <CardHeader className="pb-4">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button 
                     variant="outline" 
                     size="icon" 
@@ -608,12 +766,44 @@ export default function Timesheets() {
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
-                  <span className="ml-2 font-medium text-foreground">
-                    {getDateRangeLabel()}
-                  </span>
+                  
+                  {/* Date picker to jump to specific date */}
+                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="gap-2" data-testid="button-jump-to-date">
+                        <Calendar className="h-4 w-4" />
+                        {getDateRangeLabel()}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={currentDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            setCurrentDate(date);
+                            setDatePickerOpen(false);
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* Group by project toggle */}
+                  <Button
+                    variant={groupByProject ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setGroupByProject(!groupByProject)}
+                    className="gap-2"
+                    data-testid="button-group-by-project"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                    Group by Project
+                  </Button>
+
                   <div className="flex rounded-lg border border-border p-1 bg-muted/50">
                     <Button
                       variant={viewMode === "day" ? "default" : "ghost"}
@@ -683,6 +873,7 @@ export default function Timesheets() {
                       onSave={handleSave}
                       isSaving={bulkUpsert.isPending}
                       viewMode={viewMode}
+                      groupByProject={groupByProject}
                     />
                   </motion.div>
                 </AnimatePresence>
