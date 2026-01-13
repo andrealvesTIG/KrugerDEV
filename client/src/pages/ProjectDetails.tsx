@@ -1957,6 +1957,77 @@ const zoomLabels: Record<ZoomLevel, string> = {
   '5year': '5 Years'
 };
 
+function ProjectGanttTaskRow({ task, onTaskClick, minDate, maxDate }: { 
+  task: Task; 
+  onTaskClick: (task: Task) => void;
+  minDate: Date;
+  maxDate: Date;
+}) {
+  const { data: taskAssignments } = useTaskResourceAssignments(task.id);
+
+  const hasValidDates = task.startDate && task.endDate;
+  const start = hasValidDates ? parseISO(task.startDate) : null;
+  const end = hasValidDates ? parseISO(task.endDate) : null;
+  
+  let leftPercent = 0;
+  let widthPercent = 0;
+  
+  if (start && end) {
+    const totalDays = differenceInDays(maxDate, minDate) || 1;
+    const startOffset = differenceInDays(start, minDate);
+    const duration = differenceInDays(end, start) + 1;
+    leftPercent = (startOffset / totalDays) * 100;
+    widthPercent = (duration / totalDays) * 100;
+  }
+
+  const assignedNames = taskAssignments && taskAssignments.length > 0
+    ? taskAssignments.map(a => a.resource.displayName).join(", ")
+    : null;
+
+  return (
+    <div 
+      className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
+      onClick={() => onTaskClick(task)}
+      data-testid={`gantt-task-${task.id}`}
+    >
+      <div className="w-64 flex-shrink-0 border-r p-3">
+        <div className="font-medium text-sm truncate flex items-center gap-1.5">
+          {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+          {task.name}
+        </div>
+        {assignedNames && (
+          <div className="text-xs text-muted-foreground truncate">{assignedNames}</div>
+        )}
+      </div>
+      <div className="flex-1 relative p-2">
+        {hasValidDates ? (
+          <div
+            className={cn(
+              "absolute top-2 bottom-2 rounded-md flex items-center px-2 text-xs text-white font-medium",
+              task.status === "Completed" ? "bg-emerald-500" :
+              task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+            )}
+            style={{
+              left: `${Math.max(0, leftPercent)}%`,
+              width: `${Math.min(100 - leftPercent, widthPercent)}%`,
+              minWidth: '60px'
+            }}
+          >
+            <span className="truncate">{task.progress || 0}%</span>
+          </div>
+        ) : (
+          <div className="h-full flex items-center">
+            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+              <CalendarIcon className="h-3 w-3 mr-1" />
+              No dates set
+            </Badge>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (task: Task) => void }) {
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
@@ -2094,64 +2165,15 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
                 ))}
               </div>
             </div>
-            {tasks.map(task => {
-              const hasValidDates = task.startDate && task.endDate;
-              const start = hasValidDates ? parseISO(task.startDate) : null;
-              const end = hasValidDates ? parseISO(task.endDate) : null;
-              
-              let leftPercent = 0;
-              let widthPercent = 0;
-              
-              if (start && end) {
-                const totalDays = differenceInDays(maxDate, minDate) || 1;
-                const startOffset = differenceInDays(start, minDate);
-                const duration = differenceInDays(end, start) + 1;
-                leftPercent = (startOffset / totalDays) * 100;
-                widthPercent = (duration / totalDays) * 100;
-              }
-
-              return (
-                <div 
-                  key={task.id} 
-                  className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
-                  onClick={() => onTaskClick(task)}
-                  data-testid={`gantt-task-${task.id}`}
-                >
-                  <div className="w-64 flex-shrink-0 border-r p-3">
-                    <div className="font-medium text-sm truncate flex items-center gap-1.5">
-                      {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
-                      {task.name}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">{task.assignee || "Unassigned"}</div>
-                  </div>
-                  <div className="flex-1 relative p-2">
-                    {hasValidDates ? (
-                      <div
-                        className={cn(
-                          "absolute top-2 bottom-2 rounded-md flex items-center px-2 text-xs text-white font-medium",
-                          task.status === "Completed" ? "bg-emerald-500" :
-                          task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
-                        )}
-                        style={{
-                          left: `${Math.max(0, leftPercent)}%`,
-                          width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-                          minWidth: '60px'
-                        }}
-                      >
-                        <span className="truncate">{task.progress || 0}%</span>
-                      </div>
-                    ) : (
-                      <div className="h-full flex items-center">
-                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                          <CalendarIcon className="h-3 w-3 mr-1" />
-                          No dates set
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {tasks.map(task => (
+              <ProjectGanttTaskRow
+                key={task.id}
+                task={task}
+                onTaskClick={onTaskClick}
+                minDate={minDate}
+                maxDate={maxDate}
+              />
+            ))}
           </div>
         </div>
       </CardContent>
@@ -2227,7 +2249,6 @@ function ProjectKanbanView({
             <Card className="shadow-lg border-primary">
               <CardContent className="p-4">
                 <div className="font-medium text-sm">{activeTask.name}</div>
-                <div className="text-xs text-muted-foreground mt-1">{activeTask.assignee || "Unassigned"}</div>
               </CardContent>
             </Card>
           </div>
@@ -2286,6 +2307,7 @@ function ProjectDraggableTaskCard({
   task: Task; 
   onTaskClick: (task: Task) => void;
 }) {
+  const { data: taskAssignments } = useTaskResourceAssignments(task.id);
   const {
     attributes,
     listeners,
@@ -2301,6 +2323,10 @@ function ProjectDraggableTaskCard({
     transform: CSS.Transform.toString(transform),
     transition,
   };
+
+  const assignedNames = taskAssignments && taskAssignments.length > 0
+    ? taskAssignments.map(a => a.resource.displayName).join(", ")
+    : null;
 
   return (
     <div
@@ -2320,7 +2346,9 @@ function ProjectDraggableTaskCard({
             {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
             {task.name}
           </div>
-          <div className="text-xs text-muted-foreground mt-1">{task.assignee || "Unassigned"}</div>
+          {assignedNames && (
+            <div className="text-xs text-muted-foreground mt-1">{assignedNames}</div>
+          )}
           <div className="flex items-center justify-between mt-3">
             <Badge variant="outline" className="text-xs">
               {task.progress || 0}%
