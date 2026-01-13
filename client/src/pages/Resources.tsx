@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload } from "lucide-react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -59,30 +59,47 @@ export default function Resources() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     if (!resources || resources.length === 0) {
       toast({ title: "No data", description: "There are no resources to export", variant: "destructive" });
       return;
     }
-    const exportData = resources.map(r => ({
-      Name: r.displayName,
-      Email: r.email || "",
-      Title: r.title || "",
-      Department: r.department || "",
-      Skills: r.skills || "",
-      "Hourly Rate": r.hourlyRate || "",
-      Active: r.isActive ? "Yes" : "No",
-      Notes: r.notes || ""
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Resources");
-    const colWidths = [
-      { wch: 25 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, 
-      { wch: 30 }, { wch: 12 }, { wch: 8 }, { wch: 40 }
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Resources");
+    
+    worksheet.columns = [
+      { header: "Name", key: "name", width: 25 },
+      { header: "Email", key: "email", width: 30 },
+      { header: "Title", key: "title", width: 20 },
+      { header: "Department", key: "department", width: 20 },
+      { header: "Skills", key: "skills", width: 30 },
+      { header: "Hourly Rate", key: "hourlyRate", width: 12 },
+      { header: "Active", key: "active", width: 8 },
+      { header: "Notes", key: "notes", width: 40 }
     ];
-    worksheet["!cols"] = colWidths;
-    XLSX.writeFile(workbook, `Resources_${new Date().toISOString().split("T")[0]}.xlsx`);
+    
+    resources.forEach(r => {
+      worksheet.addRow({
+        name: r.displayName,
+        email: r.email || "",
+        title: r.title || "",
+        department: r.department || "",
+        skills: r.skills || "",
+        hourlyRate: r.hourlyRate || "",
+        active: r.isActive ? "Yes" : "No",
+        notes: r.notes || ""
+      });
+    });
+    
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Resources_${new Date().toISOString().split("T")[0]}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+    
     toast({ title: "Success", description: `Exported ${resources.length} resources to Excel` });
   };
 
@@ -91,11 +108,32 @@ export default function Resources() {
     if (!file || !currentOrganization) return;
     setIsImporting(true);
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet);
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        throw new Error("No worksheet found");
+      }
+      
+      const headers: string[] = [];
+      worksheet.getRow(1).eachCell((cell, colNumber) => {
+        headers[colNumber - 1] = String(cell.value || "");
+      });
+      
+      const jsonData: Record<string, string>[] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const rowData: Record<string, string> = {};
+        row.eachCell((cell, colNumber) => {
+          const header = headers[colNumber - 1];
+          if (header) {
+            rowData[header] = String(cell.value || "");
+          }
+        });
+        jsonData.push(rowData);
+      });
+      
       let imported = 0;
       let skipped = 0;
       for (const row of jsonData) {
