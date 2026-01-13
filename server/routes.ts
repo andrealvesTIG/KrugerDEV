@@ -4321,6 +4321,28 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         return res.status(400).json({ message: "Project intake is already approved" });
       }
 
+      // Check PMO approval requirement
+      if (!existing.pmoApproved) {
+        return res.status(403).json({ message: "PM approval is required before converting to a project. Please ensure the PM has approved this intake." });
+      }
+
+      // Check user role - must be org_admin or super_admin
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const isSuperAdmin = user.role === 'super_admin';
+      if (!isSuperAdmin) {
+        // Check if user is org_admin for this organization
+        const memberships = await storage.getOrganizationMemberships(userId);
+        const isOrgAdmin = memberships.some(m => m.organizationId === existing.organizationId && m.role === 'org_admin');
+        
+        if (!isOrgAdmin) {
+          return res.status(403).json({ message: "Only PMO/Admin users can convert intakes to projects" });
+        }
+      }
+
       const project = await storage.approveProjectIntake(id, userId);
       res.json({ 
         message: "Project intake approved and project created",
