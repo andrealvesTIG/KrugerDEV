@@ -37,43 +37,44 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
     x: 0,
     y: 0,
     w: "100%",
-    h: 1.2,
+    h: 0.7,
     fill: { color: COLORS.primary },
   });
   
   slide.addText(data.title, {
-    x: 0.5,
-    y: 0.3,
-    w: 8,
-    h: 0.5,
-    fontSize: 28,
+    x: 0.3,
+    y: 0.15,
+    w: 6,
+    h: 0.4,
+    fontSize: 20,
     bold: true,
     color: COLORS.white,
     fontFace: "Arial",
   });
   
   slide.addText(`Generated: ${data.generatedAt}`, {
-    x: 0.5,
-    y: 0.8,
-    w: 8,
+    x: 6.5,
+    y: 0.2,
+    w: 3,
     h: 0.3,
-    fontSize: 12,
+    fontSize: 9,
     color: COLORS.white,
     fontFace: "Arial",
+    align: "right",
   });
   
   const metrics = Object.entries(data.metrics);
-  const metricsPerRow = 4;
-  const boxWidth = 2.2;
-  const boxHeight = 0.9;
-  const startY = 1.5;
-  const gapX = 0.15;
-  const gapY = 0.15;
+  const metricsPerRow = 6;
+  const boxWidth = 1.5;
+  const boxHeight = 0.55;
+  const startY = 0.85;
+  const gapX = 0.08;
+  const gapY = 0.08;
   
-  metrics.forEach(([label, value], index) => {
+  metrics.slice(0, 12).forEach(([label, value], index) => {
     const row = Math.floor(index / metricsPerRow);
     const col = index % metricsPerRow;
-    const x = 0.5 + col * (boxWidth + gapX);
+    const x = 0.3 + col * (boxWidth + gapX);
     const y = startY + row * (boxHeight + gapY);
     
     slide.addShape("roundRect", {
@@ -82,57 +83,39 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
       w: boxWidth,
       h: boxHeight,
       fill: { color: COLORS.lightGray },
-      line: { color: "e5e7eb", pt: 1 },
+      line: { color: "e5e7eb", pt: 0.5 },
     });
     
     slide.addText(String(value), {
       x,
-      y: y + 0.1,
+      y: y + 0.05,
       w: boxWidth,
-      h: 0.4,
-      fontSize: 20,
+      h: 0.25,
+      fontSize: 14,
       bold: true,
       color: COLORS.dark,
       fontFace: "Arial",
       align: "center",
     });
     
-    slide.addText(label, {
+    slide.addText(label.length > 15 ? label.slice(0, 14) + "…" : label, {
       x,
-      y: y + 0.5,
+      y: y + 0.3,
       w: boxWidth,
-      h: 0.3,
-      fontSize: 10,
+      h: 0.2,
+      fontSize: 7,
       color: COLORS.gray,
       fontFace: "Arial",
       align: "center",
     });
   });
   
+  const metricsRows = Math.ceil(Math.min(metrics.length, 12) / metricsPerRow);
+  const tableStartY = startY + metricsRows * (boxHeight + gapY) + 0.15;
+  
   if (data.items && data.items.length > 0) {
-    const dataSlide = pptx.addSlide();
-    
-    dataSlide.addShape("rect", {
-      x: 0,
-      y: 0,
-      w: "100%",
-      h: 0.8,
-      fill: { color: COLORS.primary },
-    });
-    
-    dataSlide.addText(`${data.title} - Details`, {
-      x: 0.5,
-      y: 0.2,
-      w: 8,
-      h: 0.4,
-      fontSize: 20,
-      bold: true,
-      color: COLORS.white,
-      fontFace: "Arial",
-    });
-    
-    const tableData: PptxGenJS.TableRow[] = [];
-    const headers = Object.keys(data.items[0]);
+    const tableData: pptxgenjs.TableRow[] = [];
+    const headers = Object.keys(data.items[0]).slice(0, 6);
     
     tableData.push(
       headers.map((h) => ({
@@ -141,66 +124,48 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
           bold: true,
           fill: { color: COLORS.primary },
           color: COLORS.white,
-          fontSize: 10,
+          fontSize: 7,
           fontFace: "Arial",
         },
       }))
     );
     
-    data.items.slice(0, 10).forEach((item) => {
+    const maxRows = Math.min(data.items.length, 8);
+    data.items.slice(0, maxRows).forEach((item) => {
       tableData.push(
-        headers.map((h) => ({
-          text: String(item[h] ?? "-"),
-          options: {
-            fontSize: 9,
-            fontFace: "Arial",
-            color: COLORS.dark,
-          },
-        }))
+        headers.map((h) => {
+          const val = String(item[h] ?? "-");
+          return {
+            text: val.length > 20 ? val.slice(0, 18) + "…" : val,
+            options: {
+              fontSize: 6,
+              fontFace: "Arial",
+              color: COLORS.dark,
+            },
+          };
+        })
       );
     });
     
-    dataSlide.addTable(tableData, {
-      x: 0.5,
-      y: 1.2,
-      w: 9,
-      colW: headers.map(() => 9 / headers.length),
-      border: { pt: 0.5, color: "e5e7eb" },
+    slide.addTable(tableData, {
+      x: 0.3,
+      y: tableStartY,
+      w: 9.4,
+      colW: headers.map(() => 9.4 / headers.length),
+      border: { pt: 0.3, color: "e5e7eb" },
       fill: { color: COLORS.white },
+      rowH: 0.22,
     });
   }
   
-  const footerSlide = pptx.addSlide();
-  
-  footerSlide.addShape("rect", {
-    x: 0,
-    y: 0,
-    w: "100%",
-    h: "100%",
-    fill: { color: COLORS.primary },
-  });
-  
-  footerSlide.addText("FridayReport.AI", {
-    x: 0,
-    y: 2,
-    w: "100%",
-    h: 0.8,
-    fontSize: 36,
-    bold: true,
-    color: COLORS.white,
+  slide.addText("FridayReport.AI", {
+    x: 0.3,
+    y: 5.1,
+    w: 3,
+    h: 0.2,
+    fontSize: 8,
+    color: COLORS.gray,
     fontFace: "Arial",
-    align: "center",
-  });
-  
-  footerSlide.addText("Project Portfolio Management", {
-    x: 0,
-    y: 2.8,
-    w: "100%",
-    h: 0.5,
-    fontSize: 18,
-    color: COLORS.white,
-    fontFace: "Arial",
-    align: "center",
   });
   
   const output = await pptx.write({ outputType: "nodebuffer" });
