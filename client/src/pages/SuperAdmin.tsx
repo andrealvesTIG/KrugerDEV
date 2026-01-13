@@ -1706,7 +1706,7 @@ function CreditCostsTab() {
             Credit Pricing
           </CardTitle>
           <CardDescription>
-            Manage how many credits each resource type costs. Values are stored in hundredths (100 = 1 credit).
+            Manage how many credits each resource type costs when created.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1732,17 +1732,17 @@ function CreditCostsTab() {
                         <Input
                           type="number"
                           min="0"
-                          step="1"
-                          value={newCreditCost}
-                          onChange={(e) => setNewCreditCost(parseInt(e.target.value) || 0)}
+                          step="0.01"
+                          value={newCreditCost / 100}
+                          onChange={(e) => setNewCreditCost(Math.round(parseFloat(e.target.value) * 100) || 0)}
                           className="w-24 text-right"
                           data-testid={`input-credit-cost-${cost.resourceType}`}
                         />
                       ) : (
-                        <span className="font-semibold">{cost.creditCost}</span>
+                        <span className="font-semibold">{(cost.creditCost / 100).toFixed(cost.creditCost % 100 === 0 ? 0 : 2)}</span>
                       )}
                       <span className="text-muted-foreground text-xs whitespace-nowrap">
-                        ({typeof cost.creditCost === 'number' ? (cost.creditCost / 100).toFixed(2) : '0'} credits)
+                        credits
                       </span>
                     </div>
                   </TableCell>
@@ -1795,20 +1795,20 @@ function CreditCostsTab() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div className="p-3 rounded-lg bg-muted">
-              <div className="font-medium">100 = 1 credit</div>
-              <div className="text-muted-foreground">Standard task, issue, risk</div>
+              <div className="font-medium">1 credit</div>
+              <div className="text-muted-foreground">Task, issue, risk, document</div>
             </div>
             <div className="p-3 rounded-lg bg-muted">
-              <div className="font-medium">500 = 5 credits</div>
+              <div className="font-medium">5 credits</div>
               <div className="text-muted-foreground">Project (complex)</div>
             </div>
             <div className="p-3 rounded-lg bg-muted">
-              <div className="font-medium">50 = 0.5 credits</div>
-              <div className="text-muted-foreground">Resource assignment (simple)</div>
+              <div className="font-medium">10 credits</div>
+              <div className="text-muted-foreground">Portfolio (strategic)</div>
             </div>
             <div className="p-3 rounded-lg bg-muted">
-              <div className="font-medium">300 = 3 credits</div>
-              <div className="text-muted-foreground">AI Run (compute intensive)</div>
+              <div className="font-medium">3 credits</div>
+              <div className="text-muted-foreground">AI Run, Reports</div>
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
