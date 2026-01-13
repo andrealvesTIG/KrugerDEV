@@ -8,8 +8,8 @@ import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { setupMicrosoftAuth } from "./auth/microsoftAuth";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { users, usageEvents, meters } from "@shared/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
 import Papa from "papaparse";
@@ -5983,6 +5983,103 @@ Return ONLY valid JSON, no markdown or explanations.`;
     } catch (error) {
       console.error("Error fetching billing history:", error);
       res.status(500).json({ message: "Failed to fetch billing history" });
+    }
+  });
+
+  // Get credit usage ledger - detailed history of all credit transactions
+  app.get('/api/billing/credit-ledger', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      // Get the user's subscription
+      const { billingProvider } = await import("./services/billing");
+      const subscription = await billingProvider.getSubscriptionForUser(userId);
+      
+      if (!subscription) {
+        return res.json({ entries: [], total: 0 });
+      }
+
+      // Query usage events for credits meter with user details
+      const result = await db.select({
+        id: usageEvents.id,
+        units: usageEvents.units,
+        requestId: usageEvents.requestId,
+        occurredAt: usageEvents.occurredAt,
+        createdAt: usageEvents.createdAt,
+        actorUserId: usageEvents.actorUserId,
+        meterCode: meters.code,
+        meterName: meters.name,
+      })
+      .from(usageEvents)
+      .innerJoin(meters, eq(usageEvents.meterId, meters.id))
+      .where(
+        and(
+          eq(usageEvents.subscriptionId, subscription.id),
+          eq(meters.code, 'credits')
+        )
+      )
+      .orderBy(desc(usageEvents.occurredAt))
+      .limit(limit)
+      .offset(offset);
+
+      // Get total count
+      const countResult = await db.select({ count: sql<number>`count(*)` })
+        .from(usageEvents)
+        .innerJoin(meters, eq(usageEvents.meterId, meters.id))
+        .where(
+          and(
+            eq(usageEvents.subscriptionId, subscription.id),
+            eq(meters.code, 'credits')
+          )
+        );
+      
+      const total = countResult[0]?.count || 0;
+
+      // Get user details for each entry
+      const userIds = Array.from(new Set(result.map(e => e.actorUserId).filter((id): id is string => id !== null)));
+      const users = await Promise.all(
+        userIds.map(uid => storage.getUser(uid as string))
+      );
+      const userMap = new Map(
+        users.filter(Boolean).map(u => [u!.id, u])
+      );
+
+      // Parse resource type from request_id (format: "project_123_timestamp")
+      const parseResourceType = (requestId: string): { type: string; resourceId: string } => {
+        const parts = requestId.split('_');
+        if (parts.length >= 2) {
+          return { type: parts[0], resourceId: parts[1] };
+        }
+        return { type: 'unknown', resourceId: requestId };
+      };
+
+      const entries = result.map(e => {
+        const user = e.actorUserId ? userMap.get(e.actorUserId) : null;
+        const { type, resourceId } = parseResourceType(e.requestId);
+        return {
+          id: e.id,
+          creditsUsed: e.units / 100, // Convert from hundredths
+          resourceType: type,
+          resourceId,
+          occurredAt: e.occurredAt,
+          createdAt: e.createdAt,
+          userId: e.actorUserId,
+          userName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : 'System',
+          userEmail: user?.email || null,
+        };
+      });
+
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.json({ entries, total: Number(total) });
+    } catch (error) {
+      console.error("Error fetching credit ledger:", error);
+      res.status(500).json({ message: "Failed to fetch credit ledger" });
     }
   });
 

@@ -118,6 +118,23 @@ interface BillingTransaction {
   createdAt: string;
 }
 
+interface CreditLedgerEntry {
+  id: number;
+  creditsUsed: number;
+  resourceType: string;
+  resourceId: string;
+  occurredAt: string;
+  createdAt: string;
+  userId: string | null;
+  userName: string;
+  userEmail: string | null;
+}
+
+interface CreditLedgerResponse {
+  entries: CreditLedgerEntry[];
+  total: number;
+}
+
 const meterIcons: Record<string, typeof Sparkles> = {
   AI_RUNS: Sparkles,
   DOCUMENTS: FileText,
@@ -287,6 +304,18 @@ export default function Billing() {
     enabled: !!user,
   });
 
+  const { data: creditLedger, isLoading: ledgerLoading } = useQuery<CreditLedgerResponse>({
+    queryKey: ['/api/billing/credit-ledger'],
+    queryFn: async () => {
+      const res = await fetch('/api/billing/credit-ledger?limit=100', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch credit ledger');
+      return res.json();
+    },
+    enabled: !!user && !!subscription,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+
   const requestPayoutMutation = useMutation({
     mutationFn: async (email: string) => {
       return apiRequest('POST', '/api/referral/request-payout', { paypalEmail: email });
@@ -399,10 +428,14 @@ export default function Billing() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="billing" data-testid="tab-billing">
             <CreditCard className="h-4 w-4 mr-2" />
             Billing
+          </TabsTrigger>
+          <TabsTrigger value="ledger" data-testid="tab-ledger">
+            <FileText className="h-4 w-4 mr-2" />
+            Credit Ledger
           </TabsTrigger>
           <TabsTrigger value="history" data-testid="tab-history">
             <History className="h-4 w-4 mr-2" />
@@ -757,6 +790,75 @@ export default function Billing() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="ledger" className="space-y-5 mt-4">
+          <Card data-testid="card-credit-ledger">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileText className="h-4 w-4" />
+                Credit Usage Ledger
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Detailed history of all credit usage in your account
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {ledgerLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !creditLedger || creditLedger.entries.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Wallet className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No credit usage recorded yet</p>
+                  <p className="text-xs mt-1">Credit transactions will appear here as you use the platform</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="grid grid-cols-5 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground border-b">
+                    <div>Date & Time</div>
+                    <div>User</div>
+                    <div>Resource Type</div>
+                    <div>Resource ID</div>
+                    <div className="text-right">Credits</div>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto">
+                    {creditLedger.entries.map((entry) => (
+                      <div 
+                        key={entry.id} 
+                        className="grid grid-cols-5 gap-2 px-3 py-2 text-sm border-b last:border-0 hover:bg-muted/50"
+                        data-testid={`ledger-entry-${entry.id}`}
+                      >
+                        <div className="text-muted-foreground">
+                          {format(new Date(entry.occurredAt), "MMM d, yyyy h:mm a")}
+                        </div>
+                        <div className="truncate" title={entry.userEmail || undefined}>
+                          {entry.userName}
+                        </div>
+                        <div>
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {entry.resourceType.replace(/_/g, ' ')}
+                          </Badge>
+                        </div>
+                        <div className="text-muted-foreground font-mono text-xs">
+                          #{entry.resourceId}
+                        </div>
+                        <div className="text-right font-medium text-destructive">
+                          -{entry.creditsUsed}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {creditLedger.total > creditLedger.entries.length && (
+                    <div className="text-center py-2 text-xs text-muted-foreground">
+                      Showing {creditLedger.entries.length} of {creditLedger.total} entries
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="history" className="space-y-5 mt-4">
