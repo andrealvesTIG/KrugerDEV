@@ -6,6 +6,7 @@ import { z } from "zod";
 import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { setupMicrosoftAuth } from "./auth/microsoftAuth";
+import { setupProjectOnlineRoutes } from "./services/projectOnline";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
 import { users, usageEvents, meters } from "@shared/schema";
@@ -919,6 +920,7 @@ export async function registerRoutes(
   await setupReplitAuth(app);
   await setupEmailAuth(app);
   await setupMicrosoftAuth(app);
+  await setupProjectOnlineRoutes(app);
   registerAuthRoutes(app);
 
   // Seed DB on startup
