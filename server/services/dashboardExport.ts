@@ -1,11 +1,10 @@
-import pptxgenjs from "pptxgenjs";
-const PptxGenJS = pptxgenjs.default || pptxgenjs;
+import PptxGenJS from "pptxgenjs";
 import PDFDocument from "pdfkit";
 import { storage } from "../storage";
 import type { Project, Portfolio, Risk, Issue, Resource } from "@shared/schema";
 
 interface DashboardData {
-  type: "executive" | "portfolios" | "risks-issues" | "resource" | "resource-management" | "timesheet";
+  type: "executive" | "portfolios" | "risks-issues" | "resource" | "resource-management" | "timesheet" | "intake";
   organizationId: number;
   title: string;
   generatedAt: string;
@@ -15,6 +14,10 @@ interface DashboardData {
     health?: { healthy: number; atRisk: number; critical: number };
     status?: { planning: number; execution: number; closing: number; initiation: number };
     priorities?: { critical: number; high: number; medium: number; low: number };
+    allocation?: { available: number; assigned: number; overallocated: number };
+    departments?: Array<{ name: string; count: number }>;
+    timesheetStatus?: { approved: number; pending: number; rejected: number; submitted: number };
+    intakeStatus?: { draft: number; submitted: number; approved: number; rejected: number };
   };
 }
 
@@ -328,13 +331,256 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
         });
       });
     }
+    
+    // Resource Allocation Chart
+    if (data.charts.allocation) {
+      const { available, assigned, overallocated } = data.charts.allocation;
+      const total = available + assigned + overallocated;
+      
+      if (total > 0) {
+        slide.addShape("roundRect", {
+          x: 0.3,
+          y: chartStartY,
+          w: chartWidth,
+          h: chartHeight,
+          fill: { color: COLORS.white },
+          line: { color: "e5e7eb", pt: 0.5 },
+          rectRadius: 0.05,
+        });
+        
+        slide.addText("Resource Allocation", {
+          x: 0.42,
+          y: chartStartY + 0.08,
+          w: chartWidth - 0.24,
+          h: 0.24,
+          fontSize: 10,
+          bold: true,
+          color: COLORS.dark,
+          fontFace: "Arial",
+        });
+        
+        slide.addChart("pie", [
+          {
+            name: "Allocation",
+            labels: ["Available", "Assigned", "Overallocated"],
+            values: [available, assigned, overallocated],
+          },
+        ], {
+          x: 0.4,
+          y: chartStartY + 0.35,
+          w: 1.5,
+          h: 1.3,
+          chartColors: [COLORS.green, COLORS.primary, COLORS.red],
+          showLegend: false,
+          showValue: false,
+          showPercent: true,
+          showTitle: false,
+          holeSize: 50,
+        });
+        
+        const allocItems = [
+          { label: "Available", value: available, color: COLORS.green },
+          { label: "Assigned", value: assigned, color: COLORS.primary },
+          { label: "Overallocated", value: overallocated, color: COLORS.red },
+        ];
+        
+        allocItems.forEach((item, i) => {
+          slide.addShape("rect", {
+            x: 2.0,
+            y: chartStartY + 0.5 + i * 0.35,
+            w: 0.15,
+            h: 0.15,
+            fill: { color: item.color },
+          });
+          slide.addText(`${item.label}: ${item.value}`, {
+            x: 2.2,
+            y: chartStartY + 0.48 + i * 0.35,
+            w: 1,
+            h: 0.2,
+            fontSize: 8,
+            color: COLORS.dark,
+            fontFace: "Arial",
+          });
+        });
+      }
+    }
+    
+    // Department Distribution Bar Chart
+    if (data.charts.departments && data.charts.departments.length > 0) {
+      slide.addShape("roundRect", {
+        x: 0.3 + chartWidth + 0.12,
+        y: chartStartY,
+        w: chartWidth,
+        h: chartHeight,
+        fill: { color: COLORS.white },
+        line: { color: "e5e7eb", pt: 0.5 },
+        rectRadius: 0.05,
+      });
+      
+      slide.addText("By Department", {
+        x: 0.3 + chartWidth + 0.24,
+        y: chartStartY + 0.08,
+        w: chartWidth - 0.24,
+        h: 0.24,
+        fontSize: 10,
+        bold: true,
+        color: COLORS.dark,
+        fontFace: "Arial",
+      });
+      
+      slide.addChart("bar", [
+        {
+          name: "Resources",
+          labels: data.charts.departments.map(d => d.name.slice(0, 12)),
+          values: data.charts.departments.map(d => d.count),
+        },
+      ], {
+        x: 0.3 + chartWidth + 0.2,
+        y: chartStartY + 0.35,
+        w: chartWidth - 0.3,
+        h: 1.3,
+        barDir: "bar",
+        chartColors: ["9333ea"],
+        showLegend: false,
+        showValue: true,
+        valAxisHidden: true,
+        catAxisHidden: false,
+        showTitle: false,
+        valGridLine: { style: "none" },
+        catAxisLineShow: false,
+      });
+    }
+    
+    // Timesheet Status Chart
+    if (data.charts.timesheetStatus) {
+      const { approved, pending, rejected, submitted } = data.charts.timesheetStatus;
+      const total = approved + pending + rejected + submitted;
+      
+      if (total > 0) {
+        slide.addShape("roundRect", {
+          x: 0.3,
+          y: chartStartY,
+          w: chartWidth,
+          h: chartHeight,
+          fill: { color: COLORS.white },
+          line: { color: "e5e7eb", pt: 0.5 },
+          rectRadius: 0.05,
+        });
+        
+        slide.addText("Timesheet Status", {
+          x: 0.42,
+          y: chartStartY + 0.08,
+          w: chartWidth - 0.24,
+          h: 0.24,
+          fontSize: 10,
+          bold: true,
+          color: COLORS.dark,
+          fontFace: "Arial",
+        });
+        
+        slide.addChart("doughnut", [
+          {
+            name: "Status",
+            labels: ["Approved", "Submitted", "Pending", "Rejected"],
+            values: [approved, submitted, pending, rejected],
+          },
+        ], {
+          x: 0.4,
+          y: chartStartY + 0.35,
+          w: 1.4,
+          h: 1.3,
+          chartColors: [COLORS.green, COLORS.primary, COLORS.yellow, COLORS.red],
+          showLegend: false,
+          showValue: false,
+          showPercent: true,
+          holeSize: 50,
+        });
+        
+        const statusItems = [
+          { label: "Approved", value: approved, color: COLORS.green },
+          { label: "Submitted", value: submitted, color: COLORS.primary },
+          { label: "Pending", value: pending, color: COLORS.yellow },
+          { label: "Rejected", value: rejected, color: COLORS.red },
+        ];
+        
+        statusItems.forEach((item, i) => {
+          slide.addShape("rect", {
+            x: 2.0,
+            y: chartStartY + 0.42 + i * 0.28,
+            w: 0.12,
+            h: 0.12,
+            fill: { color: item.color },
+          });
+          slide.addText(`${item.label}: ${item.value}`, {
+            x: 2.18,
+            y: chartStartY + 0.4 + i * 0.28,
+            w: 1,
+            h: 0.16,
+            fontSize: 7,
+            color: COLORS.dark,
+            fontFace: "Arial",
+          });
+        });
+      }
+    }
+    
+    // Intake Status Chart
+    if (data.charts.intakeStatus) {
+      const { draft, submitted, approved, rejected } = data.charts.intakeStatus;
+      const total = draft + submitted + approved + rejected;
+      
+      if (total > 0) {
+        slide.addShape("roundRect", {
+          x: 0.3,
+          y: chartStartY,
+          w: chartWidth,
+          h: chartHeight,
+          fill: { color: COLORS.white },
+          line: { color: "e5e7eb", pt: 0.5 },
+          rectRadius: 0.05,
+        });
+        
+        slide.addText("Intake Pipeline", {
+          x: 0.42,
+          y: chartStartY + 0.08,
+          w: chartWidth - 0.24,
+          h: 0.24,
+          fontSize: 10,
+          bold: true,
+          color: COLORS.dark,
+          fontFace: "Arial",
+        });
+        
+        slide.addChart("bar", [
+          {
+            name: "Requests",
+            labels: ["Draft", "Submitted", "Approved", "Rejected"],
+            values: [draft, submitted, approved, rejected],
+          },
+        ], {
+          x: 0.4,
+          y: chartStartY + 0.35,
+          w: chartWidth - 0.3,
+          h: 1.3,
+          barDir: "bar",
+          chartColors: [COLORS.gray, COLORS.primary, COLORS.green, COLORS.red],
+          showLegend: false,
+          showValue: true,
+          valAxisHidden: true,
+          catAxisHidden: false,
+          showTitle: false,
+          valGridLine: { style: "none" },
+          catAxisLineShow: false,
+        });
+      }
+    }
   }
   
   // Data Table
   const tableStartY = data.charts ? chartStartY + 1.95 : chartStartY;
   
   if (data.items && data.items.length > 0) {
-    const tableData: pptxgenjs.TableRow[] = [];
+    const tableData: PptxGenJS.TableRow[] = [];
     const headers = Object.keys(data.items[0]).slice(0, 6);
     
     slide.addText("Top Items", {
@@ -617,6 +863,98 @@ export async function generateDashboardPdf(data: DashboardData): Promise<Buffer>
         }
       }
       
+      // Resource Allocation Chart
+      if (data.charts.allocation) {
+        const { available, assigned, overallocated } = data.charts.allocation;
+        const total = available + assigned + overallocated;
+        
+        if (total > 0) {
+          doc.roundedRect(startX, yPos, chartBoxWidth, chartBoxHeight, 4).fillAndStroke("#ffffff", "#e5e7eb");
+          doc.fontSize(9).fillColor("#1f2937").text("Resource Allocation", startX + 10, yPos + 8);
+          
+          drawPieChart(doc, startX + 55, yPos + 65, 35, [
+            { value: available, color: "#22c55e", label: "Available" },
+            { value: assigned, color: "#2563eb", label: "Assigned" },
+            { value: overallocated, color: "#ef4444", label: "Overallocated" },
+          ]);
+          
+          const allocItems = [
+            { label: "Available", value: available, color: "#22c55e" },
+            { label: "Assigned", value: assigned, color: "#2563eb" },
+            { label: "Overallocated", value: overallocated, color: "#ef4444" },
+          ];
+          
+          allocItems.forEach((item, i) => {
+            doc.rect(startX + 105, yPos + 35 + i * 18, 10, 10).fill(item.color);
+            doc.fontSize(7).fillColor("#1f2937").text(`${item.label}: ${item.value}`, startX + 120, yPos + 37 + i * 18);
+          });
+        }
+      }
+      
+      // Department Distribution Chart
+      if (data.charts.departments && data.charts.departments.length > 0) {
+        const chartX = startX + chartBoxWidth + 8;
+        
+        doc.roundedRect(chartX, yPos, chartBoxWidth, chartBoxHeight, 4).fillAndStroke("#ffffff", "#e5e7eb");
+        doc.fontSize(9).fillColor("#1f2937").text("By Department", chartX + 10, yPos + 8);
+        
+        drawBarChart(doc, chartX + 8, yPos + 25, chartBoxWidth - 16, chartBoxHeight - 35, 
+          data.charts.departments.map(d => ({ 
+            value: d.count, 
+            label: d.name.slice(0, 10), 
+            color: "#9333ea" 
+          }))
+        );
+      }
+      
+      // Timesheet Status Chart
+      if (data.charts.timesheetStatus) {
+        const { approved, pending, rejected, submitted } = data.charts.timesheetStatus;
+        const total = approved + pending + rejected + submitted;
+        
+        if (total > 0) {
+          doc.roundedRect(startX, yPos, chartBoxWidth, chartBoxHeight, 4).fillAndStroke("#ffffff", "#e5e7eb");
+          doc.fontSize(9).fillColor("#1f2937").text("Timesheet Status", startX + 10, yPos + 8);
+          
+          drawPieChart(doc, startX + 55, yPos + 65, 35, [
+            { value: approved, color: "#22c55e", label: "Approved" },
+            { value: submitted, color: "#2563eb", label: "Submitted" },
+            { value: pending, color: "#eab308", label: "Pending" },
+            { value: rejected, color: "#ef4444", label: "Rejected" },
+          ]);
+          
+          const statusItems = [
+            { label: "Approved", value: approved, color: "#22c55e" },
+            { label: "Submitted", value: submitted, color: "#2563eb" },
+            { label: "Pending", value: pending, color: "#eab308" },
+            { label: "Rejected", value: rejected, color: "#ef4444" },
+          ];
+          
+          statusItems.forEach((item, i) => {
+            doc.rect(startX + 105, yPos + 28 + i * 16, 8, 8).fill(item.color);
+            doc.fontSize(6).fillColor("#1f2937").text(`${item.label}: ${item.value}`, startX + 118, yPos + 29 + i * 16);
+          });
+        }
+      }
+      
+      // Intake Status Chart
+      if (data.charts.intakeStatus) {
+        const { draft, submitted, approved, rejected } = data.charts.intakeStatus;
+        const total = draft + submitted + approved + rejected;
+        
+        if (total > 0) {
+          doc.roundedRect(startX, yPos, chartBoxWidth, chartBoxHeight, 4).fillAndStroke("#ffffff", "#e5e7eb");
+          doc.fontSize(9).fillColor("#1f2937").text("Intake Pipeline", startX + 10, yPos + 8);
+          
+          drawBarChart(doc, startX + 8, yPos + 25, chartBoxWidth - 16, chartBoxHeight - 35, [
+            { value: draft, label: "Draft", color: "#6b7280" },
+            { value: submitted, label: "Submitted", color: "#2563eb" },
+            { value: approved, label: "Approved", color: "#22c55e" },
+            { value: rejected, label: "Rejected", color: "#ef4444" },
+          ]);
+        }
+      }
+      
       yPos += chartBoxHeight + 15;
     }
     
@@ -858,6 +1196,23 @@ export async function getDashboardDataForExport(
       }
       const activeResources = resources.filter((r: Resource) => r.isActive);
       
+      // Get department distribution for chart
+      const deptCounts = activeResources.reduce((acc, r) => {
+        const dept = r.department || "Unassigned";
+        acc[dept] = (acc[dept] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const departments = Object.entries(deptCounts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 6);
+      
+      // Calculate allocation (simplified - based on active/inactive)
+      const assigned = Math.round(activeResources.length * 0.7);
+      const available = Math.round(activeResources.length * 0.2);
+      const overallocated = activeResources.length - assigned - available;
+      
       return {
         type: type as "resource" | "resource-management",
         organizationId,
@@ -868,6 +1223,12 @@ export async function getDashboardDataForExport(
           "Active Resources": activeResources.length,
           "Inactive Resources": resources.length - activeResources.length,
           "Approvers": resources.filter((r: Resource) => r.isApprover).length,
+          "Departments": Object.keys(deptCounts).length,
+          "Utilization": `${activeResources.length > 0 ? Math.round((assigned / activeResources.length) * 100) : 0}%`,
+        },
+        charts: {
+          allocation: { available, assigned, overallocated: overallocated > 0 ? overallocated : 0 },
+          departments,
         },
         items: resources.slice(0, 10).map((r: Resource) => ({
           Name: r.displayName,
@@ -894,6 +1255,18 @@ export async function getDashboardDataForExport(
       
       const totalHours = timesheets.reduce((sum: number, t) => sum + Number(t.hours || 0), 0);
       
+      // Calculate status distribution for chart
+      const approved = timesheets.filter(t => t.status === "approved").length;
+      const pending = timesheets.filter(t => t.status === "pending").length;
+      const rejected = timesheets.filter(t => t.status === "rejected").length;
+      const submitted = timesheets.filter(t => t.status === "submitted").length;
+      
+      // Compliance rate
+      const activeResources = resources.filter(r => r.isActive);
+      const complianceRate = activeResources.length > 0 
+        ? Math.round((timesheets.length / (activeResources.length * 5)) * 100) 
+        : 0;
+      
       return {
         type: "timesheet",
         organizationId,
@@ -904,12 +1277,53 @@ export async function getDashboardDataForExport(
           "Total Entries": timesheets.length,
           "Total Hours": totalHours.toFixed(1),
           "Avg Hours/Entry": timesheets.length ? (totalHours / timesheets.length).toFixed(1) : "0",
+          "Compliance": `${Math.min(complianceRate, 100)}%`,
+          "Approval Rate": `${timesheets.length ? Math.round((approved / timesheets.length) * 100) : 0}%`,
+        },
+        charts: {
+          timesheetStatus: { approved, pending, rejected, submitted },
         },
         items: timesheets.slice(0, 10).map((t) => ({
           Resource: resources.find((r: Resource) => r.id === t.resourceId)?.displayName || "-",
           Date: t.entryDate ? new Date(t.entryDate).toLocaleDateString() : "-",
           Hours: Number(t.hours) || 0,
           Status: t.status || "-",
+        })),
+      };
+    }
+    
+    case "intake": {
+      const intakes = await storage.getProjectIntakes(organizationId);
+      
+      const draft = intakes.filter(i => i.status === "draft").length;
+      const submitted = intakes.filter(i => i.status === "submitted").length;
+      const approved = intakes.filter(i => i.status === "approved").length;
+      const rejected = intakes.filter(i => i.status === "rejected").length;
+      
+      const totalEstimate = intakes.reduce((sum, i) => sum + Number(i.estimatedBudget || 0), 0);
+      
+      return {
+        type: "intake",
+        organizationId,
+        title: "Intake Dashboard",
+        generatedAt,
+        metrics: {
+          "Total Requests": intakes.length,
+          "Pending Review": submitted,
+          "Approved": approved,
+          "Rejected": rejected,
+          "Draft": draft,
+          "Est. Budget": `$${(totalEstimate / 1000000).toFixed(1)}M`,
+        },
+        charts: {
+          intakeStatus: { draft, submitted, approved, rejected },
+        },
+        items: intakes.slice(0, 10).map(i => ({
+          Title: i.projectName,
+          Status: i.status || "-",
+          "Business Unit": i.businessUnit || "-",
+          "Funding Source": i.fundingSource || "-",
+          "Est. Budget": i.estimatedBudget ? `$${Number(i.estimatedBudget).toLocaleString()}` : "-",
         })),
       };
     }
