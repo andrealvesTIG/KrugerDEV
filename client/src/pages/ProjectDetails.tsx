@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -1972,10 +1972,11 @@ const zoomLabels: Record<ZoomLevel, string> = {
   '5year': '5 Years'
 };
 
-type GanttColumn = 'task' | 'startDate' | 'endDate' | 'progress' | 'resources';
+type GanttColumn = 'task' | 'outlineLevel' | 'startDate' | 'endDate' | 'progress' | 'resources';
 
 const GANTT_COLUMNS: { id: GanttColumn; label: string; width: string }[] = [
   { id: 'task', label: 'Task', width: 'w-48' },
+  { id: 'outlineLevel', label: 'Level', width: 'w-14' },
   { id: 'startDate', label: 'Start', width: 'w-24' },
   { id: 'endDate', label: 'End', width: 'w-24' },
   { id: 'progress', label: '%', width: 'w-14' },
@@ -1989,6 +1990,8 @@ function ProjectGanttTaskRow({
   maxDate,
   visibleColumns,
   organizationId,
+  onIndent,
+  onOutdent,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -1996,6 +1999,8 @@ function ProjectGanttTaskRow({
   maxDate: Date;
   visibleColumns: GanttColumn[];
   organizationId: number | null;
+  onIndent: (task: Task) => void;
+  onOutdent: (task: Task) => void;
 }) {
   const { data: taskAssignments } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2034,20 +2039,58 @@ function ProjectGanttTaskRow({
 
   const progressPercent = task.progress || 0;
 
+  const currentLevel = task.outlineLevel || 1;
+  const canIndent = currentLevel < 6;
+  const canOutdent = currentLevel > 1;
+
   return (
     <div 
       className="flex border-b hover:bg-muted/30 transition-colors group"
       data-testid={`gantt-task-${task.id}`}
     >
+      {/* Actions column - always visible */}
+      <div className="w-10 flex-shrink-0 border-r p-1 flex items-center justify-center">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`task-actions-${task.id}`}>
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem 
+              onClick={() => onIndent(task)}
+              disabled={!canIndent}
+              data-testid={`task-indent-${task.id}`}
+            >
+              <ChevronRight className="h-4 w-4 mr-2" />
+              {canIndent ? `Indent (→ Level ${currentLevel + 1})` : "Max level reached"}
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => onOutdent(task)}
+              disabled={!canOutdent}
+              data-testid={`task-outdent-${task.id}`}
+            >
+              <ChevronLeft className="h-4 w-4 mr-2" />
+              {canOutdent ? `Outdent (→ Level ${currentLevel - 1})` : "Top level reached"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       {visibleColumns.includes('task') && (
         <div 
           className="w-48 flex-shrink-0 border-r p-2 cursor-pointer"
           onClick={() => onTaskClick(task)}
+          style={{ paddingLeft: `${12 + (currentLevel - 1) * 16}px` }}
         >
           <div className="font-medium text-sm truncate flex items-center gap-1.5">
             {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
             {task.name}
           </div>
+        </div>
+      )}
+      {visibleColumns.includes('outlineLevel') && (
+        <div className="w-14 flex-shrink-0 border-r p-2 text-xs text-center font-medium">
+          {currentLevel}
         </div>
       )}
       {visibleColumns.includes('startDate') && (
@@ -2145,10 +2188,48 @@ function ProjectGanttView({
   organizationId: number | null;
   onCreateTask: (name: string) => void;
 }) {
+  const updateTask = useUpdateTask();
+  const { toast } = useToast();
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
-  const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(['task', 'startDate', 'endDate', 'progress', 'resources']);
+  const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(['task', 'outlineLevel', 'startDate', 'endDate', 'progress', 'resources']);
   const [newTaskName, setNewTaskName] = useState('');
+
+  const handleIndent = (task: Task) => {
+    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
+    const newLevel = Math.min(6, currentLevel + 1);
+    if (currentLevel >= 6 || newLevel > 6) {
+      toast({ title: "Cannot indent", description: "Maximum outline level (6) reached", variant: "destructive" });
+      return;
+    }
+    updateTask.mutate({ 
+      id: task.id, 
+      projectId: task.projectId, 
+      outlineLevel: newLevel 
+    }, {
+      onSuccess: () => {
+        toast({ title: "Updated", description: `Task indented to level ${newLevel}` });
+      }
+    });
+  };
+
+  const handleOutdent = (task: Task) => {
+    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
+    const newLevel = Math.max(1, currentLevel - 1);
+    if (currentLevel <= 1 || newLevel < 1) {
+      toast({ title: "Cannot outdent", description: "Minimum outline level (1) reached", variant: "destructive" });
+      return;
+    }
+    updateTask.mutate({ 
+      id: task.id, 
+      projectId: task.projectId, 
+      outlineLevel: newLevel 
+    }, {
+      onSuccess: () => {
+        toast({ title: "Updated", description: `Task outdented to level ${newLevel}` });
+      }
+    });
+  };
   const handleAddTask = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && newTaskName.trim()) {
       onCreateTask(newTaskName.trim());
@@ -2336,8 +2417,13 @@ function ProjectGanttView({
         <div className="overflow-x-auto">
           <div style={{ minWidth: `${columnsTotalWidth + 400}px` }}>
             <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+              {/* Actions column header - always visible */}
+              <div className="w-10 flex-shrink-0 border-r p-2"></div>
               {visibleColumns.includes('task') && (
                 <div className="w-48 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Task</div>
+              )}
+              {visibleColumns.includes('outlineLevel') && (
+                <div className="w-14 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground text-center">Level</div>
               )}
               {visibleColumns.includes('startDate') && (
                 <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Start</div>
@@ -2373,10 +2459,14 @@ function ProjectGanttView({
                   maxDate={adjustedMaxDate}
                   visibleColumns={visibleColumns}
                   organizationId={organizationId}
+                  onIndent={handleIndent}
+                  onOutdent={handleOutdent}
                 />
               ))
             )}
             <div className="flex border-t bg-muted/20">
+              {/* Empty actions column cell */}
+              <div className="w-10 flex-shrink-0 border-r p-2" />
               {visibleColumns.includes('task') && (
                 <div className="w-48 flex-shrink-0 border-r p-2">
                   <Input
@@ -2389,6 +2479,7 @@ function ProjectGanttView({
                   />
                 </div>
               )}
+              {visibleColumns.includes('outlineLevel') && <div className="w-14 flex-shrink-0 border-r p-2" />}
               {visibleColumns.includes('startDate') && <div className="w-24 flex-shrink-0 border-r p-2" />}
               {visibleColumns.includes('endDate') && <div className="w-24 flex-shrink-0 border-r p-2" />}
               {visibleColumns.includes('progress') && <div className="w-14 flex-shrink-0 border-r p-2" />}
