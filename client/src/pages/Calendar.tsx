@@ -48,23 +48,34 @@ export default function Calendar() {
 
   // Fetch all milestones for organization's projects
   const { data: allMilestones = [] } = useQuery<Milestone[]>({
-    queryKey: ['/api/milestones', { organizationId: currentOrganization?.id }],
-    enabled: !!currentOrganization?.id,
+    queryKey: ['/api/milestones'],
   });
 
   // Fetch all tasks for organization's projects
   const { data: allTasks = [] } = useQuery<Task[]>({
-    queryKey: ['/api/tasks', { organizationId: currentOrganization?.id }],
-    enabled: !!currentOrganization?.id,
+    queryKey: ['/api/tasks'],
   });
 
 
-  // Create project lookup map
+  // Create project lookup map and set of project IDs for current org
   const projectMap = useMemo(() => {
     const map: Record<number, Project> = {};
     projects.forEach(p => { map[p.id] = p; });
     return map;
   }, [projects]);
+
+  const projectIds = useMemo(() => {
+    return new Set(projects.map(p => p.id));
+  }, [projects]);
+
+  // Filter milestones and tasks to current organization's projects
+  const orgMilestones = useMemo(() => {
+    return allMilestones.filter(m => projectIds.has(m.projectId));
+  }, [allMilestones, projectIds]);
+
+  const orgTasks = useMemo(() => {
+    return allTasks.filter(t => projectIds.has(t.projectId));
+  }, [allTasks, projectIds]);
 
   // Combine all events into a unified calendar events list
   const calendarEvents = useMemo((): CalendarEvent[] => {
@@ -85,8 +96,8 @@ export default function Calendar() {
       }
     });
 
-    // Add milestones
-    allMilestones.forEach(m => {
+    // Add milestones from current organization's projects
+    orgMilestones.forEach(m => {
       if (m.dueDate) {
         events.push({
           id: `milestone-${m.id}`,
@@ -100,8 +111,8 @@ export default function Calendar() {
       }
     });
 
-    // Add tasks with end dates
-    allTasks.forEach(t => {
+    // Add tasks with end dates from current organization's projects
+    orgTasks.forEach(t => {
       if (t.endDate) {
         events.push({
           id: `task-${t.id}`,
@@ -118,7 +129,7 @@ export default function Calendar() {
     // Note: Issues don't have due dates in the schema, so they're not included in the calendar
 
     return events;
-  }, [projects, allMilestones, allTasks, projectMap]);
+  }, [projects, orgMilestones, orgTasks, projectMap]);
 
   // Get events for a specific day
   const getEventsForDay = (day: Date) => {
@@ -229,7 +240,7 @@ export default function Calendar() {
               <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold">{allMilestones.filter(m => m.dueDate).length}</div>
+              <div className="text-2xl font-bold">{orgMilestones.filter(m => m.dueDate).length}</div>
               <div className="text-xs text-muted-foreground">Milestones</div>
             </div>
           </CardContent>
@@ -240,7 +251,7 @@ export default function Calendar() {
               <CheckSquare className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold">{allTasks.filter(t => t.endDate).length}</div>
+              <div className="text-2xl font-bold">{orgTasks.filter(t => t.endDate).length}</div>
               <div className="text-xs text-muted-foreground">Tasks</div>
             </div>
           </CardContent>
