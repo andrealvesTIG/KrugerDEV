@@ -3210,7 +3210,7 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ChangeRequest | null>(null);
-  const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
+  const [limitError, setLimitError] = useState<{ resourceType: string; message?: string } | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -3255,7 +3255,7 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
         },
         onError: (err: any) => {
           if (err.limitExceeded) {
-            setLimitError({ resourceType: err.resourceType || "change_requests" });
+            setLimitError({ resourceType: err.resourceType || "change_requests", message: err.message });
             setIsDialogOpen(false);
           } else {
             toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -3507,6 +3507,7 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
         open={!!limitError}
         onOpenChange={(o) => !o && setLimitError(null)}
         resourceType={limitError?.resourceType || "change_requests"}
+        message={limitError?.message}
       />
     </Card>
   );
