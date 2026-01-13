@@ -27,6 +27,14 @@ const resourceLabels: Record<string, string> = {
   resources: "resource",
   resource_assignments: "resource assignment",
   ai_runs: "AI run",
+  portfolios: "portfolio",
+  intakes: "project intake",
+  change_requests: "change request",
+  reports: "report",
+  emails: "email notification",
+  shares: "project share",
+  searches: "search",
+  integrations: "integration",
 };
 
 export function LimitExceededDialog({

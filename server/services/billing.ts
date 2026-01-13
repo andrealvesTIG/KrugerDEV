@@ -598,6 +598,14 @@ export const RESOURCE_TYPES = {
   RESOURCE: "resource",
   RESOURCE_ASSIGNMENT: "resource_assignment",
   AI_RUN: "ai_run",
+  PORTFOLIO: "portfolio",
+  INTAKE: "intake",
+  CHANGE_REQUEST: "change_request",
+  REPORT: "report",
+  EMAIL: "email",
+  SHARE: "share",
+  SEARCH: "search",
+  INTEGRATION: "integration",
 } as const;
 
 export type ResourceType = (typeof RESOURCE_TYPES)[keyof typeof RESOURCE_TYPES];
@@ -613,6 +621,14 @@ export const METER_CODES = {
   RISKS: "risks",
   RESOURCES: "resources",
   RESOURCE_ASSIGNMENTS: "resource_assignments",
+  PORTFOLIOS: "portfolios",
+  INTAKES: "intakes",
+  CHANGE_REQUESTS: "change_requests",
+  REPORTS: "reports",
+  EMAILS: "emails",
+  SHARES: "shares",
+  SEARCHES: "searches",
+  INTEGRATIONS: "integrations",
 } as const;
 
 export type MeterCode = (typeof METER_CODES)[keyof typeof METER_CODES];
@@ -634,6 +650,14 @@ async function getResourceCreditCost(resourceType: ResourceType): Promise<number
       resource: 200,     // 2 credits
       resource_assignment: 50,  // 0.5 credits
       ai_run: 300,       // 3 credits
+      portfolio: 1000,   // 10 credits
+      intake: 200,       // 2 credits
+      change_request: 100, // 1 credit
+      report: 300,       // 3 credits
+      email: 25,         // 0.25 credits
+      share: 100,        // 1 credit
+      search: 10,        // 0.1 credits
+      integration: 800,  // 8 credits
     };
     return defaults[resourceType] || 100;
   }
@@ -751,6 +775,14 @@ export async function checkAndEnforceLimit(
     risks: RESOURCE_TYPES.RISK,
     resources: RESOURCE_TYPES.RESOURCE,
     resource_assignments: RESOURCE_TYPES.RESOURCE_ASSIGNMENT,
+    portfolios: RESOURCE_TYPES.PORTFOLIO,
+    intakes: RESOURCE_TYPES.INTAKE,
+    change_requests: RESOURCE_TYPES.CHANGE_REQUEST,
+    reports: RESOURCE_TYPES.REPORT,
+    emails: RESOURCE_TYPES.EMAIL,
+    shares: RESOURCE_TYPES.SHARE,
+    searches: RESOURCE_TYPES.SEARCH,
+    integrations: RESOURCE_TYPES.INTEGRATION,
   };
   
   const resourceType = meterToResource[meterCode];
@@ -811,6 +843,18 @@ export async function recordResourceUsage(
     tasks: RESOURCE_TYPES.TASK,
     documents: RESOURCE_TYPES.DOCUMENT,
     ai_runs: RESOURCE_TYPES.AI_RUN,
+    issues: RESOURCE_TYPES.ISSUE,
+    risks: RESOURCE_TYPES.RISK,
+    resources: RESOURCE_TYPES.RESOURCE,
+    resource_assignments: RESOURCE_TYPES.RESOURCE_ASSIGNMENT,
+    portfolios: RESOURCE_TYPES.PORTFOLIO,
+    intakes: RESOURCE_TYPES.INTAKE,
+    change_requests: RESOURCE_TYPES.CHANGE_REQUEST,
+    reports: RESOURCE_TYPES.REPORT,
+    emails: RESOURCE_TYPES.EMAIL,
+    shares: RESOURCE_TYPES.SHARE,
+    searches: RESOURCE_TYPES.SEARCH,
+    integrations: RESOURCE_TYPES.INTEGRATION,
   };
   
   const resourceType = meterToResource[meterCode];
