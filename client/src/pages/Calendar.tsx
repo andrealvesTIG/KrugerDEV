@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,15 @@ export default function Calendar() {
   const { data: projects = [] } = useProjects(currentOrganization?.id);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewType, setViewType] = useState<ViewType>("month");
+  const [, setLocation] = useLocation();
+
+  // Navigate to specific item when clicked
+  const handleEventClick = useCallback((event: CalendarEvent) => {
+    if (event.projectId) {
+      // Navigate to the project page - milestones, tasks, and deadlines all go to project
+      setLocation(`/projects/${event.projectId}`);
+    }
+  }, [setLocation]);
 
   // Fetch all milestones for organization's projects
   const { data: allMilestones = [] } = useQuery<Milestone[]>({
@@ -380,11 +390,13 @@ export default function Calendar() {
                             {dayEvents.slice(0, 3).map(event => (
                               <div
                                 key={event.id}
+                                onClick={() => handleEventClick(event)}
                                 className={cn(
-                                  "text-[10px] px-1.5 py-0.5 rounded truncate font-medium border flex items-center gap-1",
+                                  "text-[10px] px-1.5 py-0.5 rounded truncate font-medium border flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity",
                                   getEventColors(event.type)
                                 )}
-                                title={`${event.title}${event.projectName ? ` - ${event.projectName}` : ''}`}
+                                title={`${event.title}${event.projectName ? ` - ${event.projectName}` : ''} (Click to view)`}
+                                data-testid={`calendar-event-${event.id}`}
                               >
                                 {getEventIcon(event.type)}
                                 <span className="truncate">{event.title}</span>
@@ -443,10 +455,12 @@ export default function Calendar() {
                             {dayEvents.map(event => (
                               <div
                                 key={event.id}
+                                onClick={() => handleEventClick(event)}
                                 className={cn(
-                                  "text-xs p-2 rounded border",
+                                  "text-xs p-2 rounded border cursor-pointer hover:opacity-80 transition-opacity",
                                   getEventColors(event.type)
                                 )}
+                                data-testid={`calendar-event-${event.id}`}
                               >
                                 <div className="flex items-center gap-1 font-medium">
                                   {getEventIcon(event.type)}
@@ -493,10 +507,12 @@ export default function Calendar() {
                         getEventsForDay(currentDate).map(event => (
                           <div
                             key={event.id}
+                            onClick={() => handleEventClick(event)}
                             className={cn(
-                              "p-4 rounded-lg border",
+                              "p-4 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity",
                               getEventColors(event.type)
                             )}
+                            data-testid={`calendar-event-${event.id}`}
                           >
                             <div className="flex items-start gap-3">
                               <div className="mt-0.5">{getEventIcon(event.type)}</div>
