@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useResources } from "@/hooks/use-resources";
 import { useProjects } from "@/hooks/use-projects";
@@ -48,7 +48,23 @@ export function TimesheetReportDashboard() {
     enabled: !!currentOrganization?.id,
   });
 
-  if (resourcesLoading || timesheetsLoading) {
+  const filteredResources = useMemo(() => {
+    return (resources ?? []).filter(r => {
+      if (!r.isActive) return false;
+      if (filters.resourceId && r.id !== filters.resourceId) return false;
+      return true;
+    });
+  }, [resources, filters]);
+
+  const filteredEntries = useMemo(() => {
+    return (timesheetEntries ?? []).filter(e => {
+      if (filters.resourceId && e.resourceId !== filters.resourceId) return false;
+      if (filters.projectId && e.projectId !== filters.projectId) return false;
+      return true;
+    });
+  }, [timesheetEntries, filters]);
+
+  if (resourcesLoading || timesheetsLoading || projectsLoading || portfoliosLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -56,8 +72,8 @@ export function TimesheetReportDashboard() {
     );
   }
 
-  const activeResources = resources?.filter(r => r.isActive) || [];
-  const entries = timesheetEntries || [];
+  const activeResources = filteredResources;
+  const entries = filteredEntries;
 
   const handleExportCsv = () => {
     const headers = ["Resource", "Department", "Logged Hours", "Expected", "Compliance", "Status"];
@@ -168,7 +184,9 @@ export function TimesheetReportDashboard() {
 
       <DashboardFilters
         portfolios={portfolios || []}
-        projects={projectsData || []}
+        projects={filters.portfolioId 
+          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+          : (projectsData || [])}
         resources={resources || []}
         filters={filters}
         onFiltersChange={setFilters}

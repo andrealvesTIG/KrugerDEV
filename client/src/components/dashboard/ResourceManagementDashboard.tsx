@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useResources } from "@/hooks/use-resources";
 import { useProjects } from "@/hooks/use-projects";
@@ -44,13 +44,31 @@ export function ResourceManagementDashboard() {
     enabled: !!currentOrganization?.id,
   });
 
-  if (resourcesLoading || tasksLoading || timesheetLoading) {
+  const filteredResources = useMemo(() => {
+    return (resources ?? []).filter(r => {
+      if (!r.isActive) return false;
+      if (filters.resourceId && r.id !== filters.resourceId) return false;
+      return true;
+    });
+  }, [resources, filters]);
+
+  const filteredTasks = useMemo(() => {
+    return (tasks ?? []).filter(t => {
+      if (filters.projectId && t.projectId !== filters.projectId) return false;
+      return true;
+    });
+  }, [tasks, filters]);
+
+  if (resourcesLoading || tasksLoading || timesheetLoading || projectsLoading || portfoliosLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
+
+  const activeResources = filteredResources;
+  const allTasks = filteredTasks;
 
   const handleExportCsv = () => {
     const headers = ["Resource", "Department", "Active Tasks", "Due Soon", "Risk Level"];
@@ -64,9 +82,6 @@ export function ResourceManagementDashboard() {
     link.click();
     URL.revokeObjectURL(url);
   };
-
-  const activeResources = resources?.filter(r => r.isActive) || [];
-  const allTasks = tasks || [];
   
   const activeTasks = allTasks.filter(t => t.status === "In Progress" || t.status === "Not Started");
   const completedTasks = allTasks.filter(t => t.status === "Completed");
@@ -178,7 +193,9 @@ export function ResourceManagementDashboard() {
 
       <DashboardFilters
         portfolios={portfolios || []}
-        projects={projectsData || []}
+        projects={filters.portfolioId 
+          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+          : (projectsData || [])}
         resources={resources || []}
         filters={filters}
         onFiltersChange={setFilters}

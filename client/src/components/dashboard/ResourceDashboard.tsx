@@ -46,13 +46,38 @@ export function ResourceDashboard() {
     enabled: !!currentOrganization?.id,
   });
 
-  if (resourcesLoading || assignmentsLoading) {
+  const filteredProjects = useMemo(() => {
+    return (projectsData ?? []).filter(p => {
+      if (filters.portfolioId && p.portfolioId !== filters.portfolioId) return false;
+      if (filters.projectId && p.id !== filters.projectId) return false;
+      return true;
+    });
+  }, [projectsData, filters]);
+
+  const filteredResources = useMemo(() => {
+    return (resources ?? []).filter(r => {
+      if (!r.isActive) return false;
+      if (filters.resourceId && r.id !== filters.resourceId) return false;
+      return true;
+    });
+  }, [resources, filters]);
+
+  if (resourcesLoading || assignmentsLoading || projectsLoading || portfoliosLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
+
+  const activeResources = filteredResources;
+  const inactiveResources = resources?.filter(r => !r.isActive) || [];
+  const totalResources = activeResources.length;
+
+  const assignmentCountByResource = allAssignments.reduce((acc, assignment) => {
+    acc[assignment.resourceId] = (acc[assignment.resourceId] || 0) + 1;
+    return acc;
+  }, {} as Record<number, number>);
 
   const handleExportCsv = () => {
     const headers = ["Name", "Email", "Title", "Department", "Skills", "Assignments", "Status"];
@@ -74,15 +99,6 @@ export function ResourceDashboard() {
     link.click();
     URL.revokeObjectURL(url);
   };
-
-  const activeResources = resources?.filter(r => r.isActive) || [];
-  const inactiveResources = resources?.filter(r => !r.isActive) || [];
-  const totalResources = activeResources.length;
-  
-  const assignmentCountByResource = allAssignments.reduce((acc, assignment) => {
-    acc[assignment.resourceId] = (acc[assignment.resourceId] || 0) + 1;
-    return acc;
-  }, {} as Record<number, number>);
 
   const assignedResourceIds = new Set(allAssignments.map(a => a.resourceId));
   const resourcesWithAssignments = activeResources.filter(r => assignedResourceIds.has(r.id)).length;
@@ -145,7 +161,9 @@ export function ResourceDashboard() {
 
       <DashboardFilters
         portfolios={portfolios || []}
-        projects={projectsData || []}
+        projects={filters.portfolioId 
+          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+          : (projectsData || [])}
         resources={resources || []}
         filters={filters}
         onFiltersChange={setFilters}

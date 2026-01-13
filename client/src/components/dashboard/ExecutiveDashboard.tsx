@@ -275,7 +275,9 @@ export function ExecutiveDashboard() {
 
       <DashboardFilters
         portfolios={portfolios || []}
-        projects={projectsData || []}
+        projects={filters.portfolioId 
+          ? (projectsData || []).filter(p => p.portfolioId === filters.portfolioId) 
+          : (projectsData || [])}
         filters={filters}
         onFiltersChange={setFilters}
         showResource={false}
