@@ -33,36 +33,71 @@ export function ProjectCardCompact({ project, showBudget = true, showProgress = 
 
   const { data: risks = [] } = useQuery<Risk[]>({
     queryKey: ['/api/projects', project.id, 'risks'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${project.id}/risks`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: dialogOpen,
   });
 
   const { data: issues = [] } = useQuery<Issue[]>({
     queryKey: ['/api/projects', project.id, 'issues'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${project.id}/issues`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: dialogOpen,
   });
 
   const { data: milestones = [] } = useQuery<Milestone[]>({
     queryKey: ['/api/projects', project.id, 'milestones'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${project.id}/milestones`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: dialogOpen,
   });
 
   const { data: financials = [] } = useQuery<ProjectFinancial[]>({
     queryKey: ['/api/projects', project.id, 'financials'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${project.id}/financials`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: dialogOpen,
   });
 
   const { data: tasks = [] } = useQuery<Task[]>({
     queryKey: ['/api/projects', project.id, 'tasks'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${project.id}/tasks`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: dialogOpen,
   });
 
   const { data: changeRequests = [] } = useQuery<ChangeRequest[]>({
     queryKey: ['/api/projects', project.id, 'change-requests'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${project.id}/change-requests`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: dialogOpen,
   });
 
   const { data: documents = [] } = useQuery<ProjectDocument[]>({
     queryKey: ['/api/projects', project.id, 'documents'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${project.id}/documents`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: dialogOpen,
   });
 

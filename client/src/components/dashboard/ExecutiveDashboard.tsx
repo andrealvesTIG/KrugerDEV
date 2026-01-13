@@ -207,9 +207,9 @@ export function ExecutiveDashboard() {
               <SelectValue placeholder="Filter" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              <SelectItem value="manual">Created</SelectItem>
-              <SelectItem value="imported">Imported</SelectItem>
+              <SelectItem value="all" data-testid="select-option-all">All Projects</SelectItem>
+              <SelectItem value="manual" data-testid="select-option-manual">Created</SelectItem>
+              <SelectItem value="imported" data-testid="select-option-imported">Imported</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -245,7 +245,7 @@ export function ExecutiveDashboard() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setAiDialogOpen(false)} disabled={generateProjectMutation.isPending}>
+                <Button variant="outline" onClick={() => setAiDialogOpen(false)} disabled={generateProjectMutation.isPending} data-testid="button-cancel-ai">
                   Cancel
                 </Button>
                 <Button
@@ -332,7 +332,7 @@ export function ExecutiveDashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+        <Card className="lg:col-span-1" data-testid="chart-health-overview">
           <CardHeader className="pb-2 pt-3 px-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -368,7 +368,7 @@ export function ExecutiveDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-1">
+        <Card className="lg:col-span-1" data-testid="chart-project-pipeline">
           <CardHeader className="pb-2 pt-3 px-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Activity className="h-4 w-4 text-muted-foreground" />
@@ -403,7 +403,7 @@ export function ExecutiveDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-1">
+        <Card className="lg:col-span-1" data-testid="chart-risk-issue-summary">
           <CardHeader className="pb-2 pt-3 px-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
@@ -450,13 +450,13 @@ export function ExecutiveDashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card data-testid="card-priority-attention">
           <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-red-500" />
               Priority Attention
             </CardTitle>
-            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setLocation("/projects?health=Red,Yellow")}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setLocation("/projects?health=Red,Yellow")} data-testid="button-view-priority">
               View All <ArrowRight className="h-3 w-3" />
             </Button>
           </CardHeader>
@@ -476,13 +476,13 @@ export function ExecutiveDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card data-testid="card-top-projects">
           <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-emerald-500" />
               Top Projects by Budget
             </CardTitle>
-            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setLocation("/projects")}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setLocation("/projects")} data-testid="button-view-projects">
               View All <ArrowRight className="h-3 w-3" />
             </Button>
           </CardHeader>

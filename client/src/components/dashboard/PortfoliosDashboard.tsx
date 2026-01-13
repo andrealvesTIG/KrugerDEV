@@ -1,9 +1,15 @@
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
-import { KpiCard } from "./KpiCard";
-import { DashboardChartCard } from "./DashboardChartCard";
-import { Loader2, FolderKanban, Target, TrendingUp, DollarSign } from "lucide-react";
+import { useLocation } from "wouter";
+import { DashboardActionBar } from "./DashboardActionBar";
+import { ProjectCardCompact } from "./ProjectCardCompact";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, FolderKanban, Target, TrendingUp, DollarSign, ArrowRight, Activity, BarChart3 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 
 const COLORS = {
@@ -15,18 +21,20 @@ const COLORS = {
   Indigo: "#6366f1",
   Pink: "#ec4899",
   Teal: "#14b8a6",
+  Cyan: "#06b6d4",
 };
 
-const PORTFOLIO_COLORS = [COLORS.Blue, COLORS.Purple, COLORS.Teal, COLORS.Pink, COLORS.Indigo, COLORS.Green];
+const PORTFOLIO_COLORS = [COLORS.Blue, COLORS.Purple, COLORS.Teal, COLORS.Pink, COLORS.Indigo, COLORS.Green, COLORS.Cyan];
 
 export function PortfoliosDashboard() {
   const { currentOrganization } = useOrganization();
   const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
   const { data: projects, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
+  const [, setLocation] = useLocation();
 
   if (portfoliosLoading || projectsLoading) {
     return (
-      <div className="flex h-96 items-center justify-center">
+      <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -38,163 +46,263 @@ export function PortfoliosDashboard() {
     return `$${amount.toLocaleString()}`;
   };
 
+  const handleExportCsv = () => {
+    const headers = ["Portfolio", "Projects", "Active", "Completed", "Budget", "Avg Completion", "Health Score"];
+    const rows = (portfolios || []).map(p => {
+      const portfolioProjects = projects?.filter(pr => pr.portfolioId === p.id) || [];
+      const active = portfolioProjects.filter(pr => pr.status !== "Closing").length;
+      const completed = portfolioProjects.filter(pr => pr.status === "Closing").length;
+      const budget = portfolioProjects.reduce((sum, pr) => sum + Number(pr.budget || 0), 0);
+      const avgCompletion = portfolioProjects.length 
+        ? Math.round(portfolioProjects.reduce((sum, pr) => sum + (pr.completionPercentage || 0), 0) / portfolioProjects.length) 
+        : 0;
+      const healthScore = portfolioProjects.length 
+        ? Math.round((portfolioProjects.filter(pr => pr.health === "Green").length / portfolioProjects.length) * 100) 
+        : 0;
+      return [p.name, portfolioProjects.length, active, completed, budget, `${avgCompletion}%`, `${healthScore}%`];
+    });
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "portfolios_dashboard.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const totalPortfolios = portfolios?.length || 0;
+  const totalProjects = projects?.length || 0;
   const activeProjects = projects?.filter(p => p.status !== "Closing")?.length || 0;
+  const completedProjects = projects?.filter(p => p.status === "Closing")?.length || 0;
   const totalBudget = projects?.reduce((sum, p) => sum + Number(p.budget || 0), 0) || 0;
   const avgCompletionRate = projects?.length 
     ? Math.round(projects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / projects.length)
     : 0;
+  const healthyProjects = projects?.filter(p => p.health === "Green").length || 0;
+  const atRiskProjects = projects?.filter(p => p.health === "Yellow").length || 0;
+  const criticalProjects = projects?.filter(p => p.health === "Red").length || 0;
 
-  const portfolioProjectCounts = portfolios?.map((portfolio, index) => ({
-    name: portfolio.name.length > 15 ? portfolio.name.substring(0, 15) + "..." : portfolio.name,
-    fullName: portfolio.name,
-    projects: projects?.filter(p => p.portfolioId === portfolio.id).length || 0,
-    color: PORTFOLIO_COLORS[index % PORTFOLIO_COLORS.length],
-  })) || [];
-
-  const portfolioBudgets = portfolios?.map((portfolio, index) => ({
-    name: portfolio.name.length > 15 ? portfolio.name.substring(0, 15) + "..." : portfolio.name,
-    fullName: portfolio.name,
-    budget: projects?.filter(p => p.portfolioId === portfolio.id).reduce((sum, p) => sum + Number(p.budget || 0), 0) || 0,
-    color: PORTFOLIO_COLORS[index % PORTFOLIO_COLORS.length],
-  })) || [];
-
-  const portfolioHealthData = portfolios?.map((portfolio, index) => {
+  const portfolioData = portfolios?.map((portfolio, index) => {
     const portfolioProjects = projects?.filter(p => p.portfolioId === portfolio.id) || [];
+    const budget = portfolioProjects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
     const greenCount = portfolioProjects.filter(p => p.health === "Green").length;
-    const totalCount = portfolioProjects.length;
-    const healthPercentage = totalCount > 0 ? Math.round((greenCount / totalCount) * 100) : 0;
+    const healthPercentage = portfolioProjects.length > 0 ? Math.round((greenCount / portfolioProjects.length) * 100) : 0;
+    const avgCompletion = portfolioProjects.length 
+      ? Math.round(portfolioProjects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / portfolioProjects.length) 
+      : 0;
+    
     return {
-      name: portfolio.name.length > 12 ? portfolio.name.substring(0, 12) + "..." : portfolio.name,
-      fullName: portfolio.name,
-      health: healthPercentage,
+      id: portfolio.id,
+      name: portfolio.name,
+      shortName: portfolio.name.length > 12 ? portfolio.name.substring(0, 12) + "..." : portfolio.name,
+      projectCount: portfolioProjects.length,
+      activeCount: portfolioProjects.filter(p => p.status !== "Closing").length,
+      budget,
+      healthPercentage,
+      avgCompletion,
       color: PORTFOLIO_COLORS[index % PORTFOLIO_COLORS.length],
+      projects: portfolioProjects,
     };
   }) || [];
 
+  const portfolioBudgets = portfolioData.filter(p => p.budget > 0);
+  const portfolioProjectCounts = portfolioData.filter(p => p.projectCount > 0);
+
   return (
-    <div className="space-y-8">
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          title="Total Portfolios"
-          value={totalPortfolios}
-          subtitle="Active portfolio groups"
-          icon={FolderKanban}
-          iconColor="text-purple-500"
-          borderColor="border-l-purple-500"
-          href="/portfolios"
-          testId="link-total-portfolios"
-        />
-        <KpiCard
-          title="Active Projects"
-          value={activeProjects}
-          subtitle="Across all portfolios"
-          icon={Target}
-          iconColor="text-blue-500"
-          borderColor="border-l-blue-500"
-          href="/projects"
-          delay={0.2}
-          testId="link-portfolio-active-projects"
-        />
-        <KpiCard
-          title="Avg. Completion"
-          value={`${avgCompletionRate}%`}
-          subtitle="Portfolio-wide progress"
-          icon={TrendingUp}
-          iconColor="text-emerald-500"
-          borderColor="border-l-emerald-500"
-          delay={0.3}
-          testId="text-avg-completion"
-        />
-        <KpiCard
-          title="Total Investment"
-          value={formatBudget(totalBudget)}
-          subtitle="Combined portfolio budget"
-          icon={DollarSign}
-          iconColor="text-amber-500"
-          borderColor="border-l-amber-500"
-          delay={0.4}
-          testId="text-total-investment"
-        />
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <DashboardActionBar title="Portfolios Dashboard" onExportCsv={handleExportCsv} />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <DashboardChartCard
-          title="Projects by Portfolio"
-          description="Distribution of projects across portfolios"
-          href="/portfolios"
-          testId="chart-projects-by-portfolio"
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={portfolioProjectCounts} layout="vertical">
-              <XAxis type="number" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis dataKey="name" type="category" fontSize={12} tickLine={false} axisLine={false} width={100} />
-              <Tooltip
-                cursor={{ fill: 'transparent' }}
-                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                formatter={(value: number, name: string, props: any) => [value, props.payload.fullName]}
-              />
-              <Bar dataKey="projects" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </DashboardChartCard>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card className="p-3 hover-elevate cursor-pointer" onClick={() => setLocation("/portfolios")} data-testid="kpi-total-portfolios">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-1.5 rounded-md bg-purple-500/10">
+              <FolderKanban className="h-3.5 w-3.5 text-purple-500" />
+            </div>
+            <span className="text-xs text-muted-foreground">Portfolios</span>
+          </div>
+          <div className="text-2xl font-bold">{totalPortfolios}</div>
+          <div className="text-xs text-muted-foreground">{totalProjects} projects</div>
+        </Card>
 
-        <DashboardChartCard
-          title="Budget Allocation"
-          description="Budget distribution across portfolios"
-          testId="chart-budget-allocation"
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={portfolioBudgets.filter(p => p.budget > 0)}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={80}
-                paddingAngle={5}
-                dataKey="budget"
-                nameKey="name"
-              >
-                {portfolioBudgets.filter(p => p.budget > 0).map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                formatter={(value: number) => formatBudget(value)}
-              />
-              <Legend verticalAlign="bottom" height={36} />
-            </PieChart>
-          </ResponsiveContainer>
-        </DashboardChartCard>
+        <Card className="p-3 hover-elevate cursor-pointer" onClick={() => setLocation("/projects")} data-testid="kpi-active-projects">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-1.5 rounded-md bg-blue-500/10">
+              <Activity className="h-3.5 w-3.5 text-blue-500" />
+            </div>
+            <span className="text-xs text-muted-foreground">Active</span>
+          </div>
+          <div className="text-2xl font-bold">{activeProjects}</div>
+          <div className="text-xs text-muted-foreground">{completedProjects} completed</div>
+        </Card>
 
-        <DashboardChartCard
-          title="Portfolio Health Scores"
-          description="Percentage of healthy projects per portfolio"
-          testId="chart-portfolio-health"
-          className="md:col-span-2"
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={portfolioHealthData}>
-              <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis fontSize={12} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-              <Tooltip
-                cursor={{ fill: 'transparent' }}
-                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                formatter={(value: number, name: string, props: any) => [`${value}%`, props.payload.fullName]}
-              />
-              <Bar dataKey="health" radius={[4, 4, 0, 0]}>
-                {portfolioHealthData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.health >= 70 ? COLORS.Green : entry.health >= 40 ? COLORS.Yellow : COLORS.Red} 
+        <Card className="p-3 hover-elevate" data-testid="kpi-avg-completion">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-1.5 rounded-md bg-emerald-500/10">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+            </div>
+            <span className="text-xs text-muted-foreground">Avg Progress</span>
+          </div>
+          <div className="text-2xl font-bold">{avgCompletionRate}%</div>
+          <Progress value={avgCompletionRate} className="h-1.5 mt-1" />
+        </Card>
+
+        <Card className="p-3 hover-elevate cursor-pointer" onClick={() => setLocation("/projects")} data-testid="kpi-total-budget">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-1.5 rounded-md bg-amber-500/10">
+              <DollarSign className="h-3.5 w-3.5 text-amber-500" />
+            </div>
+            <span className="text-xs text-muted-foreground">Budget</span>
+          </div>
+          <div className="text-2xl font-bold">{formatBudget(totalBudget)}</div>
+          <div className="text-xs text-muted-foreground">allocated</div>
+        </Card>
+
+        <Card className="p-3 hover-elevate" data-testid="kpi-healthy">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-1.5 rounded-md bg-emerald-500/10">
+              <Target className="h-3.5 w-3.5 text-emerald-500" />
+            </div>
+            <span className="text-xs text-muted-foreground">Healthy</span>
+          </div>
+          <div className="text-2xl font-bold text-emerald-600">{healthyProjects}</div>
+          <div className="text-xs text-muted-foreground">{atRiskProjects} at risk</div>
+        </Card>
+
+        <Card className="p-3 hover-elevate" data-testid="kpi-critical">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-1.5 rounded-md bg-red-500/10">
+              <BarChart3 className="h-3.5 w-3.5 text-red-500" />
+            </div>
+            <span className="text-xs text-muted-foreground">Critical</span>
+          </div>
+          <div className="text-2xl font-bold text-red-500">{criticalProjects}</div>
+          <div className="text-xs text-muted-foreground">need attention</div>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-1" data-testid="chart-projects-by-portfolio">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <FolderKanban className="h-4 w-4 text-muted-foreground" />
+              Projects by Portfolio
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <div className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={portfolioProjectCounts} layout="vertical">
+                  <XAxis type="number" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="shortName" type="category" fontSize={10} tickLine={false} axisLine={false} width={80} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                    formatter={(value: number, name: string, props: any) => [value, props.payload.name]}
                   />
+                  <Bar dataKey="projectCount" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1" data-testid="chart-budget-allocation">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              Budget Allocation
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <div className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={portfolioBudgets} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={4} dataKey="budget">
+                    {portfolioBudgets.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                    formatter={(value: number) => formatBudget(value)}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '10px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1" data-testid="chart-portfolio-health">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Target className="h-4 w-4 text-muted-foreground" />
+              Portfolio Health
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <ScrollArea className="h-[180px]">
+              <div className="space-y-3">
+                {portfolioData.slice(0, 5).map((portfolio) => (
+                  <div key={portfolio.id} className="space-y-1" data-testid={`health-item-${portfolio.id}`}>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium truncate max-w-[140px]" title={portfolio.name}>{portfolio.shortName}</span>
+                      <Badge 
+                        variant="secondary" 
+                        className="text-[10px] h-5"
+                        style={{ 
+                          backgroundColor: `${portfolio.healthPercentage >= 70 ? COLORS.Green : portfolio.healthPercentage >= 40 ? COLORS.Yellow : COLORS.Red}15`,
+                          color: portfolio.healthPercentage >= 70 ? COLORS.Green : portfolio.healthPercentage >= 40 ? COLORS.Yellow : COLORS.Red,
+                        }}
+                      >
+                        {portfolio.healthPercentage}%
+                      </Badge>
+                    </div>
+                    <Progress value={portfolio.healthPercentage} className="h-1.5" />
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>{portfolio.projectCount} projects</span>
+                      <span>{portfolio.avgCompletion}% complete</span>
+                    </div>
+                  </div>
                 ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </DashboardChartCard>
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-4">
+        {portfolioData.slice(0, 4).map((portfolio) => (
+          <Card key={portfolio.id} data-testid={`card-portfolio-${portfolio.id}`}>
+            <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: portfolio.color }} />
+                <CardTitle className="text-sm font-medium">{portfolio.name}</CardTitle>
+                <Badge variant="outline" className="text-[10px] h-5">{portfolio.projectCount} projects</Badge>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-7 text-xs gap-1"
+                data-testid={`button-view-portfolio-${portfolio.id}`} 
+                onClick={() => setLocation(`/portfolios/${portfolio.id}`)}
+              >
+                View All <ArrowRight className="h-3 w-3" />
+              </Button>
+            </CardHeader>
+            <CardContent className="px-4 pb-3">
+              {portfolio.projects.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground text-sm">No projects in this portfolio</div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {portfolio.projects.slice(0, 6).map(project => (
+                    <ProjectCardCompact key={project.id} project={project} showBudget={false} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );
