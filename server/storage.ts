@@ -191,6 +191,7 @@ export interface IStorage {
 
   // Task Resource Assignments
   getTaskResourceAssignments(taskId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
+  getAllTaskResourceAssignments(organizationId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
   addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment>;
   removeTaskResourceAssignment(taskId: number, resourceId: number): Promise<void>;
   updateTaskResourceAssignments(taskId: number, resourceIds: number[]): Promise<void>;
@@ -1500,6 +1501,18 @@ export class DatabaseStorage implements IStorage {
       .from(taskResourceAssignments)
       .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
       .where(eq(taskResourceAssignments.taskId, taskId));
+    
+    return assignments.map(a => ({
+      ...a.task_resource_assignments,
+      resource: a.resources
+    }));
+  }
+
+  async getAllTaskResourceAssignments(organizationId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]> {
+    const assignments = await db.select()
+      .from(taskResourceAssignments)
+      .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
+      .where(eq(resources.organizationId, organizationId));
     
     return assignments.map(a => ({
       ...a.task_resource_assignments,
