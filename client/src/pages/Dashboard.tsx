@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 
 const DASHBOARD_TABS = [
-  { id: "portfolios", label: "Portfolios", icon: FolderKanban },
   { id: "executive", label: "Executive", icon: LayoutDashboard },
+  { id: "portfolios", label: "Portfolios", icon: FolderKanban },
   { id: "risks-issues", label: "Risks & Issues", icon: ShieldAlert },
   { id: "resource", label: "Resource", icon: Users },
   { id: "resource-management", label: "Resource Management", icon: UserCog },
@@ -98,12 +98,12 @@ export default function Dashboard() {
           })}
         </TabsList>
 
-        <TabsContent value="portfolios" className="mt-6" data-testid="content-portfolios">
-          <PortfoliosDashboard />
-        </TabsContent>
-
         <TabsContent value="executive" className="mt-6" data-testid="content-executive">
           <ExecutiveDashboard />
+        </TabsContent>
+
+        <TabsContent value="portfolios" className="mt-6" data-testid="content-portfolios">
+          <PortfoliosDashboard />
         </TabsContent>
 
         <TabsContent value="risks-issues" className="mt-6" data-testid="content-risks-issues">

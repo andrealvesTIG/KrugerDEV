@@ -1,5 +1,7 @@
 export { KpiCard } from "./KpiCard";
 export { DashboardChartCard } from "./DashboardChartCard";
+export { DashboardActionBar } from "./DashboardActionBar";
+export { ProjectCardCompact, ProjectCardCompactSkeleton } from "./ProjectCardCompact";
 export { PortfoliosDashboard } from "./PortfoliosDashboard";
 export { ExecutiveDashboard } from "./ExecutiveDashboard";
 export { RisksIssuesDashboard } from "./RisksIssuesDashboard";
