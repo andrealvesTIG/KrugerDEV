@@ -11,6 +11,11 @@ interface DashboardData {
   generatedAt: string;
   metrics: Record<string, number | string>;
   items?: Array<Record<string, any>>;
+  charts?: {
+    health?: { healthy: number; atRisk: number; critical: number };
+    status?: { planning: number; execution: number; closing: number; initiation: number };
+    priorities?: { critical: number; high: number; medium: number; low: number };
+  };
 }
 
 const COLORS = {
@@ -34,20 +39,21 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
   
   const slide = pptx.addSlide();
   
+  // Header with gradient-like background
   slide.addShape("rect", {
     x: 0,
     y: 0,
     w: "100%",
-    h: 0.7,
+    h: 0.6,
     fill: { color: COLORS.primary },
   });
   
   slide.addText(data.title, {
     x: 0.3,
-    y: 0.15,
+    y: 0.12,
     w: 6,
-    h: 0.4,
-    fontSize: 20,
+    h: 0.36,
+    fontSize: 18,
     bold: true,
     color: COLORS.white,
     fontFace: "Arial",
@@ -55,68 +61,292 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
   
   slide.addText(`Generated: ${data.generatedAt}`, {
     x: 6.5,
-    y: 0.2,
+    y: 0.18,
     w: 3,
-    h: 0.3,
-    fontSize: 9,
+    h: 0.24,
+    fontSize: 8,
     color: COLORS.white,
     fontFace: "Arial",
     align: "right",
   });
   
+  // KPI Cards Row - styled like web dashboard
   const metrics = Object.entries(data.metrics);
   const metricsPerRow = 6;
   const boxWidth = 1.5;
-  const boxHeight = 0.55;
-  const startY = 0.85;
-  const gapX = 0.08;
-  const gapY = 0.08;
+  const boxHeight = 0.6;
+  const startY = 0.72;
+  const gapX = 0.1;
   
-  metrics.slice(0, 12).forEach(([label, value], index) => {
-    const row = Math.floor(index / metricsPerRow);
+  const metricColors = [COLORS.primary, COLORS.red, "9333ea", COLORS.green, "f59e0b", "06b6d4"];
+  
+  metrics.slice(0, 6).forEach(([label, value], index) => {
     const col = index % metricsPerRow;
     const x = 0.3 + col * (boxWidth + gapX);
-    const y = startY + row * (boxHeight + gapY);
+    const y = startY;
     
+    // Card background
     slide.addShape("roundRect", {
       x,
       y,
       w: boxWidth,
       h: boxHeight,
-      fill: { color: COLORS.lightGray },
+      fill: { color: COLORS.white },
       line: { color: "e5e7eb", pt: 0.5 },
+      rectRadius: 0.05,
+    });
+    
+    // Color accent bar
+    slide.addShape("rect", {
+      x,
+      y,
+      w: 0.04,
+      h: boxHeight,
+      fill: { color: metricColors[index] || COLORS.primary },
     });
     
     slide.addText(String(value), {
-      x,
-      y: y + 0.05,
-      w: boxWidth,
-      h: 0.25,
-      fontSize: 14,
+      x: x + 0.08,
+      y: y + 0.08,
+      w: boxWidth - 0.12,
+      h: 0.28,
+      fontSize: 16,
       bold: true,
       color: COLORS.dark,
       fontFace: "Arial",
-      align: "center",
     });
     
-    slide.addText(label.length > 15 ? label.slice(0, 14) + "…" : label, {
-      x,
-      y: y + 0.3,
-      w: boxWidth,
-      h: 0.2,
+    slide.addText(label.length > 18 ? label.slice(0, 17) + "…" : label, {
+      x: x + 0.08,
+      y: y + 0.36,
+      w: boxWidth - 0.12,
+      h: 0.18,
       fontSize: 7,
       color: COLORS.gray,
       fontFace: "Arial",
-      align: "center",
     });
   });
   
-  const metricsRows = Math.ceil(Math.min(metrics.length, 12) / metricsPerRow);
-  const tableStartY = startY + metricsRows * (boxHeight + gapY) + 0.15;
+  const chartStartY = startY + boxHeight + 0.18;
+  
+  // Add charts section if chart data is available
+  if (data.charts) {
+    const chartWidth = 3.1;
+    const chartHeight = 1.8;
+    
+    // Health Overview Pie Chart
+    if (data.charts.health) {
+      const { healthy, atRisk, critical } = data.charts.health;
+      const total = healthy + atRisk + critical;
+      
+      if (total > 0) {
+        // Chart card background
+        slide.addShape("roundRect", {
+          x: 0.3,
+          y: chartStartY,
+          w: chartWidth,
+          h: chartHeight,
+          fill: { color: COLORS.white },
+          line: { color: "e5e7eb", pt: 0.5 },
+          rectRadius: 0.05,
+        });
+        
+        slide.addText("Health Overview", {
+          x: 0.42,
+          y: chartStartY + 0.08,
+          w: chartWidth - 0.24,
+          h: 0.24,
+          fontSize: 10,
+          bold: true,
+          color: COLORS.dark,
+          fontFace: "Arial",
+        });
+        
+        // Pie chart
+        slide.addChart("pie", [
+          {
+            name: "Health",
+            labels: ["Healthy", "At Risk", "Critical"],
+            values: [healthy, atRisk, critical],
+          },
+        ], {
+          x: 0.4,
+          y: chartStartY + 0.35,
+          w: 1.5,
+          h: 1.3,
+          chartColors: [COLORS.green, COLORS.yellow, COLORS.red],
+          showLegend: false,
+          showValue: false,
+          showPercent: true,
+          showTitle: false,
+          holeSize: 50,
+        });
+        
+        // Legend
+        const legendItems = [
+          { label: "Healthy", value: healthy, color: COLORS.green },
+          { label: "At Risk", value: atRisk, color: COLORS.yellow },
+          { label: "Critical", value: critical, color: COLORS.red },
+        ];
+        
+        legendItems.forEach((item, i) => {
+          slide.addShape("rect", {
+            x: 2.0,
+            y: chartStartY + 0.5 + i * 0.35,
+            w: 0.15,
+            h: 0.15,
+            fill: { color: item.color },
+          });
+          slide.addText(`${item.label}: ${item.value}`, {
+            x: 2.2,
+            y: chartStartY + 0.48 + i * 0.35,
+            w: 1,
+            h: 0.2,
+            fontSize: 8,
+            color: COLORS.dark,
+            fontFace: "Arial",
+          });
+        });
+      }
+    }
+    
+    // Status Bar Chart
+    if (data.charts.status) {
+      const { planning, execution, closing, initiation } = data.charts.status;
+      
+      slide.addShape("roundRect", {
+        x: 0.3 + chartWidth + 0.12,
+        y: chartStartY,
+        w: chartWidth,
+        h: chartHeight,
+        fill: { color: COLORS.white },
+        line: { color: "e5e7eb", pt: 0.5 },
+        rectRadius: 0.05,
+      });
+      
+      slide.addText("Project Pipeline", {
+        x: 0.3 + chartWidth + 0.24,
+        y: chartStartY + 0.08,
+        w: chartWidth - 0.24,
+        h: 0.24,
+        fontSize: 10,
+        bold: true,
+        color: COLORS.dark,
+        fontFace: "Arial",
+      });
+      
+      slide.addChart("bar", [
+        {
+          name: "Projects",
+          labels: ["Initiation", "Planning", "Execution", "Closing"],
+          values: [initiation, planning, execution, closing],
+        },
+      ], {
+        x: 0.3 + chartWidth + 0.2,
+        y: chartStartY + 0.35,
+        w: chartWidth - 0.3,
+        h: 1.3,
+        barDir: "bar",
+        chartColors: [COLORS.primary],
+        showLegend: false,
+        showValue: true,
+        valAxisHidden: true,
+        catAxisHidden: false,
+        showTitle: false,
+        valGridLine: { style: "none" },
+        catAxisLineShow: false,
+      });
+    }
+    
+    // Priorities Chart
+    if (data.charts.priorities) {
+      const { critical, high, medium, low } = data.charts.priorities;
+      
+      slide.addShape("roundRect", {
+        x: 0.3 + (chartWidth + 0.12) * 2,
+        y: chartStartY,
+        w: chartWidth,
+        h: chartHeight,
+        fill: { color: COLORS.white },
+        line: { color: "e5e7eb", pt: 0.5 },
+        rectRadius: 0.05,
+      });
+      
+      slide.addText("Risks by Priority", {
+        x: 0.3 + (chartWidth + 0.12) * 2 + 0.12,
+        y: chartStartY + 0.08,
+        w: chartWidth - 0.24,
+        h: 0.24,
+        fontSize: 10,
+        bold: true,
+        color: COLORS.dark,
+        fontFace: "Arial",
+      });
+      
+      slide.addChart("doughnut", [
+        {
+          name: "Priority",
+          labels: ["Critical", "High", "Medium", "Low"],
+          values: [critical, high, medium, low],
+        },
+      ], {
+        x: 0.3 + (chartWidth + 0.12) * 2 + 0.1,
+        y: chartStartY + 0.35,
+        w: 1.4,
+        h: 1.3,
+        chartColors: [COLORS.red, "f97316", COLORS.yellow, COLORS.green],
+        showLegend: false,
+        showValue: false,
+        showPercent: true,
+        holeSize: 50,
+      });
+      
+      // Legend
+      const priorityItems = [
+        { label: "Critical", value: critical, color: COLORS.red },
+        { label: "High", value: high, color: "f97316" },
+        { label: "Medium", value: medium, color: COLORS.yellow },
+        { label: "Low", value: low, color: COLORS.green },
+      ];
+      
+      priorityItems.forEach((item, i) => {
+        slide.addShape("rect", {
+          x: 0.3 + (chartWidth + 0.12) * 2 + 1.7,
+          y: chartStartY + 0.42 + i * 0.28,
+          w: 0.12,
+          h: 0.12,
+          fill: { color: item.color },
+        });
+        slide.addText(`${item.label}: ${item.value}`, {
+          x: 0.3 + (chartWidth + 0.12) * 2 + 1.88,
+          y: chartStartY + 0.4 + i * 0.28,
+          w: 1,
+          h: 0.16,
+          fontSize: 7,
+          color: COLORS.dark,
+          fontFace: "Arial",
+        });
+      });
+    }
+  }
+  
+  // Data Table
+  const tableStartY = data.charts ? chartStartY + 1.95 : chartStartY;
   
   if (data.items && data.items.length > 0) {
     const tableData: pptxgenjs.TableRow[] = [];
     const headers = Object.keys(data.items[0]).slice(0, 6);
+    
+    slide.addText("Top Items", {
+      x: 0.3,
+      y: tableStartY,
+      w: 3,
+      h: 0.22,
+      fontSize: 10,
+      bold: true,
+      color: COLORS.dark,
+      fontFace: "Arial",
+    });
     
     tableData.push(
       headers.map((h) => ({
@@ -127,21 +357,24 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
           color: COLORS.white,
           fontSize: 7,
           fontFace: "Arial",
+          valign: "middle" as const,
         },
       }))
     );
     
-    const maxRows = Math.min(data.items.length, 8);
-    data.items.slice(0, maxRows).forEach((item) => {
+    const maxRows = Math.min(data.items.length, 6);
+    data.items.slice(0, maxRows).forEach((item, rowIndex) => {
       tableData.push(
         headers.map((h) => {
           const val = String(item[h] ?? "-");
           return {
-            text: val.length > 20 ? val.slice(0, 18) + "…" : val,
+            text: val.length > 22 ? val.slice(0, 20) + "…" : val,
             options: {
               fontSize: 6,
               fontFace: "Arial",
               color: COLORS.dark,
+              fill: { color: rowIndex % 2 === 0 ? COLORS.white : COLORS.lightGray },
+              valign: "middle" as const,
             },
           };
         })
@@ -150,27 +383,106 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
     
     slide.addTable(tableData, {
       x: 0.3,
-      y: tableStartY,
+      y: tableStartY + 0.24,
       w: 9.4,
       colW: headers.map(() => 9.4 / headers.length),
       border: { pt: 0.3, color: "e5e7eb" },
-      fill: { color: COLORS.white },
-      rowH: 0.22,
+      rowH: 0.2,
     });
   }
   
+  // Footer
+  slide.addShape("rect", {
+    x: 0,
+    y: 5.35,
+    w: "100%",
+    h: 0.15,
+    fill: { color: COLORS.lightGray },
+  });
+  
   slide.addText("FridayReport.AI", {
     x: 0.3,
-    y: 5.1,
+    y: 5.35,
     w: 3,
-    h: 0.2,
-    fontSize: 8,
+    h: 0.15,
+    fontSize: 6,
     color: COLORS.gray,
     fontFace: "Arial",
   });
   
   const output = await pptx.write({ outputType: "nodebuffer" });
   return Buffer.from(output as ArrayBuffer);
+}
+
+// Helper function to draw a simple pie chart in PDF
+function drawPieChart(
+  doc: PDFKit.PDFDocument,
+  x: number,
+  y: number,
+  radius: number,
+  data: Array<{ value: number; color: string; label: string }>
+) {
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+  if (total === 0) return;
+  
+  let startAngle = -Math.PI / 2;
+  
+  data.forEach((segment) => {
+    if (segment.value <= 0) return;
+    const sliceAngle = (segment.value / total) * 2 * Math.PI;
+    const endAngle = startAngle + sliceAngle;
+    
+    // Draw pie segment
+    doc.save();
+    doc.fillColor(segment.color);
+    doc.moveTo(x, y);
+    doc.lineTo(x + radius * Math.cos(startAngle), y + radius * Math.sin(startAngle));
+    
+    // Draw arc
+    for (let angle = startAngle; angle <= endAngle; angle += 0.05) {
+      doc.lineTo(x + radius * Math.cos(angle), y + radius * Math.sin(angle));
+    }
+    doc.lineTo(x + radius * Math.cos(endAngle), y + radius * Math.sin(endAngle));
+    doc.lineTo(x, y);
+    doc.fill();
+    doc.restore();
+    
+    startAngle = endAngle;
+  });
+}
+
+// Helper function to draw bar chart in PDF
+function drawBarChart(
+  doc: PDFKit.PDFDocument,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  data: Array<{ value: number; label: string; color: string }>
+) {
+  const maxValue = Math.max(...data.map(d => d.value), 1);
+  const barHeight = (height - 10) / data.length - 5;
+  const labelWidth = 55;
+  const chartWidth = width - labelWidth - 30;
+  
+  data.forEach((item, i) => {
+    const barY = y + i * (barHeight + 5);
+    const barWidth = (item.value / maxValue) * chartWidth;
+    
+    // Label
+    doc.fontSize(7).fillColor("#1f2937").text(item.label, x, barY + 3, { width: labelWidth });
+    
+    // Bar background
+    doc.roundedRect(x + labelWidth, barY, chartWidth, barHeight, 2).fill("#e5e7eb");
+    
+    // Bar fill
+    if (barWidth > 0) {
+      doc.roundedRect(x + labelWidth, barY, barWidth, barHeight, 2).fill(item.color);
+    }
+    
+    // Value
+    doc.fontSize(7).fillColor("#1f2937").text(String(item.value), x + labelWidth + chartWidth + 4, barY + 3);
+  });
 }
 
 export async function generateDashboardPdf(data: DashboardData): Promise<Buffer> {
@@ -182,58 +494,167 @@ export async function generateDashboardPdf(data: DashboardData): Promise<Buffer>
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
     
-    doc.rect(0, 0, doc.page.width, 60).fill("#2563eb");
-    doc.fontSize(20).fillColor("#ffffff").text(data.title, 40, 20, { width: 400 });
-    doc.fontSize(9).fillColor("#ffffff").text(`Generated: ${data.generatedAt}`, 400, 25, { align: "right", width: 155 });
-    
-    let yPos = 80;
-    const metrics = Object.entries(data.metrics);
-    const boxWidth = 85;
-    const boxHeight = 45;
-    const boxesPerRow = 6;
+    const pageWidth = doc.page.width;
     const startX = 40;
     
-    metrics.slice(0, 12).forEach(([label, value], index) => {
-      const row = Math.floor(index / boxesPerRow);
+    // Header
+    doc.rect(0, 0, pageWidth, 55).fill("#2563eb");
+    doc.fontSize(18).fillColor("#ffffff").text(data.title, 40, 18, { width: 350 });
+    doc.fontSize(8).fillColor("#ffffff").text(`Generated: ${data.generatedAt}`, 400, 22, { align: "right", width: 155 });
+    
+    let yPos = 70;
+    
+    // KPI Cards - styled like web dashboard
+    const metrics = Object.entries(data.metrics);
+    const boxWidth = 82;
+    const boxHeight = 50;
+    const boxesPerRow = 6;
+    const boxGap = 5;
+    
+    const metricColors = ["#2563eb", "#ef4444", "#9333ea", "#22c55e", "#f59e0b", "#06b6d4"];
+    
+    metrics.slice(0, 6).forEach(([label, value], index) => {
       const col = index % boxesPerRow;
-      const x = startX + col * (boxWidth + 5);
-      const y = yPos + row * (boxHeight + 5);
+      const x = startX + col * (boxWidth + boxGap);
+      const boxY = yPos;
       
-      doc.roundedRect(x, y, boxWidth, boxHeight, 4).fill("#f3f4f6");
-      doc.fontSize(14).fillColor("#1f2937").text(String(value), x, y + 8, { width: boxWidth, align: "center" });
-      const shortLabel = label.length > 12 ? label.slice(0, 11) + "…" : label;
-      doc.fontSize(7).fillColor("#6b7280").text(shortLabel, x, y + 28, { width: boxWidth, align: "center" });
+      // Card background with border
+      doc.roundedRect(x, boxY, boxWidth, boxHeight, 4).fillAndStroke("#ffffff", "#e5e7eb");
+      
+      // Color accent bar on left
+      doc.rect(x, boxY, 3, boxHeight).fill(metricColors[index] || "#2563eb");
+      
+      // Value
+      doc.fontSize(14).fillColor("#1f2937").text(String(value), x + 6, boxY + 10, { width: boxWidth - 10 });
+      
+      // Label
+      const shortLabel = label.length > 14 ? label.slice(0, 13) + "…" : label;
+      doc.fontSize(7).fillColor("#6b7280").text(shortLabel, x + 6, boxY + 32, { width: boxWidth - 10 });
     });
     
-    const metricsRows = Math.ceil(Math.min(metrics.length, 12) / boxesPerRow);
-    yPos += metricsRows * (boxHeight + 5) + 20;
+    yPos += boxHeight + 15;
     
-    if (data.items && data.items.length > 0) {
-      const headers = Object.keys(data.items[0]).slice(0, 6);
-      const colWidth = (doc.page.width - 80) / headers.length;
+    // Charts Section
+    if (data.charts) {
+      const chartBoxWidth = 170;
+      const chartBoxHeight = 120;
       
-      doc.rect(startX, yPos, doc.page.width - 80, 18).fill("#2563eb");
+      // Health Overview Chart
+      if (data.charts.health) {
+        const { healthy, atRisk, critical } = data.charts.health;
+        const total = healthy + atRisk + critical;
+        
+        if (total > 0) {
+          // Chart card
+          doc.roundedRect(startX, yPos, chartBoxWidth, chartBoxHeight, 4).fillAndStroke("#ffffff", "#e5e7eb");
+          doc.fontSize(9).fillColor("#1f2937").text("Health Overview", startX + 10, yPos + 8);
+          
+          // Pie chart
+          drawPieChart(doc, startX + 55, yPos + 65, 35, [
+            { value: healthy, color: "#22c55e", label: "Healthy" },
+            { value: atRisk, color: "#eab308", label: "At Risk" },
+            { value: critical, color: "#ef4444", label: "Critical" },
+          ]);
+          
+          // Legend
+          const legendItems = [
+            { label: "Healthy", value: healthy, color: "#22c55e" },
+            { label: "At Risk", value: atRisk, color: "#eab308" },
+            { label: "Critical", value: critical, color: "#ef4444" },
+          ];
+          
+          legendItems.forEach((item, i) => {
+            doc.rect(startX + 105, yPos + 35 + i * 18, 10, 10).fill(item.color);
+            doc.fontSize(7).fillColor("#1f2937").text(`${item.label}: ${item.value}`, startX + 120, yPos + 37 + i * 18);
+          });
+        }
+      }
+      
+      // Status Bar Chart
+      if (data.charts.status) {
+        const { planning, execution, closing, initiation } = data.charts.status;
+        const chartX = startX + chartBoxWidth + 8;
+        
+        doc.roundedRect(chartX, yPos, chartBoxWidth, chartBoxHeight, 4).fillAndStroke("#ffffff", "#e5e7eb");
+        doc.fontSize(9).fillColor("#1f2937").text("Project Pipeline", chartX + 10, yPos + 8);
+        
+        drawBarChart(doc, chartX + 8, yPos + 25, chartBoxWidth - 16, chartBoxHeight - 35, [
+          { value: initiation, label: "Initiation", color: "#2563eb" },
+          { value: planning, label: "Planning", color: "#2563eb" },
+          { value: execution, label: "Execution", color: "#2563eb" },
+          { value: closing, label: "Closing", color: "#2563eb" },
+        ]);
+      }
+      
+      // Priorities Chart
+      if (data.charts.priorities) {
+        const { critical, high, medium, low } = data.charts.priorities;
+        const total = critical + high + medium + low;
+        const chartX = startX + (chartBoxWidth + 8) * 2;
+        
+        if (total > 0) {
+          doc.roundedRect(chartX, yPos, chartBoxWidth, chartBoxHeight, 4).fillAndStroke("#ffffff", "#e5e7eb");
+          doc.fontSize(9).fillColor("#1f2937").text("Risks by Priority", chartX + 10, yPos + 8);
+          
+          drawPieChart(doc, chartX + 55, yPos + 65, 35, [
+            { value: critical, color: "#ef4444", label: "Critical" },
+            { value: high, color: "#f97316", label: "High" },
+            { value: medium, color: "#eab308", label: "Medium" },
+            { value: low, color: "#22c55e", label: "Low" },
+          ]);
+          
+          const priorityItems = [
+            { label: "Critical", value: critical, color: "#ef4444" },
+            { label: "High", value: high, color: "#f97316" },
+            { label: "Medium", value: medium, color: "#eab308" },
+            { label: "Low", value: low, color: "#22c55e" },
+          ];
+          
+          priorityItems.forEach((item, i) => {
+            doc.rect(chartX + 105, yPos + 28 + i * 16, 8, 8).fill(item.color);
+            doc.fontSize(6).fillColor("#1f2937").text(`${item.label}: ${item.value}`, chartX + 118, yPos + 29 + i * 16);
+          });
+        }
+      }
+      
+      yPos += chartBoxHeight + 15;
+    }
+    
+    // Data Table
+    if (data.items && data.items.length > 0) {
+      doc.fontSize(10).fillColor("#1f2937").text("Top Items", startX, yPos);
+      yPos += 15;
+      
+      const headers = Object.keys(data.items[0]).slice(0, 6);
+      const colWidth = (pageWidth - 80) / headers.length;
+      
+      // Table header
+      doc.roundedRect(startX, yPos, pageWidth - 80, 18, 2).fill("#2563eb");
       headers.forEach((h, i) => {
         const headerText = h.replace(/([A-Z])/g, " $1").trim();
-        doc.fontSize(8).fillColor("#ffffff").text(headerText.slice(0, 12), startX + i * colWidth + 3, yPos + 5, { width: colWidth - 6 });
+        doc.fontSize(8).fillColor("#ffffff").text(headerText.slice(0, 14), startX + i * colWidth + 4, yPos + 5, { width: colWidth - 8 });
       });
       yPos += 18;
       
-      const maxRows = Math.min(data.items.length, 15);
+      // Table rows
+      const maxRows = Math.min(data.items.length, 12);
       data.items.slice(0, maxRows).forEach((item, rowIdx) => {
         const bgColor = rowIdx % 2 === 0 ? "#ffffff" : "#f9fafb";
-        doc.rect(startX, yPos, doc.page.width - 80, 16).fill(bgColor);
+        doc.rect(startX, yPos, pageWidth - 80, 16).fill(bgColor);
+        doc.rect(startX, yPos, pageWidth - 80, 16).stroke("#e5e7eb");
         
         headers.forEach((h, i) => {
           const val = String(item[h] ?? "-");
-          const displayVal = val.length > 18 ? val.slice(0, 16) + "…" : val;
-          doc.fontSize(7).fillColor("#1f2937").text(displayVal, startX + i * colWidth + 3, yPos + 4, { width: colWidth - 6 });
+          const displayVal = val.length > 20 ? val.slice(0, 18) + "…" : val;
+          doc.fontSize(7).fillColor("#1f2937").text(displayVal, startX + i * colWidth + 4, yPos + 5, { width: colWidth - 8 });
         });
         yPos += 16;
       });
     }
     
-    doc.fontSize(8).fillColor("#6b7280").text("FridayReport.AI", 40, doc.page.height - 30);
+    // Footer
+    doc.rect(0, doc.page.height - 25, pageWidth, 25).fill("#f3f4f6");
+    doc.fontSize(7).fillColor("#6b7280").text("FridayReport.AI", 40, doc.page.height - 17);
     
     doc.end();
   });
@@ -259,6 +680,35 @@ export async function getDashboardDataForExport(
       const criticalCount = projects.filter((p: Project) => p.health === "Red").length;
       const totalBudget = projects.reduce((sum: number, p: Project) => sum + Number(p.budget || 0), 0);
       
+      // Get status counts for pipeline chart
+      const initiationCount = projects.filter((p: Project) => p.status === "Initiation").length;
+      const planningCount = projects.filter((p: Project) => p.status === "Planning").length;
+      const executionCount = projects.filter((p: Project) => p.status === "Execution").length;
+      const closingCount = projects.filter((p: Project) => p.status === "Closing").length;
+      
+      // Get risks for priority chart
+      let allRisks: Risk[] = [];
+      for (const project of projects.slice(0, 20)) {
+        try {
+          const projectRisks = await storage.getRisks(project.id);
+          allRisks = allRisks.concat(projectRisks);
+        } catch (e) { /* ignore */ }
+      }
+      
+      // Each risk goes into exactly one bucket based on highest severity
+      let criticalRisks = 0, highRisks = 0, mediumRisks = 0, lowRisks = 0;
+      allRisks.forEach((r: Risk) => {
+        if (r.probability === "High" && r.impact === "High") {
+          criticalRisks++;
+        } else if (r.probability === "High" || r.impact === "High") {
+          highRisks++;
+        } else if (r.probability === "Medium" || r.impact === "Medium") {
+          mediumRisks++;
+        } else {
+          lowRisks++;
+        }
+      });
+      
       return {
         type: "executive",
         organizationId,
@@ -271,6 +721,11 @@ export async function getDashboardDataForExport(
           "Critical": criticalCount,
           "Total Budget": `$${(totalBudget / 1000000).toFixed(1)}M`,
           "Avg Completion": `${Math.round(projects.reduce((sum: number, p: Project) => sum + (p.completionPercentage || 0), 0) / (projects.length || 1))}%`,
+        },
+        charts: {
+          health: { healthy: healthyCount, atRisk: atRiskCount, critical: criticalCount },
+          status: { initiation: initiationCount, planning: planningCount, execution: executionCount, closing: closingCount },
+          priorities: { critical: criticalRisks, high: highRisks, medium: mediumRisks, low: lowRisks },
         },
         items: projects.slice(0, 10).map((p: Project) => ({
           Name: p.name,
@@ -286,6 +741,17 @@ export async function getDashboardDataForExport(
       const portfolios: Portfolio[] = await storage.getPortfolios(organizationId);
       const projects: Project[] = await storage.getProjects(organizationId);
       
+      // Health distribution across all projects
+      const healthyCount = projects.filter((p: Project) => p.health === "Green").length;
+      const atRiskCount = projects.filter((p: Project) => p.health === "Yellow").length;
+      const criticalCount = projects.filter((p: Project) => p.health === "Red").length;
+      
+      // Status distribution
+      const initiationCount = projects.filter((p: Project) => p.status === "Initiation").length;
+      const planningCount = projects.filter((p: Project) => p.status === "Planning").length;
+      const executionCount = projects.filter((p: Project) => p.status === "Execution").length;
+      const closingCount = projects.filter((p: Project) => p.status === "Closing").length;
+      
       return {
         type: "portfolios",
         organizationId,
@@ -294,7 +760,14 @@ export async function getDashboardDataForExport(
         metrics: {
           "Total Portfolios": portfolios.length,
           "Total Projects": projects.length,
-          "Avg Projects/Portfolio": portfolios.length ? Math.round(projects.length / portfolios.length) : 0,
+          "Healthy": healthyCount,
+          "At Risk": atRiskCount,
+          "Critical": criticalCount,
+          "Avg Projects": portfolios.length ? Math.round(projects.length / portfolios.length) : 0,
+        },
+        charts: {
+          health: { healthy: healthyCount, atRisk: atRiskCount, critical: criticalCount },
+          status: { initiation: initiationCount, planning: planningCount, execution: executionCount, closing: closingCount },
         },
         items: portfolios.map((p: Portfolio) => ({
           Name: p.name,
@@ -310,14 +783,34 @@ export async function getDashboardDataForExport(
       let allIssues: Issue[] = [];
       
       for (const project of projects) {
-        const projectRisks = await storage.getRisks(project.id);
-        const projectIssues = await storage.getIssues(project.id);
-        allRisks = allRisks.concat(projectRisks);
-        allIssues = allIssues.concat(projectIssues);
+        try {
+          const projectRisks = await storage.getRisks(project.id);
+          const projectIssues = await storage.getIssues(project.id);
+          allRisks = allRisks.concat(projectRisks);
+          allIssues = allIssues.concat(projectIssues);
+        } catch (e) { /* ignore */ }
       }
       
-      const highRisks = allRisks.filter((r: Risk) => r.probability === "High" || r.impact === "High").length;
+      // Each risk goes into exactly one bucket based on highest severity
+      let criticalRisks = 0, highRisks = 0, mediumRisks = 0, lowRisks = 0;
+      allRisks.forEach((r: Risk) => {
+        if (r.probability === "High" && r.impact === "High") {
+          criticalRisks++;
+        } else if (r.probability === "High" || r.impact === "High") {
+          highRisks++;
+        } else if (r.probability === "Medium" || r.impact === "Medium") {
+          mediumRisks++;
+        } else {
+          lowRisks++;
+        }
+      });
+      
       const openIssues = allIssues.filter((i: Issue) => i.status !== "Closed" && i.status !== "Resolved").length;
+      
+      // Health counts for context
+      const healthyCount = projects.filter((p: Project) => p.health === "Green").length;
+      const atRiskCount = projects.filter((p: Project) => p.health === "Yellow").length;
+      const criticalProjects = projects.filter((p: Project) => p.health === "Red").length;
       
       return {
         type: "risks-issues",
@@ -326,10 +819,15 @@ export async function getDashboardDataForExport(
         generatedAt,
         metrics: {
           "Total Risks": allRisks.length,
-          "High Priority Risks": highRisks,
+          "High Priority": criticalRisks + highRisks,
           "Total Issues": allIssues.length,
           "Open Issues": openIssues,
           "Blockers": allIssues.filter((i: Issue) => i.priority === "Critical").length,
+          "Projects": projects.length,
+        },
+        charts: {
+          health: { healthy: healthyCount, atRisk: atRiskCount, critical: criticalProjects },
+          priorities: { critical: criticalRisks, high: highRisks, medium: mediumRisks, low: lowRisks },
         },
         items: [
           ...allRisks.slice(0, 5).map((r: Risk) => ({
