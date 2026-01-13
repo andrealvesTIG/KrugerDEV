@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Share2, Copy, Table, Loader2, FileSpreadsheet, Mail } from "lucide-react";
+import { Download, Share2, Copy, Table, Loader2, FileSpreadsheet, FileText, Mail } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { ShareReportDialog } from "./ShareReportDialog";
 
@@ -18,8 +18,8 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
   const { toast } = useToast();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
-  const exportPptxMutation = useMutation({
-    mutationFn: async () => {
+  const exportMutation = useMutation({
+    mutationFn: async (format: "pptx" | "pdf") => {
       if (!organizationId || organizationId === 0) {
         throw new Error("No organization selected");
       }
@@ -27,25 +27,25 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ format: "pptx", organizationId }),
+        body: JSON.stringify({ format, organizationId }),
       });
       if (!response.ok) {
         throw new Error("Export failed");
       }
-      return response.blob();
+      return { blob: await response.blob(), format };
     },
-    onSuccess: (blob) => {
+    onSuccess: ({ blob, format }) => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${dashboardType}-dashboard.pptx`;
+      a.download = `${dashboardType}-dashboard.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       toast({
         title: "Export Complete",
-        description: "PowerPoint has been downloaded",
+        description: format === "pptx" ? "PowerPoint has been downloaded" : "PDF has been downloaded",
       });
     },
     onError: (error: Error) => {
@@ -53,7 +53,7 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
         title: "Export Failed",
         description: error.message === "No organization selected" 
           ? "Please select an organization first" 
-          : "Could not generate PowerPoint",
+          : "Could not generate export",
         variant: "destructive",
       });
     },
@@ -77,7 +77,7 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
     });
   };
 
-  const isExporting = exportPptxMutation.isPending;
+  const isExporting = exportMutation.isPending;
   const isOrgReady = organizationId && organizationId > 0;
 
   return (
@@ -92,7 +92,15 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem 
-              onClick={() => exportPptxMutation.mutate()} 
+              onClick={() => exportMutation.mutate("pdf")} 
+              disabled={isExporting || !isOrgReady}
+              data-testid="menu-export-pdf"
+            >
+              <FileText className="h-4 w-4 mr-2 text-red-500" />
+              Export as PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => exportMutation.mutate("pptx")} 
               disabled={isExporting || !isOrgReady}
               data-testid="menu-export-pptx"
             >

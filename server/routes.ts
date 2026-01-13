@@ -7804,7 +7804,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
         return res.status(400).json({ message: 'Organization ID is required' });
       }
       
-      const { getDashboardDataForExport, generateDashboardPowerPoint, generateDashboardHTML } = await import('./services/dashboardExport');
+      const { getDashboardDataForExport, generateDashboardPowerPoint, generateDashboardPdf, generateDashboardHTML } = await import('./services/dashboardExport');
       const data = await getDashboardDataForExport(type, organizationId);
       
       if (format === 'pptx') {
@@ -7812,12 +7812,17 @@ Return ONLY valid JSON, no markdown or explanations.`;
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
         res.setHeader('Content-Disposition', `attachment; filename="${type}-dashboard.pptx"`);
         res.send(buffer);
+      } else if (format === 'pdf') {
+        const buffer = await generateDashboardPdf(data);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${type}-dashboard.pdf"`);
+        res.send(buffer);
       } else if (format === 'html') {
         const html = generateDashboardHTML(data);
         res.setHeader('Content-Type', 'text/html');
         res.send(html);
       } else {
-        res.status(400).json({ message: 'Invalid format. Use pptx or html' });
+        res.status(400).json({ message: 'Invalid format. Use pptx, pdf or html' });
       }
     } catch (error) {
       console.error('Error exporting dashboard:', error);

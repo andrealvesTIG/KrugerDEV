@@ -1,5 +1,6 @@
 import pptxgenjs from "pptxgenjs";
 const PptxGenJS = pptxgenjs.default || pptxgenjs;
+import PDFDocument from "pdfkit";
 import { storage } from "../storage";
 import type { Project, Portfolio, Risk, Issue, Resource } from "@shared/schema";
 
@@ -170,6 +171,72 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
   
   const output = await pptx.write({ outputType: "nodebuffer" });
   return Buffer.from(output as ArrayBuffer);
+}
+
+export async function generateDashboardPdf(data: DashboardData): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: "A4", margin: 40 });
+    const chunks: Buffer[] = [];
+    
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+    
+    doc.rect(0, 0, doc.page.width, 60).fill("#2563eb");
+    doc.fontSize(20).fillColor("#ffffff").text(data.title, 40, 20, { width: 400 });
+    doc.fontSize(9).fillColor("#ffffff").text(`Generated: ${data.generatedAt}`, 400, 25, { align: "right", width: 155 });
+    
+    let yPos = 80;
+    const metrics = Object.entries(data.metrics);
+    const boxWidth = 85;
+    const boxHeight = 45;
+    const boxesPerRow = 6;
+    const startX = 40;
+    
+    metrics.slice(0, 12).forEach(([label, value], index) => {
+      const row = Math.floor(index / boxesPerRow);
+      const col = index % boxesPerRow;
+      const x = startX + col * (boxWidth + 5);
+      const y = yPos + row * (boxHeight + 5);
+      
+      doc.roundedRect(x, y, boxWidth, boxHeight, 4).fill("#f3f4f6");
+      doc.fontSize(14).fillColor("#1f2937").text(String(value), x, y + 8, { width: boxWidth, align: "center" });
+      const shortLabel = label.length > 12 ? label.slice(0, 11) + "…" : label;
+      doc.fontSize(7).fillColor("#6b7280").text(shortLabel, x, y + 28, { width: boxWidth, align: "center" });
+    });
+    
+    const metricsRows = Math.ceil(Math.min(metrics.length, 12) / boxesPerRow);
+    yPos += metricsRows * (boxHeight + 5) + 20;
+    
+    if (data.items && data.items.length > 0) {
+      const headers = Object.keys(data.items[0]).slice(0, 6);
+      const colWidth = (doc.page.width - 80) / headers.length;
+      
+      doc.rect(startX, yPos, doc.page.width - 80, 18).fill("#2563eb");
+      headers.forEach((h, i) => {
+        const headerText = h.replace(/([A-Z])/g, " $1").trim();
+        doc.fontSize(8).fillColor("#ffffff").text(headerText.slice(0, 12), startX + i * colWidth + 3, yPos + 5, { width: colWidth - 6 });
+      });
+      yPos += 18;
+      
+      const maxRows = Math.min(data.items.length, 15);
+      data.items.slice(0, maxRows).forEach((item, rowIdx) => {
+        const bgColor = rowIdx % 2 === 0 ? "#ffffff" : "#f9fafb";
+        doc.rect(startX, yPos, doc.page.width - 80, 16).fill(bgColor);
+        
+        headers.forEach((h, i) => {
+          const val = String(item[h] ?? "-");
+          const displayVal = val.length > 18 ? val.slice(0, 16) + "…" : val;
+          doc.fontSize(7).fillColor("#1f2937").text(displayVal, startX + i * colWidth + 3, yPos + 4, { width: colWidth - 6 });
+        });
+        yPos += 16;
+      });
+    }
+    
+    doc.fontSize(8).fillColor("#6b7280").text("FridayReport.AI", 40, doc.page.height - 30);
+    
+    doc.end();
+  });
 }
 
 export async function getDashboardDataForExport(
