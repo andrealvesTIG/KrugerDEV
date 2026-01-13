@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { 
@@ -30,7 +30,8 @@ import { Label } from "@/components/ui/label";
 import { 
   Clock, 
   ChevronLeft, 
-  ChevronRight, 
+  ChevronRight,
+  ChevronDown,
   Calendar, 
   Send, 
   Check, 
@@ -175,6 +176,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   const [hasChanges, setHasChanges] = useState(false);
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const data: Record<string, Record<string, { hours: string; notes: string; id?: number }>> = {};
@@ -236,6 +238,18 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     }
     return Object.values(groups);
   }, [assignedTasks, groupByProject]);
+
+  const toggleProjectCollapse = (projectId: number) => {
+    setCollapsedProjects(prev => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  };
 
   const handleSave = () => {
     const formattedData: Record<string, Record<string, { hours: number; notes: string; id?: number }>> = {};
@@ -309,36 +323,51 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
           </thead>
           <tbody>
             {groupByProject && groupedTasks ? (
-              groupedTasks.map((group, groupIndex) => (
-                <>
-                  <tr key={`group-${group.project.id}`} className="bg-muted/70 border-t border-border">
-                    <td colSpan={dates.length + 2} className="p-2 sticky left-0 z-10">
-                      <div className="flex items-center gap-2 font-medium text-foreground">
-                        <FolderOpen className="h-4 w-4 text-primary" />
-                        {group.project.name}
-                        <Badge variant="secondary" className="text-xs">
-                          {group.tasks.length} {group.tasks.length === 1 ? 'task' : 'tasks'}
-                        </Badge>
-                      </div>
-                    </td>
-                  </tr>
-                  {group.tasks.map(({ task, project }, index) => (
-                    <TaskRow 
-                      key={task.id}
-                      task={task}
-                      project={project}
-                      dates={dates}
-                      entries={entries}
-                      gridData={gridData}
-                      handleHoursChange={handleHoursChange}
-                      getRowTotal={getRowTotal}
-                      openNoteEditor={openNoteEditor}
-                      index={groupIndex * 10 + index}
-                      indented
-                    />
-                  ))}
-                </>
-              ))
+              groupedTasks.map((group, groupIndex) => {
+                const isCollapsed = collapsedProjects.has(group.project.id);
+                return (
+                  <React.Fragment key={`group-${group.project.id}`}>
+                    <tr 
+                      className="bg-muted/70 border-t border-border cursor-pointer hover:bg-muted/90 transition-colors"
+                      onClick={() => toggleProjectCollapse(group.project.id)}
+                      data-testid={`row-project-header-${group.project.id}`}
+                    >
+                      <td colSpan={dates.length + 2} className="p-2 sticky left-0 z-10">
+                        <div className="flex items-center gap-2 font-medium text-foreground">
+                          <motion.div
+                            animate={{ rotate: isCollapsed ? -90 : 0 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          </motion.div>
+                          <FolderOpen className="h-4 w-4 text-primary" />
+                          {group.project.name}
+                          <Badge variant="secondary" className="text-xs">
+                            {group.tasks.length} {group.tasks.length === 1 ? 'task' : 'tasks'}
+                          </Badge>
+                        </div>
+                      </td>
+                    </tr>
+                    <AnimatePresence>
+                      {!isCollapsed && group.tasks.map(({ task, project }, index) => (
+                        <TaskRow 
+                          key={task.id}
+                          task={task}
+                          project={project}
+                          dates={dates}
+                          entries={entries}
+                          gridData={gridData}
+                          handleHoursChange={handleHoursChange}
+                          getRowTotal={getRowTotal}
+                          openNoteEditor={openNoteEditor}
+                          index={groupIndex * 10 + index}
+                          indented
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </React.Fragment>
+                );
+              })
             ) : (
               assignedTasks.map(({ task, project }, index) => (
                 <TaskRow 
