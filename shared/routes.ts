@@ -197,6 +197,13 @@ export const api = {
         200: z.array(z.custom<typeof milestones.$inferSelect>()),
       },
     },
+    listAll: {
+      method: 'GET' as const,
+      path: '/api/milestones',
+      responses: {
+        200: z.array(z.custom<typeof milestones.$inferSelect>()),
+      },
+    },
     create: {
       method: 'POST' as const,
       path: '/api/milestones',

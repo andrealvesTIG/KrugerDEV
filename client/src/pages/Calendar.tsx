@@ -221,6 +221,43 @@ export default function Calendar() {
         </Tabs>
       </div>
 
+      {/* Summary stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+              <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{allMilestones.filter(m => m.dueDate).length}</div>
+              <div className="text-xs text-muted-foreground">Milestones</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <CheckSquare className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{allTasks.filter(t => t.endDate).length}</div>
+              <div className="text-xs text-muted-foreground">Tasks</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <Flag className="h-5 w-5 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{projects.filter(p => p.endDate).length}</div>
+              <div className="text-xs text-muted-foreground">Deadlines</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Navigation controls */}
       <Card>
         <CardContent className="p-4">
@@ -477,43 +514,6 @@ export default function Calendar() {
           </AnimatePresence>
         </CardContent>
       </Card>
-
-      {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{allMilestones.filter(m => m.dueDate).length}</div>
-              <div className="text-xs text-muted-foreground">Milestones</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <CheckSquare className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{allTasks.filter(t => t.endDate).length}</div>
-              <div className="text-xs text-muted-foreground">Tasks</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <Flag className="h-5 w-5 text-red-600 dark:text-red-400" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{projects.filter(p => p.endDate).length}</div>
-              <div className="text-xs text-muted-foreground">Deadlines</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
