@@ -130,13 +130,38 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
 }
 
 function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructure {
-  const helpGroup = structure.find(g => g.id === "help");
-  const hasUserGuide = structure.some(g => 
+  let updatedStructure = [...structure];
+  
+  // Ensure timesheets module is in the menu group
+  const hasTimesheets = updatedStructure.some(g => 
+    g.items.some(item => item.type === "module" && item.key === "timesheets")
+  );
+  
+  if (!hasTimesheets) {
+    const menuGroup = updatedStructure.find(g => g.id === "menu");
+    if (menuGroup) {
+      updatedStructure = updatedStructure.map(g => {
+        if (g.id === "menu") {
+          // Add timesheets after issues if it exists, otherwise at the end
+          const issuesIndex = g.items.findIndex(item => item.type === "module" && item.key === "issues");
+          const insertIndex = issuesIndex >= 0 ? issuesIndex + 1 : g.items.length;
+          const newItems = [...g.items];
+          newItems.splice(insertIndex, 0, { type: "module" as const, key: "timesheets", hidden: false });
+          return { ...g, items: newItems };
+        }
+        return g;
+      });
+    }
+  }
+  
+  // Ensure user-guide is in help group
+  const helpGroup = updatedStructure.find(g => g.id === "help");
+  const hasUserGuide = updatedStructure.some(g => 
     g.items.some(item => item.type === "module" && item.key === "user-guide")
   );
   
   if (!hasUserGuide && helpGroup) {
-    return structure.map(g => {
+    updatedStructure = updatedStructure.map(g => {
       if (g.id === "help") {
         return { ...g, items: [...g.items, { type: "module" as const, key: "user-guide", hidden: false }] };
       }
@@ -145,7 +170,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   }
   
   if (!helpGroup) {
-    return [...structure, { 
+    updatedStructure = [...updatedStructure, { 
       id: "help", 
       name: "Help", 
       isDefault: true, 
@@ -154,7 +179,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     }];
   }
   
-  return structure;
+  return updatedStructure;
 }
 
 const userMenuItems = [
