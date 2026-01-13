@@ -27,21 +27,35 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Clock, 
   ChevronLeft, 
   ChevronRight,
   ChevronDown,
-  Calendar, 
+  Calendar as CalendarIcon, 
   Send, 
   Check, 
   X, 
   MessageSquare,
   Loader2,
   AlertCircle,
-  CalendarDays,
   FolderOpen,
-  StickyNote
+  StickyNote,
+  TrendingUp,
+  ListTodo,
+  Trash2,
+  History,
+  Plus,
+  Layers
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -54,13 +68,13 @@ import type { Task, Project, InsertTimesheetEntry } from "@shared/schema";
 type ViewMode = "workweek" | "week" | "day";
 
 function getWorkWeekDates(date: Date): Date[] {
-  const start = startOfWeek(date, { weekStartsOn: 1 }); // Monday
-  return [0, 1, 2, 3, 4].map(d => addDays(start, d)); // Mon-Fri
+  const start = startOfWeek(date, { weekStartsOn: 1 });
+  return [0, 1, 2, 3, 4].map(d => addDays(start, d));
 }
 
 function getWeekDates(date: Date): Date[] {
-  const start = startOfWeek(date, { weekStartsOn: 1 }); // Monday
-  return [0, 1, 2, 3, 4, 5, 6].map(d => addDays(start, d)); // Mon-Sun
+  const start = startOfWeek(date, { weekStartsOn: 1 });
+  return [0, 1, 2, 3, 4, 5, 6].map(d => addDays(start, d));
 }
 
 function getDayDate(date: Date): Date[] {
@@ -85,22 +99,25 @@ interface TaskRowProps {
 }
 
 function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, getRowTotal, openNoteEditor, index, indented }: TaskRowProps) {
+  const rowTotal = getRowTotal(task.id);
+  
   return (
-    <motion.tr 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.03 }}
-      className="border-t border-border hover:bg-muted/30 transition-colors"
+    <motion.tr
+      key={task.id}
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.2, delay: index * 0.02 }}
+      className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
     >
-      <td className={`p-3 sticky left-0 bg-card z-10 ${indented ? 'pl-8' : ''}`}>
-        <div className="font-medium text-foreground truncate max-w-[180px]" title={task.name}>
-          {task.name}
+      <td className={`p-3 ${indented ? 'pl-10' : ''}`}>
+        <div className="flex items-center gap-2">
+          <ListTodo className="h-4 w-4 text-muted-foreground" />
+          <span className="text-foreground">{task.name}</span>
+          {!indented && (
+            <span className="text-xs text-muted-foreground">({project.name})</span>
+          )}
         </div>
-        {!indented && (
-          <div className="text-xs text-muted-foreground truncate max-w-[180px]" title={project.name}>
-            {project.name}
-          </div>
-        )}
       </td>
       {dates.map(date => {
         const dateKey = formatDateKey(date);
@@ -108,10 +125,11 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
         const status = entry?.status;
         const isEditable = !status || status === "Draft" || status === "Rejected";
         const hasNote = !!(gridData[task.id]?.[dateKey]?.notes);
+        const isTodayDate = isToday(date);
         
         return (
-          <td key={dateKey} className={`p-2 text-center ${isToday(date) ? "bg-primary/5" : ""}`}>
-            <div className="relative group">
+          <td key={dateKey} className={`p-2 ${isTodayDate ? "bg-blue-500/5" : ""}`}>
+            <div className="relative group/cell flex justify-center">
               <Input
                 type="text"
                 inputMode="decimal"
@@ -119,11 +137,14 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
                 onChange={(e) => handleHoursChange(task.id, dateKey, e.target.value)}
                 placeholder="0"
                 disabled={!isEditable}
-                className={`w-full text-center h-9 pr-7 ${
-                  !isEditable ? "bg-muted cursor-not-allowed" : ""
-                } ${status === "Approved" ? "border-green-500/50" : ""} ${
-                  status === "Rejected" ? "border-red-500/50" : ""
-                }`}
+                className={`w-16 text-center h-9 rounded-lg border-2 ${
+                  isTodayDate 
+                    ? "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-900/20" 
+                    : "border-border bg-background"
+                } ${!isEditable ? "opacity-60 cursor-not-allowed" : ""} 
+                ${status === "Approved" ? "border-green-300" : ""} 
+                ${status === "Rejected" ? "border-red-300" : ""}
+                focus:ring-2 focus:ring-primary/20`}
                 data-testid={`input-hours-${task.id}-${dateKey}`}
               />
               {status && status !== "Draft" && (
@@ -138,8 +159,8 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
                   <button
                     type="button"
                     onClick={() => openNoteEditor(task.id, dateKey)}
-                    className={`absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-opacity ${
-                      hasNote ? 'opacity-100 text-primary' : 'opacity-0 group-hover:opacity-60 text-muted-foreground'
+                    className={`absolute -right-5 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-opacity ${
+                      hasNote ? 'opacity-100 text-primary' : 'opacity-0 group-hover/cell:opacity-60 text-muted-foreground'
                     }`}
                     data-testid={`button-note-${task.id}-${dateKey}`}
                   >
@@ -154,8 +175,13 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
           </td>
         );
       })}
-      <td className="p-3 text-center font-medium bg-muted/30 tabular-nums">
-        {getRowTotal(task.id).toFixed(1)}
+      <td className="p-3 bg-emerald-500/5">
+        <div className="flex items-center justify-center gap-2">
+          <span className="font-medium text-foreground tabular-nums">{rowTotal}h</span>
+          <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive">
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
       </td>
     </motion.tr>
   );
@@ -226,9 +252,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     setEditingNote({ taskId, dateKey });
   };
 
-  // Group tasks by project
   const groupedTasks = useMemo(() => {
-    if (!groupByProject) return null;
     const groups: Record<number, { project: Project; tasks: { task: Task; project: Project }[] }> = {};
     for (const item of assignedTasks) {
       if (!groups[item.project.id]) {
@@ -237,7 +261,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
       groups[item.project.id].tasks.push(item);
     }
     return Object.values(groups);
-  }, [assignedTasks, groupByProject]);
+  }, [assignedTasks]);
 
   const toggleProjectCollapse = (projectId: number) => {
     setCollapsedProjects(prev => {
@@ -285,6 +309,12 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     }, 0);
   };
 
+  const getProjectTotal = (projectId: number): number => {
+    const group = groupedTasks.find(g => g.project.id === projectId);
+    if (!group) return 0;
+    return group.tasks.reduce((sum, { task }) => sum + getRowTotal(task.id), 0);
+  };
+
   if (assignedTasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -299,41 +329,63 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="bg-muted/50">
-              <th className="text-left p-3 font-medium text-muted-foreground min-w-[200px] sticky left-0 bg-muted/50 z-10">
-                Task / Project
+            <tr className="bg-muted/30">
+              <th className="text-left p-4 font-medium text-muted-foreground min-w-[250px]">
+                <div className="flex items-center gap-2">
+                  <span>Tasks</span>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1" data-testid="button-add-task">
+                    <Plus className="h-3 w-3" />
+                    Add
+                  </Button>
+                </div>
               </th>
-              {dates.map(date => (
-                <th key={formatDateKey(date)} className={`p-3 text-center font-medium min-w-[100px] ${
-                  isToday(date) ? "bg-primary/10 text-primary" : "text-muted-foreground"
-                }`}>
-                  <div className="text-xs uppercase">{format(date, "EEE")}</div>
-                  <div className={`text-sm ${isToday(date) ? "font-bold" : ""}`}>
-                    {format(date, "MMM d")}
-                  </div>
-                </th>
-              ))}
-              <th className="p-3 text-center font-medium text-muted-foreground min-w-[80px] bg-muted/30">
-                Total
+              {dates.map(date => {
+                const isTodayDate = isToday(date);
+                return (
+                  <th key={formatDateKey(date)} className={`p-3 text-center min-w-[80px] ${
+                    isTodayDate ? "bg-blue-500/10" : ""
+                  }`}>
+                    <div className={`text-xs font-medium ${isTodayDate ? "text-blue-600" : "text-muted-foreground"}`}>
+                      {format(date, "EEE")}
+                    </div>
+                    <div className={`text-lg font-semibold ${isTodayDate ? "text-blue-600" : "text-foreground"}`}>
+                      {format(date, "d")}
+                    </div>
+                    <div className={`text-xs ${isTodayDate ? "text-blue-500" : "text-muted-foreground"}`}>
+                      {getColumnTotal(formatDateKey(date))}h
+                    </div>
+                  </th>
+                );
+              })}
+              <th className="p-3 text-center min-w-[70px] bg-emerald-500/5">
+                <div className="text-xs font-medium text-emerald-600">Total</div>
+                <div className="text-lg font-bold text-emerald-600">
+                  {getGrandTotal()}h
+                </div>
               </th>
             </tr>
           </thead>
           <tbody>
-            {groupByProject && groupedTasks ? (
+            {groupByProject ? (
               groupedTasks.map((group, groupIndex) => {
                 const isCollapsed = collapsedProjects.has(group.project.id);
+                const projectTotal = getProjectTotal(group.project.id);
+                
                 return (
                   <React.Fragment key={`group-${group.project.id}`}>
-                    <tr 
-                      className="bg-muted/70 border-t border-border cursor-pointer hover:bg-muted/90 transition-colors"
+                    <motion.tr
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: groupIndex * 0.05 }}
+                      className="bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors border-t border-border"
                       onClick={() => toggleProjectCollapse(group.project.id)}
                       data-testid={`row-project-header-${group.project.id}`}
                     >
-                      <td colSpan={dates.length + 2} className="p-2 sticky left-0 z-10">
-                        <div className="flex items-center gap-2 font-medium text-foreground">
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
                           <motion.div
                             animate={{ rotate: isCollapsed ? -90 : 0 }}
                             transition={{ duration: 0.2 }}
@@ -341,16 +393,27 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           </motion.div>
                           <FolderOpen className="h-4 w-4 text-primary" />
-                          {group.project.name}
-                          <Badge variant="secondary" className="text-xs">
-                            {group.tasks.length} {group.tasks.length === 1 ? 'task' : 'tasks'}
+                          <span className="font-medium text-foreground">{group.project.name}</span>
+                          <Badge variant="secondary" className="text-xs ml-1">
+                            {group.tasks.length} task{group.tasks.length !== 1 ? 's' : ''}
                           </Badge>
                         </div>
                       </td>
-                    </tr>
+                      {dates.map(date => (
+                        <td key={formatDateKey(date)} className={`p-3 text-center text-muted-foreground ${
+                          isToday(date) ? "bg-blue-500/5" : ""
+                        }`}>
+                          -
+                        </td>
+                      ))}
+                      <td className="p-3 text-center font-medium text-emerald-600 bg-emerald-500/5">
+                        {projectTotal}h
+                      </td>
+                    </motion.tr>
+                    
                     <AnimatePresence>
-                      {!isCollapsed && group.tasks.map(({ task, project }, index) => (
-                        <TaskRow 
+                      {!isCollapsed && group.tasks.map(({ task, project }, taskIndex) => (
+                        <TaskRow
                           key={task.id}
                           task={task}
                           project={project}
@@ -360,7 +423,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                           handleHoursChange={handleHoursChange}
                           getRowTotal={getRowTotal}
                           openNoteEditor={openNoteEditor}
-                          index={groupIndex * 10 + index}
+                          index={taskIndex}
                           indented
                         />
                       ))}
@@ -370,7 +433,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
               })
             ) : (
               assignedTasks.map(({ task, project }, index) => (
-                <TaskRow 
+                <TaskRow
                   key={task.id}
                   task={task}
                   project={project}
@@ -385,25 +448,6 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
               ))
             )}
           </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-border bg-muted/50 font-medium">
-              <td className="p-3 text-right sticky left-0 bg-muted/50 z-10">Daily Total</td>
-              {dates.map(date => {
-                const dateKey = formatDateKey(date);
-                const total = getColumnTotal(dateKey);
-                return (
-                  <td key={dateKey} className={`p-3 text-center tabular-nums ${
-                    isToday(date) ? "bg-primary/10" : ""
-                  } ${total > 8 ? "text-amber-600" : ""}`}>
-                    {total.toFixed(1)}
-                  </td>
-                );
-              })}
-              <td className="p-3 text-center font-bold bg-primary/10 text-primary tabular-nums">
-                {getGrandTotal().toFixed(1)}
-              </td>
-            </tr>
-          </tfoot>
         </table>
       </div>
 
@@ -411,6 +455,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
         <Button 
           onClick={handleSave} 
           disabled={!hasChanges || isSaving}
+          className="bg-primary"
           data-testid="button-save-timesheet"
         >
           {isSaving ? (
@@ -424,7 +469,6 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
         </Button>
       </div>
 
-      {/* Note editing dialog */}
       <Dialog open={!!editingNote} onOpenChange={(open) => !open && setEditingNote(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -634,11 +678,11 @@ function ApprovalTab() {
 export default function Timesheets() {
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
-  const [viewMode, setViewMode] = useState<ViewMode>("workweek");
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [activeTab, setActiveTab] = useState("log");
-  const [groupByProject, setGroupByProject] = useState(false);
+  const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [groupByProject, setGroupByProject] = useState(true);
   const { toast } = useToast();
 
   const dates = useMemo(() => {
@@ -728,223 +772,337 @@ export default function Timesheets() {
     }
   };
 
+  const totalHoursThisWeek = entries.reduce((sum, e) => sum + Number(e.hours), 0);
+  const weeklyTarget = 40;
+  const progressPercent = Math.min((totalHoursThisWeek / weeklyTarget) * 100, 100);
   const hasDraftEntries = entries.some(e => e.status === "Draft");
   const isLoading = entriesLoading || tasksLoading;
 
-  const getDateRangeLabel = () => {
-    if (viewMode === "day") {
-      return format(dates[0], "EEEE, MMMM d, yyyy");
-    }
-    return `${format(dates[0], "MMM d")} - ${format(dates[dates.length - 1], "MMM d, yyyy")}`;
-  };
-
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
-            <Clock className="h-8 w-8 text-primary" />
-            Timesheets
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            Log your time against assigned tasks
-          </p>
-        </div>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="log" className="flex items-center gap-2" data-testid="tab-log-hours">
-            <Clock className="h-4 w-4" />
-            Log Hours
-          </TabsTrigger>
-          {currentResource?.isApprover && (
-            <TabsTrigger value="approve" className="flex items-center gap-2" data-testid="tab-approvals">
-              <Check className="h-4 w-4" />
-              Approvals
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        <TabsContent value="log" className="mt-6">
-          <Card>
-            <CardHeader className="pb-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => navigateDate("prev")}
-                    data-testid="button-prev-period"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={goToToday}
-                    data-testid="button-today"
-                  >
-                    <CalendarDays className="mr-2 h-4 w-4" />
-                    Today
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => navigateDate("next")}
-                    data-testid="button-next-period"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  
-                  {/* Date picker to jump to specific date */}
-                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="gap-2" data-testid="button-jump-to-date">
-                        <Calendar className="h-4 w-4" />
-                        {getDateRangeLabel()}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={currentDate}
-                        onSelect={(date) => {
-                          if (date) {
-                            setCurrentDate(date);
-                            setDatePickerOpen(false);
-                          }
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Group by project toggle */}
-                  <Button
-                    variant={groupByProject ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setGroupByProject(!groupByProject)}
-                    className="gap-2"
-                    data-testid="button-group-by-project"
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                    Group by Project
-                  </Button>
-
-                  <div className="flex rounded-lg border border-border p-1 bg-muted/50">
-                    <Button
-                      variant={viewMode === "day" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setViewMode("day")}
-                      className="h-7 px-3"
-                      data-testid="button-view-day"
-                    >
-                      Day
-                    </Button>
-                    <Button
-                      variant={viewMode === "workweek" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setViewMode("workweek")}
-                      className="h-7 px-3"
-                      data-testid="button-view-workweek"
-                    >
-                      Work Week
-                    </Button>
-                    <Button
-                      variant={viewMode === "week" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setViewMode("week")}
-                      className="h-7 px-3"
-                      data-testid="button-view-week"
-                    >
-                      Week
-                    </Button>
-                  </div>
-
-                  {hasDraftEntries && viewMode !== "day" && (
-                    <Button 
-                      onClick={handleSubmitWeek}
-                      disabled={submitWeek.isPending}
-                      className="bg-green-600 hover:bg-green-700"
-                      data-testid="button-submit-week"
-                    >
-                      {submitWeek.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="mr-2 h-4 w-4" />
-                      )}
-                      Submit for Approval
-                    </Button>
-                  )}
-                </div>
+    <div className="min-h-screen bg-muted/30">
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
+              <Clock className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Timesheet</h1>
+              <p className="text-sm text-muted-foreground">Track your time across projects and tasks</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <div className="font-medium text-foreground">
+                {user?.firstName} {user?.lastName}
               </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={`${startDate}-${endDate}-${viewMode}`}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <TimesheetGrid
-                      dates={dates}
-                      assignedTasks={assignedTasks}
-                      entries={entries}
-                      onSave={handleSave}
-                      isSaving={bulkUpsert.isPending}
-                      viewMode={viewMode}
-                      groupByProject={groupByProject}
-                    />
-                  </motion.div>
-                </AnimatePresence>
-              )}
-            </CardContent>
-          </Card>
+              <div className="text-sm text-muted-foreground">{user?.email}</div>
+            </div>
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={user?.profileImageUrl || ""} />
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+        </div>
 
-          {entries.length > 0 && (
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="text-lg">Entry Status Legend</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-6">
+        <div className="border-b border-border">
+          <nav className="flex gap-6">
+            <button
+              onClick={() => setActiveTab("entry")}
+              className={`pb-3 text-sm font-medium transition-colors relative ${
+                activeTab === "entry" 
+                  ? "text-foreground" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="tab-time-entry"
+            >
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4" />
+                Time Entry
+              </div>
+              {activeTab === "entry" && (
+                <motion.div 
+                  layoutId="activeTab"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`pb-3 text-sm font-medium transition-colors relative ${
+                activeTab === "history" 
+                  ? "text-foreground" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="tab-history"
+            >
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                History
+              </div>
+              {activeTab === "history" && (
+                <motion.div 
+                  layoutId="activeTab"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                />
+              )}
+            </button>
+            {currentResource?.isApprover && (
+              <button
+                onClick={() => setActiveTab("approve")}
+                className={`pb-3 text-sm font-medium transition-colors relative ${
+                  activeTab === "approve" 
+                    ? "text-foreground" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid="tab-approvals"
+              >
+                <div className="flex items-center gap-2">
+                  <Check className="h-4 w-4" />
+                  Approvals
+                </div>
+                {activeTab === "approve" && (
+                  <motion.div 
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                  />
+                )}
+              </button>
+            )}
+          </nav>
+        </div>
+
+        {activeTab === "entry" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <Card className="border-0 shadow-sm bg-card">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded border border-border" />
-                    <span className="text-sm text-muted-foreground">Draft (editable)</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => navigateDate("prev")}
+                      data-testid="button-prev-period"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </Button>
+                    
+                    <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-9 w-9"
+                          data-testid="button-calendar"
+                        >
+                          <CalendarIcon className="h-5 w-5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={currentDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              setCurrentDate(date);
+                              setDatePickerOpen(false);
+                            }
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => navigateDate("next")}
+                      data-testid="button-next-period"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </Button>
+
+                    <div className="ml-2">
+                      <div className="text-lg font-semibold text-foreground">
+                        {format(currentDate, "MMMM yyyy")}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {format(dates[0], "EEE, MMM d")} - {format(dates[dates.length - 1], "EEE, MMM d")}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-amber-500" />
-                    <span className="text-sm text-muted-foreground">Submitted (pending approval)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
-                    <span className="text-sm text-muted-foreground">Approved</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <X className="h-4 w-4 text-red-500" />
-                    <span className="text-sm text-muted-foreground">Rejected (editable)</span>
+
+                  <div className="flex items-center gap-3">
+                    <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+                      <SelectTrigger className="w-[140px]" data-testid="select-view-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="day">Day</SelectItem>
+                        <SelectItem value="workweek">Work Week</SelectItem>
+                        <SelectItem value="week">Full Week</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Button 
+                      variant="outline" 
+                      onClick={goToToday}
+                      data-testid="button-today"
+                    >
+                      Today
+                    </Button>
+
+                    <Button
+                      variant={groupByProject ? "secondary" : "ghost"}
+                      onClick={() => setGroupByProject(!groupByProject)}
+                      className="gap-2"
+                      data-testid="button-group-by-project"
+                    >
+                      <Layers className="h-4 w-4" />
+                      Group by Project
+                    </Button>
+
+                    {hasDraftEntries && viewMode !== "day" && (
+                      <Button 
+                        onClick={handleSubmitWeek}
+                        disabled={submitWeek.isPending}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        data-testid="button-submit-week"
+                      >
+                        {submitWeek.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="mr-2 h-4 w-4" />
+                        )}
+                        Submit
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
-          )}
-        </TabsContent>
 
-        {currentResource?.isApprover && (
-          <TabsContent value="approve" className="mt-6">
-            <ApprovalTab />
-          </TabsContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
+                      <Clock className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="text-3xl font-bold text-foreground">{totalHoursThisWeek}h</div>
+                      <div className="text-sm text-muted-foreground">Total Hours</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-500/10">
+                      <ListTodo className="h-6 w-6 text-teal-600" />
+                    </div>
+                    <div>
+                      <div className="text-3xl font-bold text-foreground">{assignedTasks.length}</div>
+                      <div className="text-sm text-muted-foreground">Active Tasks</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
+                      <TrendingUp className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <div className="text-3xl font-bold text-foreground">{Math.round(progressPercent)}%</div>
+                      <div className="text-sm text-muted-foreground">of {weeklyTarget}h target</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium text-muted-foreground">Weekly Progress</div>
+                      <div className="text-sm font-semibold text-foreground">{totalHoursThisWeek}/{weeklyTarget}h</div>
+                    </div>
+                    <Progress value={progressPercent} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={`${startDate}-${endDate}-${viewMode}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <TimesheetGrid
+                    dates={dates}
+                    assignedTasks={assignedTasks}
+                    entries={entries}
+                    onSave={handleSave}
+                    isSaving={bulkUpsert.isPending}
+                    viewMode={viewMode}
+                    groupByProject={groupByProject}
+                  />
+                </motion.div>
+              </AnimatePresence>
+            )}
+          </motion.div>
         )}
-      </Tabs>
+
+        {activeTab === "history" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-8">
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <History className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">Timesheet History</h3>
+                  <p className="text-muted-foreground max-w-md">
+                    View your past timesheet submissions and their approval status. 
+                    History feature coming soon.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {activeTab === "approve" && currentResource?.isApprover && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <ApprovalTab />
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }
