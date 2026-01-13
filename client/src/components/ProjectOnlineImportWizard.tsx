@@ -254,9 +254,9 @@ export function ProjectOnlineImportWizard({
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Select Projects to Import</Label>
-                <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <Label className="shrink-0">Select Projects to Import</Label>
+                <div className="flex gap-1 shrink-0">
                   <Button variant="ghost" size="sm" onClick={selectAll}>Select All</Button>
                   <Button variant="ghost" size="sm" onClick={deselectAll}>Deselect All</Button>
                 </div>
@@ -284,11 +284,11 @@ export function ProjectOnlineImportWizard({
                         onCheckedChange={() => toggleProject(project.id)}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{project.name}</p>
+                        <p className="font-medium text-sm leading-tight" title={project.name}>{project.name}</p>
                         {project.description && (
-                          <p className="text-sm text-muted-foreground truncate">{project.description}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-1" title={project.description}>{project.description}</p>
                         )}
-                        <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
                           {project.startDate && <span>Start: {new Date(project.startDate).toLocaleDateString()}</span>}
                           {project.finishDate && <span>End: {new Date(project.finishDate).toLocaleDateString()}</span>}
                           <span>{Math.round(project.percentComplete)}% complete</span>
@@ -353,7 +353,7 @@ export function ProjectOnlineImportWizard({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="max-w-[95vw] sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Cloud className="h-5 w-5" />
