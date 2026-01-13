@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
 import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
@@ -1626,8 +1627,12 @@ function TasksTab({ projectId }: { projectId: number }) {
     }
   }, [taskAssignments, editingTask]);
 
+  const taskFormSchema = insertTaskSchema.extend({
+    name: z.string().min(1, "Task name is required")
+  });
+
   const form = useForm({
-    resolver: zodResolver(insertTaskSchema),
+    resolver: zodResolver(taskFormSchema),
     mode: "onChange",
     defaultValues: {
       projectId: projectId,

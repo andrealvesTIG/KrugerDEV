@@ -1098,6 +1098,7 @@ function DraggableTaskCard({
   onTaskClick: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
 }) {
+  const { data: taskAssignments } = useTaskResourceAssignments(task.id);
   const {
     attributes,
     listeners,
@@ -1163,8 +1164,10 @@ function DraggableTaskCard({
           >
             {getProjectName(task.projectId)}
           </Link>
-          {task.assignee && (
-            <div className="text-xs text-muted-foreground mt-2">Assigned: {task.assignee}</div>
+          {taskAssignments && taskAssignments.length > 0 && (
+            <div className="text-xs text-muted-foreground mt-2">
+              Assigned: {taskAssignments.map(a => a.resource.displayName).join(", ")}
+            </div>
           )}
           <div className="flex items-center justify-between mt-3">
             <Badge variant="outline" className="text-xs">
