@@ -374,6 +374,7 @@ export class MockBillingProvider implements BillingProvider {
     requestId: string;
   }): Promise<RecordUsageResult> {
     const units = params.units || 1;
+    console.log(`[USAGE] Recording ${units} units for meter ${params.meterCode}, subscription ${params.subscriptionId}`);
 
     const [existingEvent] = await db
       .select()
@@ -382,18 +383,24 @@ export class MockBillingProvider implements BillingProvider {
       .limit(1);
 
     if (existingEvent) {
+      console.log(`[USAGE] Event already exists: ${existingEvent.id}`);
       return { success: true, usageEventId: existingEvent.id };
     }
 
     const checkResult = await this.checkLimit(params.subscriptionId, params.meterCode, units);
+    console.log(`[USAGE] Check limit result:`, checkResult);
     if (!checkResult.allowed) {
+      console.log(`[USAGE] Limit check failed: ${checkResult.reason}`);
       return { success: false, error: checkResult.reason };
     }
 
     const [meter] = await db.select().from(meters).where(eq(meters.code, params.meterCode)).limit(1);
     if (!meter) {
+      console.log(`[USAGE] Meter not found: ${params.meterCode}`);
       return { success: false, error: `Meter not found: ${params.meterCode}` };
     }
+    console.log(`[USAGE] Found meter: ${meter.id} (${meter.code})`);
+
 
     const cycle = await this.getOrCreateBillingCycle(params.subscriptionId);
 
@@ -749,20 +756,28 @@ export async function recordCreditUsage(
   resourceId: string | number
 ): Promise<void> {
   try {
+    console.log(`[CREDITS] Recording credit usage for user ${userId}, resource ${resourceType}, id ${resourceId}`);
+    
     const subscription = await billingProvider.getSubscriptionForUser(userId);
-    if (!subscription) return;
+    if (!subscription) {
+      console.log(`[CREDITS] No subscription found for user ${userId}`);
+      return;
+    }
+    console.log(`[CREDITS] Found subscription ${subscription.id} for user ${userId}`);
 
     const creditCost = await getResourceCreditCost(resourceType);
+    console.log(`[CREDITS] Credit cost for ${resourceType}: ${creditCost} (hundredths)`);
     
-    await billingProvider.recordUsage({
+    const result = await billingProvider.recordUsage({
       subscriptionId: subscription.id,
       meterCode: "credits",
       units: creditCost,
       actorUserId: userId,
       requestId: `${resourceType}_${resourceId}_${Date.now()}`,
     });
+    console.log(`[CREDITS] Record usage result:`, result);
   } catch (error) {
-    console.error("Error recording credit usage:", error);
+    console.error("[CREDITS] Error recording credit usage:", error);
   }
 }
 
