@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
@@ -368,7 +369,9 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
   
   const form = useForm<InsertProject>({
-    resolver: zodResolver(insertProjectSchema),
+    resolver: zodResolver(insertProjectSchema.extend({
+      name: z.string().min(1, "Project name is required"),
+    })),
     defaultValues: {
       name: "",
       description: "",
@@ -430,11 +433,15 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                 control={form.control}
                 name="portfolioId"
                 render={({ field }) => (
-                  <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value?.toString()}>
+                  <Select 
+                    onValueChange={(val) => field.onChange(val === "none" ? null : parseInt(val))} 
+                    value={field.value?.toString() || "none"}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select Portfolio" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">No Portfolio</SelectItem>
                       {portfolios.map(p => (
                         <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                       ))}
