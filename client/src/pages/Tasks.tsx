@@ -26,6 +26,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from "date-fns";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { insertTaskSchema, type Task } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -133,10 +134,12 @@ export default function Tasks() {
     return [{ id: "all", name: "All Tasks", icon: "project", tasks }];
   }, [tasks, groupBy, projectMap, portfolioMap]);
 
+  const taskFormSchema = insertTaskSchema.extend({
+    name: z.string().min(1, "Task name is required")
+  });
+
   const form = useForm({
-    resolver: zodResolver(insertTaskSchema.extend({
-      name: insertTaskSchema.shape.name.min(1, "Task name is required")
-    })),
+    resolver: zodResolver(taskFormSchema),
     mode: "onChange",
     defaultValues: {
       projectId: undefined as any,
