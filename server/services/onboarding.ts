@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { users, organizations, organizationMembers, portfolios, projects, risks, milestones, issues, tasks } from "@shared/schema";
+import { users, organizations, organizationMembers, portfolios, projects, risks, milestones, issues, tasks, resources, changeRequests, projectIntakes } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { extractDomain, isPersonalEmailDomain, lookupCompanyByDomain } from "./companyLookup";
 
@@ -428,6 +428,80 @@ export async function completeOnboarding(
         isDemo: true,
       });
     }
+    
+    // Add demo change requests for each project
+    const changeRequestTemplates = [
+      { title: 'Scope Expansion Request', description: 'Additional features requested by stakeholders', type: 'Scope', priority: 'High', justification: 'Business requirement change based on market feedback' },
+      { title: 'Timeline Adjustment', description: 'Schedule change due to resource constraints', type: 'Schedule', priority: 'Medium', justification: 'Resource availability requires timeline shift' },
+    ];
+    
+    for (let crIdx = 0; crIdx < changeRequestTemplates.length; crIdx++) {
+      const crTemplate = changeRequestTemplates[crIdx];
+      await db.insert(changeRequests).values({
+        projectId: project.id,
+        requestNumber: `CR-${String(project.id).padStart(3, '0')}-${String(crIdx + 1).padStart(2, '0')}`,
+        title: crTemplate.title,
+        description: crTemplate.description,
+        justification: crTemplate.justification,
+        type: crTemplate.type,
+        priority: crTemplate.priority,
+        status: crIdx === 0 ? 'Under Review' : 'Draft',
+        requestedBy: 'Demo User',
+        requestedDate: formatDate(addDays(today, -10 + crIdx * 5)),
+        isDemo: true,
+      });
+    }
+  }
+  
+  // Add demo resources
+  const resourceTemplates = [
+    { name: 'John Smith', email: 'john.smith@demo.com', title: 'Senior Project Manager', department: 'Project Management', skills: 'Agile,Scrum,PMP,Risk Management' },
+    { name: 'Sarah Johnson', email: 'sarah.johnson@demo.com', title: 'Business Analyst', department: 'Business Analysis', skills: 'Requirements,BPMN,SQL,Data Analysis' },
+    { name: 'Michael Chen', email: 'michael.chen@demo.com', title: 'Technical Lead', department: 'Engineering', skills: 'Architecture,Cloud,DevOps,Python' },
+    { name: 'Emily Rodriguez', email: 'emily.rodriguez@demo.com', title: 'UX Designer', department: 'Design', skills: 'Figma,User Research,Prototyping,CSS' },
+    { name: 'David Kim', email: 'david.kim@demo.com', title: 'Developer', department: 'Engineering', skills: 'React,TypeScript,Node.js,PostgreSQL' },
+  ];
+  
+  for (const resourceTemplate of resourceTemplates) {
+    await db.insert(resources).values({
+      organizationId: organization.id,
+      displayName: resourceTemplate.name,
+      email: resourceTemplate.email,
+      title: resourceTemplate.title,
+      department: resourceTemplate.department,
+      skills: resourceTemplate.skills,
+      hourlyRate: String(Math.floor(Math.random() * 100) + 80),
+      isActive: true,
+      isDemo: true,
+    });
+  }
+  
+  // Add demo project intakes (pipeline items)
+  const intakeTemplates = [
+    { name: 'Customer Portal Enhancement', status: 'submitted', businessUnit: 'Customer Success', funding: 'Business Funded', budget: '450000', description: 'Enhance self-service capabilities in customer portal' },
+    { name: 'Data Analytics Platform', status: 'approved', businessUnit: 'Data & Analytics', funding: 'IT Funded', budget: '800000', description: 'Enterprise data analytics and reporting platform' },
+    { name: 'Mobile App v3.0', status: 'draft', businessUnit: 'Digital', funding: 'Shared', budget: '350000', description: 'Major mobile application redesign and feature update' },
+    { name: 'Security Compliance Upgrade', status: 'submitted', businessUnit: 'IT Security', funding: 'IT Funded', budget: '275000', description: 'SOC2 and ISO compliance infrastructure updates' },
+  ];
+  
+  const year = today.getFullYear();
+  for (let intakeIdx = 0; intakeIdx < intakeTemplates.length; intakeIdx++) {
+    const intakeTemplate = intakeTemplates[intakeIdx];
+    await db.insert(projectIntakes).values({
+      organizationId: organization.id,
+      intakeNumber: `INT-${year}-${String(intakeIdx + 1).padStart(3, '0')}`,
+      projectName: intakeTemplate.name,
+      description: intakeTemplate.description,
+      status: intakeTemplate.status,
+      businessUnit: intakeTemplate.businessUnit,
+      fundingSource: intakeTemplate.funding,
+      estimatedBudget: intakeTemplate.budget,
+      portfolioId: portfolio.id,
+      submitterId: userId,
+      currentStep: intakeTemplate.status === 'approved' ? 'pmo_approved' : 'basic_info',
+      basicInfoComplete: true,
+      isDemo: true,
+    });
   }
   
   return { organization, portfolio, projects: createdProjects };

@@ -4032,6 +4032,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         milestones: 0,
         issues: 0,
         financials: 0,
+        changeRequests: 0,
+        resources: 0,
+        intakes: 0,
       };
       
       const sanitizeBudget = (value: any) => {
@@ -4159,7 +4162,83 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             });
             stats.financials++;
           }
+          
+          // Generate demo change requests for each project
+          const changeRequestTypes = ['Scope', 'Schedule', 'Budget', 'Resource'];
+          const crStatuses = ['Draft', 'Submitted', 'Under Review', 'Approved'];
+          for (let crIdx = 0; crIdx < 2; crIdx++) {
+            const crType = changeRequestTypes[crIdx % changeRequestTypes.length];
+            const crStatus = crStatuses[crIdx % crStatuses.length];
+            const requestedDate = new Date(today);
+            requestedDate.setDate(requestedDate.getDate() - (10 - crIdx * 5));
+            
+            await storage.createChangeRequest({
+              projectId: project.id,
+              requestNumber: `CR-${String(project.id).padStart(3, '0')}-${String(crIdx + 1).padStart(2, '0')}`,
+              title: crIdx === 0 ? 'Scope Enhancement Request' : 'Timeline Adjustment Request',
+              description: crIdx === 0 ? 'Additional features requested by stakeholders' : 'Schedule change due to resource constraints',
+              justification: crIdx === 0 ? 'Business requirement change based on market feedback' : 'Resource availability requires timeline shift',
+              type: crType,
+              priority: crIdx === 0 ? 'High' : 'Medium',
+              status: crStatus,
+              requestedBy: 'Demo User',
+              requestedDate: requestedDate.toISOString().split('T')[0],
+              isDemo: true,
+            });
+            stats.changeRequests++;
+          }
         }
+      }
+      
+      // Generate demo resources (organization-level)
+      const resourceTemplates = [
+        { name: 'John Smith', email: 'john.smith@demo.com', title: 'Senior Project Manager', department: 'Project Management', skills: 'Agile,Scrum,PMP,Risk Management' },
+        { name: 'Sarah Johnson', email: 'sarah.johnson@demo.com', title: 'Business Analyst', department: 'Business Analysis', skills: 'Requirements,BPMN,SQL,Data Analysis' },
+        { name: 'Michael Chen', email: 'michael.chen@demo.com', title: 'Technical Lead', department: 'Engineering', skills: 'Architecture,Cloud,DevOps,Python' },
+        { name: 'Emily Rodriguez', email: 'emily.rodriguez@demo.com', title: 'UX Designer', department: 'Design', skills: 'Figma,User Research,Prototyping,CSS' },
+        { name: 'David Kim', email: 'david.kim@demo.com', title: 'Developer', department: 'Engineering', skills: 'React,TypeScript,Node.js,PostgreSQL' },
+      ];
+      
+      for (const resourceTemplate of resourceTemplates) {
+        await storage.createResource({
+          organizationId,
+          displayName: resourceTemplate.name,
+          email: resourceTemplate.email,
+          title: resourceTemplate.title,
+          department: resourceTemplate.department,
+          skills: resourceTemplate.skills,
+          hourlyRate: String(Math.floor(Math.random() * 100) + 80),
+          isActive: true,
+          isDemo: true,
+        });
+        stats.resources++;
+      }
+      
+      // Generate demo project intakes (pipeline items)
+      const intakeTemplates = [
+        { name: 'Customer Portal Enhancement', status: 'submitted', businessUnit: 'Customer Success', funding: 'Business Funded', budget: '450000', description: 'Enhance self-service capabilities in customer portal' },
+        { name: 'Data Analytics Platform', status: 'approved', businessUnit: 'Data & Analytics', funding: 'IT Funded', budget: '800000', description: 'Enterprise data analytics and reporting platform' },
+        { name: 'Mobile App v3.0', status: 'draft', businessUnit: 'Digital', funding: 'Shared', budget: '350000', description: 'Major mobile application redesign and feature update' },
+        { name: 'Security Compliance Upgrade', status: 'submitted', businessUnit: 'IT Security', funding: 'IT Funded', budget: '275000', description: 'SOC2 and ISO compliance infrastructure updates' },
+      ];
+      
+      const year = today.getFullYear();
+      for (let intakeIdx = 0; intakeIdx < intakeTemplates.length; intakeIdx++) {
+        const intakeTemplate = intakeTemplates[intakeIdx];
+        await storage.createProjectIntake({
+          organizationId,
+          intakeNumber: `INT-${year}-${String(intakeIdx + 1).padStart(3, '0')}`,
+          projectName: intakeTemplate.name,
+          description: intakeTemplate.description,
+          status: intakeTemplate.status,
+          businessUnit: intakeTemplate.businessUnit,
+          fundingSource: intakeTemplate.funding,
+          estimatedBudget: intakeTemplate.budget,
+          currentStep: intakeTemplate.status === 'approved' ? 'pmo_approved' : 'basic_info',
+          basicInfoComplete: true,
+          isDemo: true,
+        });
+        stats.intakes++;
       }
       
       res.json({
