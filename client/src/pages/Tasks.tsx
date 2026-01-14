@@ -43,7 +43,7 @@ type GroupBy = "none" | "project" | "portfolio";
 
 export default function Tasks() {
   const { currentOrganization } = useOrganization();
-  const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total } = usePaginatedTasks(100);
+  const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total } = usePaginatedTasks(100, currentOrganization?.id);
   const { data: projects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
@@ -78,17 +78,18 @@ export default function Tasks() {
 
   const projectIds = useMemo(() => new Set(projects?.map(p => p.id) || []), [projects]);
   const tasks = useMemo(() => {
-    let orgTasks = allTasks?.filter(task => projectIds.has(task.projectId)) || [];
+    // Backend already filters by organization, just apply local filters
+    let filteredTasks = allTasks || [];
     
     // Filter by project
     if (filterProjectId) {
-      orgTasks = orgTasks.filter(task => task.projectId === filterProjectId);
+      filteredTasks = filteredTasks.filter(task => task.projectId === filterProjectId);
     }
     
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      orgTasks = orgTasks.filter(task => 
+      filteredTasks = filteredTasks.filter(task => 
         task.name.toLowerCase().includes(query) ||
         task.description?.toLowerCase().includes(query) ||
         task.assignee?.toLowerCase().includes(query) ||
@@ -96,8 +97,8 @@ export default function Tasks() {
       );
     }
     
-    return orgTasks;
-  }, [allTasks, projectIds, filterProjectId, searchQuery]);
+    return filteredTasks;
+  }, [allTasks, filterProjectId, searchQuery]);
 
   const projectMap = useMemo(() => {
     const map = new Map<number, { name: string; portfolioId: number | null }>();
