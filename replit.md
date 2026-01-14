@@ -100,6 +100,23 @@ The application manages the following core entities with extensive industry-stan
 
 10. **Organizations** - Multi-tenant organizations with soft-delete (deactivate/reactivate) capability
 
+### Organization Roles
+Organizations support multiple membership roles with different permissions:
+
+1. **Owner** - Full administrative access, can manage organization settings and members
+2. **Admin** - Can manage organization settings and members (except removing owner)
+3. **Member** - Standard access to all projects, tasks, risks, and issues in the organization
+4. **Team Member** - Restricted visibility role:
+   - Can only see projects where they are assigned to at least one task
+   - Can only see tasks they are directly assigned to via resource assignments
+   - Can only see issues they are directly assigned to via resource assignments
+   - Cannot see unassigned items or items assigned to others
+
+The team_member role uses resource assignment relationships to determine visibility:
+- User must have an associated Resource record in the organization
+- Visibility is determined by `taskResourceAssignments`, `riskResourceAssignments`, and `issueResourceAssignments` tables
+- Helper functions in `server/routes.ts`: `getTeamMemberAccessData`, `getTeamMemberProjectIds`, `getTeamMemberTaskIds`, `getTeamMemberRiskIds`, `getTeamMemberIssueIds`
+
 ### Organization Soft-Delete
 Organizations use soft-delete (deactivation) rather than permanent deletion:
 - When deleted, organizations are marked with `deactivatedAt` and `deactivatedBy` timestamps

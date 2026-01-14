@@ -2336,12 +2336,13 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
                     value={member.role} 
                     onValueChange={(role) => updateMemberRole.mutate({ userId: member.userId, role })}
                   >
-                    <SelectTrigger className="w-[130px]">
+                    <SelectTrigger className="w-[140px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="org_admin">Org Admin</SelectItem>
                       <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="team_member">Team Member</SelectItem>
                       <SelectItem value="viewer">Viewer</SelectItem>
                     </SelectContent>
                   </Select>
@@ -2551,9 +2552,13 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
                 <SelectContent>
                   <SelectItem value="org_admin">Org Admin</SelectItem>
                   <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="team_member">Team Member</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Team Members can only see projects and items they are assigned to.
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -2611,9 +2616,13 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
                 <SelectContent>
                   <SelectItem value="org_admin">Org Admin</SelectItem>
                   <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="team_member">Team Member</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Team Members can only see projects and items they are assigned to.
+              </p>
             </div>
           </div>
           <DialogFooter>

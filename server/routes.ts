@@ -943,6 +943,116 @@ async function requireEmailVerified(userId: string | undefined): Promise<{ verif
   return { verified: true };
 }
 
+// Helper to get user's membership role in an organization
+async function getUserOrgRole(userId: string | undefined, orgId: number): Promise<string | null> {
+  if (!userId) return null;
+  const membership = await storage.getUserOrganizations(userId);
+  const orgMembership = membership.find(m => m.organizationId === orgId);
+  return orgMembership?.role || null;
+}
+
+// Helper to check if user is a team_member in any of their orgs
+async function isTeamMemberInOrg(userId: string | undefined, orgId: number): Promise<boolean> {
+  const role = await getUserOrgRole(userId, orgId);
+  return role === 'team_member';
+}
+
+// Helper to get user's resource IDs in an organization
+async function getUserResourceIds(userId: string, orgId: number): Promise<number[]> {
+  const orgResources = await storage.getResources(orgId);
+  return orgResources.filter(r => r.userId === userId).map(r => r.id);
+}
+
+// Cached result type for team member access data
+interface TeamMemberAccessData {
+  resourceIds: number[];
+  projectIds: Set<number>;
+  taskIds: Set<number>;
+}
+
+// Helper to get all access data for a team_member in one pass (more efficient)
+async function getTeamMemberAccessData(userId: string, orgId: number): Promise<TeamMemberAccessData> {
+  const resourceIds = await getUserResourceIds(userId, orgId);
+  if (resourceIds.length === 0) {
+    return { resourceIds: [], projectIds: new Set(), taskIds: new Set() };
+  }
+  
+  // Get all projects in org to filter tasks
+  const allProjects = await storage.getProjects();
+  const orgProjectIds = new Set(allProjects.filter(p => p.organizationId === orgId).map(p => p.id));
+  
+  // Get all tasks (without org filter - the function doesn't support it)
+  const allTasks = await storage.getAllTasks();
+  const orgTasks = allTasks.filter(t => orgProjectIds.has(t.projectId));
+  
+  // Batch get all task resource assignments
+  const projectIdSet = new Set<number>();
+  const taskIdSet = new Set<number>();
+  
+  // Check assignments for each task
+  for (const task of orgTasks) {
+    const assignments = await storage.getTaskResourceAssignments(task.id);
+    if (assignments.some(a => resourceIds.includes(a.resourceId))) {
+      projectIdSet.add(task.projectId);
+      taskIdSet.add(task.id);
+    }
+  }
+  
+  return { resourceIds, projectIds: projectIdSet, taskIds: taskIdSet };
+}
+
+// Helper to get project IDs that a team_member has access to (assigned via resources)
+async function getTeamMemberProjectIds(userId: string, orgId: number): Promise<number[]> {
+  const accessData = await getTeamMemberAccessData(userId, orgId);
+  return Array.from(accessData.projectIds);
+}
+
+// Helper to get task IDs that a team_member has access to (directly assigned)
+async function getTeamMemberTaskIds(userId: string, orgId: number): Promise<number[]> {
+  const accessData = await getTeamMemberAccessData(userId, orgId);
+  return Array.from(accessData.taskIds);
+}
+
+// Helper to get risk IDs that a team_member has access to (directly assigned)
+async function getTeamMemberRiskIds(userId: string, orgId: number): Promise<number[]> {
+  const accessData = await getTeamMemberAccessData(userId, orgId);
+  if (accessData.resourceIds.length === 0) return [];
+  
+  const riskIdSet = new Set<number>();
+  
+  for (const projectId of accessData.projectIds) {
+    const risks = await storage.getRisks(projectId);
+    for (const risk of risks) {
+      const assignments = await storage.getRiskResourceAssignments(risk.id);
+      if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
+        riskIdSet.add(risk.id);
+      }
+    }
+  }
+  
+  return Array.from(riskIdSet);
+}
+
+// Helper to get issue IDs that a team_member has access to (directly assigned)
+async function getTeamMemberIssueIds(userId: string, orgId: number): Promise<number[]> {
+  const accessData = await getTeamMemberAccessData(userId, orgId);
+  if (accessData.resourceIds.length === 0) return [];
+  
+  const issueIdSet = new Set<number>();
+  
+  for (const projectId of accessData.projectIds) {
+    const issues = await storage.getIssues(projectId);
+    for (const issue of issues) {
+      const assignments = await storage.getIssueResourceAssignments(issue.id);
+      if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
+        issueIdSet.add(issue.id);
+      }
+    }
+  }
+  
+  return Array.from(issueIdSet);
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -2287,9 +2397,23 @@ export async function registerRoutes(
     const projects = await storage.getProjects(requestedOrgId, portfolioId);
     
     // Filter projects to only those in accessible orgs
-    const filteredProjects = projects.filter(p => 
+    let filteredProjects = projects.filter(p => 
       p.organizationId === null || accessibleOrgIds.includes(p.organizationId)
     );
+    
+    // For team_member role, further filter to only assigned projects
+    // Apply filtering across all orgs where user has team_member role
+    if (userId) {
+      const userOrgs = await storage.getUserOrganizations(userId);
+      for (const membership of userOrgs) {
+        if (membership.role === 'team_member') {
+          const assignedProjectIds = await getTeamMemberProjectIds(userId, membership.organizationId);
+          filteredProjects = filteredProjects.filter(p => 
+            p.organizationId !== membership.organizationId || assignedProjectIds.includes(p.id)
+          );
+        }
+      }
+    }
     
     res.json(filteredProjects);
   });
@@ -3436,16 +3560,49 @@ Generated by FridayReport.AI
     // Get user's accessible org IDs and filter issues by project's organization
     const accessibleOrgIds = await getUserOrgIds(userId);
     const allIssues = await storage.getAllIssues();
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
     
     // Get all projects to determine which issues belong to accessible orgs
     const allProjects = await storage.getProjects();
-    const accessibleProjectIds = new Set(
-      allProjects
-        .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
-        .map(p => p.id)
-    );
+    let accessibleProjectIds: Set<number>;
     
-    const filteredIssues = allIssues.filter(issue => accessibleProjectIds.has(issue.projectId));
+    if (organizationId !== null) {
+      // Verify user has access to this organization
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.json([]);
+      }
+      accessibleProjectIds = new Set(
+        allProjects
+          .filter(p => p.organizationId === organizationId)
+          .map(p => p.id)
+      );
+    } else {
+      accessibleProjectIds = new Set(
+        allProjects
+          .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
+          .map(p => p.id)
+      );
+    }
+    
+    let filteredIssues = allIssues.filter(issue => accessibleProjectIds.has(issue.projectId));
+    
+    // For team_member role, further filter to only assigned issues
+    // Apply filtering across all orgs where user has team_member role
+    if (userId) {
+      const userOrgs = await storage.getUserOrganizations(userId);
+      for (const membership of userOrgs) {
+        if (membership.role === 'team_member') {
+          const assignedIssueIds = await getTeamMemberIssueIds(userId, membership.organizationId);
+          // Get projects in this org to filter issues
+          const orgProjects = allProjects.filter(p => p.organizationId === membership.organizationId);
+          const orgProjectIds = new Set(orgProjects.map(p => p.id));
+          filteredIssues = filteredIssues.filter(i => 
+            !orgProjectIds.has(i.projectId) || assignedIssueIds.includes(i.id)
+          );
+        }
+      }
+    }
+    
     res.json(filteredIssues);
   });
 
@@ -3714,7 +3871,24 @@ Generated by FridayReport.AI
     }
     
     const allTasks = await storage.getAllTasks();
-    const filteredTasks = allTasks.filter(task => accessibleProjectIds.has(task.projectId));
+    let filteredTasks = allTasks.filter(task => accessibleProjectIds.has(task.projectId));
+    
+    // For team_member role, further filter to only assigned tasks
+    // Apply filtering across all orgs where user has team_member role
+    if (userId) {
+      const userOrgs = await storage.getUserOrganizations(userId);
+      for (const membership of userOrgs) {
+        if (membership.role === 'team_member') {
+          const assignedTaskIds = await getTeamMemberTaskIds(userId, membership.organizationId);
+          // Get projects in this org to filter tasks
+          const orgProjects = allProjects.filter(p => p.organizationId === membership.organizationId);
+          const orgProjectIds = new Set(orgProjects.map(p => p.id));
+          filteredTasks = filteredTasks.filter(t => 
+            !orgProjectIds.has(t.projectId) || assignedTaskIds.includes(t.id)
+          );
+        }
+      }
+    }
     
     // Support pagination via query params
     const limit = parseInt(req.query.limit as string) || 100;
