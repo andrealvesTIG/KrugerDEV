@@ -109,6 +109,21 @@ Organizations use soft-delete (deactivation) rather than permanent deletion:
 - Restore endpoint: `POST /api/admin/organizations/:id/reactivate`
 - View deactivated: `GET /api/admin/organizations/deactivated`
 
+### Email Verification Requirement
+All create operations require the user's email to be verified before allowing creation. This applies to:
+- Organizations, Portfolios, Projects
+- Tasks, Risks, Issues, Milestones
+- Resources, Resource Invites
+- Project Intakes, Change Requests, Documents, Comments
+- Organization Invites, Task Dependencies
+- AI Project Generation, MPP Imports
+
+**Exception**: The demo data generation endpoint (`/api/demo-data/generate`) is exempt to allow new users to generate sample data during onboarding before email verification.
+
+When a create request is blocked due to email verification:
+- Response status: 403 Forbidden
+- Response includes: `{ message: "Email verification required...", emailVerificationRequired: true }`
+
 ### Shared Code Pattern
 The `shared/` directory contains code used by both frontend and backend:
 - `shared/schema.ts` - Database schema, TypeScript types, Zod validators
