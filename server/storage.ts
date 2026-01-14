@@ -334,6 +334,7 @@ export class DatabaseStorage implements IStorage {
     // 1. Unlink resources (set userId to null since it's nullable)
     await db.update(resources).set({ userId: null }).where(eq(resources.userId, id));
     await db.update(resources).set({ managerId: null }).where(eq(resources.managerId, id));
+    await db.update(resources).set({ deletedBy: null }).where(eq(resources.deletedBy, id));
     // 2. Delete notifications for this user
     await db.delete(notifications).where(or(eq(notifications.userId, id), eq(notifications.fromUserId, id)));
     // 3. Delete organization access requests
@@ -393,7 +394,11 @@ export class DatabaseStorage implements IStorage {
     await db.update(organizationAccessRequests).set({ reviewedBy: null }).where(eq(organizationAccessRequests.reviewedBy, id));
     // 21. Nullify mpp imports importedBy
     await db.update(mppImports).set({ importedBy: null }).where(eq(mppImports.importedBy, id));
-    // 22. Finally delete the user
+    // 22. Nullify change requests deletedBy
+    await db.update(changeRequests).set({ deletedBy: null }).where(eq(changeRequests.deletedBy, id));
+    // 23. Nullify project documents deletedBy
+    await db.update(projectDocuments).set({ deletedBy: null }).where(eq(projectDocuments.deletedBy, id));
+    // 24. Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
 
