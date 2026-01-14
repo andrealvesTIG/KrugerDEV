@@ -44,7 +44,16 @@ import {
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
-import { billingAuditLogs } from "@shared/models/billing";
+import { 
+  billingAuditLogs, 
+  subscriptions, 
+  seatAssignments, 
+  usageEvents,
+  resourceCreditCosts,
+  referralCodes,
+  referrals,
+  referralPayouts 
+} from "@shared/models/billing";
 
 export interface IStorage {
   // Users
@@ -402,12 +411,30 @@ export class DatabaseStorage implements IStorage {
     await db.update(projectDocuments).set({ deletedBy: null }).where(eq(projectDocuments.deletedBy, id));
     // 24. Nullify billing audit logs actorUserId
     await db.update(billingAuditLogs).set({ actorUserId: null }).where(eq(billingAuditLogs.actorUserId, id));
-    // 25. Delete magic link tokens for this user's email
+    // 25. Nullify subscriptions userId
+    await db.update(subscriptions).set({ userId: null }).where(eq(subscriptions.userId, id));
+    // 26. Delete seat assignments for this user
+    await db.delete(seatAssignments).where(eq(seatAssignments.userId, id));
+    // 27. Nullify usage events actorUserId
+    await db.update(usageEvents).set({ actorUserId: null }).where(eq(usageEvents.actorUserId, id));
+    // 28. Nullify resource credit costs updatedBy
+    await db.update(resourceCreditCosts).set({ updatedBy: null }).where(eq(resourceCreditCosts.updatedBy, id));
+    // 29. Handle referral program - delete referral payouts first
+    await db.delete(referralPayouts).where(eq(referralPayouts.userId, id));
+    // 30. Nullify referrals referredUserId (where this user was referred)
+    await db.update(referrals).set({ referredUserId: null }).where(eq(referrals.referredUserId, id));
+    // 31. Delete referrals where this user is the referrer
+    await db.delete(referrals).where(eq(referrals.referrerId, id));
+    // 32. Delete referral codes for this user
+    await db.delete(referralCodes).where(eq(referralCodes.userId, id));
+    // 33. Nullify billing transactions userId
+    await db.update(billingTransactions).set({ userId: null }).where(eq(billingTransactions.userId, id));
+    // 34. Delete magic link tokens for this user's email
     const user = await this.getUser(id);
     if (user) {
       await db.delete(magicLinkTokens).where(eq(magicLinkTokens.email, user.email));
     }
-    // 26. Finally delete the user
+    // 35. Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
 
