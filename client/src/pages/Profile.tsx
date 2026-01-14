@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile, Sun, Moon, Monitor, Bell, AlertTriangle } from "lucide-react";
+import { Loader2, User, Mail, Shield, Calendar, Building2, Pencil, X, Check, Camera, Upload, Smile, Sun, Moon, Monitor, Bell, AlertTriangle, Key, Copy, Trash2 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -69,6 +69,71 @@ export default function Profile() {
     lastName: "",
     email: ""
   });
+
+  const [newlyGeneratedApiKey, setNewlyGeneratedApiKey] = useState<string | null>(null);
+
+  const { data: apiKeyStatus, isLoading: apiKeyLoading } = useQuery<{ hasApiKey: boolean }>({
+    queryKey: ['/api/user/api-key'],
+    queryFn: async () => {
+      const res = await fetch('/api/user/api-key');
+      if (!res.ok) return { hasApiKey: false };
+      return res.json();
+    },
+    enabled: !!user?.id
+  });
+
+  const generateApiKeyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/user/api-key/generate");
+      return res.json();
+    },
+    onSuccess: (data: { apiKey: string }) => {
+      setNewlyGeneratedApiKey(data.apiKey);
+      queryClient.invalidateQueries({ queryKey: ['/api/user/api-key'] });
+      toast({
+        title: "API Key Generated",
+        description: "Your new API key has been created. Copy it now - it won't be shown again."
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate API key. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const revokeApiKeyMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", "/api/user/api-key");
+    },
+    onSuccess: () => {
+      setNewlyGeneratedApiKey(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/user/api-key'] });
+      toast({
+        title: "API Key Revoked",
+        description: "Your API key has been deleted."
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to revoke API key. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const copyApiKey = () => {
+    if (newlyGeneratedApiKey) {
+      navigator.clipboard.writeText(newlyGeneratedApiKey);
+      toast({
+        title: "Copied",
+        description: "API key copied to clipboard."
+      });
+    }
+  };
 
   const { data: memberships } = useQuery<OrganizationMember[]>({
     queryKey: ['/api/users', user?.id, 'organizations'],
@@ -561,6 +626,106 @@ export default function Profile() {
                   </div>
                   <Badge variant="outline">Via Replit</Badge>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  API Key
+                </CardTitle>
+                <CardDescription>
+                  Generate an API key to authenticate external tools like Power BI.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {apiKeyLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  </div>
+                ) : newlyGeneratedApiKey ? (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border bg-muted/50 p-4">
+                      <p className="text-sm font-medium text-amber-600 dark:text-amber-400 mb-2">
+                        Copy this key now - it won't be shown again!
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 bg-background rounded px-3 py-2 text-sm font-mono break-all border">
+                          {newlyGeneratedApiKey}
+                        </code>
+                        <Button size="icon" variant="outline" onClick={copyApiKey} data-testid="button-copy-api-key">
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      <p className="font-medium mb-1">How to use with Power BI:</p>
+                      <ol className="list-decimal list-inside space-y-1">
+                        <li>Use "Basic" authentication in Power BI</li>
+                        <li>Username: <code className="bg-muted px-1 rounded">{user?.email}</code></li>
+                        <li>Password: Your API key (copied above)</li>
+                      </ol>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setNewlyGeneratedApiKey(null)}
+                      data-testid="button-dismiss-api-key"
+                    >
+                      I've copied the key
+                    </Button>
+                  </div>
+                ) : apiKeyStatus?.hasApiKey ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div>
+                        <p className="font-medium">API Key Active</p>
+                        <p className="text-sm text-muted-foreground">You have an active API key for external integrations</p>
+                      </div>
+                      <Badge variant="secondary">Active</Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline"
+                        onClick={() => generateApiKeyMutation.mutate()}
+                        disabled={generateApiKeyMutation.isPending}
+                        data-testid="button-regenerate-api-key"
+                      >
+                        {generateApiKeyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Generate New Key
+                      </Button>
+                      <Button 
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => revokeApiKeyMutation.mutate()}
+                        disabled={revokeApiKeyMutation.isPending}
+                        data-testid="button-revoke-api-key"
+                      >
+                        {revokeApiKeyMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div>
+                        <p className="font-medium">No API Key</p>
+                        <p className="text-sm text-muted-foreground">Generate a key to connect Power BI or other tools</p>
+                      </div>
+                      <Badge variant="outline">Not Set</Badge>
+                    </div>
+                    <Button 
+                      onClick={() => generateApiKeyMutation.mutate()}
+                      disabled={generateApiKeyMutation.isPending}
+                      data-testid="button-generate-api-key"
+                    >
+                      {generateApiKeyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      <Key className="h-4 w-4 mr-2" />
+                      Generate API Key
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
