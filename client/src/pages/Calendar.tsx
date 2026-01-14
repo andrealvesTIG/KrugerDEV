@@ -71,9 +71,10 @@ export default function Calendar() {
   });
 
   // Fetch all tasks for organization's projects
-  const { data: allTasks = [] } = useQuery<Task[]>({
+  const { data: tasksResponse } = useQuery<{ tasks: Task[], total: number, hasMore: boolean }>({
     queryKey: ['/api/tasks'],
   });
+  const allTasks = tasksResponse?.tasks ?? [];
 
 
   // Create project lookup map and set of project IDs for current org
