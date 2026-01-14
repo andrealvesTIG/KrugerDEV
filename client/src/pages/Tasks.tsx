@@ -1055,36 +1055,46 @@ function GanttTaskRow({
         </div>
       )}
       {visibleColumns.includes('resources') && (
-        <div 
-          className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50"
-          onClick={(e) => { e.stopPropagation(); setIsEditingResources(true); }}
-        >
-          {isEditingResources ? (
-            <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+        <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
+          <DialogTrigger asChild>
+            <div 
+              className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50 flex items-center"
+              onClick={(e) => { e.stopPropagation(); }}
+              data-testid={`resources-cell-${task.id}`}
+            >
+              <span className="truncate block">{assignedNames}</span>
+            </div>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle>Assign Resources</DialogTitle>
+              <DialogDescription>
+                Assign team members to "{task.name}"
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
               <ResourceAssignment
                 organizationId={organizationId}
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
-                label=""
+                label="Resources"
                 projectId={task.projectId}
                 projectName={getProjectName(task.projectId)}
                 taskId={task.id}
                 taskName={task.name}
                 onInviteAssigned={() => { inviteAssignedRef.current = true; }}
               />
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>
-                  <Check className="h-3 w-3" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setIsEditingResources(false)}>
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
             </div>
-          ) : (
-            <span className="truncate block">{assignedNames}</span>
-          )}
-        </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditingResources(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveResources}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
       {visibleColumns.includes('phase') && (
         <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
