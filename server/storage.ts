@@ -791,7 +791,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllTasks(): Promise<Task[]> {
-    return await db.select().from(tasks).where(isNull(tasks.deletedAt));
+    return await db.select().from(tasks).where(isNull(tasks.deletedAt)).orderBy(desc(tasks.createdAt));
   }
 
   async getTask(id: number): Promise<Task | undefined> {
