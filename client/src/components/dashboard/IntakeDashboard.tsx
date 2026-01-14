@@ -97,6 +97,34 @@ export function IntakeDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  const fundingDistribution = useMemo(() => {
+    const funding: Record<string, number> = {};
+    filteredIntakes.forEach(i => {
+      const source = i.fundingSource || "Unspecified";
+      funding[source] = (funding[source] || 0) + 1;
+    });
+    return Object.entries(funding).map(([name, value], idx) => ({
+      name,
+      value,
+      color: [COLORS.Blue, COLORS.Green, COLORS.Purple, COLORS.Yellow, COLORS.Cyan][idx % 5],
+    }));
+  }, [filteredIntakes]);
+
+  const monthlyTrend = useMemo(() => {
+    const months: Record<string, { month: string; submitted: number; approved: number; rejected: number }> = {};
+    filteredIntakes.forEach(intake => {
+      if (!intake.createdAt) return;
+      const monthKey = format(new Date(intake.createdAt), "MMM yyyy");
+      if (!months[monthKey]) {
+        months[monthKey] = { month: monthKey, submitted: 0, approved: 0, rejected: 0 };
+      }
+      months[monthKey].submitted++;
+      if (intake.status === "approved" || intake.status === "converted") months[monthKey].approved++;
+      if (intake.status === "rejected") months[monthKey].rejected++;
+    });
+    return Object.values(months).slice(-6);
+  }, [filteredIntakes]);
+
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -132,34 +160,6 @@ export function IntakeDashboard() {
     { name: "Rejected", value: rejectedIntakes, color: STATUS_COLORS.rejected },
     { name: "Converted", value: convertedIntakes, color: STATUS_COLORS.converted },
   ].filter(d => d.value > 0);
-
-  const fundingDistribution = useMemo(() => {
-    const funding: Record<string, number> = {};
-    filteredIntakes.forEach(i => {
-      const source = i.fundingSource || "Unspecified";
-      funding[source] = (funding[source] || 0) + 1;
-    });
-    return Object.entries(funding).map(([name, value], idx) => ({
-      name,
-      value,
-      color: [COLORS.Blue, COLORS.Green, COLORS.Purple, COLORS.Yellow, COLORS.Cyan][idx % 5],
-    }));
-  }, [filteredIntakes]);
-
-  const monthlyTrend = useMemo(() => {
-    const months: Record<string, { month: string; submitted: number; approved: number; rejected: number }> = {};
-    filteredIntakes.forEach(intake => {
-      if (!intake.createdAt) return;
-      const monthKey = format(new Date(intake.createdAt), "MMM yyyy");
-      if (!months[monthKey]) {
-        months[monthKey] = { month: monthKey, submitted: 0, approved: 0, rejected: 0 };
-      }
-      months[monthKey].submitted++;
-      if (intake.status === "approved" || intake.status === "converted") months[monthKey].approved++;
-      if (intake.status === "rejected") months[monthKey].rejected++;
-    });
-    return Object.values(months).slice(-6);
-  }, [filteredIntakes]);
 
   const recentIntakes = [...filteredIntakes]
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())

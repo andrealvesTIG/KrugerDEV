@@ -120,6 +120,7 @@ export function useApproveTimesheetEntry() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheets/approval"] });
     },
   });
 }
@@ -133,6 +134,7 @@ export function useRejectTimesheetEntry() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheets/approval"] });
     },
   });
 }

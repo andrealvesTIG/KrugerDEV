@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Task, InsertTask, UpdateTaskRequest, TaskChangeLog, TaskDependency } from "@shared/schema";
 
@@ -10,10 +10,59 @@ export function useTasks(projectId: number) {
   });
 }
 
+interface PaginatedTasksResponse {
+  tasks: Task[];
+  total: number;
+  hasMore: boolean;
+}
+
 export function useAllTasks() {
   return useQuery<Task[]>({
-    queryKey: ['/api/tasks'],
+    queryKey: ['/api/tasks', 'all'],
+    queryFn: async () => {
+      const res = await fetch('/api/tasks?limit=10000&offset=0');
+      if (!res.ok) {
+        throw new Error('Failed to fetch tasks');
+      }
+      const data = await res.json();
+      // Handle both old array format and new paginated format
+      return Array.isArray(data) ? data : (data.tasks || []);
+    },
   });
+}
+
+export function usePaginatedTasks(limit: number = 100) {
+  const query = useInfiniteQuery<PaginatedTasksResponse>({
+    queryKey: ['/api/tasks', 'paginated'],
+    queryFn: async ({ pageParam = 0 }) => {
+      const res = await fetch(`/api/tasks?limit=${limit}&offset=${pageParam}`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch tasks');
+      }
+      return res.json();
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage.hasMore) return undefined;
+      return allPages.length * limit;
+    },
+  });
+
+  // Flatten all pages into a single tasks array
+  const tasks = query.data?.pages.flatMap(page => page.tasks) || [];
+  const total = query.data?.pages[0]?.total || 0;
+  const hasMore = query.hasNextPage || false;
+
+  return {
+    tasks,
+    total,
+    hasMore,
+    isLoading: query.isLoading,
+    isLoadingMore: query.isFetchingNextPage,
+    error: query.error,
+    loadMore: query.fetchNextPage,
+    refetch: query.refetch,
+  };
 }
 
 export function useCreateTask() {
@@ -36,7 +85,8 @@ export function useCreateTask() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      // Invalidate and immediately refetch all task queries
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false, refetchType: 'all' });
     },
   });
 }
@@ -47,7 +97,8 @@ export function useUpdateTask() {
       apiRequest('PUT', `/api/tasks/${id}`, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      // Invalidate and immediately refetch all task queries
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false, refetchType: 'all' });
     },
   });
 }
@@ -58,7 +109,8 @@ export function useDeleteTask() {
       apiRequest('DELETE', `/api/tasks/${id}`),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      // Invalidate and immediately refetch all task queries
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false, refetchType: 'all' });
     },
   });
 }

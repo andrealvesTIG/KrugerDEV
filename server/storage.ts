@@ -48,7 +48,9 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByApiKey(apiKey: string): Promise<User | undefined>;
   createUser(user: UpsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<UpsertUser>): Promise<User>;
   getAllUsers(): Promise<User[]>;
   deleteUser(id: string): Promise<void>;
 
@@ -175,6 +177,8 @@ export interface IStorage {
     milestones: number;
     issues: number;
     financials: number;
+    intakes: number;
+    resources: number;
   }>;
 
   // Recycle Bin
@@ -303,8 +307,21 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByApiKey(apiKey: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.apiKey, apiKey));
+    return user;
+  }
+
   async createUser(insertUser: UpsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  async updateUser(id: string, updates: Partial<UpsertUser>): Promise<User> {
+    const [user] = await db.update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
     return user;
   }
 
@@ -984,6 +1001,8 @@ export class DatabaseStorage implements IStorage {
     milestones: number;
     issues: number;
     financials: number;
+    intakes: number;
+    resources: number;
   }> {
     const stats = {
       portfolios: 0,
@@ -993,6 +1012,8 @@ export class DatabaseStorage implements IStorage {
       milestones: 0,
       issues: 0,
       financials: 0,
+      intakes: 0,
+      resources: 0,
     };
 
     // Get all DEMO projects for this organization (only isDemo=true)
@@ -1066,6 +1087,26 @@ export class DatabaseStorage implements IStorage {
         stats.portfolios++;
       }
     }
+    
+    // Delete DEMO intakes (organization-level)
+    const deletedIntakes = await db.delete(projectIntakes)
+      .where(and(eq(projectIntakes.organizationId, organizationId), eq(projectIntakes.isDemo, true))).returning();
+    stats.intakes = deletedIntakes.length;
+    
+    // Delete DEMO resources and their assignments (organization-level)
+    const demoResources = await db.select().from(resources)
+      .where(and(eq(resources.organizationId, organizationId), eq(resources.isDemo, true)));
+    
+    for (const resource of demoResources) {
+      // Delete any task/issue/risk resource assignments for this demo resource
+      await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, resource.id));
+      await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, resource.id));
+      await db.delete(riskResourceAssignments).where(eq(riskResourceAssignments.resourceId, resource.id));
+    }
+    
+    const deletedResources = await db.delete(resources)
+      .where(and(eq(resources.organizationId, organizationId), eq(resources.isDemo, true))).returning();
+    stats.resources = deletedResources.length;
     
     return stats;
   }

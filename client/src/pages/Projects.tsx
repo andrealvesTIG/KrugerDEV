@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useProjects, useCreateProject, useUpdateProject } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
@@ -15,7 +15,7 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -29,6 +29,7 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, u
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
+import ExcelJS from "exceljs";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
 
@@ -43,8 +44,172 @@ export default function Projects() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"list" | "kanban" | "gantt">("list");
   const updateProject = useUpdateProject();
+  const createProject = useCreateProject();
   const { toast } = useToast();
   const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportToExcel = async () => {
+    if (!projects || projects.length === 0) {
+      toast({ title: "No data", description: "There are no projects to export", variant: "destructive" });
+      return;
+    }
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Projects");
+    
+    worksheet.columns = [
+      { header: "Name", key: "name", width: 30 },
+      { header: "Description", key: "description", width: 40 },
+      { header: "Portfolio", key: "portfolio", width: 25 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Priority", key: "priority", width: 12 },
+      { header: "Health", key: "health", width: 10 },
+      { header: "Start Date", key: "startDate", width: 15 },
+      { header: "End Date", key: "endDate", width: 15 },
+      { header: "Budget", key: "budget", width: 15 },
+      { header: "Completion %", key: "completion", width: 12 }
+    ];
+    
+    projects.forEach(p => {
+      const portfolio = portfolios?.find(pf => pf.id === p.portfolioId);
+      worksheet.addRow({
+        name: p.name,
+        description: p.description || "",
+        portfolio: portfolio?.name || "",
+        status: p.status,
+        priority: p.priority,
+        health: p.health,
+        startDate: p.startDate || "",
+        endDate: p.endDate || "",
+        budget: p.budget || "",
+        completion: p.completionPercentage || 0
+      });
+    });
+    
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Projects_${new Date().toISOString().split("T")[0]}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+    
+    toast({ title: "Success", description: `Exported ${projects.length} projects to Excel` });
+  };
+
+  const handleImportFromExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !currentOrganization) return;
+    setIsImporting(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        throw new Error("No worksheet found");
+      }
+      
+      const headers: string[] = [];
+      worksheet.getRow(1).eachCell((cell, colNumber) => {
+        headers[colNumber - 1] = String(cell.value || "");
+      });
+      
+      const jsonData: Record<string, string>[] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const rowData: Record<string, string> = {};
+        row.eachCell((cell, colNumber) => {
+          const header = headers[colNumber - 1];
+          if (header) {
+            rowData[header] = String(cell.value || "");
+          }
+        });
+        jsonData.push(rowData);
+      });
+      
+      let imported = 0;
+      let skipped = 0;
+      let limitReached = false;
+      
+      for (let i = 0; i < jsonData.length; i++) {
+        if (limitReached) break;
+        const row = jsonData[i];
+        const name = row["Name"] || row["name"] || row["Project Name"] || row["projectName"];
+        if (!name || typeof name !== "string" || name.trim() === "") {
+          skipped++;
+          continue;
+        }
+        
+        const portfolioName = (row["Portfolio"] || row["portfolio"] || "").toString().trim();
+        let matchedPortfolioId: number | null = null;
+        if (portfolioName) {
+          const matchedPortfolio = portfolios?.find(p => p.name.toLowerCase() === portfolioName.toLowerCase());
+          if (matchedPortfolio) {
+            matchedPortfolioId = matchedPortfolio.id;
+          }
+        }
+        
+        const statusValue = row["Status"] || row["status"] || "Initiation";
+        const validStatus = PROJECT_STATUS_LIST.includes(statusValue) ? statusValue : "Initiation";
+        
+        const priorityValue = row["Priority"] || row["priority"] || "Medium";
+        const validPriorities = ["Critical", "High", "Medium", "Low"];
+        const validPriority = validPriorities.includes(priorityValue) ? priorityValue : "Medium";
+        
+        const healthValue = row["Health"] || row["health"] || "Green";
+        const validHealths = ["Green", "Yellow", "Red"];
+        const validHealth = validHealths.includes(healthValue) ? healthValue : "Green";
+        
+        const startDateRaw = (row["Start Date"] || row["startDate"] || "").toString().trim();
+        const endDateRaw = (row["End Date"] || row["endDate"] || "").toString().trim();
+        const budgetRaw = (row["Budget"] || row["budget"] || "0").toString().replace(/[^0-9.]/g, "") || "0";
+        const completionRaw = parseInt((row["Completion %"] || row["completion"] || "0").toString().replace(/[^0-9]/g, "")) || 0;
+        
+        try {
+          await createProject.mutateAsync({
+            organizationId: currentOrganization.id,
+            portfolioId: matchedPortfolioId,
+            name: name.trim(),
+            description: (row["Description"] || row["description"] || "").toString().trim() || null,
+            status: validStatus,
+            priority: validPriority as "Critical" | "High" | "Medium" | "Low",
+            health: validHealth as "Green" | "Yellow" | "Red",
+            startDate: startDateRaw || null,
+            endDate: endDateRaw || null,
+            budget: budgetRaw,
+            completionPercentage: Math.min(100, Math.max(0, completionRaw))
+          });
+          imported++;
+        } catch (err: any) {
+          if (err?.limitExceeded) {
+            toast({ 
+              title: "Credit Limit Reached", 
+              description: `Imported ${imported} projects. ${err.message || "Please upgrade your plan to import more."}`, 
+              variant: "destructive" 
+            });
+            limitReached = true;
+            break;
+          }
+          skipped++;
+        }
+      }
+      
+      if (!limitReached) {
+        toast({ 
+          title: "Import Complete", 
+          description: `Imported ${imported} projects${skipped > 0 ? `, skipped ${skipped} rows` : ""}` 
+        });
+      }
+    } catch (err) {
+      toast({ title: "Import Failed", description: "Could not read the Excel file", variant: "destructive" });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   // Calculate progress per project based on tasks
   const projectProgress = useMemo(() => {
@@ -106,12 +271,40 @@ export default function Projects() {
           <h1 className="text-3xl font-display font-bold text-foreground">Projects</h1>
           <p className="mt-1 text-muted-foreground">Track execution and health of all initiatives.</p>
         </div>
-        <CreateProjectDialog 
-          open={isDialogOpen} 
-          onOpenChange={setIsDialogOpen} 
-          portfolios={portfolios || []}
-          organizationId={currentOrganization?.id}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImportFromExcel}
+            accept=".xlsx,.xls"
+            className="hidden"
+            data-testid="input-import-projects-file"
+          />
+          <Button 
+            variant="outline" 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            data-testid="button-import-projects"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {isImporting ? "Importing..." : "Import"}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleExportToExcel}
+            disabled={!projects || projects.length === 0}
+            data-testid="button-export-projects"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
+          <CreateProjectDialog 
+            open={isDialogOpen} 
+            onOpenChange={setIsDialogOpen} 
+            portfolios={portfolios || []}
+            organizationId={currentOrganization?.id}
+          />
+        </div>
       </div>
 
       {/* Filters Bar */}

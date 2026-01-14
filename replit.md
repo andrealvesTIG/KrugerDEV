@@ -41,15 +41,64 @@ Key backend files:
 - `shared/schema.ts` - Drizzle schema definitions and Zod validators
 
 ### Data Model
-The application manages the following core entities:
-1. **Portfolios** - Strategic groupings of projects
-2. **Projects** - Individual initiatives with status, health, budget tracking
-3. **Risks** - Project risks with probability/impact assessment
-4. **Milestones** - Key project milestones with completion tracking
-5. **Issues** - Bug/task/enhancement tracking per project
-6. **Change Requests** - Formal change requests with type (scope/schedule/budget/resource), priority, impact assessment, justification, and workflow status (pending/under_review/approved/rejected/implemented)
-7. **Project Documents** - Document management with categories (general/contract/requirement/design/test/report), versioning, and URL references
-8. **Organizations** - Multi-tenant organizations with soft-delete (deactivate/reactivate) capability
+The application manages the following core entities with extensive industry-standard metadata fields:
+
+1. **Portfolios** - Strategic groupings of projects with:
+   - Business owner, strategic objectives, risk tolerance
+   - Budget tracking (allocated/spent), health score, status
+   - Target dates, department, performance metrics
+
+2. **Projects** - Individual initiatives with:
+   - Project code, type, methodology (Waterfall/Agile/etc.)
+   - Business sponsor, owner, technical lead references
+   - Baseline and actual dates for variance tracking
+   - Budget, actual cost, forecast, cost/schedule variance
+   - Scope, objectives, success criteria, constraints, assumptions
+   - Department, category, business value, risk level
+
+3. **Tasks** - Project tasks/work items with:
+   - Task number, WBS code, outline level (1-6), priority
+   - Task type (Work/Milestone/Summary), constraint type/date
+   - Baseline and actual start/end dates
+   - Estimated/actual/remaining hours, cost tracking
+   - Owner, phase, category, labels, critical path flag
+   - **Hierarchical Roll-up**: Parent tasks (those with children) automatically roll up values from leaf tasks:
+     - Start date = earliest start date of leaf children
+     - End date = latest end date of leaf children
+     - Progress = weighted average by duration
+     - Hours and costs = sum of leaf children values
+   - **Resource Assignment Restriction**: Only leaf tasks (no children) can have resource assignments; summary tasks display an explanatory message
+
+4. **Resources** - Team members and equipment with:
+   - Resource code, type (Employee/Contractor/Vendor/Equipment)
+   - Contact info, manager, department, cost center, location
+   - Hourly/overtime/cost rates, weekly capacity, availability %
+   - Skills, certifications, experience level
+   - Start/end dates, billable flag
+
+5. **Risks** - Project risks with:
+   - Risk number, category, score (probability x impact)
+   - Response strategy, contingency plan, trigger events
+   - Owner, reviewer, identified/target/actual resolution dates
+   - Impact (cost/schedule), proximity, residual risk
+
+6. **Issues** - Bug/task/enhancement tracking with:
+   - Issue number, category, severity, escalation level
+   - Reporter, assignee, reported/target/actual resolution dates
+   - Resolution, root cause, impact (cost/schedule)
+   - Steps to reproduce, environment, labels
+
+7. **Milestones** - Key project milestones with:
+   - Milestone number, type, phase
+   - Baseline and actual dates
+   - Owner, deliverables, acceptance criteria
+   - Dependencies, success metrics, stakeholders
+
+8. **Change Requests** - Formal change requests with type (scope/schedule/budget/resource), priority, impact assessment, justification, and workflow status (pending/under_review/approved/rejected/implemented)
+
+9. **Project Documents** - Document management with categories (general/contract/requirement/design/test/report), versioning, and URL references
+
+10. **Organizations** - Multi-tenant organizations with soft-delete (deactivate/reactivate) capability
 
 ### Organization Soft-Delete
 Organizations use soft-delete (deactivation) rather than permanent deletion:
@@ -114,8 +163,16 @@ The application exposes REST API endpoints for external analytics tools like Pow
 **Query Parameters**:
 - `organizationId` (optional) - Filter to specific organization
 
-**Power BI Connection**:
-1. Use Web connector in Power BI Desktop
-2. Set URL to `https://your-app.replit.app/api/analytics/projects`
-3. Configure authentication (requires session cookie from logged-in user)
-4. Schedule refresh as needed
+**Power BI Connection with API Key Authentication**:
+1. **Generate API Key**: In the app, go to Settings and generate an API key (or call POST `/api/user/api-key/generate`)
+2. **Configure Power BI Desktop**: 
+   - Use Web connector and set URL to `https://your-app.replit.app/api/analytics/projects`
+   - Select "Basic" authentication
+   - **Username**: Your email address (e.g., `alex.rodov@trusteditgroup.com`)
+   - **Password**: Your generated API key (64-character hex string)
+3. Click Connect and schedule refresh as needed
+
+**API Key Management Endpoints**:
+- `GET /api/user/api-key` - Check if API key exists
+- `POST /api/user/api-key/generate` - Generate new API key
+- `DELETE /api/user/api-key` - Revoke API key

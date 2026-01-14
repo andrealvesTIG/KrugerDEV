@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -1856,12 +1856,25 @@ function TasksTab({ projectId }: { projectId: number }) {
                 <Label>Description</Label>
                 <Textarea {...form.register("description")} />
               </div>
-              <ResourceAssignment
-                organizationId={currentOrganization?.id || null}
-                selectedResourceIds={selectedResourceIds}
-                onSelectionChange={setSelectedResourceIds}
-                label="Assigned Resources"
-              />
+              {/* Only allow resource assignments for leaf tasks (tasks without children) */}
+              {editingTask && (() => {
+                const editLevel = editingTask.outlineLevel || 1;
+                const idx = tasks?.findIndex(x => x.id === editingTask.id) ?? -1;
+                const hasChildren = idx >= 0 && tasks && idx < tasks.length - 1 && ((tasks[idx + 1].outlineLevel || 1) > editLevel);
+                return hasChildren;
+              })() ? (
+                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md flex items-center gap-2">
+                  <UserIcon className="h-4 w-4" />
+                  <span>Resource assignments are only available for leaf tasks. This is a summary task - dates and progress roll up from children.</span>
+                </div>
+              ) : (
+                <ResourceAssignment
+                  organizationId={currentOrganization?.id || null}
+                  selectedResourceIds={selectedResourceIds}
+                  onSelectionChange={setSelectedResourceIds}
+                  label="Assigned Resources"
+                />
+              )}
               <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="isMilestone" 
@@ -1930,7 +1943,22 @@ function TasksTab({ projectId }: { projectId: number }) {
       </div>
 
       {view === "gantt" ? (
-        <ProjectGanttView tasks={filteredTasks} onTaskClick={openEditDialog} />
+        <ProjectGanttView 
+          tasks={filteredTasks} 
+          onTaskClick={openEditDialog}
+          projectId={projectId}
+          organizationId={currentOrganization?.id || null}
+          onCreateTask={(name) => {
+            createTask.mutate({
+              projectId,
+              name,
+              startDate: format(new Date(), 'yyyy-MM-dd'),
+              endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+              status: "Not Started",
+              progress: 0,
+            });
+          }}
+        />
       ) : (
         <ProjectKanbanView 
           tasks={filteredTasks} 
@@ -1962,13 +1990,52 @@ const zoomLabels: Record<ZoomLevel, string> = {
   '5year': '5 Years'
 };
 
-function ProjectGanttTaskRow({ task, onTaskClick, minDate, maxDate }: { 
+type GanttColumn = 'task' | 'outlineLevel' | 'startDate' | 'endDate' | 'progress' | 'resources';
+
+const GANTT_COLUMNS: { id: GanttColumn; label: string; width: string }[] = [
+  { id: 'task', label: 'Task', width: 'w-48' },
+  { id: 'outlineLevel', label: 'Level', width: 'w-14' },
+  { id: 'startDate', label: 'Start', width: 'w-24' },
+  { id: 'endDate', label: 'End', width: 'w-24' },
+  { id: 'progress', label: '%', width: 'w-14' },
+  { id: 'resources', label: 'Resources', width: 'w-32' },
+];
+
+function ProjectGanttTaskRow({ 
+  task, 
+  onTaskClick, 
+  minDate, 
+  maxDate,
+  visibleColumns,
+  organizationId,
+  onIndent,
+  onOutdent,
+  hasChildren,
+  isCollapsed,
+  onToggleCollapse,
+}: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
   minDate: Date;
   maxDate: Date;
+  visibleColumns: GanttColumn[];
+  organizationId: number | null;
+  onIndent: (task: Task) => void;
+  onOutdent: (task: Task) => void;
+  hasChildren: boolean;
+  isCollapsed: boolean;
+  onToggleCollapse: (taskId: number) => void;
 }) {
   const { data: taskAssignments } = useTaskResourceAssignments(task.id);
+  const updateTaskResources = useUpdateTaskResourceAssignments();
+  const [isEditingResources, setIsEditingResources] = useState(false);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (taskAssignments) {
+      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+    }
+  }, [taskAssignments]);
 
   const hasValidDates = task.startDate && task.endDate;
   const start = hasValidDates ? parseISO(task.startDate) : null;
@@ -1987,44 +2054,168 @@ function ProjectGanttTaskRow({ task, onTaskClick, minDate, maxDate }: {
 
   const assignedNames = taskAssignments && taskAssignments.length > 0
     ? taskAssignments.map(a => a.resource.displayName).join(", ")
-    : null;
+    : "—";
+
+  const handleSaveResources = () => {
+    updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    setIsEditingResources(false);
+  };
+
+  const progressPercent = task.progress || 0;
+
+  const currentLevel = task.outlineLevel || 1;
+  const canIndent = currentLevel < 6;
+  const canOutdent = currentLevel > 1;
 
   return (
     <div 
-      className="flex border-b hover:bg-muted/30 cursor-pointer transition-colors"
-      onClick={() => onTaskClick(task)}
+      className="flex border-b hover:bg-muted/30 transition-colors group"
       data-testid={`gantt-task-${task.id}`}
     >
-      <div className="w-64 flex-shrink-0 border-r p-3">
-        <div className="font-medium text-sm truncate flex items-center gap-1.5">
-          {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
-          {task.name}
-        </div>
-        {assignedNames && (
-          <div className="text-xs text-muted-foreground truncate">{assignedNames}</div>
-        )}
+      {/* Actions column - always visible */}
+      <div className="w-10 flex-shrink-0 border-r p-1 flex items-center justify-center">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`task-actions-${task.id}`}>
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem 
+              onClick={() => onIndent(task)}
+              disabled={!canIndent}
+              data-testid={`task-indent-${task.id}`}
+            >
+              <ChevronRight className="h-4 w-4 mr-2" />
+              {canIndent ? `Indent (→ Level ${currentLevel + 1})` : "Max level reached"}
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => onOutdent(task)}
+              disabled={!canOutdent}
+              data-testid={`task-outdent-${task.id}`}
+            >
+              <ChevronLeft className="h-4 w-4 mr-2" />
+              {canOutdent ? `Outdent (→ Level ${currentLevel - 1})` : "Top level reached"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <div className="flex-1 relative p-2">
+      {visibleColumns.includes('task') && (
+        <div 
+          className={cn(
+            "w-48 flex-shrink-0 border-r p-2 cursor-pointer",
+            hasChildren && "font-semibold bg-muted/30"
+          )}
+          onClick={() => onTaskClick(task)}
+          style={{ paddingLeft: `${8 + (currentLevel - 1) * 20}px` }}
+        >
+          <div className="font-medium text-sm truncate flex items-center gap-1">
+            {hasChildren ? (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-5 w-5 p-0 flex-shrink-0"
+                onClick={(e) => { e.stopPropagation(); onToggleCollapse(task.id); }}
+                data-testid={`task-toggle-${task.id}`}
+              >
+                {isCollapsed ? (
+                  <ChevronRight className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            ) : (
+              <span className="w-5 flex-shrink-0" />
+            )}
+            {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+            <span className="truncate">{task.name}</span>
+          </div>
+        </div>
+      )}
+      {visibleColumns.includes('outlineLevel') && (
+        <div className="w-14 flex-shrink-0 border-r p-2 text-xs text-center font-medium">
+          {currentLevel}
+        </div>
+      )}
+      {visibleColumns.includes('startDate') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground">
+          {task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—'}
+        </div>
+      )}
+      {visibleColumns.includes('endDate') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground">
+          {task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—'}
+        </div>
+      )}
+      {visibleColumns.includes('progress') && (
+        <div className="w-14 flex-shrink-0 border-r p-2 text-xs text-center font-medium">
+          {progressPercent}%
+        </div>
+      )}
+      {visibleColumns.includes('resources') && (
+        <div 
+          className={cn(
+            "w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
+            !hasChildren && "cursor-pointer hover:bg-muted/50"
+          )}
+          onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
+        >
+          {hasChildren ? (
+            <span className="text-xs text-muted-foreground/70 italic" title="Summary tasks cannot have resource assignments">Summary</span>
+          ) : isEditingResources ? (
+            <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+              <ResourceAssignment
+                organizationId={organizationId}
+                selectedResourceIds={selectedResourceIds}
+                onSelectionChange={setSelectedResourceIds}
+                label=""
+              />
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>
+                  <Check className="h-3 w-3" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setIsEditingResources(false)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <span className="truncate block">{assignedNames}</span>
+          )}
+        </div>
+      )}
+      <div className="flex-1 relative p-2 min-h-[40px]">
         {hasValidDates ? (
           <div
             className={cn(
-              "absolute top-2 bottom-2 rounded-md flex items-center px-2 text-xs text-white font-medium",
-              task.status === "Completed" ? "bg-emerald-500" :
-              task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+              "absolute top-2 bottom-2 rounded-md overflow-hidden cursor-pointer",
+              task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
+              task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
             )}
             style={{
               left: `${Math.max(0, leftPercent)}%`,
               width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-              minWidth: '60px'
+              minWidth: '40px'
             }}
+            onClick={() => onTaskClick(task)}
           >
-            <span className="truncate">{task.progress || 0}%</span>
+            <div 
+              className={cn(
+                "h-full transition-all",
+                task.status === "Completed" ? "bg-emerald-500" :
+                task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+              )}
+              style={{ width: `${progressPercent}%` }}
+            />
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-foreground">
+              {progressPercent}%
+            </span>
           </div>
         ) : (
-          <div className="h-full flex items-center">
-            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+          <div className="h-full flex items-center" onClick={() => onTaskClick(task)}>
+            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
               <CalendarIcon className="h-3 w-3 mr-1" />
-              No dates set
+              No dates
             </Badge>
           </div>
         )}
@@ -2033,11 +2224,137 @@ function ProjectGanttTaskRow({ task, onTaskClick, minDate, maxDate }: {
   );
 }
 
-function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: (task: Task) => void }) {
+function ProjectGanttView({ 
+  tasks, 
+  onTaskClick, 
+  projectId, 
+  organizationId,
+  onCreateTask,
+}: { 
+  tasks: Task[]; 
+  onTaskClick: (task: Task) => void;
+  projectId: number;
+  organizationId: number | null;
+  onCreateTask: (name: string) => void;
+}) {
+  const updateTask = useUpdateTask();
+  const { toast } = useToast();
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
+  const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(['task', 'outlineLevel', 'startDate', 'endDate', 'progress', 'resources']);
+  const [newTaskName, setNewTaskName] = useState('');
+
+  const handleIndent = (task: Task) => {
+    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
+    const newLevel = Math.min(6, currentLevel + 1);
+    if (currentLevel >= 6 || newLevel > 6) {
+      toast({ title: "Cannot indent", description: "Maximum outline level (6) reached", variant: "destructive" });
+      return;
+    }
+    updateTask.mutate({ 
+      id: task.id, 
+      projectId: task.projectId, 
+      outlineLevel: newLevel 
+    }, {
+      onSuccess: () => {
+        toast({ title: "Updated", description: `Task indented to level ${newLevel}` });
+      }
+    });
+  };
+
+  const handleOutdent = (task: Task) => {
+    const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
+    const newLevel = Math.max(1, currentLevel - 1);
+    if (currentLevel <= 1 || newLevel < 1) {
+      toast({ title: "Cannot outdent", description: "Minimum outline level (1) reached", variant: "destructive" });
+      return;
+    }
+    updateTask.mutate({ 
+      id: task.id, 
+      projectId: task.projectId, 
+      outlineLevel: newLevel 
+    }, {
+      onSuccess: () => {
+        toast({ title: "Updated", description: `Task outdented to level ${newLevel}` });
+      }
+    });
+  };
+
+  // Collapse/expand state management
+  const [collapsedTasks, setCollapsedTasks] = useState<Set<number>>(new Set());
+
+  const toggleCollapse = (taskId: number) => {
+    setCollapsedTasks(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  // Determine which tasks have children and filter visible tasks
+  // Uses tasks in their original order to preserve hierarchy
+  const { visibleTasks, taskHasChildren } = useMemo(() => {
+    const taskHasChildren: Record<number, boolean> = {};
+
+    // First pass: determine which tasks have children based on outline levels
+    for (let i = 0; i < tasks.length; i++) {
+      const currentTask = tasks[i];
+      const currentLevel = currentTask.outlineLevel || 1;
+      
+      // Check if next task is a child (higher level)
+      if (i + 1 < tasks.length) {
+        const nextTask = tasks[i + 1];
+        const nextLevel = nextTask.outlineLevel || 1;
+        if (nextLevel > currentLevel) {
+          taskHasChildren[currentTask.id] = true;
+        }
+      }
+    }
+
+    // Second pass: filter out collapsed children
+    const visibleTasks: Task[] = [];
+    let skipUntilLevel = -1;
+
+    for (const task of tasks) {
+      const taskLevel = task.outlineLevel || 1;
+
+      // If we're skipping and this task is still a child, skip it
+      if (skipUntilLevel > 0 && taskLevel > skipUntilLevel) {
+        continue;
+      } else {
+        skipUntilLevel = -1;
+      }
+
+      visibleTasks.push(task);
+
+      // If this task is collapsed and has children, skip its children
+      if (collapsedTasks.has(task.id) && taskHasChildren[task.id]) {
+        skipUntilLevel = taskLevel;
+      }
+    }
+
+    return { visibleTasks, taskHasChildren };
+  }, [tasks, collapsedTasks]);
+
+  const handleAddTask = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && newTaskName.trim()) {
+      onCreateTask(newTaskName.trim());
+      setNewTaskName('');
+    }
+  };
+
+  const toggleColumn = (col: GanttColumn) => {
+    if (col === 'task') return;
+    setVisibleColumns(prev => 
+      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+    );
+  };
   
-  const { minDate, maxDate, dateRange } = useMemo(() => {
+  const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
     const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
     
     let minDate: Date;
@@ -2045,70 +2362,103 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
     
     if (tasksWithDates.length > 0) {
       const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]);
-      minDate = startOfMonth(new Date(Math.min(...dates.map(d => d.getTime()))));
-      maxDate = endOfMonth(new Date(Math.max(...dates.map(d => d.getTime()))));
+      const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
+      const latestDate = new Date(Math.max(...dates.map(d => d.getTime())));
+      
+      const totalDays = differenceInDays(latestDate, earliestDate);
+      let autoZoom: ZoomLevel = 'month';
+      if (totalDays <= 14) autoZoom = 'day';
+      else if (totalDays <= 60) autoZoom = 'week';
+      else if (totalDays <= 180) autoZoom = 'month';
+      else if (totalDays <= 365) autoZoom = 'quarter';
+      else if (totalDays <= 730) autoZoom = 'year';
+      else autoZoom = '5year';
+      
+      minDate = startOfMonth(earliestDate);
+      maxDate = endOfMonth(latestDate);
+      
+      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: autoZoom };
     } else {
       minDate = startOfMonth(today);
       maxDate = endOfMonth(addDays(today, 60));
+      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: 'month' as ZoomLevel };
     }
+  }, [tasks, today]);
+
+  useEffect(() => {
+    setZoomLevel(autoZoomLevel);
+  }, [autoZoomLevel]);
+
+  const { adjustedMinDate, adjustedMaxDate, adjustedDateRange } = useMemo(() => {
+    let adjMinDate = minDate;
+    let adjMaxDate = maxDate;
     
-    // Extend range based on zoom level
     if (zoomLevel === 'quarter') {
-      minDate = new Date(minDate.getFullYear(), Math.floor(minDate.getMonth() / 3) * 3, 1);
-      maxDate = new Date(maxDate.getFullYear(), Math.ceil((maxDate.getMonth() + 1) / 3) * 3, 0);
+      adjMinDate = new Date(minDate.getFullYear(), Math.floor(minDate.getMonth() / 3) * 3, 1);
+      adjMaxDate = new Date(maxDate.getFullYear(), Math.ceil((maxDate.getMonth() + 1) / 3) * 3, 0);
     } else if (zoomLevel === 'year') {
-      minDate = new Date(minDate.getFullYear(), 0, 1);
-      maxDate = new Date(maxDate.getFullYear(), 11, 31);
+      adjMinDate = new Date(minDate.getFullYear(), 0, 1);
+      adjMaxDate = new Date(maxDate.getFullYear(), 11, 31);
     } else if (zoomLevel === '5year') {
       const startYear = minDate.getFullYear();
-      minDate = new Date(startYear, 0, 1);
-      maxDate = new Date(startYear + 4, 11, 31);
+      adjMinDate = new Date(startYear, 0, 1);
+      adjMaxDate = new Date(startYear + 4, 11, 31);
     }
     
-    const dateRange = eachDayOfInterval({ start: minDate, end: maxDate });
-    return { minDate, maxDate, dateRange };
-  }, [tasks, today, zoomLevel]);
+    const adjustedDateRange = eachDayOfInterval({ start: adjMinDate, end: adjMaxDate });
+    return { adjustedMinDate: adjMinDate, adjustedMaxDate: adjMaxDate, adjustedDateRange };
+  }, [minDate, maxDate, zoomLevel]);
 
   const { filteredDates, dateFormat, columnWidth } = useMemo(() => {
     switch (zoomLevel) {
       case 'day':
         return {
-          filteredDates: dateRange,
+          filteredDates: adjustedDateRange,
           dateFormat: 'd',
           columnWidth: 'min-w-[40px]'
         };
       case 'week':
         return {
-          filteredDates: dateRange.filter((_, i) => i % 7 === 0),
+          filteredDates: adjustedDateRange.filter((_, i) => i % 7 === 0),
           dateFormat: 'MMM d',
           columnWidth: 'min-w-[100px]'
         };
       case 'month':
         return {
-          filteredDates: dateRange.filter((date) => date.getDate() === 1),
+          filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1),
           dateFormat: 'MMM yyyy',
           columnWidth: 'min-w-[100px]'
         };
       case 'quarter':
         return {
-          filteredDates: dateRange.filter((date) => date.getDate() === 1 && date.getMonth() % 3 === 0),
+          filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() % 3 === 0),
           dateFormat: 'QQQ yyyy',
           columnWidth: 'min-w-[80px]'
         };
       case 'year':
         return {
-          filteredDates: dateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0),
+          filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0),
           dateFormat: 'yyyy',
           columnWidth: 'min-w-[80px]'
         };
       case '5year':
         return {
-          filteredDates: dateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0),
+          filteredDates: adjustedDateRange.filter((date) => date.getDate() === 1 && date.getMonth() === 0),
           dateFormat: 'yyyy',
           columnWidth: 'min-w-[60px]'
         };
     }
-  }, [dateRange, zoomLevel]);
+  }, [adjustedDateRange, zoomLevel]);
+
+  const columnsTotalWidth = useMemo(() => {
+    let w = 0;
+    if (visibleColumns.includes('task')) w += 192;
+    if (visibleColumns.includes('startDate')) w += 96;
+    if (visibleColumns.includes('endDate')) w += 96;
+    if (visibleColumns.includes('progress')) w += 56;
+    if (visibleColumns.includes('resources')) w += 128;
+    return w;
+  }, [visibleColumns]);
 
   const handleZoomIn = () => {
     const idx = zoomLevels.indexOf(zoomLevel);
@@ -2120,23 +2470,39 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
     if (idx < zoomLevels.length - 1) setZoomLevel(zoomLevels[idx + 1]);
   };
 
-  if (tasks.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          No tasks yet. Add your first task to see the Gantt chart.
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-0">
-        <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30">
-          <span className="text-sm font-medium text-muted-foreground">
-            View: {zoomLabels[zoomLevel]}
-          </span>
+        <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              View: {zoomLabels[zoomLevel]}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1">
+                  <Columns3 className="h-3.5 w-3.5" />
+                  Columns
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {GANTT_COLUMNS.map(col => (
+                  <DropdownMenuItem 
+                    key={col.id}
+                    onClick={() => toggleColumn(col.id)}
+                    className="gap-2"
+                  >
+                    <Checkbox 
+                      checked={visibleColumns.includes(col.id)} 
+                      disabled={col.id === 'task'}
+                    />
+                    {col.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <div className="flex items-center gap-1">
             <Button
               variant="outline"
@@ -2159,9 +2525,28 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
           </div>
         </div>
         <div className="overflow-x-auto">
-          <div className="min-w-[800px]">
-            <div className="flex border-b bg-muted/50">
-              <div className="w-64 flex-shrink-0 border-r p-3 font-semibold text-sm text-foreground">Task</div>
+          <div style={{ minWidth: `${columnsTotalWidth + 400}px` }}>
+            <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+              {/* Actions column header - always visible */}
+              <div className="w-10 flex-shrink-0 border-r p-2"></div>
+              {visibleColumns.includes('task') && (
+                <div className="w-48 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Task</div>
+              )}
+              {visibleColumns.includes('outlineLevel') && (
+                <div className="w-14 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground text-center">Level</div>
+              )}
+              {visibleColumns.includes('startDate') && (
+                <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Start</div>
+              )}
+              {visibleColumns.includes('endDate') && (
+                <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">End</div>
+              )}
+              {visibleColumns.includes('progress') && (
+                <div className="w-14 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground text-center">%</div>
+              )}
+              {visibleColumns.includes('resources') && (
+                <div className="w-32 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Resources</div>
+              )}
               <div className="flex-1 flex">
                 {filteredDates.map((date, i) => (
                   <div key={i} className={cn("flex-1 p-2 text-center text-xs font-medium text-muted-foreground border-l", columnWidth)}>
@@ -2170,15 +2555,52 @@ function ProjectGanttView({ tasks, onTaskClick }: { tasks: Task[]; onTaskClick: 
                 ))}
               </div>
             </div>
-            {tasks.map(task => (
-              <ProjectGanttTaskRow
-                key={task.id}
-                task={task}
-                onTaskClick={onTaskClick}
-                minDate={minDate}
-                maxDate={maxDate}
-              />
-            ))}
+            {visibleTasks.length === 0 && tasks.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">
+                No tasks yet. Add your first task below.
+              </div>
+            ) : (
+              visibleTasks.map(task => (
+                <ProjectGanttTaskRow
+                  key={task.id}
+                  task={task}
+                  onTaskClick={onTaskClick}
+                  minDate={adjustedMinDate}
+                  maxDate={adjustedMaxDate}
+                  visibleColumns={visibleColumns}
+                  organizationId={organizationId}
+                  onIndent={handleIndent}
+                  onOutdent={handleOutdent}
+                  hasChildren={!!taskHasChildren[task.id]}
+                  isCollapsed={collapsedTasks.has(task.id)}
+                  onToggleCollapse={toggleCollapse}
+                />
+              ))
+            )}
+            <div className="flex border-t bg-muted/20">
+              {/* Empty actions column cell */}
+              <div className="w-10 flex-shrink-0 border-r p-2" />
+              {visibleColumns.includes('task') && (
+                <div className="w-48 flex-shrink-0 border-r p-2">
+                  <Input
+                    placeholder="Add new task..."
+                    value={newTaskName}
+                    onChange={(e) => setNewTaskName(e.target.value)}
+                    onKeyDown={handleAddTask}
+                    className="h-8 text-sm"
+                    data-testid="input-new-task"
+                  />
+                </div>
+              )}
+              {visibleColumns.includes('outlineLevel') && <div className="w-14 flex-shrink-0 border-r p-2" />}
+              {visibleColumns.includes('startDate') && <div className="w-24 flex-shrink-0 border-r p-2" />}
+              {visibleColumns.includes('endDate') && <div className="w-24 flex-shrink-0 border-r p-2" />}
+              {visibleColumns.includes('progress') && <div className="w-14 flex-shrink-0 border-r p-2" />}
+              {visibleColumns.includes('resources') && <div className="w-32 flex-shrink-0 border-r p-2" />}
+              <div className="flex-1 p-2 text-xs text-muted-foreground italic">
+                Press Enter to add task
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
