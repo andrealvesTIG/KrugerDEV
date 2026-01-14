@@ -1054,6 +1054,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Resource invite verification - handles magic link from resource invitation
+  // Supports auto-signup: if user doesn't have an account, one is created automatically
   app.get("/api/auth/resource-invite/verify", async (req, res) => {
     try {
       const { token } = req.query;
@@ -1106,38 +1107,65 @@ export async function setupAuth(app: Express) {
         console.error("Failed to parse magic link metadata:", e);
       }
 
-      // Check if user is logged in
-      if (!req.session.userId) {
-        // User needs to log in first
-        return res.status(401).json({
-          message: "Please sign in to accept this invitation.",
-          needsAuth: true,
-          email: magicToken.email
-        });
-      }
+      // Import storage functions
+      const { storage } = await import("../storage");
+      const { organizationInvites } = await import("@shared/schema");
 
-      // Get the logged-in user
-      const [currentUser] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+      // Check if user with this email already exists
+      const [existingUser] = await db.select().from(users).where(eq(users.email, magicToken.email.toLowerCase())).limit(1);
       
-      if (!currentUser) {
-        return res.status(401).json({
-          message: "Please sign in to accept this invitation.",
-          needsAuth: true
-        });
-      }
-
-      // Check if the logged-in user's email matches the invitation
-      if (currentUser.email?.toLowerCase() !== magicToken.email.toLowerCase()) {
+      let currentUser = existingUser;
+      let isNewUser = false;
+      
+      if (!existingUser) {
+        // Create a new user account automatically
+        const emailParts = magicToken.email.split('@');
+        const localPart = emailParts[0];
+        
+        // Extract first and last name from email if possible
+        let firstName = localPart;
+        let lastName = "";
+        if (localPart.includes('.')) {
+          const nameParts = localPart.split('.');
+          firstName = nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1);
+          lastName = nameParts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+        } else if (localPart.includes('_')) {
+          const nameParts = localPart.split('_');
+          firstName = nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1);
+          lastName = nameParts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+        } else {
+          firstName = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+        }
+        
+        // Generate a unique user ID
+        const userId = crypto.randomUUID();
+        
+        // Create the user - they're auto-verified since they clicked the magic link
+        const [newUser] = await db.insert(users).values({
+          id: userId,
+          email: magicToken.email.toLowerCase(),
+          firstName,
+          lastName,
+          role: "user",
+          emailVerified: true, // Auto-verified via magic link
+          onboardingCompleted: false,
+        }).returning();
+        
+        currentUser = newUser;
+        isNewUser = true;
+        console.log(`Auto-created user account for ${magicToken.email} via resource invite`);
+      } else if (req.session.userId && req.session.userId !== existingUser.id) {
+        // User is logged in with a different account
         return res.status(400).json({
-          message: `This invitation was sent to ${magicToken.email}. Please sign in with that email address.`,
+          message: `This invitation was sent to ${magicToken.email}. Please sign out and sign in with that email, or use a different browser.`,
           emailMismatch: true
         });
       }
 
-      // Import storage functions
-      const { storage } = await import("../storage");
-
-      // Get organization info
+      // Log the user in by setting their session
+      req.session.userId = currentUser.id;
+      
+      // Get organization info and add user
       let organizationName = "the team";
       if (metadata.organizationId) {
         const org = await storage.getOrganization(metadata.organizationId);
@@ -1154,7 +1182,6 @@ export async function setupAuth(app: Express) {
           }
           
           // Update any pending invites to accepted
-          const { organizationInvites } = await import("@shared/schema");
           await db.update(organizationInvites)
             .set({ status: "accepted", acceptedAt: new Date() })
             .where(
@@ -1185,12 +1212,15 @@ export async function setupAuth(app: Express) {
         .set({ usedAt: new Date() })
         .where(eq(magicLinkTokens.id, magicToken.id));
 
-      console.log("Resource invite accepted for user:", currentUser.id);
+      console.log(`Resource invite accepted for user: ${currentUser.id} (new user: ${isNewUser})`);
 
       res.json({ 
         success: true,
-        message: `Welcome to ${organizationName}! You can now view your project assignments.`,
-        organizationName
+        message: isNewUser 
+          ? `Welcome to ${organizationName}! Your account has been created and you're now signed in.`
+          : `Welcome to ${organizationName}! You can now view your project assignments.`,
+        organizationName,
+        isNewUser
       });
     } catch (error) {
       console.error("Resource invite verification error:", error);

@@ -2,13 +2,16 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle, XCircle, Mail } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, UserPlus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function ResourceInvitePage() {
   const [, setLocation] = useLocation();
-  const [status, setStatus] = useState<"loading" | "success" | "error" | "needs_auth">("loading");
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
   const [organizationName, setOrganizationName] = useState<string | null>(null);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const verifyToken = async () => {
@@ -33,18 +36,16 @@ export default function ResourceInvitePage() {
           setStatus("success");
           setMessage(data.message || "Welcome! You've been added to the team.");
           setOrganizationName(data.organizationName);
+          setIsNewUser(data.isNewUser || false);
+          
+          // Invalidate user-related queries to refresh auth state
+          queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
           
           // Redirect to dashboard after a short delay
           setTimeout(() => {
             setLocation("/dashboard");
           }, 3000);
-        } else if (data.needsAuth) {
-          // User needs to sign in first
-          setStatus("needs_auth");
-          setMessage(data.message || "Please sign in to accept this invitation.");
-          
-          // Store the token in session storage for after auth
-          sessionStorage.setItem("resource_invite_token", token);
         } else {
           setStatus("error");
           setMessage(data.message || "Failed to verify invitation. The link may have expired.");
@@ -56,13 +57,7 @@ export default function ResourceInvitePage() {
     };
 
     verifyToken();
-  }, [setLocation]);
-
-  const handleSignIn = () => {
-    // Redirect to login with return URL
-    const currentUrl = window.location.pathname + window.location.search;
-    setLocation(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
-  };
+  }, [setLocation, queryClient]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -78,15 +73,11 @@ export default function ResourceInvitePage() {
             {status === "error" && (
               <XCircle className="h-12 w-12 text-destructive" />
             )}
-            {status === "needs_auth" && (
-              <Mail className="h-12 w-12 text-primary" />
-            )}
           </div>
           <CardTitle>
             {status === "loading" && "Verifying Invitation..."}
-            {status === "success" && "Welcome to the Team!"}
+            {status === "success" && (isNewUser ? "Account Created!" : "Welcome to the Team!")}
             {status === "error" && "Invitation Error"}
-            {status === "needs_auth" && "Sign In Required"}
           </CardTitle>
           <CardDescription className="text-base">
             {message}
@@ -94,9 +85,17 @@ export default function ResourceInvitePage() {
         </CardHeader>
         <CardContent className="text-center space-y-4">
           {status === "success" && organizationName && (
-            <p className="text-muted-foreground">
-              You're now a member of <strong>{organizationName}</strong>
-            </p>
+            <div className="space-y-2">
+              <p className="text-muted-foreground">
+                You're now a member of <strong>{organizationName}</strong>
+              </p>
+              {isNewUser && (
+                <div className="flex items-center justify-center gap-2 text-sm text-primary">
+                  <UserPlus className="h-4 w-4" />
+                  <span>Your account has been created and you're signed in</span>
+                </div>
+              )}
+            </div>
           )}
           
           {status === "success" && (
@@ -105,21 +104,20 @@ export default function ResourceInvitePage() {
             </p>
           )}
 
-          {status === "needs_auth" && (
-            <Button onClick={handleSignIn} className="w-full" data-testid="button-sign-in">
-              Sign In to Accept Invitation
-            </Button>
-          )}
-
           {status === "error" && (
-            <Button
-              variant="outline"
-              onClick={() => setLocation("/login")}
-              className="w-full"
-              data-testid="button-go-to-login"
-            >
-              Go to Login
-            </Button>
+            <div className="space-y-3">
+              <Button
+                variant="default"
+                onClick={() => setLocation("/login")}
+                className="w-full"
+                data-testid="button-go-to-login"
+              >
+                Go to Login
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                If you believe this is an error, please contact the person who invited you to request a new invitation link.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
