@@ -963,6 +963,55 @@ export async function registerRoutes(
     }
   });
 
+  // Deactivate user (super admin only)
+  app.put('/api/users/:userId/deactivate', async (req, res) => {
+    try {
+      const currentUser = req.user as User | undefined;
+      if (!currentUser || currentUser.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
+      // Prevent self-deactivation
+      if (currentUser.id === req.params.userId) {
+        return res.status(400).json({ message: 'Cannot deactivate yourself' });
+      }
+      
+      const [updated] = await db.update(users)
+        .set({ 
+          deactivatedAt: new Date(),
+          deactivatedBy: currentUser.id
+        })
+        .where(eq(users.id, req.params.userId))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error('Failed to deactivate user:', err);
+      res.status(500).json({ message: 'Failed to deactivate user' });
+    }
+  });
+
+  // Reactivate user (super admin only)
+  app.put('/api/users/:userId/reactivate', async (req, res) => {
+    try {
+      const currentUser = req.user as User | undefined;
+      if (!currentUser || currentUser.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
+      const [updated] = await db.update(users)
+        .set({ 
+          deactivatedAt: null,
+          deactivatedBy: null
+        })
+        .where(eq(users.id, req.params.userId))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error('Failed to reactivate user:', err);
+      res.status(500).json({ message: 'Failed to reactivate user' });
+    }
+  });
+
   // Update user profile
   app.patch('/api/users/:userId/profile', async (req, res) => {
     try {

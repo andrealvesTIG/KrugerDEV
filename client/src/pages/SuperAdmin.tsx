@@ -633,6 +633,8 @@ function AllUsersTab() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [addingOrgId, setAddingOrgId] = useState<string>("");
   const [addingOrgRole, setAddingOrgRole] = useState<string>("member");
+  const [deactivateUserId, setDeactivateUserId] = useState<string | null>(null);
+  const [deactivatedOpen, setDeactivatedOpen] = useState(false);
   
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ['/api/users']
@@ -722,6 +724,33 @@ function AllUsersTab() {
     }
   });
 
+  const deactivateUser = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest('PUT', `/api/users/${userId}/deactivate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({ title: "Success", description: "User deactivated" });
+      setDeactivateUserId(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to deactivate user", variant: "destructive" });
+    }
+  });
+
+  const reactivateUser = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest('PUT', `/api/users/${userId}/reactivate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({ title: "Success", description: "User reactivated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to reactivate user", variant: "destructive" });
+    }
+  });
+
   const handleDeleteClick = (user: User) => {
     setUserToDelete(user);
     setDeleteUserId(user.id);
@@ -731,12 +760,18 @@ function AllUsersTab() {
     setEditingUser(user);
   };
 
+  // Separate active and deactivated users
+  const activeUsers = users?.filter(u => !u.deactivatedAt) || [];
+  const deactivatedUsers = users?.filter(u => u.deactivatedAt) || [];
+
   // Get organizations the user is NOT a member of (for adding)
   const availableOrgs = allOrganizations?.filter(
     org => !userMemberships?.some(m => m.organizationId === org.id)
   ) || [];
 
   if (isLoading) return <Loader2 className="animate-spin" />;
+
+  const userToDeactivate = users?.find(u => u.id === deactivateUserId);
 
   return (
     <Card>
@@ -752,11 +787,11 @@ function AllUsersTab() {
               <TableHead>Email</TableHead>
               <TableHead>System Role</TableHead>
               <TableHead>Joined</TableHead>
-              <TableHead className="w-[80px]">Actions</TableHead>
+              <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users?.map(user => (
+            {activeUsers?.map(user => (
               <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
                 <TableCell className="font-medium">
                   {user.firstName} {user.lastName}
@@ -792,6 +827,16 @@ function AllUsersTab() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      onClick={() => setDeactivateUserId(user.id)}
+                      disabled={user.id === currentUser?.id}
+                      data-testid={`button-deactivate-user-${user.id}`}
+                      title="Deactivate user"
+                    >
+                      <UserPlus className="h-4 w-4 rotate-45 text-amber-500" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handleDeleteClick(user)}
                       disabled={user.id === currentUser?.id}
                       data-testid={`button-delete-user-${user.id}`}
@@ -804,8 +849,69 @@ function AllUsersTab() {
             ))}
           </TableBody>
         </Table>
-        {(!users || users.length === 0) && (
-          <div className="text-center py-8 text-slate-500">No users found.</div>
+        {activeUsers.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">No active users found.</div>
+        )}
+
+        {deactivatedUsers.length > 0 && (
+          <Collapsible open={deactivatedOpen} onOpenChange={setDeactivatedOpen} className="mt-6">
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between" data-testid="button-toggle-deactivated-users">
+                <span className="flex items-center gap-2">
+                  <Archive className="h-4 w-4" />
+                  Deactivated Users ({deactivatedUsers.length})
+                </span>
+                {deactivatedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Deactivated</TableHead>
+                    <TableHead className="w-[80px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {deactivatedUsers.map(user => (
+                    <TableRow key={user.id} className="opacity-60" data-testid={`user-row-deactivated-${user.id}`}>
+                      <TableCell className="font-medium">
+                        {user.firstName} {user.lastName}
+                      </TableCell>
+                      <TableCell>{user.email || 'N/A'}</TableCell>
+                      <TableCell>
+                        {user.deactivatedAt ? format(new Date(user.deactivatedAt), 'MMM d, yyyy') : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => reactivateUser.mutate(user.id)}
+                            disabled={reactivateUser.isPending}
+                            data-testid={`button-reactivate-user-${user.id}`}
+                            title="Reactivate user"
+                          >
+                            <RotateCcw className="h-4 w-4 text-green-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteClick(user)}
+                            data-testid={`button-delete-deactivated-user-${user.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CollapsibleContent>
+          </Collapsible>
         )}
       </CardContent>
 
@@ -837,6 +943,45 @@ function AllUsersTab() {
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete User
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deactivateUserId} onOpenChange={(open) => !open && setDeactivateUserId(null)}>
+        <DialogContent data-testid="dialog-deactivate-user">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="h-5 w-5 text-amber-500" />
+              Deactivate User
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to deactivate {userToDeactivate?.firstName} {userToDeactivate?.lastName} ({userToDeactivate?.email})? 
+              The user will no longer be able to log in, but their data will be preserved. You can reactivate them later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeactivateUserId(null)} data-testid="button-cancel-deactivate-user">
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              className="bg-amber-500 hover:bg-amber-600"
+              onClick={() => deactivateUserId && deactivateUser.mutate(deactivateUserId)}
+              disabled={deactivateUser.isPending}
+              data-testid="button-confirm-deactivate-user"
+            >
+              {deactivateUser.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deactivating...
+                </>
+              ) : (
+                <>
+                  <Archive className="h-4 w-4 mr-2" />
+                  Deactivate User
                 </>
               )}
             </Button>

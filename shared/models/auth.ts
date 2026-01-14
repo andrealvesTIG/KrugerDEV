@@ -38,6 +38,10 @@ export const users = pgTable("users", {
   // API Key for external integrations (Power BI, etc.)
   apiKey: varchar("api_key").unique(),
 
+  // Deactivation support
+  deactivatedAt: timestamp("deactivated_at"),
+  deactivatedBy: varchar("deactivated_by"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
