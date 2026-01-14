@@ -1051,7 +1051,7 @@ function GanttTaskRow({
       )}
       {visibleColumns.includes('assignee') && (
         <div className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
-          {task.assignee || '—'}
+          {assignedNames}
         </div>
       )}
       {visibleColumns.includes('resources') && (
