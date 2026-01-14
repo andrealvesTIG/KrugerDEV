@@ -404,6 +404,7 @@ export const resources = pgTable("resources", {
   isBillable: boolean("is_billable").default(true), // Can be billed to clients
   photoUrl: text("photo_url"), // Profile photo URL
   notes: text("notes"),
+  invitedProjectIds: integer("invited_project_ids").array(), // Projects this resource was invited to (for team_member visibility)
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),

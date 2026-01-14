@@ -1199,16 +1199,31 @@ export async function setupAuth(app: Express) {
         }
       }
 
-      // Link the resource to the user
+      // Link the resource to the user and update invited project access
       if (metadata.resourceId) {
         const resource = await storage.getResource(metadata.resourceId);
-        if (resource && !resource.userId) {
-          await storage.updateResource(metadata.resourceId, {
-            userId: currentUser.id,
-            firstName: currentUser.firstName,
-            lastName: currentUser.lastName,
-          });
-          console.log(`Linked resource ${metadata.resourceId} to user ${currentUser.id}`);
+        if (resource) {
+          const updates: any = {};
+          
+          // Link user to resource if not already linked
+          if (!resource.userId) {
+            updates.userId = currentUser.id;
+            updates.firstName = currentUser.firstName;
+            updates.lastName = currentUser.lastName;
+          }
+          
+          // Add project to invitedProjectIds if provided in invite metadata
+          if (metadata.projectId) {
+            const existingProjectIds = resource.invitedProjectIds || [];
+            if (!existingProjectIds.includes(metadata.projectId)) {
+              updates.invitedProjectIds = [...existingProjectIds, metadata.projectId];
+            }
+          }
+          
+          if (Object.keys(updates).length > 0) {
+            await storage.updateResource(metadata.resourceId, updates);
+            console.log(`Updated resource ${metadata.resourceId}: linked to user ${currentUser.id}, invited projects: ${updates.invitedProjectIds || resource.invitedProjectIds}`);
+          }
         }
       }
 
