@@ -41,6 +41,20 @@ const upload = multer({
   }
 });
 
+// Configure multer for image uploads (avatars, logos)
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit for images
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'));
+    }
+  }
+});
+
 // Parse MPP file using MPXJ Java library
 function parseMppFile(fileBuffer: Buffer): Array<{
   taskId?: number;
@@ -1005,7 +1019,7 @@ export async function registerRoutes(
     }
   });
 
-  // Request avatar upload URL
+  // Request avatar upload URL (legacy - may fail due to sidecar issues)
   app.post('/api/users/:userId/avatar/upload-url', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
@@ -1023,6 +1037,65 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error generating avatar upload URL:", err);
       res.status(500).json({ message: 'Failed to generate upload URL' });
+    }
+  });
+
+  // Direct avatar upload (bypasses signed URL issues)
+  app.post('/api/users/:userId/avatar/upload', imageUpload.single('avatar'), async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId || userId !== req.params.userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+      
+      const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+      if (!privateObjectDir) {
+        return res.status(500).json({ message: 'Object storage not configured' });
+      }
+
+      // Generate unique filename
+      const ext = req.file.mimetype.split('/')[1] || 'jpg';
+      const filename = `avatar-${userId}-${Date.now()}.${ext}`;
+      const objectPath = `${privateObjectDir}/uploads/${filename}`;
+      
+      // Parse bucket and object name from the path
+      const pathParts = objectPath.split('/');
+      const bucketName = pathParts[1];
+      const objectName = pathParts.slice(2).join('/');
+
+      // Upload directly to GCS
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectName);
+      
+      await file.save(req.file.buffer, {
+        contentType: req.file.mimetype,
+        metadata: {
+          originalName: req.file.originalname,
+          uploadedBy: userId,
+        },
+      });
+
+      const servePath = `/objects/uploads/${filename}`;
+      
+      // Update user avatar in database
+      await db.update(users)
+        .set({ 
+          avatarUrl: servePath, 
+          profileImageUrl: servePath,
+          updatedAt: new Date() 
+        })
+        .where(eq(users.id, req.params.userId));
+
+      res.json({ objectPath: servePath, success: true });
+    } catch (err) {
+      console.error("Error uploading avatar:", err);
+      res.status(500).json({ message: 'Failed to upload avatar' });
     }
   });
 

@@ -217,16 +217,28 @@ export default function Profile() {
 
     setUploadingAvatar(true);
     try {
-      const urlRes = await apiRequest("POST", `/api/users/${user?.id}/avatar/upload-url`, {});
-      const { uploadURL, objectPath } = await urlRes.json();
+      // Use direct upload endpoint (bypasses signed URL issues)
+      const formData = new FormData();
+      formData.append('avatar', file);
 
-      await fetch(uploadURL, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type }
+      const response = await fetch(`/api/users/${user?.id}/avatar/upload`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
       });
 
-      await updateAvatarMutation.mutateAsync({ avatarUrl: objectPath });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Upload failed');
+      }
+
+      // Invalidate auth query to refresh user data with new avatar
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      setAvatarDialogOpen(false);
+      toast({
+        title: "Avatar updated",
+        description: "Your avatar has been updated successfully."
+      });
     } catch (err) {
       toast({ title: "Error", description: "Failed to upload avatar", variant: "destructive" });
     } finally {
