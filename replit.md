@@ -163,8 +163,16 @@ The application exposes REST API endpoints for external analytics tools like Pow
 **Query Parameters**:
 - `organizationId` (optional) - Filter to specific organization
 
-**Power BI Connection**:
-1. Use Web connector in Power BI Desktop
-2. Set URL to `https://your-app.replit.app/api/analytics/projects`
-3. Configure authentication (requires session cookie from logged-in user)
-4. Schedule refresh as needed
+**Power BI Connection with API Key Authentication**:
+1. **Generate API Key**: In the app, go to Settings and generate an API key (or call POST `/api/user/api-key/generate`)
+2. **Configure Power BI Desktop**: 
+   - Use Web connector and set URL to `https://your-app.replit.app/api/analytics/projects`
+   - Select "Basic" authentication
+   - **Username**: Your email address (e.g., `alex.rodov@trusteditgroup.com`)
+   - **Password**: Your generated API key (64-character hex string)
+3. Click Connect and schedule refresh as needed
+
+**API Key Management Endpoints**:
+- `GET /api/user/api-key` - Check if API key exists
+- `POST /api/user/api-key/generate` - Generate new API key
+- `DELETE /api/user/api-key` - Revoke API key

@@ -5645,12 +5645,97 @@ Return ONLY valid JSON, no markdown or explanations.`;
 
   // ==================== ANALYTICS API (Power BI Integration) ====================
 
+  // Helper: Get user ID from either session or API key (Basic auth)
+  // Power BI uses Basic auth where username=email and password=apiKey
+  async function getAnalyticsUserId(req: Request): Promise<string | null> {
+    // First try session-based auth
+    const sessionUserId = getUserIdFromRequest(req);
+    if (sessionUserId) return sessionUserId;
+    
+    // Then try API key via Basic auth header
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Basic ')) {
+      try {
+        const base64Credentials = authHeader.slice(6);
+        const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+        const [email, apiKey] = credentials.split(':');
+        
+        if (email && apiKey) {
+          // Look up user by API key
+          const user = await storage.getUserByApiKey(apiKey);
+          if (user && user.email === email) {
+            return user.id;
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing Basic auth:', err);
+      }
+    }
+    
+    return null;
+  }
+
+  // API Key Management
+  app.get('/api/user/api-key', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    
+    const user = await storage.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    res.json({ 
+      hasApiKey: !!user.apiKey,
+      apiKey: user.apiKey ? `${user.apiKey.slice(0, 8)}...` : null // Show partial for security
+    });
+  });
+
+  app.post('/api/user/api-key/generate', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    
+    // Generate a secure random API key
+    const crypto = await import('crypto');
+    const apiKey = crypto.randomBytes(32).toString('hex');
+    
+    await storage.updateUser(userId, { apiKey });
+    
+    const user = await storage.getUser(userId);
+    
+    res.json({ 
+      success: true,
+      apiKey,
+      message: "API key generated. Use your email as username and this API key as password in Power BI Basic auth.",
+      instructions: {
+        username: user?.email,
+        password: apiKey,
+        authType: "Basic"
+      }
+    });
+  });
+
+  app.delete('/api/user/api-key', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    
+    await storage.updateUser(userId, { apiKey: null });
+    
+    res.json({ success: true, message: "API key revoked" });
+  });
+
   // Analytics: Projects flat data for Power BI
   app.get('/api/analytics/projects', async (req, res) => {
     try {
-      const userId = getUserIdFromRequest(req);
+      const userId = await getAnalyticsUserId(req);
       if (!userId) {
-        return res.status(401).json({ message: "Authentication required" });
+        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
       }
 
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
@@ -5722,9 +5807,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Portfolios summary for Power BI
   app.get('/api/analytics/portfolios', async (req, res) => {
     try {
-      const userId = getUserIdFromRequest(req);
+      const userId = await getAnalyticsUserId(req);
       if (!userId) {
-        return res.status(401).json({ message: "Authentication required" });
+        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
       }
 
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
@@ -5781,9 +5866,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Risks flat data for Power BI
   app.get('/api/analytics/risks', async (req, res) => {
     try {
-      const userId = getUserIdFromRequest(req);
+      const userId = await getAnalyticsUserId(req);
       if (!userId) {
-        return res.status(401).json({ message: "Authentication required" });
+        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
       }
 
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
@@ -5837,9 +5922,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Issues flat data for Power BI
   app.get('/api/analytics/issues', async (req, res) => {
     try {
-      const userId = getUserIdFromRequest(req);
+      const userId = await getAnalyticsUserId(req);
       if (!userId) {
-        return res.status(401).json({ message: "Authentication required" });
+        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
       }
 
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
@@ -5892,9 +5977,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Milestones flat data for Power BI
   app.get('/api/analytics/milestones', async (req, res) => {
     try {
-      const userId = getUserIdFromRequest(req);
+      const userId = await getAnalyticsUserId(req);
       if (!userId) {
-        return res.status(401).json({ message: "Authentication required" });
+        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
       }
 
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
@@ -5944,9 +6029,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Intakes flat data for Power BI
   app.get('/api/analytics/intakes', async (req, res) => {
     try {
-      const userId = getUserIdFromRequest(req);
+      const userId = await getAnalyticsUserId(req);
       if (!userId) {
-        return res.status(401).json({ message: "Authentication required" });
+        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
       }
 
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
@@ -5997,9 +6082,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
   // Analytics: Summary metrics for Power BI dashboards
   app.get('/api/analytics/summary', async (req, res) => {
     try {
-      const userId = getUserIdFromRequest(req);
+      const userId = await getAnalyticsUserId(req);
       if (!userId) {
-        return res.status(401).json({ message: "Authentication required" });
+        return res.status(401).json({ message: "Authentication required. Use Basic auth with your email and API key." });
       }
 
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
