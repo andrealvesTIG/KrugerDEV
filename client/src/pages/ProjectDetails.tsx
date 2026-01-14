@@ -1342,8 +1342,11 @@ function RisksTab({ projectId }: { projectId: number }) {
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Title</Label>
+                <Label>Title <span className="text-destructive">*</span></Label>
                 <Input {...form.register("title")} data-testid="input-risk-title" />
+                {form.formState.errors.title && (
+                  <p className="text-xs text-destructive">{form.formState.errors.title.message as string || "Title is required"}</p>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
@@ -3388,8 +3391,11 @@ function FinancialsTab({ projectId }: { projectId: number }) {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Line Item</Label>
+                  <Label>Line Item <span className="text-destructive">*</span></Label>
                   <Input {...form.register("lineItem")} placeholder="e.g., Software Licenses" data-testid="input-line-item" />
+                  {form.formState.errors.lineItem && (
+                    <p className="text-xs text-destructive">{form.formState.errors.lineItem.message as string || "Line Item is required"}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Period</Label>
