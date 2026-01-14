@@ -1616,6 +1616,7 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
   const [searchQuery, setSearchQuery] = useState("");
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const lastInitializedTaskId = useRef<number | null>(null);
+  const inviteAssignedRef = useRef(false);
   
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
@@ -1732,7 +1733,11 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
     if (editingTask) {
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: () => {
-          updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+          // Only update resources if invite didn't already handle it
+          if (!inviteAssignedRef.current) {
+            updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+          }
+          inviteAssignedRef.current = false;
           toast({ title: "Success", description: "Task updated" });
           setIsDialogOpen(false);
           setEditingTask(null);
@@ -1884,6 +1889,7 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
                   projectName={projectName}
                   taskId={editingTask?.id}
                   taskName={editingTask?.name}
+                  onInviteAssigned={() => { inviteAssignedRef.current = true; }}
                 />
               )}
               <div className="flex items-center space-x-2">
@@ -2044,6 +2050,7 @@ function ProjectGanttTaskRow({
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const [isEditingResources, setIsEditingResources] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const inviteAssignedRef = useRef(false);
 
   useEffect(() => {
     if (taskAssignments) {
@@ -2071,7 +2078,10 @@ function ProjectGanttTaskRow({
     : "—";
 
   const handleSaveResources = () => {
-    updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    if (!inviteAssignedRef.current) {
+      updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    }
+    inviteAssignedRef.current = false;
     setIsEditingResources(false);
   };
 
@@ -2187,6 +2197,7 @@ function ProjectGanttTaskRow({
                 projectName={projectName}
                 taskId={task.id}
                 taskName={task.name}
+                onInviteAssigned={() => { inviteAssignedRef.current = true; }}
               />
               <div className="flex gap-1">
                 <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>

@@ -66,6 +66,8 @@ export default function Tasks() {
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const { toast } = useToast();
   const lastInitializedTaskId = useRef<number | null>(null);
+  // Track when an invite already assigned resources to prevent form from overwriting
+  const inviteAssignedRef = useRef(false);
 
   // Only sync selectedResourceIds from server on INITIAL load for a task
   // Don't overwrite user changes when query refetches
@@ -249,7 +251,12 @@ export default function Tasks() {
     if (editingTask) {
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: () => {
-          updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+          // Only update resources if invite didn't already handle it
+          // inviteAssignedRef prevents race condition where form uses stale state
+          if (!inviteAssignedRef.current) {
+            updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+          }
+          inviteAssignedRef.current = false; // Reset for next edit
           toast({ title: "Success", description: "Task updated" });
           setIsDialogOpen(false);
           setEditingTask(null);
@@ -523,6 +530,7 @@ export default function Tasks() {
                   projectName={projectMap.get(editingTask?.projectId || form.watch("projectId") || 0)?.name}
                   taskId={editingTask?.id}
                   taskName={editingTask?.name || form.watch("name")}
+                  onInviteAssigned={() => { inviteAssignedRef.current = true; }}
                 />
                 <DialogFooter className="flex items-center gap-2">
                   {editingTask && (
@@ -805,16 +813,23 @@ const taskZoomLabels: Record<TaskZoomLevel, string> = {
   '5year': '5 Years'
 };
 
-type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'progress' | 'resources';
+type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'duration' | 'progress' | 'status' | 'priority' | 'assignee' | 'resources' | 'wbs' | 'phase' | 'category';
 
 const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[] = [
   { id: 'actions', label: '', width: 'w-10' },
   { id: 'outlineLevel', label: 'Level', width: 'w-14' },
   { id: 'task', label: 'Task', width: 'w-64' },
+  { id: 'wbs', label: 'WBS', width: 'w-20' },
   { id: 'startDate', label: 'Start', width: 'w-24' },
   { id: 'endDate', label: 'End', width: 'w-24' },
+  { id: 'duration', label: 'Duration', width: 'w-20' },
   { id: 'progress', label: '%', width: 'w-14' },
+  { id: 'status', label: 'Status', width: 'w-28' },
+  { id: 'priority', label: 'Priority', width: 'w-24' },
+  { id: 'assignee', label: 'Assignee', width: 'w-32' },
   { id: 'resources', label: 'Resources', width: 'w-32' },
+  { id: 'phase', label: 'Phase', width: 'w-24' },
+  { id: 'category', label: 'Category', width: 'w-24' },
 ];
 
 function GanttTaskRow({ 
@@ -848,6 +863,7 @@ function GanttTaskRow({
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const [isEditingResources, setIsEditingResources] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const inviteAssignedRef = useRef(false);
 
   useEffect(() => {
     if (taskAssignments) {
@@ -879,7 +895,11 @@ function GanttTaskRow({
     : "—";
 
   const handleSaveResources = () => {
-    updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    // Only update resources if invite didn't already handle it
+    if (!inviteAssignedRef.current) {
+      updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    }
+    inviteAssignedRef.current = false;
     setIsEditingResources(false);
   };
 
@@ -973,6 +993,11 @@ function GanttTaskRow({
           </Link>
         </div>
       )}
+      {visibleColumns.includes('wbs') && (
+        <div className="w-20 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+          {task.wbs || '—'}
+        </div>
+      )}
       {visibleColumns.includes('startDate') && (
         <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
           {task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—'}
@@ -983,9 +1008,50 @@ function GanttTaskRow({
           {task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—'}
         </div>
       )}
+      {visibleColumns.includes('duration') && (
+        <div className="w-20 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+          {task.durationDays ? `${task.durationDays}d` : '—'}
+        </div>
+      )}
       {visibleColumns.includes('progress') && (
         <div className="w-14 flex-shrink-0 border-r p-2 text-xs text-center font-medium flex items-center justify-center">
           {progressPercent}%
+        </div>
+      )}
+      {visibleColumns.includes('status') && (
+        <div className="w-28 flex-shrink-0 border-r p-2 text-xs flex items-center">
+          <Badge 
+            variant="outline" 
+            className={cn(
+              "text-xs",
+              task.status === "Completed" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+              task.status === "In Progress" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+              task.status === "Not Started" && "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+            )}
+          >
+            {task.status || 'Not Started'}
+          </Badge>
+        </div>
+      )}
+      {visibleColumns.includes('priority') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs flex items-center">
+          <Badge 
+            variant="outline" 
+            className={cn(
+              "text-xs",
+              task.priority === "Critical" && "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+              task.priority === "High" && "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+              task.priority === "Medium" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+              task.priority === "Low" && "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+            )}
+          >
+            {task.priority || 'Medium'}
+          </Badge>
+        </div>
+      )}
+      {visibleColumns.includes('assignee') && (
+        <div className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
+          {task.assignee || '—'}
         </div>
       )}
       {visibleColumns.includes('resources') && (
@@ -1004,6 +1070,7 @@ function GanttTaskRow({
                 projectName={getProjectName(task.projectId)}
                 taskId={task.id}
                 taskName={task.name}
+                onInviteAssigned={() => { inviteAssignedRef.current = true; }}
               />
               <div className="flex gap-1">
                 <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>
@@ -1017,6 +1084,16 @@ function GanttTaskRow({
           ) : (
             <span className="truncate block">{assignedNames}</span>
           )}
+        </div>
+      )}
+      {visibleColumns.includes('phase') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
+          {task.phase || '—'}
+        </div>
+      )}
+      {visibleColumns.includes('category') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
+          {task.category || '—'}
         </div>
       )}
       <div className="flex-1 relative p-2 min-h-[40px]">
@@ -1347,17 +1424,38 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
           {visibleColumns.includes('task') && (
             <div className="w-64 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Task</div>
           )}
+          {visibleColumns.includes('wbs') && (
+            <div className="w-20 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">WBS</div>
+          )}
           {visibleColumns.includes('startDate') && (
             <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Start</div>
           )}
           {visibleColumns.includes('endDate') && (
             <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">End</div>
           )}
+          {visibleColumns.includes('duration') && (
+            <div className="w-20 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Duration</div>
+          )}
           {visibleColumns.includes('progress') && (
             <div className="w-14 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground text-center">%</div>
           )}
+          {visibleColumns.includes('status') && (
+            <div className="w-28 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Status</div>
+          )}
+          {visibleColumns.includes('priority') && (
+            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Priority</div>
+          )}
+          {visibleColumns.includes('assignee') && (
+            <div className="w-32 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Assignee</div>
+          )}
           {visibleColumns.includes('resources') && (
             <div className="w-32 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Resources</div>
+          )}
+          {visibleColumns.includes('phase') && (
+            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Phase</div>
+          )}
+          {visibleColumns.includes('category') && (
+            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Category</div>
           )}
           <div className="flex-1 flex">
             {filteredDates.map((date, i) => (

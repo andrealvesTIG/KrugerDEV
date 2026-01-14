@@ -22,6 +22,7 @@ interface ResourceAssignmentProps {
   projectName?: string;
   taskId?: number;
   taskName?: string;
+  onInviteAssigned?: () => void; // Called when an invite already assigned resource to task
 }
 
 export function ResourceAssignment({ 
@@ -33,7 +34,8 @@ export function ResourceAssignment({
   projectId,
   projectName,
   taskId,
-  taskName
+  taskName,
+  onInviteAssigned
 }: ResourceAssignmentProps) {
   const { data: resources, isLoading } = useResources(organizationId);
   const [open, setOpen] = useState(false);
@@ -77,6 +79,9 @@ export function ResourceAssignment({
         if (!selectedResourceIds.includes(data.resource.id)) {
           onSelectionChange([...selectedResourceIds, data.resource.id]);
         }
+        // Notify parent that invite already handled the assignment
+        // This prevents form submission from overwriting with stale state
+        onInviteAssigned?.();
       } else if (data.resource) {
         // No taskId, just add to selection for later save
         onSelectionChange([...selectedResourceIds, data.resource.id]);
