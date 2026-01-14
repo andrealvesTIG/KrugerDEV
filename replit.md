@@ -124,6 +124,26 @@ When a create request is blocked due to email verification:
 - Response status: 403 Forbidden
 - Response includes: `{ message: "Email verification required...", emailVerificationRequired: true }`
 
+### Bot Protection (Honeypot + Time-based)
+All public authentication forms are protected against automated bots using a two-layer approach:
+
+1. **Honeypot Fields**: Hidden form fields that real users cannot see. Bots typically fill all fields, so if these hidden fields have values, the submission is rejected.
+   - Component: `client/src/components/HoneypotField.tsx`
+   - Hidden fields: `website_url`, `phone_number` (positioned off-screen)
+
+2. **Time-based Validation**: Tracks when the form loads. If submitted in under 2 seconds, it's likely a bot since humans take longer to read and fill forms.
+   - Minimum submission time: 2000ms
+   - Server-side validation in: `server/auth/emailAuth.ts` (`verifyHoneypot` function)
+
+**Protected Endpoints**:
+- `/api/auth/register` - User registration
+- `/api/auth/login` - User login
+- `/api/auth/forgot-password` - Password reset requests
+- `/api/auth/magic-link/request` - Magic link sign-up
+- `/api/auth/passwordless/request` - Passwordless authentication
+
+**Cloudflare Turnstile**: Remains available as an optional additional protection layer. If `TURNSTILE_SECRET_KEY` and `VITE_TURNSTILE_SITE_KEY` are configured, Turnstile verification is also performed. Without these keys, honeypot protection alone guards against bots.
+
 ### Shared Code Pattern
 The `shared/` directory contains code used by both frontend and backend:
 - `shared/schema.ts` - Database schema, TypeScript types, Zod validators
