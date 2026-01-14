@@ -300,6 +300,7 @@ export default function Issues() {
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
                 label="Assigned Resources"
+                projectId={form.watch("projectId")}
               />
               <DialogFooter>
                 <Button type="submit" disabled={createIssue.isPending} data-testid="button-submit-issue">
@@ -517,6 +518,7 @@ export default function Issues() {
               selectedResourceIds={editResourceIds}
               onSelectionChange={setEditResourceIds}
               label="Assigned Resources"
+              projectId={editingIssue?.projectId}
             />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>

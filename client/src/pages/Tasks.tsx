@@ -519,6 +519,10 @@ export default function Tasks() {
                   selectedResourceIds={selectedResourceIds}
                   onSelectionChange={setSelectedResourceIds}
                   label="Assigned Resources"
+                  projectId={editingTask?.projectId}
+                  projectName={projectMap.get(editingTask?.projectId || 0)?.name}
+                  taskId={editingTask?.id}
+                  taskName={editingTask?.name}
                 />
                 <DialogFooter className="flex items-center gap-2">
                   {editingTask && (
@@ -996,6 +1000,10 @@ function GanttTaskRow({
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
                 label=""
+                projectId={task.projectId}
+                projectName={getProjectName(task.projectId)}
+                taskId={task.id}
+                taskName={task.name}
               />
               <div className="flex gap-1">
                 <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>

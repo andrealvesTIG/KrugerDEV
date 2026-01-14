@@ -369,13 +369,13 @@ export default function ProjectDetails() {
             <ProjectSummaryTab project={project} onUpdate={updateProject} />
           </TabsContent>
           <TabsContent value="tasks">
-            <TasksTab projectId={project.id} />
+            <TasksTab projectId={project.id} projectName={project.name} />
           </TabsContent>
           <TabsContent value="risks">
-            <RisksTab projectId={project.id} />
+            <RisksTab projectId={project.id} projectName={project.name} />
           </TabsContent>
           <TabsContent value="issues">
-            <IssuesTab projectId={project.id} />
+            <IssuesTab projectId={project.id} projectName={project.name} />
           </TabsContent>
           <TabsContent value="financials">
             <FinancialsTab projectId={project.id} />
@@ -1223,7 +1223,7 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
   );
 }
 
-function RisksTab({ projectId }: { projectId: number }) {
+function RisksTab({ projectId, projectName }: { projectId: number; projectName?: string }) {
   const { currentOrganization } = useOrganization();
   const { data: risks, isLoading } = useRisks(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -1399,6 +1399,8 @@ function RisksTab({ projectId }: { projectId: number }) {
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
                 label="Assigned Resources"
+                projectId={projectId}
+                projectName={project?.name}
               />
               <DialogFooter className="gap-2">
                 {editingRisk && (
@@ -1595,7 +1597,7 @@ const taskStatusColors = {
   "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
-function TasksTab({ projectId }: { projectId: number }) {
+function TasksTab({ projectId, projectName }: { projectId: number; projectName?: string }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading } = useTasks(projectId);
   const createTask = useCreateTask();
@@ -1878,6 +1880,10 @@ function TasksTab({ projectId }: { projectId: number }) {
                   selectedResourceIds={selectedResourceIds}
                   onSelectionChange={setSelectedResourceIds}
                   label="Assigned Resources"
+                  projectId={projectId}
+                  projectName={projectName}
+                  taskId={editingTask?.id}
+                  taskName={editingTask?.name}
                 />
               )}
               <div className="flex items-center space-x-2">
@@ -1953,6 +1959,7 @@ function TasksTab({ projectId }: { projectId: number }) {
           onTaskClick={openEditDialog}
           projectId={projectId}
           organizationId={currentOrganization?.id || null}
+          projectName={projectName}
           onCreateTask={(name) => {
             createTask.mutate({
               projectId,
@@ -2018,6 +2025,7 @@ function ProjectGanttTaskRow({
   hasChildren,
   isCollapsed,
   onToggleCollapse,
+  projectName,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -2030,6 +2038,7 @@ function ProjectGanttTaskRow({
   hasChildren: boolean;
   isCollapsed: boolean;
   onToggleCollapse: (taskId: number) => void;
+  projectName?: string;
 }) {
   const { data: taskAssignments } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2174,6 +2183,10 @@ function ProjectGanttTaskRow({
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
                 label=""
+                projectId={task.projectId}
+                projectName={projectName}
+                taskId={task.id}
+                taskName={task.name}
               />
               <div className="flex gap-1">
                 <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>
@@ -2235,12 +2248,14 @@ function ProjectGanttView({
   projectId, 
   organizationId,
   onCreateTask,
+  projectName,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
   projectId: number;
   organizationId: number | null;
   onCreateTask: (name: string) => void;
+  projectName?: string;
 }) {
   const updateTask = useUpdateTask();
   const { toast } = useToast();
@@ -2579,6 +2594,7 @@ function ProjectGanttView({
                   hasChildren={!!taskHasChildren[task.id]}
                   isCollapsed={collapsedTasks.has(task.id)}
                   onToggleCollapse={toggleCollapse}
+                  projectName={projectName}
                 />
               ))
             )}
@@ -2881,7 +2897,7 @@ const typeIcons = {
   Question: HelpCircle,
 };
 
-function IssuesTab({ projectId }: { projectId: number }) {
+function IssuesTab({ projectId, projectName }: { projectId: number; projectName?: string }) {
   const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useIssues(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -3044,6 +3060,8 @@ function IssuesTab({ projectId }: { projectId: number }) {
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
                 label="Assigned Resources"
+                projectId={projectId}
+                projectName={project?.name}
               />
               <DialogFooter className="gap-2">
                 {editingIssue && (
