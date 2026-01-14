@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -53,6 +53,7 @@ export default function Tasks() {
   const [durationDays, setDurationDays] = useState(7);
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [searchQuery, setSearchQuery] = useState("");
   const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
@@ -77,12 +78,26 @@ export default function Tasks() {
 
   const projectIds = useMemo(() => new Set(projects?.map(p => p.id) || []), [projects]);
   const tasks = useMemo(() => {
-    const orgTasks = allTasks?.filter(task => projectIds.has(task.projectId)) || [];
+    let orgTasks = allTasks?.filter(task => projectIds.has(task.projectId)) || [];
+    
+    // Filter by project
     if (filterProjectId) {
-      return orgTasks.filter(task => task.projectId === filterProjectId);
+      orgTasks = orgTasks.filter(task => task.projectId === filterProjectId);
     }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      orgTasks = orgTasks.filter(task => 
+        task.name.toLowerCase().includes(query) ||
+        task.description?.toLowerCase().includes(query) ||
+        task.assignee?.toLowerCase().includes(query) ||
+        task.status?.toLowerCase().includes(query)
+      );
+    }
+    
     return orgTasks;
-  }, [allTasks, projectIds, filterProjectId]);
+  }, [allTasks, projectIds, filterProjectId, searchQuery]);
 
   const projectMap = useMemo(() => {
     const map = new Map<number, { name: string; portfolioId: number | null }>();
@@ -278,6 +293,17 @@ export default function Tasks() {
           <p className="text-muted-foreground">Manage tasks with Gantt Chart and Kanban views</p>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-[200px]"
+              data-testid="input-search-tasks"
+            />
+          </div>
           <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
             <TabsList>
               <TabsTrigger value="gantt" className="gap-2">
