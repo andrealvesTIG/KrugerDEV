@@ -1462,7 +1462,7 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
                 onSelectionChange={setSelectedResourceIds}
                 label="Assigned Resources"
                 projectId={projectId}
-                projectName={project?.name}
+                projectName={projectName}
               />
               <DialogFooter className="gap-2">
                 {editingRisk && (
@@ -2239,41 +2239,52 @@ function ProjectGanttTaskRow({
         </div>
       )}
       {visibleColumns.includes('resources') && (
-        <div 
-          className={cn(
-            "w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
-            !hasChildren && "cursor-pointer hover:bg-muted/50"
-          )}
-          onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
-        >
-          {hasChildren ? (
-            <span className="text-xs text-muted-foreground/70 italic" title="Summary tasks cannot have resource assignments">Summary</span>
-          ) : isEditingResources ? (
-            <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-              <ResourceAssignment
-                organizationId={organizationId}
-                selectedResourceIds={selectedResourceIds}
-                onSelectionChange={setSelectedResourceIds}
-                label=""
-                projectId={task.projectId}
-                projectName={projectName}
-                taskId={task.id}
-                taskName={task.name}
-                onInviteAssigned={() => { inviteAssignedRef.current = true; }}
-              />
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>
-                  <Check className="h-3 w-3" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setIsEditingResources(false)}>
-                  <X className="h-3 w-3" />
-                </Button>
+        <>
+          <div 
+            className={cn(
+              "w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
+              !hasChildren && "cursor-pointer hover:bg-muted/50"
+            )}
+            onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
+          >
+            {hasChildren ? (
+              <span className="text-xs text-muted-foreground/70 italic" title="Summary tasks cannot have resource assignments">Summary</span>
+            ) : (
+              <span className="truncate block">{assignedNames}</span>
+            )}
+          </div>
+          <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Assign Resources</DialogTitle>
+                <DialogDescription>
+                  Assign team members to task "{task.name}"
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <ResourceAssignment
+                  organizationId={organizationId}
+                  selectedResourceIds={selectedResourceIds}
+                  onSelectionChange={setSelectedResourceIds}
+                  label="Assigned Resources"
+                  projectId={task.projectId}
+                  projectName={projectName}
+                  taskId={task.id}
+                  taskName={task.name}
+                  onInviteAssigned={() => { inviteAssignedRef.current = true; }}
+                />
               </div>
-            </div>
-          ) : (
-            <span className="truncate block">{assignedNames}</span>
-          )}
-        </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditingResources(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveResources}>
+                  Save
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
       <div className="flex-1 relative p-2 min-h-[40px]">
         {hasValidDates ? (
@@ -3134,7 +3145,7 @@ function IssuesTab({ projectId, projectName }: { projectId: number; projectName?
                 onSelectionChange={setSelectedResourceIds}
                 label="Assigned Resources"
                 projectId={projectId}
-                projectName={project?.name}
+                projectName={projectName}
               />
               <DialogFooter className="gap-2">
                 {editingIssue && (

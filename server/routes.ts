@@ -2538,6 +2538,26 @@ export async function registerRoutes(
         newValues: JSON.stringify(project),
       });
       
+      // If the creator is a team_member, auto-add this project to their invitedProjectIds
+      // so they can see the project they just created
+      if (userId && project.organizationId) {
+        const userOrgs = await storage.getUserOrganizations(userId);
+        const membership = userOrgs.find(m => m.organizationId === project.organizationId);
+        if (membership?.role === 'team_member') {
+          // Find the user's resource in this org
+          const resources = await storage.getResources(project.organizationId);
+          const userResource = resources.find(r => r.userId === userId);
+          if (userResource) {
+            const currentInvites = userResource.invitedProjectIds || [];
+            if (!currentInvites.includes(project.id)) {
+              await storage.updateResource(userResource.id, {
+                invitedProjectIds: [...currentInvites, project.id]
+              });
+            }
+          }
+        }
+      }
+      
       res.status(201).json(project);
     } catch (err) {
        if (err instanceof z.ZodError) {
