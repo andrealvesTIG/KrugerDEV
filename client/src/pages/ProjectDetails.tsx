@@ -2108,17 +2108,33 @@ function ProjectGanttTaskRow({
   onToggleCollapse: (taskId: number) => void;
   projectName?: string;
 }) {
-  const { data: taskAssignments } = useTaskResourceAssignments(task.id);
+  const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const [isEditingResources, setIsEditingResources] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [hasInitialized, setHasInitialized] = useState(false);
   const inviteAssignedRef = useRef(false);
 
   useEffect(() => {
-    if (taskAssignments) {
+    if (taskAssignments && !hasInitialized) {
+      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      setHasInitialized(true);
+    }
+  }, [taskAssignments, hasInitialized]);
+
+  // Reset initialization when dialog closes
+  useEffect(() => {
+    if (!isEditingResources) {
+      setHasInitialized(false);
+    }
+  }, [isEditingResources]);
+
+  // Re-sync when dialog opens and assignments are available
+  useEffect(() => {
+    if (isEditingResources && taskAssignments) {
       setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
     }
-  }, [taskAssignments]);
+  }, [isEditingResources, taskAssignments]);
 
   const hasValidDates = task.startDate && task.endDate;
   const start = hasValidDates ? parseISO(task.startDate) : null;
@@ -2278,8 +2294,8 @@ function ProjectGanttTaskRow({
                 <Button variant="outline" onClick={() => setIsEditingResources(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleSaveResources}>
-                  Save
+                <Button onClick={handleSaveResources} disabled={assignmentsLoading}>
+                  {assignmentsLoading ? "Loading..." : "Save"}
                 </Button>
               </DialogFooter>
             </DialogContent>
