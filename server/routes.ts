@@ -1088,6 +1088,37 @@ async function getTeamMemberIssueIds(userId: string, orgId: number): Promise<num
   return Array.from(issueIdSet);
 }
 
+// Helper to get portfolio IDs that a team_member has access to
+// Team members can see portfolios if:
+// 1. They created the portfolio (createdBy matches their userId)
+// 2. Their resource ID is in the portfolio's teamMemberResourceIds array
+async function getTeamMemberPortfolioIds(userId: string, orgId: number): Promise<number[]> {
+  const portfolios = await storage.getPortfolios(orgId);
+  const userResourceIds = await getUserResourceIds(userId, orgId);
+  
+  const accessiblePortfolioIds: number[] = [];
+  
+  for (const portfolio of portfolios) {
+    // Check if user created this portfolio
+    if (portfolio.createdBy === userId) {
+      accessiblePortfolioIds.push(portfolio.id);
+      continue;
+    }
+    
+    // Check if user's resource ID is in teamMemberResourceIds
+    if (portfolio.teamMemberResourceIds && Array.isArray(portfolio.teamMemberResourceIds)) {
+      const hasAccess = userResourceIds.some(resourceId => 
+        portfolio.teamMemberResourceIds!.includes(resourceId)
+      );
+      if (hasAccess) {
+        accessiblePortfolioIds.push(portfolio.id);
+      }
+    }
+  }
+  
+  return accessiblePortfolioIds;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -2275,9 +2306,25 @@ export async function registerRoutes(
     const portfolios = await storage.getPortfolios(requestedOrgId);
     
     // Filter portfolios to only those in accessible orgs
-    const filteredPortfolios = portfolios.filter(p => 
+    let filteredPortfolios = portfolios.filter(p => 
       p.organizationId === null || accessibleOrgIds.includes(p.organizationId)
     );
+    
+    // For team_member role, further filter to only portfolios they created or are assigned to
+    if (userId) {
+      const userMemberships = await storage.getUserOrganizations(userId);
+      
+      for (const membership of userMemberships) {
+        if (membership.role === 'team_member') {
+          const teamMemberPortfolioIds = await getTeamMemberPortfolioIds(userId, membership.organizationId);
+          filteredPortfolios = filteredPortfolios.filter(p => 
+            // Keep portfolios not in this org, or portfolios team member has access to
+            p.organizationId !== membership.organizationId || 
+            teamMemberPortfolioIds.includes(p.id)
+          );
+        }
+      }
+    }
     
     res.json(filteredPortfolios);
   });
@@ -2314,7 +2361,14 @@ export async function registerRoutes(
       }
       
       const input = api.portfolios.create.input.parse(req.body);
-      const portfolio = await storage.createPortfolio(input);
+      
+      // Set createdBy to current user for team member access control
+      const portfolioData = {
+        ...input,
+        createdBy: userId || undefined,
+      };
+      
+      const portfolio = await storage.createPortfolio(portfolioData);
       
       // Record usage after successful creation
       if (userId) {

@@ -107,15 +107,18 @@ Organizations support multiple membership roles with different permissions:
 2. **Admin** - Can manage organization settings and members (except removing owner)
 3. **Member** - Standard access to all projects, tasks, risks, and issues in the organization
 4. **Team Member** - Restricted visibility role:
-   - Can only see projects where they are assigned to at least one task
+   - Can only see portfolios they created or are assigned as team member to (via `teamMemberResourceIds`)
+   - Can only see projects where they are assigned to at least one task or explicitly invited (via `invitedProjectIds`)
    - Can only see tasks they are directly assigned to via resource assignments
    - Can only see issues they are directly assigned to via resource assignments
    - Cannot see unassigned items or items assigned to others
 
 The team_member role uses resource assignment relationships to determine visibility:
 - User must have an associated Resource record in the organization
+- **Portfolio visibility**: Portfolios have `createdBy` (user ID) and `teamMemberResourceIds` (array of resource IDs) fields for access control
+- **Project visibility**: Resources have `invitedProjectIds` for explicit project invitations; assignment-based visibility via tasks
 - Visibility is determined by `taskResourceAssignments`, `riskResourceAssignments`, and `issueResourceAssignments` tables
-- Helper functions in `server/routes.ts`: `getTeamMemberAccessData`, `getTeamMemberProjectIds`, `getTeamMemberTaskIds`, `getTeamMemberRiskIds`, `getTeamMemberIssueIds`
+- Helper functions in `server/routes.ts`: `getTeamMemberAccessData`, `getTeamMemberProjectIds`, `getTeamMemberTaskIds`, `getTeamMemberRiskIds`, `getTeamMemberIssueIds`, `getTeamMemberPortfolioIds`
 
 ### Organization Soft-Delete
 Organizations use soft-delete (deactivation) rather than permanent deletion:
