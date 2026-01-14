@@ -561,40 +561,9 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
 
   const domainSlug = domainToSlug(domain);
   
-  // Only match active (non-deactivated) organizations
-  const [existingOrg] = await db.select().from(organizations)
-    .where(and(
-      eq(organizations.slug, domainSlug),
-      isNull(organizations.deactivatedAt)
-    ))
-    .limit(1);
+  // Each new user gets their own organization - no automatic domain matching
+  // Users can be invited to existing organizations via the invite system
   
-  if (existingOrg) {
-    const existingMembership = await db.select().from(organizationMembers)
-      .where(and(
-        eq(organizationMembers.organizationId, existingOrg.id),
-        eq(organizationMembers.userId, userId)
-      ))
-      .limit(1);
-    
-    if (existingMembership.length === 0) {
-      const memberCount = await db.select().from(organizationMembers)
-        .where(eq(organizationMembers.organizationId, existingOrg.id));
-      
-      const role = memberCount.length === 0 ? 'org_admin' : 'member';
-      
-      await db.insert(organizationMembers).values({
-        organizationId: existingOrg.id,
-        userId,
-        role,
-      });
-      
-      return { organization: existingOrg, created: false, role };
-    }
-    
-    return { organization: existingOrg, created: false, role: existingMembership[0].role };
-  }
-
   let companyName = domain.split('.')[0];
   companyName = companyName.charAt(0).toUpperCase() + companyName.slice(1);
   
@@ -607,16 +576,8 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
     console.error('Company lookup failed during auto-org creation:', error);
   }
 
-  // Check if slug already exists (including deactivated orgs) and generate unique slug if needed
-  let finalSlug = domainSlug;
-  const [existingSlug] = await db.select().from(organizations)
-    .where(eq(organizations.slug, domainSlug))
-    .limit(1);
-  
-  if (existingSlug) {
-    // Generate a unique slug by adding a random suffix
-    finalSlug = `${domainSlug}-${Math.random().toString(36).substring(2, 8)}`;
-  }
+  // Always generate a unique slug for new organizations
+  let finalSlug = `${domainSlug}-${Math.random().toString(36).substring(2, 8)}`;
 
   const [newOrg] = await db.insert(organizations).values({
     name: companyName,
