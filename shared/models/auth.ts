@@ -42,6 +42,11 @@ export const users = pgTable("users", {
   deactivatedAt: timestamp("deactivated_at"),
   deactivatedBy: varchar("deactivated_by"),
 
+  // Email verification
+  emailVerified: boolean("email_verified").default(false),
+  emailVerificationToken: varchar("email_verification_token"),
+  emailVerificationExpiry: timestamp("email_verification_expiry"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

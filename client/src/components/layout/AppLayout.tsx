@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
+import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -50,6 +51,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
+        <EmailVerificationBanner />
         <header className="flex h-14 items-center gap-4 border-b border-slate-200 bg-white px-3 md:px-6 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-3 flex-shrink-0">
             {/* Mobile hamburger menu */}

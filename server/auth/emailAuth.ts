@@ -5,9 +5,10 @@ import { db } from "../db";
 import { users, passwordResetTokens, magicLinkTokens } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import crypto from "crypto";
-import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail } from "../services/email";
+import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail, sendEmailVerificationEmail } from "../services/email";
 import { ensureUserOrganization } from "../services/onboarding";
 import { storage } from "../storage";
+import { lookupCompanyByEmail } from "../services/companyLookup";
 
 const PgSession = connectPgSimple(session);
 
@@ -104,6 +105,10 @@ export async function setupAuth(app: Express) {
         console.error("Company lookup error:", err);
       }
 
+      // Generate email verification token
+      const emailVerificationToken = crypto.randomBytes(32).toString("hex");
+      const emailVerificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
       const [newUser] = await db.insert(users).values({
         email,
         passwordHash,
@@ -113,9 +118,28 @@ export async function setupAuth(app: Express) {
         onboardingCompleted: false,
         detectedCompany,
         detectedIndustry,
+        emailVerified: false,
+        emailVerificationToken,
+        emailVerificationExpiry,
       }).returning();
 
       console.log("User created:", newUser.id);
+
+      // Send email verification
+      const appUrl = process.env.APP_URL 
+        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'https://fridayreport.ai');
+      const verifyEmailUrl = `${appUrl}/verify-email?token=${emailVerificationToken}`;
+      
+      const emailSent = await sendEmailVerificationEmail(email, verifyEmailUrl);
+      if (!emailSent) {
+        console.log(`\n===== EMAIL VERIFICATION LINK =====`);
+        console.log(`Email: ${email}`);
+        console.log(`Verify URL: ${verifyEmailUrl}`);
+        console.log(`Expires: ${emailVerificationExpiry.toISOString()}`);
+        console.log(`===================================\n`);
+      }
 
       try {
         const orgResult = await ensureUserOrganization(newUser.id, email);
@@ -559,12 +583,14 @@ export async function setupAuth(app: Express) {
       }
 
       // Create the user (passwordless - no password hash)
+      // emailVerified is true for passwordless signups since they verified via the magic link
       const [newUser] = await db.insert(users).values({
         email: magicToken.email,
         firstName: magicToken.email.split('@')[0], // Default name from email
         detectedCompany,
         detectedIndustry: null,
         onboardingCompleted: false,
+        emailVerified: true,
       }).returning();
 
       console.log("User created via magic link:", newUser.id);
@@ -770,6 +796,103 @@ export async function setupAuth(app: Express) {
     } catch (error) {
       console.error("Passwordless sign-in verify error:", error);
       res.status(500).json({ message: "Failed to verify sign-in link" });
+    }
+  });
+
+  // Verify email address
+  app.get("/api/auth/verify-email", async (req, res) => {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "Invalid token", valid: false });
+      }
+
+      // Find user with this verification token
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.emailVerificationToken, token))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).json({ message: "Invalid verification link", valid: false });
+      }
+
+      // Check if token is expired
+      if (user.emailVerificationExpiry && new Date() > new Date(user.emailVerificationExpiry)) {
+        return res.status(400).json({ message: "Verification link has expired", valid: false, expired: true });
+      }
+
+      // Mark email as verified and clear token
+      await db.update(users)
+        .set({ 
+          emailVerified: true, 
+          emailVerificationToken: null, 
+          emailVerificationExpiry: null 
+        })
+        .where(eq(users.id, user.id));
+
+      console.log("Email verified for user:", user.id);
+
+      res.json({ 
+        success: true, 
+        message: "Email verified successfully",
+        valid: true
+      });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).json({ message: "Failed to verify email", valid: false });
+    }
+  });
+
+  // Resend verification email
+  app.post("/api/auth/resend-verification", async (req, res) => {
+    try {
+      // User must be logged in
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+      
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      if (user.emailVerified) {
+        return res.json({ message: "Email is already verified", alreadyVerified: true });
+      }
+
+      // Generate new verification token
+      const emailVerificationToken = crypto.randomBytes(32).toString("hex");
+      const emailVerificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      await db.update(users)
+        .set({ emailVerificationToken, emailVerificationExpiry })
+        .where(eq(users.id, user.id));
+
+      // Send verification email
+      const appUrl = process.env.APP_URL 
+        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'https://fridayreport.ai');
+      const verifyEmailUrl = `${appUrl}/verify-email?token=${emailVerificationToken}`;
+      
+      const emailSent = await sendEmailVerificationEmail(user.email, verifyEmailUrl);
+      
+      if (!emailSent) {
+        console.log(`\n===== EMAIL VERIFICATION LINK =====`);
+        console.log(`Email: ${user.email}`);
+        console.log(`Verify URL: ${verifyEmailUrl}`);
+        console.log(`Expires: ${emailVerificationExpiry.toISOString()}`);
+        console.log(`===================================\n`);
+      }
+
+      res.json({ success: true, message: "Verification email sent" });
+    } catch (error) {
+      console.error("Resend verification error:", error);
+      res.status(500).json({ message: "Failed to resend verification email" });
     }
   });
 }

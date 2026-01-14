@@ -37,6 +37,7 @@ import VerifyMagicLinkPage from "@/pages/VerifyMagicLinkPage";
 import SignInPage from "@/pages/SignInPage";
 import SignInWaitingPage from "@/pages/SignInWaitingPage";
 import VerifySignInPage from "@/pages/VerifySignInPage";
+import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import Embed from "@/pages/Embed";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyStatement from "@/pages/PrivacyStatement";
@@ -148,6 +149,7 @@ function App() {
               <Route path="/signin/waiting" component={SignInWaitingPage} />
               <Route path="/signin/verify" component={VerifySignInPage} />
               <Route path="/reset-password" component={ResetPasswordPage} />
+              <Route path="/verify-email" component={VerifyEmailPage} />
               <Route>
                 <Router />
               </Route>

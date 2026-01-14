@@ -145,6 +145,61 @@ If you didn't request this, you can safely ignore this email.
   return sendEmail({ to: email, subject, text, html });
 }
 
+export async function sendEmailVerificationEmail(email: string, verifyUrl: string): Promise<boolean> {
+  const subject = "Verify Your Email - FridayReport.AI";
+  
+  const text = `
+Welcome to FridayReport.AI!
+
+Please verify your email address by clicking the link below:
+${verifyUrl}
+
+This link will expire in 24 hours.
+
+If you didn't create an account with us, you can safely ignore this email.
+
+- The FridayReport.AI Team
+`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
+  </div>
+  
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="margin-top: 0; color: #1f2937;">Verify Your Email</h2>
+    
+    <p>Welcome to FridayReport.AI! Please verify your email address to complete your registration.</p>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${verifyUrl}" style="background: #f97316; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">Verify Email</a>
+    </div>
+    
+    <p style="font-size: 14px; color: #6b7280;">This link will expire in 24 hours.</p>
+    
+    <p style="font-size: 14px; color: #6b7280;">If you didn't create an account with us, you can safely ignore this email.</p>
+    
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    
+    <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
+      If the button doesn't work, copy and paste this link into your browser:<br>
+      <a href="${verifyUrl}" style="color: #f97316; word-break: break-all;">${verifyUrl}</a>
+    </p>
+  </div>
+</body>
+</html>
+`;
+
+  return sendEmail({ to: email, subject, text, html });
+}
+
 export async function verifyEmailConnection(): Promise<boolean> {
   const client = getResendClient();
   
