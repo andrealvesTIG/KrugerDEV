@@ -697,7 +697,8 @@ export async function setupAuth(app: Express) {
 
       res.json({ 
         message: "Check your email for a link to continue.",
-        success: true
+        success: true,
+        userExists: !!existingUser
       });
     } catch (error) {
       console.error("Passwordless auth request error:", error);

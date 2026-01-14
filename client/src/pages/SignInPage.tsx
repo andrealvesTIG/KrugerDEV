@@ -31,7 +31,13 @@ export default function SignInPage() {
       const data = await response.json();
       
       if (data.success) {
-        setEmailSent(true);
+        if (data.userExists) {
+          // Existing user - redirect to waiting page with email
+          setLocation(`/signin/waiting?email=${encodeURIComponent(email.trim())}`);
+        } else {
+          // New user - show email sent confirmation
+          setEmailSent(true);
+        }
       } else {
         toast({
           title: "Error",
