@@ -59,6 +59,32 @@ async function verifyTurnstileToken(token: string): Promise<boolean> {
   }
 }
 
+interface HoneypotData {
+  honeypot1?: string;
+  honeypot2?: string;
+  formLoadTime?: number;
+}
+
+function verifyHoneypot(data: HoneypotData): { valid: boolean; error?: string } {
+  if (data.honeypot1 || data.honeypot2) {
+    console.log("Honeypot triggered - bot detected");
+    return { valid: false, error: "Invalid submission detected" };
+  }
+  
+  if (data.formLoadTime) {
+    const submissionTime = Date.now();
+    const timeElapsed = submissionTime - data.formLoadTime;
+    const minimumTimeMs = 2000;
+    
+    if (timeElapsed < minimumTimeMs) {
+      console.log(`Form submitted too quickly: ${timeElapsed}ms (minimum: ${minimumTimeMs}ms)`);
+      return { valid: false, error: "Please take your time filling out the form" };
+    }
+  }
+  
+  return { valid: true };
+}
+
 export function getSession() {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set");
@@ -127,11 +153,17 @@ export async function setupAuth(app: Express) {
   // Register new user
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, firstName, lastName, turnstileToken } = req.body;
+      const { email, password, firstName, lastName, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
       console.log("Register attempt for:", email);
 
-      // Verify Turnstile token server-side
-      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
         return res.status(400).json({ message: "Security verification failed. Please try again." });
       }
 
@@ -292,11 +324,17 @@ export async function setupAuth(app: Express) {
   // Login
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { email, password, turnstileToken } = req.body;
+      const { email, password, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
       console.log("Login attempt for:", email);
 
-      // Verify Turnstile token server-side
-      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
         return res.status(400).json({ message: "Security verification failed. Please try again." });
       }
 
@@ -394,10 +432,16 @@ export async function setupAuth(app: Express) {
   // Request password reset
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {
-      const { email, turnstileToken } = req.body;
+      const { email, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
 
-      // Verify Turnstile token server-side
-      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
         return res.status(400).json({ message: "Security verification failed. Please try again." });
       }
 
@@ -536,11 +580,17 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/magic-link/request", async (req, res) => {
     try {
-      const { email, turnstileToken } = req.body;
+      const { email, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
       console.log("Magic link request for:", email);
 
-      // Verify Turnstile token server-side
-      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
         return res.status(400).json({ message: "Security verification failed. Please try again." });
       }
 
@@ -737,11 +787,17 @@ export async function setupAuth(app: Express) {
   // Passwordless authentication - request (handles both new and existing users)
   app.post("/api/auth/passwordless/request", async (req, res) => {
     try {
-      const { email, turnstileToken } = req.body;
+      const { email, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
       console.log("Passwordless auth request for:", email);
 
-      // Verify Turnstile token server-side
-      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
         return res.status(400).json({ message: "Security verification failed. Please try again." });
       }
 
