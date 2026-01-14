@@ -7,6 +7,7 @@ import {
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
   changeRequests, projectDocuments, projectComments, notifications, statusReportHistory,
   billingTransactions, timesheetEntries,
+  magicLinkTokens,
   type User, type UpsertUser,
   type BillingTransaction, type InsertBillingTransaction,
   type Organization, type InsertOrganization,
@@ -43,6 +44,7 @@ import {
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
 import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
+import { billingAuditLogs } from "@shared/models/billing";
 
 export interface IStorage {
   // Users
@@ -398,7 +400,14 @@ export class DatabaseStorage implements IStorage {
     await db.update(changeRequests).set({ deletedBy: null }).where(eq(changeRequests.deletedBy, id));
     // 23. Nullify project documents deletedBy
     await db.update(projectDocuments).set({ deletedBy: null }).where(eq(projectDocuments.deletedBy, id));
-    // 24. Finally delete the user
+    // 24. Nullify billing audit logs actorUserId
+    await db.update(billingAuditLogs).set({ actorUserId: null }).where(eq(billingAuditLogs.actorUserId, id));
+    // 25. Delete magic link tokens for this user's email
+    const user = await this.getUser(id);
+    if (user) {
+      await db.delete(magicLinkTokens).where(eq(magicLinkTokens.email, user.email));
+    }
+    // 26. Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
 
