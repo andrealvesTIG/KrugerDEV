@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, XCircle } from "lucide-react";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { Footer } from "@/components/layout/Footer";
+import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
 
 export default function ResetPasswordPage() {
   const [, setLocation] = useLocation();
@@ -19,6 +20,8 @@ export default function ResetPasswordPage() {
   
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   const { data: tokenStatus, isLoading: isVerifying } = useQuery({
     queryKey: ["/api/auth/verify-reset-token", token],
@@ -52,7 +55,7 @@ export default function ResetPasswordPage() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (password !== confirmPassword) {
@@ -62,6 +65,44 @@ export default function ResetPasswordPage() {
     
     if (password.length < 6) {
       toast({ title: "Error", description: "Password must be at least 6 characters", variant: "destructive" });
+      return;
+    }
+
+    if (!turnstileToken) {
+      toast({
+        title: "Verification Required",
+        description: "Please complete the security check",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const verifyRes = await fetch("/api/auth/verify-turnstile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: turnstileToken }),
+      });
+      const verifyData = await verifyRes.json();
+      
+      if (!verifyData.success) {
+        toast({
+          title: "Verification Failed",
+          description: "Please try the security check again",
+          variant: "destructive",
+        });
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
+        return;
+      }
+    } catch (error) {
+      toast({
+        title: "Verification Error",
+        description: "Could not verify. Please try again.",
+        variant: "destructive",
+      });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
       return;
     }
     
@@ -178,10 +219,16 @@ export default function ResetPasswordPage() {
                 data-testid="input-confirm-password"
               />
             </div>
+            <TurnstileWidget
+              ref={turnstileRef}
+              onSuccess={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              className="flex justify-center"
+            />
             <Button 
               type="submit" 
               className="w-full" 
-              disabled={resetMutation.isPending}
+              disabled={resetMutation.isPending || !turnstileToken}
               data-testid="button-reset-password"
             >
               {resetMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
