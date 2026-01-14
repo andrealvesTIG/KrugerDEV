@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { queryClient } from "@/lib/queryClient";
 import { Loader2, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { Footer } from "@/components/layout/Footer";
+import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
 
 type AuthMode = "login" | "register" | "forgot-password" | "magic-link";
 
@@ -26,6 +27,8 @@ export default function AuthPage() {
   const [magicLinkEmail, setMagicLinkEmail] = useState("");
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [referralCode, setReferralCode] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   const { data: microsoftStatus } = useQuery<{ configured: boolean }>({
     queryKey: ["/api/auth/microsoft/status"],
@@ -149,8 +152,47 @@ export default function AuthPage() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!turnstileToken) {
+      toast({
+        title: "Verification Required",
+        description: "Please complete the security check",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const verifyRes = await fetch("/api/auth/verify-turnstile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: turnstileToken }),
+      });
+      const verifyData = await verifyRes.json();
+      
+      if (!verifyData.success) {
+        toast({
+          title: "Verification Failed",
+          description: "Please try the security check again",
+          variant: "destructive",
+        });
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
+        return;
+      }
+    } catch (error) {
+      toast({
+        title: "Verification Error",
+        description: "Could not verify. Please try again.",
+        variant: "destructive",
+      });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
+      return;
+    }
+
     if (mode === "login") {
       loginMutation.mutate({ email, password });
     } else if (mode === "register") {
@@ -328,7 +370,13 @@ export default function AuthPage() {
                 />
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={isPending} data-testid="button-submit-auth">
+            <TurnstileWidget
+              ref={turnstileRef}
+              onSuccess={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              className="flex justify-center"
+            />
+            <Button type="submit" className="w-full" disabled={isPending || !turnstileToken} data-testid="button-submit-auth">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {mode === "login" && "Sign In"}
               {mode === "register" && "Create Account"}

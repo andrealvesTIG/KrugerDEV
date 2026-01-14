@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Mail, Loader2, CheckCircle, ArrowLeft, Building2 } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
+import { TurnstileWidget, type TurnstileWidgetRef, verifyTurnstileToken } from "@/components/TurnstileWidget";
 
 export default function SignInPage() {
   const [, setLocation] = useLocation();
@@ -16,6 +17,8 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   const { data: msStatus } = useQuery<{ configured: boolean }>({
     queryKey: ["/api/auth/microsoft/status"],
@@ -25,8 +28,30 @@ export default function SignInPage() {
     e.preventDefault();
     if (!email.trim()) return;
 
+    if (!turnstileToken) {
+      toast({
+        title: "Verification Required",
+        description: "Please complete the security check",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
+      const verifyResult = await verifyTurnstileToken(turnstileToken);
+      if (!verifyResult.success) {
+        toast({
+          title: "Verification Failed",
+          description: "Please try the security check again",
+          variant: "destructive",
+        });
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
+        setIsLoading(false);
+        return;
+      }
+
       const response = await apiRequest("POST", "/api/auth/passwordless/request", { email: email.trim() });
       const data = await response.json();
       
@@ -122,10 +147,16 @@ export default function SignInPage() {
                 data-testid="input-signin-email"
               />
             </div>
+            <TurnstileWidget
+              ref={turnstileRef}
+              onSuccess={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              className="flex justify-center"
+            />
             <Button 
               type="submit" 
               className="w-full" 
-              disabled={isLoading || !email.trim()}
+              disabled={isLoading || !email.trim() || !turnstileToken}
               data-testid="button-send-signin-link"
             >
               {isLoading ? (
