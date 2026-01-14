@@ -519,10 +519,10 @@ export default function Tasks() {
                   selectedResourceIds={selectedResourceIds}
                   onSelectionChange={setSelectedResourceIds}
                   label="Assigned Resources"
-                  projectId={editingTask?.projectId}
-                  projectName={projectMap.get(editingTask?.projectId || 0)?.name}
+                  projectId={editingTask?.projectId || form.watch("projectId")}
+                  projectName={projectMap.get(editingTask?.projectId || form.watch("projectId") || 0)?.name}
                   taskId={editingTask?.id}
-                  taskName={editingTask?.name}
+                  taskName={editingTask?.name || form.watch("name")}
                 />
                 <DialogFooter className="flex items-center gap-2">
                   {editingTask && (
