@@ -333,6 +333,7 @@ export class DatabaseStorage implements IStorage {
     // Remove foreign key references before deleting user
     // 1. Unlink resources (set userId to null since it's nullable)
     await db.update(resources).set({ userId: null }).where(eq(resources.userId, id));
+    await db.update(resources).set({ managerId: null }).where(eq(resources.managerId, id));
     // 2. Delete notifications for this user
     await db.delete(notifications).where(or(eq(notifications.userId, id), eq(notifications.fromUserId, id)));
     // 3. Delete organization access requests
@@ -341,7 +342,60 @@ export class DatabaseStorage implements IStorage {
     await db.delete(organizationMembers).where(eq(organizationMembers.userId, id));
     // 5. Handle organizations owned by this user - set ownerId to null
     await db.update(organizations).set({ ownerId: null }).where(eq(organizations.ownerId, id));
-    // 6. Finally delete the user
+    await db.update(organizations).set({ deactivatedBy: null }).where(eq(organizations.deactivatedBy, id));
+    // 6. Nullify user references in portfolios
+    await db.update(portfolios).set({ managerId: null }).where(eq(portfolios.managerId, id));
+    await db.update(portfolios).set({ businessOwnerId: null }).where(eq(portfolios.businessOwnerId, id));
+    await db.update(portfolios).set({ deletedBy: null }).where(eq(portfolios.deletedBy, id));
+    // 7. Nullify user references in projects
+    await db.update(projects).set({ managerId: null }).where(eq(projects.managerId, id));
+    await db.update(projects).set({ businessSponsorId: null }).where(eq(projects.businessSponsorId, id));
+    await db.update(projects).set({ businessOwnerId: null }).where(eq(projects.businessOwnerId, id));
+    await db.update(projects).set({ technicalLeadId: null }).where(eq(projects.technicalLeadId, id));
+    await db.update(projects).set({ deletedBy: null }).where(eq(projects.deletedBy, id));
+    // 8. Nullify user references in risks
+    await db.update(risks).set({ ownerId: null }).where(eq(risks.ownerId, id));
+    await db.update(risks).set({ reviewerId: null }).where(eq(risks.reviewerId, id));
+    await db.update(risks).set({ deletedBy: null }).where(eq(risks.deletedBy, id));
+    // 9. Nullify user references in milestones
+    await db.update(milestones).set({ ownerId: null }).where(eq(milestones.ownerId, id));
+    await db.update(milestones).set({ deletedBy: null }).where(eq(milestones.deletedBy, id));
+    // 10. Nullify user references in issues
+    await db.update(issues).set({ assigneeId: null }).where(eq(issues.assigneeId, id));
+    await db.update(issues).set({ reporterId: null }).where(eq(issues.reporterId, id));
+    await db.update(issues).set({ deletedBy: null }).where(eq(issues.deletedBy, id));
+    // 11. Nullify user references in tasks
+    await db.update(tasks).set({ ownerId: null }).where(eq(tasks.ownerId, id));
+    await db.update(tasks).set({ deletedBy: null }).where(eq(tasks.deletedBy, id));
+    // 12. Nullify user references in status report history
+    await db.update(statusReportHistory).set({ createdBy: null }).where(eq(statusReportHistory.createdBy, id));
+    // 13. Nullify user references in project intakes
+    await db.update(projectIntakes).set({ submitterId: null }).where(eq(projectIntakes.submitterId, id));
+    await db.update(projectIntakes).set({ pmoApprovedBy: null }).where(eq(projectIntakes.pmoApprovedBy, id));
+    await db.update(projectIntakes).set({ securityApproverId: null }).where(eq(projectIntakes.securityApproverId, id));
+    await db.update(projectIntakes).set({ approvedBy: null }).where(eq(projectIntakes.approvedBy, id));
+    await db.update(projectIntakes).set({ rejectedBy: null }).where(eq(projectIntakes.rejectedBy, id));
+    await db.update(projectIntakes).set({ deletedBy: null }).where(eq(projectIntakes.deletedBy, id));
+    // 14. Nullify user references in change log tables
+    await db.update(riskChangeLogs).set({ changedBy: null }).where(eq(riskChangeLogs.changedBy, id));
+    await db.update(projectChangeLogs).set({ changedBy: null }).where(eq(projectChangeLogs.changedBy, id));
+    await db.update(issueChangeLogs).set({ changedBy: null }).where(eq(issueChangeLogs.changedBy, id));
+    await db.update(taskChangeLogs).set({ changedBy: null }).where(eq(taskChangeLogs.changedBy, id));
+    // 15. Delete timesheet entries for this user
+    await db.delete(timesheetEntries).where(eq(timesheetEntries.userId, id));
+    // 16. Nullify timesheet approvedBy references
+    await db.update(timesheetEntries).set({ approvedBy: null }).where(eq(timesheetEntries.approvedBy, id));
+    // 17. Nullify project financials deletedBy
+    await db.update(projectFinancials).set({ deletedBy: null }).where(eq(projectFinancials.deletedBy, id));
+    // 18. Nullify project comments author
+    await db.update(projectComments).set({ authorId: null }).where(eq(projectComments.authorId, id));
+    // 19. Nullify organization invites invitedBy
+    await db.update(organizationInvites).set({ invitedBy: null }).where(eq(organizationInvites.invitedBy, id));
+    // 20. Nullify organization access requests reviewedBy
+    await db.update(organizationAccessRequests).set({ reviewedBy: null }).where(eq(organizationAccessRequests.reviewedBy, id));
+    // 21. Nullify mpp imports importedBy
+    await db.update(mppImports).set({ importedBy: null }).where(eq(mppImports.importedBy, id));
+    // 22. Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
 
