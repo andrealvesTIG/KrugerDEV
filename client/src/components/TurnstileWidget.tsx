@@ -1,7 +1,9 @@
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from "react";
 
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+// Only use Turnstile if a real site key is configured (not test keys)
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+const isTurnstileEnabled = TURNSTILE_SITE_KEY && !TURNSTILE_SITE_KEY.startsWith("1x0000");
 
 export interface TurnstileWidgetRef {
   reset: () => void;
@@ -27,6 +29,19 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
       },
       getToken: () => token,
     }));
+
+    // If Turnstile is disabled, call onSuccess immediately with empty token
+    // This allows forms to work without Turnstile
+    useEffect(() => {
+      if (!isTurnstileEnabled && onSuccess) {
+        onSuccess("disabled");
+      }
+    }, [onSuccess]);
+
+    // Don't render if Turnstile is not configured
+    if (!isTurnstileEnabled) {
+      return null;
+    }
 
     const handleSuccess = (newToken: string) => {
       setToken(newToken);
