@@ -1613,6 +1613,7 @@ function TasksTab({ projectId }: { projectId: number }) {
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
+  const lastInitializedTaskId = useRef<number | null>(null);
   
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
@@ -1626,9 +1627,12 @@ function TasksTab({ projectId }: { projectId: number }) {
     );
   }, [tasks, searchQuery]);
   
+  // Only sync selectedResourceIds from server on INITIAL load for a task
+  // Don't overwrite user changes when query refetches
   useEffect(() => {
-    if (taskAssignments && editingTask) {
+    if (taskAssignments && editingTask && lastInitializedTaskId.current !== editingTask.id) {
       setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      lastInitializedTaskId.current = editingTask.id;
     }
   }, [taskAssignments, editingTask]);
 
@@ -1694,6 +1698,7 @@ function TasksTab({ projectId }: { projectId: number }) {
     setDurationDays(7);
     setIsMilestone(false);
     setSelectedResourceIds([]);
+    lastInitializedTaskId.current = null; // Reset to allow re-initialization
     form.reset({
       projectId: projectId,
       name: "",

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
@@ -65,10 +65,14 @@ export default function Tasks() {
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const { toast } = useToast();
+  const lastInitializedTaskId = useRef<number | null>(null);
 
+  // Only sync selectedResourceIds from server on INITIAL load for a task
+  // Don't overwrite user changes when query refetches
   useEffect(() => {
-    if (taskAssignments && editingTask) {
+    if (taskAssignments && editingTask && lastInitializedTaskId.current !== editingTask.id) {
       setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      lastInitializedTaskId.current = editingTask.id;
     }
   }, [taskAssignments, editingTask]);
 
@@ -204,6 +208,7 @@ export default function Tasks() {
     setEditingTask(null);
     setDurationDays(7);
     setSelectedResourceIds([]);
+    lastInitializedTaskId.current = null; // Reset to allow re-initialization
     form.reset({
       projectId: projects && projects.length > 0 ? projects[0].id : undefined as any,
       name: "",

@@ -58,18 +58,30 @@ export function ResourceAssignment({
       return response.json();
     },
     onSuccess: (data) => {
+      const assignmentMsg = data.taskAssigned ? " They have been assigned to this task." : "";
       toast({
         title: "Invitation sent",
-        description: `An invitation has been sent to ${inviteEmail}. ${data.taskAssigned ? "Resource assigned to task." : ""}`,
+        description: `An invitation has been sent to ${inviteEmail}.${assignmentMsg}`,
       });
-      if (data.resource) {
+      
+      // Invalidate resources to show the new resource in the list
+      queryClient.invalidateQueries({ queryKey: ["/api/resources"] });
+      
+      // If backend assigned to task, invalidate task assignments AND update local state
+      // We need to update local state because the parent's useEffect may not have fired yet
+      if (taskId && data.taskAssigned && data.resource) {
+        // Invalidate to refetch from server
+        queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "resources"] });
+        // Also update local state immediately so UI shows the assignment
+        // This ensures the state is correct before any form submission
+        if (!selectedResourceIds.includes(data.resource.id)) {
+          onSelectionChange([...selectedResourceIds, data.resource.id]);
+        }
+      } else if (data.resource) {
+        // No taskId, just add to selection for later save
         onSelectionChange([...selectedResourceIds, data.resource.id]);
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/resources"] });
-      // Also invalidate task resource assignments to reflect the auto-assignment
-      if (taskId) {
-        queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "resources"] });
-      }
+      
       setInviteEmail("");
       setShowInviteForm(false);
       setOpen(false);
