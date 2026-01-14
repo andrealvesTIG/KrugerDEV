@@ -1851,12 +1851,25 @@ function TasksTab({ projectId }: { projectId: number }) {
                 <Label>Description</Label>
                 <Textarea {...form.register("description")} />
               </div>
-              <ResourceAssignment
-                organizationId={currentOrganization?.id || null}
-                selectedResourceIds={selectedResourceIds}
-                onSelectionChange={setSelectedResourceIds}
-                label="Assigned Resources"
-              />
+              {/* Only allow resource assignments for leaf tasks (tasks without children) */}
+              {editingTask && (() => {
+                const editLevel = editingTask.outlineLevel || 1;
+                const idx = tasks?.findIndex(x => x.id === editingTask.id) ?? -1;
+                const hasChildren = idx >= 0 && tasks && idx < tasks.length - 1 && ((tasks[idx + 1].outlineLevel || 1) > editLevel);
+                return hasChildren;
+              })() ? (
+                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md flex items-center gap-2">
+                  <UserIcon className="h-4 w-4" />
+                  <span>Resource assignments are only available for leaf tasks. This is a summary task - dates and progress roll up from children.</span>
+                </div>
+              ) : (
+                <ResourceAssignment
+                  organizationId={currentOrganization?.id || null}
+                  selectedResourceIds={selectedResourceIds}
+                  onSelectionChange={setSelectedResourceIds}
+                  label="Assigned Resources"
+                />
+              )}
               <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="isMilestone" 
@@ -2136,10 +2149,15 @@ function ProjectGanttTaskRow({
       )}
       {visibleColumns.includes('resources') && (
         <div 
-          className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50"
-          onClick={(e) => { e.stopPropagation(); setIsEditingResources(true); }}
+          className={cn(
+            "w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
+            !hasChildren && "cursor-pointer hover:bg-muted/50"
+          )}
+          onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
         >
-          {isEditingResources ? (
+          {hasChildren ? (
+            <span className="text-xs text-muted-foreground/70 italic" title="Summary tasks cannot have resource assignments">Summary</span>
+          ) : isEditingResources ? (
             <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
               <ResourceAssignment
                 organizationId={organizationId}

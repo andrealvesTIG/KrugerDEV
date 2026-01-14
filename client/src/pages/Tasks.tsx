@@ -481,6 +481,7 @@ export default function Tasks() {
                   <Label className="text-xs">Description</Label>
                   <Textarea {...form.register("description")} className="text-sm min-h-[60px]" />
                 </div>
+                {/* Note: In global Tasks view, we show ResourceAssignment since we don't have full project context to check children */}
                 <ResourceAssignment
                   organizationId={currentOrganization?.id || null}
                   selectedResourceIds={selectedResourceIds}

@@ -57,11 +57,17 @@ The application manages the following core entities with extensive industry-stan
    - Department, category, business value, risk level
 
 3. **Tasks** - Project tasks/work items with:
-   - Task number, WBS code, outline level, priority
+   - Task number, WBS code, outline level (1-6), priority
    - Task type (Work/Milestone/Summary), constraint type/date
    - Baseline and actual start/end dates
    - Estimated/actual/remaining hours, cost tracking
    - Owner, phase, category, labels, critical path flag
+   - **Hierarchical Roll-up**: Parent tasks (those with children) automatically roll up values from leaf tasks:
+     - Start date = earliest start date of leaf children
+     - End date = latest end date of leaf children
+     - Progress = weighted average by duration
+     - Hours and costs = sum of leaf children values
+   - **Resource Assignment Restriction**: Only leaf tasks (no children) can have resource assignments; summary tasks display an explanatory message
 
 4. **Resources** - Team members and equipment with:
    - Resource code, type (Employee/Contractor/Vendor/Equipment)
