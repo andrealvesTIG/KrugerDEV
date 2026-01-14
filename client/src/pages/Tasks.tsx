@@ -4,6 +4,7 @@ import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTask
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
+import { useAuth } from "@/hooks/use-auth";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -43,6 +44,7 @@ type GroupBy = "project" | "portfolio" | "resource";
 
 export default function Tasks() {
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total } = usePaginatedTasks(100, currentOrganization?.id);
   const { data: projects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -54,6 +56,7 @@ export default function Tasks() {
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>("project");
   const [searchQuery, setSearchQuery] = useState("");
+  const [myAssignmentsOnly, setMyAssignmentsOnly] = useState(false);
   const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
@@ -84,6 +87,23 @@ export default function Tasks() {
     setDeleteTaskData(task);
   };
 
+  // Find current user's resource ID for "My Assignments" filter
+  const myResourceId = useMemo(() => {
+    if (!user?.id || !orgResources) return null;
+    const myResource = orgResources.find(r => r.userId === user.id);
+    return myResource?.id ?? null;
+  }, [user?.id, orgResources]);
+
+  // Build set of task IDs assigned to current user
+  const myTaskIds = useMemo(() => {
+    if (!myResourceId || !allTaskAssignments) return new Set<number>();
+    return new Set(
+      allTaskAssignments
+        .filter(a => a.resourceId === myResourceId)
+        .map(a => a.taskId)
+    );
+  }, [myResourceId, allTaskAssignments]);
+
   const projectIds = useMemo(() => new Set(projects?.map(p => p.id) || []), [projects]);
   const tasks = useMemo(() => {
     // Backend already filters by organization, just apply local filters
@@ -105,8 +125,13 @@ export default function Tasks() {
       );
     }
     
+    // Filter to only my assignments
+    if (myAssignmentsOnly && myResourceId) {
+      filteredTasks = filteredTasks.filter(task => myTaskIds.has(task.id));
+    }
+    
     return filteredTasks;
-  }, [allTasks, filterProjectId, searchQuery]);
+  }, [allTasks, filterProjectId, searchQuery, myAssignmentsOnly, myResourceId, myTaskIds]);
 
   const projectMap = useMemo(() => {
     const map = new Map<number, { name: string; portfolioId: number | null }>();
@@ -353,6 +378,16 @@ export default function Tasks() {
           <p className="text-muted-foreground">Manage tasks with Gantt Chart and Kanban views</p>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
+          <Button
+            variant={myAssignmentsOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setMyAssignmentsOnly(!myAssignmentsOnly)}
+            className="gap-2"
+            data-testid="button-my-assignments"
+          >
+            <UserIcon className="h-4 w-4" />
+            My Assignments
+          </Button>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
