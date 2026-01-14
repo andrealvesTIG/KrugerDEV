@@ -1035,6 +1035,7 @@ function AllUsersTab() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="member">Member</SelectItem>
+                                <SelectItem value="org_admin">Org Admin</SelectItem>
                                 <SelectItem value="admin">Admin</SelectItem>
                                 <SelectItem value="owner">Owner</SelectItem>
                               </SelectContent>
@@ -1088,6 +1089,7 @@ function AllUsersTab() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="org_admin">Org Admin</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="owner">Owner</SelectItem>
                     </SelectContent>
