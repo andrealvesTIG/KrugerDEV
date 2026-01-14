@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
+import { HoneypotField } from "@/components/HoneypotField";
 
 export default function SignInPage() {
   const [, setLocation] = useLocation();
@@ -19,6 +20,10 @@ export default function SignInPage() {
   const [emailSent, setEmailSent] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
+  const [honeypotData, setHoneypotData] = useState<{ honeypot1: string; honeypot2: string; formLoadTime: number } | null>(null);
+  const handleHoneypotChange = useCallback((data: { honeypot1: string; honeypot2: string; formLoadTime: number }) => {
+    setHoneypotData(data);
+  }, []);
 
   const { data: msStatus } = useQuery<{ configured: boolean }>({
     queryKey: ["/api/auth/microsoft/status"],
@@ -28,20 +33,18 @@ export default function SignInPage() {
     e.preventDefault();
     if (!email.trim()) return;
 
-    if (!turnstileToken) {
-      toast({
-        title: "Verification Required",
-        description: "Please complete the security check",
-        variant: "destructive",
-      });
-      return;
-    }
+    const honeypotPayload = honeypotData ? {
+      honeypot1: honeypotData.honeypot1,
+      honeypot2: honeypotData.honeypot2,
+      formLoadTime: honeypotData.formLoadTime,
+    } : {};
 
     setIsLoading(true);
     try {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", { 
         email: email.trim(),
-        turnstileToken 
+        turnstileToken: turnstileToken || undefined,
+        ...honeypotPayload
       });
       const data = await response.json();
       
@@ -129,6 +132,7 @@ export default function SignInPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleSubmit} className="space-y-4">
+            <HoneypotField onDataChange={handleHoneypotChange} />
             <div className="space-y-2">
               <Label htmlFor="email">Email address</Label>
               <Input
@@ -150,7 +154,7 @@ export default function SignInPage() {
             <Button 
               type="submit" 
               className="w-full" 
-              disabled={isLoading || !email.trim() || !turnstileToken}
+              disabled={isLoading || !email.trim()}
               data-testid="button-send-signin-link"
             >
               {isLoading ? (

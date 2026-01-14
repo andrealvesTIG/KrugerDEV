@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Loader2, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { Footer } from "@/components/layout/Footer";
 import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
+import { HoneypotField } from "@/components/HoneypotField";
 
 type AuthMode = "login" | "register" | "forgot-password" | "magic-link";
 
@@ -29,6 +30,10 @@ export default function AuthPage() {
   const [referralCode, setReferralCode] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
+  const [honeypotData, setHoneypotData] = useState<{ honeypot1: string; honeypot2: string; formLoadTime: number } | null>(null);
+  const handleHoneypotChange = useCallback((data: { honeypot1: string; honeypot2: string; formLoadTime: number }) => {
+    setHoneypotData(data);
+  }, []);
 
   const { data: microsoftStatus } = useQuery<{ configured: boolean }>({
     queryKey: ["/api/auth/microsoft/status"],
@@ -50,7 +55,7 @@ export default function AuthPage() {
   }, [search, toast]);
 
   const loginMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; turnstileToken: string }) => {
+    mutationFn: async (data: { email: string; password: string; turnstileToken?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,7 +80,7 @@ export default function AuthPage() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; turnstileToken: string }) => {
+    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; turnstileToken?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,7 +111,7 @@ export default function AuthPage() {
   });
 
   const forgotPasswordMutation = useMutation({
-    mutationFn: async (data: { email: string; turnstileToken: string }) => {
+    mutationFn: async (data: { email: string; turnstileToken?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -131,7 +136,7 @@ export default function AuthPage() {
   });
 
   const magicLinkMutation = useMutation({
-    mutationFn: async (data: { email: string; turnstileToken: string }) => {
+    mutationFn: async (data: { email: string; turnstileToken?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/magic-link/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -169,23 +174,20 @@ export default function AuthPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!turnstileToken) {
-      toast({
-        title: "Verification Required",
-        description: "Please complete the security check",
-        variant: "destructive",
-      });
-      return;
-    }
+    const honeypotPayload = honeypotData ? {
+      honeypot1: honeypotData.honeypot1,
+      honeypot2: honeypotData.honeypot2,
+      formLoadTime: honeypotData.formLoadTime,
+    } : {};
 
     if (mode === "login") {
-      loginMutation.mutate({ email, password, turnstileToken });
+      loginMutation.mutate({ email, password, turnstileToken: turnstileToken || undefined, ...honeypotPayload });
     } else if (mode === "register") {
-      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, turnstileToken });
+      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, turnstileToken: turnstileToken || undefined, ...honeypotPayload });
     } else if (mode === "forgot-password") {
-      forgotPasswordMutation.mutate({ email, turnstileToken });
+      forgotPasswordMutation.mutate({ email, turnstileToken: turnstileToken || undefined, ...honeypotPayload });
     } else if (mode === "magic-link") {
-      magicLinkMutation.mutate({ email: magicLinkEmail, turnstileToken });
+      magicLinkMutation.mutate({ email: magicLinkEmail, turnstileToken: turnstileToken || undefined, ...honeypotPayload });
     }
   };
 
@@ -266,6 +268,7 @@ export default function AuthPage() {
             </div>
           ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            <HoneypotField onDataChange={handleHoneypotChange} />
             {mode === "register" && referralCode && (
               <div className="p-3 rounded-md bg-primary/10 border border-primary/20 text-center" data-testid="banner-referral">
                 <p className="text-sm font-medium text-primary">
@@ -361,7 +364,7 @@ export default function AuthPage() {
               onExpire={() => setTurnstileToken(null)}
               className="flex justify-center"
             />
-            <Button type="submit" className="w-full" disabled={isPending || !turnstileToken} data-testid="button-submit-auth">
+            <Button type="submit" className="w-full" disabled={isPending} data-testid="button-submit-auth">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {mode === "login" && "Sign In"}
               {mode === "register" && "Create Account"}
