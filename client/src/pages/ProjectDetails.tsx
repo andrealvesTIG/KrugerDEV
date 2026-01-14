@@ -3682,6 +3682,7 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
     description: '',
     type: 'scope' as 'scope' | 'schedule' | 'budget' | 'resource' | 'other',
     priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
+    status: 'Draft' as 'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Rejected' | 'Implemented',
     impact: '',
     justification: '',
   });
@@ -3692,6 +3693,7 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
       description: '',
       type: 'scope',
       priority: 'medium',
+      status: 'Draft',
       impact: '',
       justification: '',
     });
@@ -3738,6 +3740,7 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
       description: request.description || '',
       type: request.type as any,
       priority: request.priority as any,
+      status: (request.status || 'Draft') as any,
       impact: request.impact || '',
       justification: request.justification || '',
     });
@@ -3811,7 +3814,7 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
                   data-testid="input-change-request-title"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className={editingRequest ? "grid grid-cols-3 gap-4" : "grid grid-cols-2 gap-4"}>
                 <div className="space-y-2">
                   <Label>Type</Label>
                   <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v as any })}>
@@ -3841,6 +3844,24 @@ function ChangeRequestsTab({ projectId }: { projectId: number }) {
                     </SelectContent>
                   </Select>
                 </div>
+                {editingRequest && (
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as any })}>
+                      <SelectTrigger data-testid="select-change-request-status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Draft">Draft</SelectItem>
+                        <SelectItem value="Submitted">Submitted</SelectItem>
+                        <SelectItem value="Under Review">Under Review</SelectItem>
+                        <SelectItem value="Approved">Approved</SelectItem>
+                        <SelectItem value="Rejected">Rejected</SelectItem>
+                        <SelectItem value="Implemented">Implemented</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>
