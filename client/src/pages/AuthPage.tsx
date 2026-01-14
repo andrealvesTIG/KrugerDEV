@@ -60,8 +60,8 @@ export default function AuthPage() {
       }
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    onSuccess: (user) => {
+      queryClient.setQueryData(["/api/auth/user"], user);
       setLocation("/");
     },
     onError: (error: Error) => {
@@ -83,8 +83,8 @@ export default function AuthPage() {
       }
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    onSuccess: (user) => {
+      queryClient.setQueryData(["/api/auth/user"], user);
       setLocation("/");
     },
     onError: (error: Error) => {
