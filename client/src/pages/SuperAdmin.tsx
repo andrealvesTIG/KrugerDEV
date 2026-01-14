@@ -623,6 +623,11 @@ interface OrganizationMembership {
   userId: string;
   role: string;
   createdAt: string;
+  organization?: {
+    id: number;
+    name: string;
+    slug: string;
+  };
 }
 
 function AllUsersTab() {
@@ -869,12 +874,10 @@ function AllUsersTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {userMemberships.map((membership) => {
-                      const org = allOrganizations?.find(o => o.id === membership.organizationId);
-                      return (
+                    {userMemberships.map((membership) => (
                         <TableRow key={membership.id} data-testid={`membership-row-${membership.organizationId}`}>
                           <TableCell className="font-medium">
-                            {org?.name || `Org #${membership.organizationId}`}
+                            {membership.organization?.name || `Org #${membership.organizationId}`}
                           </TableCell>
                           <TableCell>
                             <Select
@@ -910,8 +913,7 @@ function AllUsersTab() {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
+                    ))}
                   </TableBody>
                 </Table>
               ) : (
