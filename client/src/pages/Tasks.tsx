@@ -383,10 +383,17 @@ export default function Tasks() {
             size="sm"
             onClick={() => setMyAssignmentsOnly(!myAssignmentsOnly)}
             className="gap-2"
+            disabled={!myResourceId}
+            title={!myResourceId ? "You need a resource profile linked to your account to filter by your assignments" : ""}
             data-testid="button-my-assignments"
           >
             <UserIcon className="h-4 w-4" />
             My Assignments
+            {myAssignmentsOnly && myResourceId && (
+              <Badge variant="secondary" className="ml-1">
+                {myTaskIds.size}
+              </Badge>
+            )}
           </Button>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
