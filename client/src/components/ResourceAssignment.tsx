@@ -84,7 +84,7 @@ export function ResourceAssignment({
       
       setInviteEmail("");
       setShowInviteForm(false);
-      setOpen(false);
+      // Keep the popover open so user can continue assigning resources
     },
     onError: (error: any) => {
       toast({
