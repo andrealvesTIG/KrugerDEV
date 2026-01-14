@@ -9,7 +9,7 @@ import { setupMicrosoftAuth } from "./auth/microsoftAuth";
 import { setupProjectOnlineRoutes } from "./services/projectOnline";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users, usageEvents, meters } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -1491,6 +1491,36 @@ export async function registerRoutes(
       res.json({ message: 'Organization reactivated', organization: reactivated });
     } catch (err) {
       res.status(500).json({ message: 'Failed to reactivate organization' });
+    }
+  });
+
+  // --- Get all task resource assignments for organization (for grouping) ---
+  app.get('/api/organizations/:id/task-assignments', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      // Get all task assignments for projects in this organization
+      const assignments = await db
+        .select({
+          taskId: taskResourceAssignments.taskId,
+          resourceId: taskResourceAssignments.resourceId,
+          resourceName: resources.displayName,
+        })
+        .from(taskResourceAssignments)
+        .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
+        .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .where(eq(projects.organizationId, orgId));
+      
+      res.json(assignments);
+    } catch (err) {
+      console.error('Error fetching task assignments:', err);
+      res.json([]);
     }
   });
 

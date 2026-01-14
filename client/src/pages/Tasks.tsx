@@ -4,7 +4,7 @@ import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTask
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
-import { useTaskResourceAssignments, useUpdateTaskResourceAssignments } from "@/hooks/use-resources";
+import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -39,7 +39,7 @@ const statusColors = {
   "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
-type GroupBy = "none" | "project" | "portfolio";
+type GroupBy = "project" | "portfolio" | "resource";
 
 export default function Tasks() {
   const { currentOrganization } = useOrganization();
@@ -52,7 +52,7 @@ export default function Tasks() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [durationDays, setDurationDays] = useState(7);
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
-  const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [groupBy, setGroupBy] = useState<GroupBy>("project");
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -64,6 +64,8 @@ export default function Tasks() {
   const deleteTask = useDeleteTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
+  const { data: orgResources } = useResources(currentOrganization?.id ?? null);
+  const { data: allTaskAssignments } = useAllTaskResourceAssignments(currentOrganization?.id ?? null);
   const { toast } = useToast();
   const lastInitializedTaskId = useRef<number | null>(null);
   // Track when an invite already assigned resources to prevent form from overwriting
@@ -118,13 +120,19 @@ export default function Tasks() {
     return map;
   }, [portfolios]);
 
-  type TaskGroup = { id: string; name: string; icon: "project" | "portfolio"; tasks: Task[] };
+  type TaskGroup = { id: string; name: string; icon: "project" | "portfolio" | "resource"; tasks: Task[] };
+
+  // Build map of taskId -> resourceIds for resource grouping
+  const taskToResources = useMemo(() => {
+    const map = new Map<number, { resourceId: number; resourceName: string }[]>();
+    allTaskAssignments?.forEach(a => {
+      if (!map.has(a.taskId)) map.set(a.taskId, []);
+      map.get(a.taskId)!.push({ resourceId: a.resourceId, resourceName: a.resourceName });
+    });
+    return map;
+  }, [allTaskAssignments]);
 
   const groupedTasks = useMemo((): TaskGroup[] => {
-    if (groupBy === "none") {
-      return [{ id: "all", name: "All Tasks", icon: "project", tasks }];
-    }
-    
     if (groupBy === "project") {
       const groups = new Map<number, Task[]>();
       tasks.forEach(task => {
@@ -154,8 +162,47 @@ export default function Tasks() {
       }));
     }
     
-    return [{ id: "all", name: "All Tasks", icon: "project", tasks }];
-  }, [tasks, groupBy, projectMap, portfolioMap]);
+    if (groupBy === "resource") {
+      const groups = new Map<number | null, Task[]>();
+      const resourceNames = new Map<number, string>();
+      
+      tasks.forEach(task => {
+        const assignments = taskToResources.get(task.id);
+        if (assignments && assignments.length > 0) {
+          // Add task to each assigned resource's group
+          assignments.forEach(a => {
+            if (!groups.has(a.resourceId)) groups.set(a.resourceId, []);
+            groups.get(a.resourceId)!.push(task);
+            resourceNames.set(a.resourceId, a.resourceName);
+          });
+        } else {
+          // Unassigned tasks
+          if (!groups.has(null)) groups.set(null, []);
+          groups.get(null)!.push(task);
+        }
+      });
+      
+      return Array.from(groups.entries()).map(([resourceId, resourceTasks]) => ({
+        id: resourceId ? `resource-${resourceId}` : "unassigned",
+        name: resourceId ? (resourceNames.get(resourceId) || "Unknown Resource") : "Unassigned",
+        icon: "resource" as const,
+        tasks: resourceTasks,
+      }));
+    }
+    
+    // Default to project grouping
+    const groups = new Map<number, Task[]>();
+    tasks.forEach(task => {
+      if (!groups.has(task.projectId)) groups.set(task.projectId, []);
+      groups.get(task.projectId)!.push(task);
+    });
+    return Array.from(groups.entries()).map(([projectId, projectTasks]) => ({
+      id: `project-${projectId}`,
+      name: projectMap.get(projectId)?.name || "Unknown Project",
+      icon: "project" as const,
+      tasks: projectTasks,
+    }));
+  }, [tasks, groupBy, projectMap, portfolioMap, taskToResources]);
 
   const taskFormSchema = insertTaskSchema.extend({
     name: z.string().min(1, "Task name is required")
@@ -353,7 +400,6 @@ export default function Tasks() {
               <SelectValue placeholder="Group by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No Grouping</SelectItem>
               <SelectItem value="project">
                 <span className="flex items-center gap-2">
                   <FolderKanban className="h-4 w-4" />
@@ -364,6 +410,12 @@ export default function Tasks() {
                 <span className="flex items-center gap-2">
                   <Briefcase className="h-4 w-4" />
                   By Portfolio
+                </span>
+              </SelectItem>
+              <SelectItem value="resource">
+                <span className="flex items-center gap-2">
+                  <UserIcon className="h-4 w-4" />
+                  By Resources Assigned
                 </span>
               </SelectItem>
             </SelectContent>
@@ -622,47 +674,24 @@ export default function Tasks() {
         </div>
       </div>
 
-      {groupBy === "none" ? (
-        view === "gantt" ? (
-          <GanttView tasks={tasks || []} projects={projects || []} onTaskClick={openEditDialog} organizationId={currentOrganization?.id ?? null} />
-        ) : (
-          <KanbanView 
-            tasks={tasks || []} 
-            projects={projects || []} 
-            onTaskClick={openEditDialog}
-            onStatusChange={(taskId, newStatus) => {
-              const task = tasks.find(t => t.id === taskId);
-              if (task) {
-                updateTask.mutate({ 
-                  id: taskId, 
-                  projectId: task.projectId, 
-                  status: newStatus 
-                });
-              }
-            }}
-            onDeleteTask={handleDeleteTaskFromKanban}
-          />
-        )
-      ) : (
-        <GroupedTasksView
-          groupedTasks={groupedTasks}
-          view={view}
-          projects={projects || []}
-          onTaskClick={openEditDialog}
-          onStatusChange={(taskId, newStatus) => {
-            const task = tasks.find(t => t.id === taskId);
-            if (task) {
-              updateTask.mutate({ 
-                id: taskId, 
-                projectId: task.projectId, 
-                status: newStatus 
-              });
-            }
-          }}
-          onDeleteTask={handleDeleteTaskFromKanban}
-          organizationId={currentOrganization?.id ?? null}
-        />
-      )}
+      <GroupedTasksView
+        groupedTasks={groupedTasks}
+        view={view}
+        projects={projects || []}
+        onTaskClick={openEditDialog}
+        onStatusChange={(taskId, newStatus) => {
+          const task = tasks.find(t => t.id === taskId);
+          if (task) {
+            updateTask.mutate({ 
+              id: taskId, 
+              projectId: task.projectId, 
+              status: newStatus 
+            });
+          }
+        }}
+        onDeleteTask={handleDeleteTaskFromKanban}
+        organizationId={currentOrganization?.id ?? null}
+      />
 
       {/* Load More Button */}
       {hasMore && (
@@ -719,7 +748,7 @@ export default function Tasks() {
   );
 }
 
-type TaskGroup = { id: string; name: string; icon: "project" | "portfolio"; tasks: Task[] };
+type TaskGroup = { id: string; name: string; icon: "project" | "portfolio" | "resource"; tasks: Task[] };
 
 function GroupedTasksView({
   groupedTasks,
@@ -772,6 +801,8 @@ function GroupedTasksView({
               )}
               {group.icon === "portfolio" ? (
                 <Briefcase className="h-5 w-5 text-primary" />
+              ) : group.icon === "resource" ? (
+                <UserIcon className="h-5 w-5 text-primary" />
               ) : (
                 <FolderKanban className="h-5 w-5 text-primary" />
               )}
