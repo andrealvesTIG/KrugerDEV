@@ -3,9 +3,13 @@ import { registerRoutes } from "./routes";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import path from "path";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Serve static files from public directory (avatars, etc.)
+app.use('/avatars', express.static(path.join(process.cwd(), 'public', 'avatars')));
 
 declare module "http" {
   interface IncomingMessage {

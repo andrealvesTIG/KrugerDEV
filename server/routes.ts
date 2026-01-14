@@ -1040,7 +1040,7 @@ export async function registerRoutes(
     }
   });
 
-  // Direct avatar upload (bypasses signed URL issues)
+  // Direct avatar upload (uses local storage as fallback when object storage is unavailable)
   app.post('/api/users/:userId/avatar/upload', imageUpload.single('avatar'), async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
@@ -1052,36 +1052,52 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'No file uploaded' });
       }
 
-      const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
-      
-      const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
-      if (!privateObjectDir) {
-        return res.status(500).json({ message: 'Object storage not configured' });
-      }
-
       // Generate unique filename
       const ext = req.file.mimetype.split('/')[1] || 'jpg';
       const filename = `avatar-${userId}-${Date.now()}.${ext}`;
-      const objectPath = `${privateObjectDir}/uploads/${filename}`;
       
-      // Parse bucket and object name from the path
-      const pathParts = objectPath.split('/');
-      const bucketName = pathParts[1];
-      const objectName = pathParts.slice(2).join('/');
-
-      // Upload directly to GCS
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
+      // Try object storage first, fall back to local storage
+      let servePath: string;
       
-      await file.save(req.file.buffer, {
-        contentType: req.file.mimetype,
-        metadata: {
-          originalName: req.file.originalname,
-          uploadedBy: userId,
-        },
-      });
+      try {
+        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+        
+        if (privateObjectDir) {
+          const objectPath = `${privateObjectDir}/uploads/${filename}`;
+          const pathParts = objectPath.split('/');
+          const bucketName = pathParts[1];
+          const objectName = pathParts.slice(2).join('/');
 
-      const servePath = `/objects/uploads/${filename}`;
+          const bucket = objectStorageClient.bucket(bucketName);
+          const file = bucket.file(objectName);
+          
+          await file.save(req.file.buffer, {
+            contentType: req.file.mimetype,
+            metadata: {
+              originalName: req.file.originalname,
+              uploadedBy: userId,
+            },
+          });
+
+          servePath = `/objects/uploads/${filename}`;
+        } else {
+          throw new Error('Object storage not configured');
+        }
+      } catch (objectStorageError) {
+        // Fall back to local file storage
+        console.log("Object storage unavailable, using local storage:", (objectStorageError as Error).message);
+        
+        const avatarDir = path.join(process.cwd(), 'public', 'avatars');
+        if (!fs.existsSync(avatarDir)) {
+          fs.mkdirSync(avatarDir, { recursive: true });
+        }
+        
+        const filePath = path.join(avatarDir, filename);
+        fs.writeFileSync(filePath, req.file.buffer);
+        
+        servePath = `/avatars/${filename}`;
+      }
       
       // Update user avatar in database
       await db.update(users)
