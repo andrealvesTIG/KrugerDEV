@@ -1177,7 +1177,11 @@ export async function setupAuth(app: Express) {
           const isAlreadyMember = members.some(m => m.userId === currentUser.id);
           
           if (!isAlreadyMember) {
-            await storage.addOrganizationMember(metadata.organizationId, currentUser.id, "member");
+            await storage.addOrganizationMember({
+              organizationId: metadata.organizationId,
+              userId: currentUser.id,
+              role: "member"
+            });
             console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId}`);
           }
           
