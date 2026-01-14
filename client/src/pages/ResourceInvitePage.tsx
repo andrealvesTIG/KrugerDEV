@@ -42,9 +42,9 @@ export default function ResourceInvitePage() {
           queryClient.invalidateQueries({ queryKey: ["/api/user"] });
           queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
           
-          // Redirect to dashboard after a short delay
+          // Redirect to home after a short delay
           setTimeout(() => {
-            setLocation("/dashboard");
+            setLocation("/");
           }, 3000);
         } else {
           setStatus("error");
@@ -100,7 +100,7 @@ export default function ResourceInvitePage() {
           
           {status === "success" && (
             <p className="text-sm text-muted-foreground">
-              Redirecting to your dashboard...
+              Redirecting to your projects...
             </p>
           )}
 

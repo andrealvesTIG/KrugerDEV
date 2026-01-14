@@ -1173,6 +1173,7 @@ export async function setupAuth(app: Express) {
           organizationName = org.name;
           
           // Add user to organization if not already a member
+          // Resource invites get team_member role (restricted visibility)
           const members = await storage.getOrganizationMembers(metadata.organizationId);
           const isAlreadyMember = members.some(m => m.userId === currentUser.id);
           
@@ -1180,9 +1181,9 @@ export async function setupAuth(app: Express) {
             await storage.addOrganizationMember({
               organizationId: metadata.organizationId,
               userId: currentUser.id,
-              role: "member"
+              role: "team_member"
             });
-            console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId}`);
+            console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId} as team_member`);
           }
           
           // Update any pending invites to accepted

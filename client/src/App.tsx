@@ -98,12 +98,22 @@ function GuardedRoute({ path, component: Component, moduleKey }: { path: string;
   );
 }
 
+// Redirect from /dashboard to / using proper Wouter navigation
+function DashboardRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation("/");
+  }, [setLocation]);
+  return null;
+}
+
 function Router() {
   return (
     <AppLayout>
       <OnboardingDialog />
       <Switch>
         <GuardedRoute path="/" component={Dashboard} moduleKey="dashboard" />
+        <Route path="/dashboard"><DashboardRedirect /></Route>
         <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
         <Route path="/portfolios/:id">
           <ModuleGuard moduleKey="portfolios"><PortfolioDetails /></ModuleGuard>
