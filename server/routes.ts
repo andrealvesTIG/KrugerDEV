@@ -967,6 +967,7 @@ async function getUserResourceIds(userId: string, orgId: number): Promise<number
 interface TeamMemberAccessData {
   resourceIds: number[];
   projectIds: Set<number>;
+  invitedProjectIds: Set<number>;  // Projects explicitly invited to (see all items)
   taskIds: Set<number>;
 }
 
@@ -977,7 +978,7 @@ async function getTeamMemberAccessData(userId: string, orgId: number): Promise<T
   const resourceIds = userResources.map(r => r.id);
   
   if (resourceIds.length === 0) {
-    return { resourceIds: [], projectIds: new Set(), taskIds: new Set() };
+    return { resourceIds: [], projectIds: new Set(), invitedProjectIds: new Set(), taskIds: new Set() };
   }
   
   // Get all projects in org to filter tasks
@@ -993,26 +994,34 @@ async function getTeamMemberAccessData(userId: string, orgId: number): Promise<T
   const taskIdSet = new Set<number>();
   
   // Include projects the resource was explicitly invited to
+  const invitedProjectIdSet = new Set<number>();
   for (const resource of userResources) {
     if (resource.invitedProjectIds && Array.isArray(resource.invitedProjectIds)) {
       for (const projectId of resource.invitedProjectIds) {
         if (orgProjectIds.has(projectId)) {
           projectIdSet.add(projectId);
+          invitedProjectIdSet.add(projectId);
         }
       }
     }
   }
   
-  // Check assignments for each task
+  // Check assignments for each task, and include ALL tasks from invited projects
   for (const task of orgTasks) {
-    const assignments = await storage.getTaskResourceAssignments(task.id);
-    if (assignments.some(a => resourceIds.includes(a.resourceId))) {
-      projectIdSet.add(task.projectId);
+    // If task is in an invited project, include it
+    if (invitedProjectIdSet.has(task.projectId)) {
       taskIdSet.add(task.id);
+    } else {
+      // Otherwise, check if user is assigned to this task
+      const assignments = await storage.getTaskResourceAssignments(task.id);
+      if (assignments.some(a => resourceIds.includes(a.resourceId))) {
+        projectIdSet.add(task.projectId);
+        taskIdSet.add(task.id);
+      }
     }
   }
   
-  return { resourceIds, projectIds: projectIdSet, taskIds: taskIdSet };
+  return { resourceIds, projectIds: projectIdSet, invitedProjectIds: invitedProjectIdSet, taskIds: taskIdSet };
 }
 
 // Helper to get project IDs that a team_member has access to (assigned via resources)
@@ -1027,7 +1036,7 @@ async function getTeamMemberTaskIds(userId: string, orgId: number): Promise<numb
   return Array.from(accessData.taskIds);
 }
 
-// Helper to get risk IDs that a team_member has access to (directly assigned)
+// Helper to get risk IDs that a team_member has access to (assigned or in invited projects)
 async function getTeamMemberRiskIds(userId: string, orgId: number): Promise<number[]> {
   const accessData = await getTeamMemberAccessData(userId, orgId);
   if (accessData.resourceIds.length === 0) return [];
@@ -1037,9 +1046,15 @@ async function getTeamMemberRiskIds(userId: string, orgId: number): Promise<numb
   for (const projectId of accessData.projectIds) {
     const risks = await storage.getRisks(projectId);
     for (const risk of risks) {
-      const assignments = await storage.getRiskResourceAssignments(risk.id);
-      if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
+      // If project is in invited projects, include all risks
+      if (accessData.invitedProjectIds.has(projectId)) {
         riskIdSet.add(risk.id);
+      } else {
+        // Otherwise, check if user is assigned to this risk
+        const assignments = await storage.getRiskResourceAssignments(risk.id);
+        if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
+          riskIdSet.add(risk.id);
+        }
       }
     }
   }
@@ -1047,7 +1062,7 @@ async function getTeamMemberRiskIds(userId: string, orgId: number): Promise<numb
   return Array.from(riskIdSet);
 }
 
-// Helper to get issue IDs that a team_member has access to (directly assigned)
+// Helper to get issue IDs that a team_member has access to (assigned or in invited projects)
 async function getTeamMemberIssueIds(userId: string, orgId: number): Promise<number[]> {
   const accessData = await getTeamMemberAccessData(userId, orgId);
   if (accessData.resourceIds.length === 0) return [];
@@ -1057,9 +1072,15 @@ async function getTeamMemberIssueIds(userId: string, orgId: number): Promise<num
   for (const projectId of accessData.projectIds) {
     const issues = await storage.getIssues(projectId);
     for (const issue of issues) {
-      const assignments = await storage.getIssueResourceAssignments(issue.id);
-      if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
+      // If project is in invited projects, include all issues
+      if (accessData.invitedProjectIds.has(projectId)) {
         issueIdSet.add(issue.id);
+      } else {
+        // Otherwise, check if user is assigned to this issue
+        const assignments = await storage.getIssueResourceAssignments(issue.id);
+        if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
+          issueIdSet.add(issue.id);
+        }
       }
     }
   }
