@@ -1,0 +1,128 @@
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Loader2, CheckCircle, XCircle, Mail } from "lucide-react";
+
+export default function ResourceInvitePage() {
+  const [, setLocation] = useLocation();
+  const [status, setStatus] = useState<"loading" | "success" | "error" | "needs_auth">("loading");
+  const [message, setMessage] = useState("");
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const verifyToken = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+
+      if (!token) {
+        setStatus("error");
+        setMessage("Invalid invitation link. Please check your email for the correct link.");
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/auth/resource-invite/verify?token=${token}`, {
+          method: "GET",
+          credentials: "include",
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          setStatus("success");
+          setMessage(data.message || "Welcome! You've been added to the team.");
+          setOrganizationName(data.organizationName);
+          
+          // Redirect to dashboard after a short delay
+          setTimeout(() => {
+            setLocation("/dashboard");
+          }, 3000);
+        } else if (data.needsAuth) {
+          // User needs to sign in first
+          setStatus("needs_auth");
+          setMessage(data.message || "Please sign in to accept this invitation.");
+          
+          // Store the token in session storage for after auth
+          sessionStorage.setItem("resource_invite_token", token);
+        } else {
+          setStatus("error");
+          setMessage(data.message || "Failed to verify invitation. The link may have expired.");
+        }
+      } catch (error) {
+        setStatus("error");
+        setMessage("An error occurred while verifying your invitation. Please try again.");
+      }
+    };
+
+    verifyToken();
+  }, [setLocation]);
+
+  const handleSignIn = () => {
+    // Redirect to login with return URL
+    const currentUrl = window.location.pathname + window.location.search;
+    setLocation(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4">
+            {status === "loading" && (
+              <Loader2 className="h-12 w-12 text-primary animate-spin" />
+            )}
+            {status === "success" && (
+              <CheckCircle className="h-12 w-12 text-green-500" />
+            )}
+            {status === "error" && (
+              <XCircle className="h-12 w-12 text-destructive" />
+            )}
+            {status === "needs_auth" && (
+              <Mail className="h-12 w-12 text-primary" />
+            )}
+          </div>
+          <CardTitle>
+            {status === "loading" && "Verifying Invitation..."}
+            {status === "success" && "Welcome to the Team!"}
+            {status === "error" && "Invitation Error"}
+            {status === "needs_auth" && "Sign In Required"}
+          </CardTitle>
+          <CardDescription className="text-base">
+            {message}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center space-y-4">
+          {status === "success" && organizationName && (
+            <p className="text-muted-foreground">
+              You're now a member of <strong>{organizationName}</strong>
+            </p>
+          )}
+          
+          {status === "success" && (
+            <p className="text-sm text-muted-foreground">
+              Redirecting to your dashboard...
+            </p>
+          )}
+
+          {status === "needs_auth" && (
+            <Button onClick={handleSignIn} className="w-full" data-testid="button-sign-in">
+              Sign In to Accept Invitation
+            </Button>
+          )}
+
+          {status === "error" && (
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/login")}
+              className="w-full"
+              data-testid="button-go-to-login"
+            >
+              Go to Login
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

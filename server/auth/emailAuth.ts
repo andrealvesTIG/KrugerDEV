@@ -895,6 +895,151 @@ export async function setupAuth(app: Express) {
       res.status(500).json({ message: "Failed to resend verification email" });
     }
   });
+
+  // Resource invite verification - handles magic link from resource invitation
+  app.get("/api/auth/resource-invite/verify", async (req, res) => {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "Invalid token" });
+      }
+
+      // Find the magic link token
+      const [magicToken] = await db
+        .select()
+        .from(magicLinkTokens)
+        .where(
+          and(
+            eq(magicLinkTokens.token, token),
+            gt(magicLinkTokens.expiresAt, new Date())
+          )
+        )
+        .limit(1);
+
+      if (!magicToken) {
+        return res.status(400).json({ 
+          message: "Invalid or expired invitation link. Please ask for a new invitation.",
+          expired: true
+        });
+      }
+
+      // Verify this is a resource_invite token
+      if (magicToken.type !== "resource_invite") {
+        return res.status(400).json({ 
+          message: "Invalid invitation link type."
+        });
+      }
+
+      // Check if already used
+      if (magicToken.usedAt) {
+        return res.status(400).json({
+          message: "This invitation link has already been used.",
+          alreadyUsed: true
+        });
+      }
+
+      // Parse metadata
+      let metadata: { organizationId?: number; resourceId?: number; projectId?: number; taskId?: number } = {};
+      try {
+        if (magicToken.metadata) {
+          metadata = JSON.parse(magicToken.metadata);
+        }
+      } catch (e) {
+        console.error("Failed to parse magic link metadata:", e);
+      }
+
+      // Check if user is logged in
+      if (!req.session.userId) {
+        // User needs to log in first
+        return res.status(401).json({
+          message: "Please sign in to accept this invitation.",
+          needsAuth: true,
+          email: magicToken.email
+        });
+      }
+
+      // Get the logged-in user
+      const [currentUser] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+      
+      if (!currentUser) {
+        return res.status(401).json({
+          message: "Please sign in to accept this invitation.",
+          needsAuth: true
+        });
+      }
+
+      // Check if the logged-in user's email matches the invitation
+      if (currentUser.email?.toLowerCase() !== magicToken.email.toLowerCase()) {
+        return res.status(400).json({
+          message: `This invitation was sent to ${magicToken.email}. Please sign in with that email address.`,
+          emailMismatch: true
+        });
+      }
+
+      // Import storage functions
+      const { storage } = await import("../storage");
+
+      // Get organization info
+      let organizationName = "the team";
+      if (metadata.organizationId) {
+        const org = await storage.getOrganization(metadata.organizationId);
+        if (org) {
+          organizationName = org.name;
+          
+          // Add user to organization if not already a member
+          const members = await storage.getOrganizationMembers(metadata.organizationId);
+          const isAlreadyMember = members.some(m => m.userId === currentUser.id);
+          
+          if (!isAlreadyMember) {
+            await storage.addOrganizationMember(metadata.organizationId, currentUser.id, "member");
+            console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId}`);
+          }
+          
+          // Update any pending invites to accepted
+          const { organizationInvites } = await import("@shared/schema");
+          await db.update(organizationInvites)
+            .set({ status: "accepted", acceptedAt: new Date() })
+            .where(
+              and(
+                eq(organizationInvites.organizationId, metadata.organizationId),
+                eq(organizationInvites.email, currentUser.email?.toLowerCase() || ""),
+                eq(organizationInvites.status, "pending")
+              )
+            );
+        }
+      }
+
+      // Link the resource to the user
+      if (metadata.resourceId) {
+        const resource = await storage.getResource(metadata.resourceId);
+        if (resource && !resource.userId) {
+          await storage.updateResource(metadata.resourceId, {
+            userId: currentUser.id,
+            firstName: currentUser.firstName,
+            lastName: currentUser.lastName,
+          });
+          console.log(`Linked resource ${metadata.resourceId} to user ${currentUser.id}`);
+        }
+      }
+
+      // Mark token as used
+      await db.update(magicLinkTokens)
+        .set({ usedAt: new Date() })
+        .where(eq(magicLinkTokens.id, magicToken.id));
+
+      console.log("Resource invite accepted for user:", currentUser.id);
+
+      res.json({ 
+        success: true,
+        message: `Welcome to ${organizationName}! You can now view your project assignments.`,
+        organizationName
+      });
+    } catch (error) {
+      console.error("Resource invite verification error:", error);
+      res.status(500).json({ message: "Failed to verify invitation" });
+    }
+  });
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {

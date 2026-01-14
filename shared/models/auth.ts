@@ -71,9 +71,10 @@ export const magicLinkTokens = pgTable("magic_link_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").notNull(),
   token: varchar("token").notNull().unique(),
-  type: varchar("type").default("signup"), // 'signup' or 'signin'
+  type: varchar("type").default("signup"), // 'signup', 'signin', or 'resource_invite'
   expiresAt: timestamp("expires_at").notNull(),
   usedAt: timestamp("used_at"),
+  metadata: text("metadata"), // JSON string with additional context (e.g., organizationId, resourceId for resource_invite)
   createdAt: timestamp("created_at").defaultNow(),
 });
 
