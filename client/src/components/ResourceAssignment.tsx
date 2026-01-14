@@ -60,12 +60,16 @@ export function ResourceAssignment({
     onSuccess: (data) => {
       toast({
         title: "Invitation sent",
-        description: `An invitation has been sent to ${inviteEmail}`,
+        description: `An invitation has been sent to ${inviteEmail}. ${data.taskAssigned ? "Resource assigned to task." : ""}`,
       });
       if (data.resource) {
         onSelectionChange([...selectedResourceIds, data.resource.id]);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/resources"] });
+      // Also invalidate task resource assignments to reflect the auto-assignment
+      if (taskId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId, "resources"] });
+      }
       setInviteEmail("");
       setShowInviteForm(false);
       setOpen(false);
