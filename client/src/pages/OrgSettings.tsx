@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -2659,6 +2659,12 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
   );
 }
 
+interface AICostsData {
+  aiDemoDataGeneration: { creditCost: number; description: string; canAfford: boolean };
+  credits: { used: number; remaining: number | null; limit: number | null };
+  canAfford: boolean;
+}
+
 function DemoDataSection({ organizationId, orgName }: { organizationId: number; orgName: string }) {
   const { toast } = useToast();
   const [customIndustry, setCustomIndustry] = useState("");
@@ -2667,6 +2673,12 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
 
   const { data: industries } = useQuery<Array<{ id: string; label: string; description: string }>>({
     queryKey: ['/api/demo-data/industries'],
+  });
+  
+  // Fetch AI costs for credit warning when custom industry is used
+  const { data: aiCosts } = useQuery<AICostsData>({
+    queryKey: ['/api/billing/ai-costs'],
+    enabled: !!customIndustry.trim(),
   });
 
   const generateMutation = useMutation({
@@ -2766,6 +2778,19 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
             <p className="text-xs text-muted-foreground">
               Enter any industry or business type and AI will generate relevant demo data
             </p>
+            {customIndustry.trim() && aiCosts && (
+              <div className={`flex items-center gap-2 p-3 rounded-lg border mt-2 ${aiCosts.aiDemoDataGeneration.canAfford ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'}`}>
+                <Zap className={`h-4 w-4 ${aiCosts.aiDemoDataGeneration.canAfford ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`} />
+                <div className="flex-1 text-sm">
+                  <span className={aiCosts.aiDemoDataGeneration.canAfford ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'}>
+                    Custom industry uses AI and will consume <strong>{aiCosts.aiDemoDataGeneration.creditCost}</strong> credit{aiCosts.aiDemoDataGeneration.creditCost !== 1 ? 's' : ''}.
+                  </span>
+                  <span className="text-muted-foreground ml-1">
+                    ({aiCosts.credits.remaining !== null ? `${aiCosts.credits.remaining} remaining` : 'unlimited'})
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -2811,7 +2836,7 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
 
         <Button 
           onClick={handleGenerate}
-          disabled={generateMutation.isPending || (!customIndustry.trim() && !selectedIndustry)}
+          disabled={generateMutation.isPending || (!customIndustry.trim() && !selectedIndustry) || (customIndustry.trim() && aiCosts && !aiCosts.aiDemoDataGeneration.canAfford)}
           className="w-full"
           data-testid="button-generate-demo"
         >
