@@ -1321,17 +1321,7 @@ export async function registerRoutes(
   app.get('/api/users/:userId/organizations', async (req, res) => {
     try {
       const memberships = await storage.getUserOrganizations(req.params.userId);
-      // Enrich with organization details
-      const enrichedMemberships = await Promise.all(
-        memberships.map(async (m) => {
-          const org = await storage.getOrganization(m.organizationId);
-          return {
-            ...m,
-            organization: org
-          };
-        })
-      );
-      res.json(enrichedMemberships);
+      res.json(memberships);
     } catch (err) {
       res.json([]);
     }
