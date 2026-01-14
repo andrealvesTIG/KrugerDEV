@@ -88,9 +88,15 @@ export default function AuthPage() {
       }
       return res.json();
     },
-    onSuccess: (user) => {
-      queryClient.setQueryData(["/api/auth/user"], user);
-      setLocation("/");
+    onSuccess: (result) => {
+      queryClient.setQueryData(["/api/auth/user"], result);
+      
+      // If a new organization was created, redirect to onboarding
+      if (result.organizationCreated && result.organizationId && result.organizationName) {
+        setLocation(`/onboarding?orgId=${result.organizationId}&orgName=${encodeURIComponent(result.organizationName)}`);
+      } else {
+        setLocation("/");
+      }
     },
     onError: (error: Error) => {
       toast({ title: "Registration Failed", description: error.message, variant: "destructive" });

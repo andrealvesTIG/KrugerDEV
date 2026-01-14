@@ -201,8 +201,18 @@ export async function setupAuth(app: Express) {
         console.log(`===================================\n`);
       }
 
+      // Track organization creation for onboarding
+      let organizationCreated = false;
+      let organizationId: number | null = null;
+      let organizationName: string | null = null;
+
       try {
         const orgResult = await ensureUserOrganization(newUser.id, email);
+        organizationCreated = orgResult.created === true;
+        if (orgResult.organization) {
+          organizationId = orgResult.organization.id;
+          organizationName = orgResult.organization.name;
+        }
         if (orgResult.created) {
           console.log(`Auto-created org for new user: ${email}`);
         }
@@ -266,7 +276,13 @@ export async function setupAuth(app: Express) {
 
       const { passwordHash: _, ...userWithoutPassword } = newUser;
       console.log("Sending response for user:", newUser.id);
-      return res.json(userWithoutPassword);
+      return res.json({
+        ...userWithoutPassword,
+        isNewUser: true,
+        organizationCreated,
+        organizationId,
+        organizationName,
+      });
     } catch (error) {
       console.error("Registration error:", error);
       return res.status(500).json({ message: "Registration failed" });

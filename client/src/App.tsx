@@ -39,6 +39,7 @@ import SignInWaitingPage from "@/pages/SignInWaitingPage";
 import VerifySignInPage from "@/pages/VerifySignInPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import ResourceInvitePage from "@/pages/ResourceInvitePage";
+import OnboardingPage from "@/pages/OnboardingPage";
 import Embed from "@/pages/Embed";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyStatement from "@/pages/PrivacyStatement";
@@ -152,6 +153,7 @@ function App() {
               <Route path="/reset-password" component={ResetPasswordPage} />
               <Route path="/verify-email" component={VerifyEmailPage} />
               <Route path="/resource-invite" component={ResourceInvitePage} />
+              <Route path="/onboarding" component={OnboardingPage} />
               <Route>
                 <Router />
               </Route>
