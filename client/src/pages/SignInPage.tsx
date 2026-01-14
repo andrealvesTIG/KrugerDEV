@@ -9,7 +9,7 @@ import { Mail, Loader2, CheckCircle, ArrowLeft, Building2 } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
-import { TurnstileWidget, type TurnstileWidgetRef, verifyTurnstileToken } from "@/components/TurnstileWidget";
+import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
 
 export default function SignInPage() {
   const [, setLocation] = useLocation();
@@ -39,20 +39,10 @@ export default function SignInPage() {
 
     setIsLoading(true);
     try {
-      const verifyResult = await verifyTurnstileToken(turnstileToken);
-      if (!verifyResult.success) {
-        toast({
-          title: "Verification Failed",
-          description: "Please try the security check again",
-          variant: "destructive",
-        });
-        turnstileRef.current?.reset();
-        setTurnstileToken(null);
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await apiRequest("POST", "/api/auth/passwordless/request", { email: email.trim() });
+      const response = await apiRequest("POST", "/api/auth/passwordless/request", { 
+        email: email.trim(),
+        turnstileToken 
+      });
       const data = await response.json();
       
       if (data.success) {
@@ -69,6 +59,8 @@ export default function SignInPage() {
           description: data.message || "Failed to send sign-in link",
           variant: "destructive",
         });
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
       }
     } catch (error: any) {
       toast({
@@ -76,6 +68,8 @@ export default function SignInPage() {
         description: error.message || "Failed to send sign-in link",
         variant: "destructive",
       });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     } finally {
       setIsLoading(false);
     }

@@ -34,7 +34,7 @@ export default function ResetPasswordPage() {
   });
 
   const resetMutation = useMutation({
-    mutationFn: async (data: { token: string; password: string }) => {
+    mutationFn: async (data: { token: string; password: string; turnstileToken: string }) => {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,10 +52,12 @@ export default function ResetPasswordPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Reset Failed", description: error.message, variant: "destructive" });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (password !== confirmPassword) {
@@ -76,37 +78,8 @@ export default function ResetPasswordPage() {
       });
       return;
     }
-
-    try {
-      const verifyRes = await fetch("/api/auth/verify-turnstile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: turnstileToken }),
-      });
-      const verifyData = await verifyRes.json();
-      
-      if (!verifyData.success) {
-        toast({
-          title: "Verification Failed",
-          description: "Please try the security check again",
-          variant: "destructive",
-        });
-        turnstileRef.current?.reset();
-        setTurnstileToken(null);
-        return;
-      }
-    } catch (error) {
-      toast({
-        title: "Verification Error",
-        description: "Could not verify. Please try again.",
-        variant: "destructive",
-      });
-      turnstileRef.current?.reset();
-      setTurnstileToken(null);
-      return;
-    }
     
-    resetMutation.mutate({ token, password });
+    resetMutation.mutate({ token, password, turnstileToken });
   };
 
   if (!token) {

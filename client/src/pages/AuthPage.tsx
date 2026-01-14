@@ -50,7 +50,7 @@ export default function AuthPage() {
   }, [search, toast]);
 
   const loginMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string }) => {
+    mutationFn: async (data: { email: string; password: string; turnstileToken: string }) => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -69,11 +69,13 @@ export default function AuthPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Login Failed", description: error.message, variant: "destructive" });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     },
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string }) => {
+    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; turnstileToken: string }) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,11 +94,13 @@ export default function AuthPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Registration Failed", description: error.message, variant: "destructive" });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     },
   });
 
   const forgotPasswordMutation = useMutation({
-    mutationFn: async (data: { email: string }) => {
+    mutationFn: async (data: { email: string; turnstileToken: string }) => {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,11 +119,13 @@ export default function AuthPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Request Failed", description: error.message, variant: "destructive" });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     },
   });
 
   const magicLinkMutation = useMutation({
-    mutationFn: async (data: { email: string }) => {
+    mutationFn: async (data: { email: string; turnstileToken: string }) => {
       const res = await fetch("/api/auth/magic-link/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -138,6 +144,8 @@ export default function AuthPage() {
       setMagicLinkSent(true);
     },
     onError: (error: Error) => {
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
       if (error.message.startsWith("EXISTS:")) {
         toast({ 
           title: "Account Exists", 
@@ -152,7 +160,7 @@ export default function AuthPage() {
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!turnstileToken) {
@@ -164,43 +172,14 @@ export default function AuthPage() {
       return;
     }
 
-    try {
-      const verifyRes = await fetch("/api/auth/verify-turnstile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: turnstileToken }),
-      });
-      const verifyData = await verifyRes.json();
-      
-      if (!verifyData.success) {
-        toast({
-          title: "Verification Failed",
-          description: "Please try the security check again",
-          variant: "destructive",
-        });
-        turnstileRef.current?.reset();
-        setTurnstileToken(null);
-        return;
-      }
-    } catch (error) {
-      toast({
-        title: "Verification Error",
-        description: "Could not verify. Please try again.",
-        variant: "destructive",
-      });
-      turnstileRef.current?.reset();
-      setTurnstileToken(null);
-      return;
-    }
-
     if (mode === "login") {
-      loginMutation.mutate({ email, password });
+      loginMutation.mutate({ email, password, turnstileToken });
     } else if (mode === "register") {
-      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined });
+      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, turnstileToken });
     } else if (mode === "forgot-password") {
-      forgotPasswordMutation.mutate({ email });
+      forgotPasswordMutation.mutate({ email, turnstileToken });
     } else if (mode === "magic-link") {
-      magicLinkMutation.mutate({ email: magicLinkEmail });
+      magicLinkMutation.mutate({ email: magicLinkEmail, turnstileToken });
     }
   };
 

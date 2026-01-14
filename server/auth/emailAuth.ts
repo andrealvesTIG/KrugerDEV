@@ -38,6 +38,27 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
   });
 }
 
+async function verifyTurnstileToken(token: string): Promise<boolean> {
+  try {
+    const secretKey = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA";
+    
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        secret: secretKey,
+        response: token,
+      }),
+    });
+
+    const data = await response.json();
+    return data.success === true;
+  } catch (error) {
+    console.error("Turnstile verification error:", error);
+    return false;
+  }
+}
+
 export function getSession() {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set");
@@ -106,8 +127,13 @@ export async function setupAuth(app: Express) {
   // Register new user
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, firstName, lastName } = req.body;
+      const { email, password, firstName, lastName, turnstileToken } = req.body;
       console.log("Register attempt for:", email);
+
+      // Verify Turnstile token server-side
+      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -250,8 +276,13 @@ export async function setupAuth(app: Express) {
   // Login
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, turnstileToken } = req.body;
       console.log("Login attempt for:", email);
+
+      // Verify Turnstile token server-side
+      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -347,7 +378,12 @@ export async function setupAuth(app: Express) {
   // Request password reset
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, turnstileToken } = req.body;
+
+      // Verify Turnstile token server-side
+      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
@@ -432,7 +468,12 @@ export async function setupAuth(app: Express) {
   // Reset password
   app.post("/api/auth/reset-password", async (req, res) => {
     try {
-      const { token, password } = req.body;
+      const { token, password, turnstileToken } = req.body;
+
+      // Verify Turnstile token server-side
+      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!token || !password) {
         return res.status(400).json({ message: "Token and password are required" });
@@ -479,8 +520,13 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/magic-link/request", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, turnstileToken } = req.body;
       console.log("Magic link request for:", email);
+
+      // Verify Turnstile token server-side
+      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
@@ -675,8 +721,13 @@ export async function setupAuth(app: Express) {
   // Passwordless authentication - request (handles both new and existing users)
   app.post("/api/auth/passwordless/request", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, turnstileToken } = req.body;
       console.log("Passwordless auth request for:", email);
+
+      // Verify Turnstile token server-side
+      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
