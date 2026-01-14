@@ -205,7 +205,7 @@ export default function ProjectDetails() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-display font-bold text-slate-900">{project.name}</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground">{project.name}</h1>
             <Badge className={cn(
               "text-sm px-3 py-1",
               project.health === 'Green' ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" :
@@ -215,7 +215,7 @@ export default function ProjectDetails() {
               {project.health} Health
             </Badge>
           </div>
-          <p className="mt-2 max-w-2xl text-slate-500">{project.description}</p>
+          <p className="mt-2 max-w-2xl text-muted-foreground">{project.description}</p>
         </div>
         <div className="flex items-center gap-3">
            <Select value={project.health || "Green"} onValueChange={handleHealthChange}>
@@ -841,23 +841,23 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div>
-                <Label className="text-xs text-slate-500">Project Name</Label>
+                <Label className="text-xs text-muted-foreground">Project Name</Label>
                 <p className="font-medium">{project.name}</p>
               </div>
               <div>
-                <Label className="text-xs text-slate-500">Status</Label>
+                <Label className="text-xs text-muted-foreground">Status</Label>
                 <p className="font-medium">{project.status}</p>
               </div>
               <div>
-                <Label className="text-xs text-slate-500">Priority</Label>
+                <Label className="text-xs text-muted-foreground">Priority</Label>
                 <p className="font-medium">{project.priority}</p>
               </div>
               <div>
-                <Label className="text-xs text-slate-500">Budget</Label>
+                <Label className="text-xs text-muted-foreground">Budget</Label>
                 <p className="font-medium">${Number(project.budget).toLocaleString()}</p>
               </div>
               <div>
-                <Label className="text-xs text-slate-500">Health</Label>
+                <Label className="text-xs text-muted-foreground">Health</Label>
                 <Badge className={cn(
                   project.health === 'Green' ? "bg-emerald-100 text-emerald-800" :
                   project.health === 'Yellow' ? "bg-amber-100 text-amber-800" :
@@ -865,21 +865,21 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 )}>{project.health}</Badge>
               </div>
               <div>
-                <Label className="text-xs text-slate-500">Completion</Label>
+                <Label className="text-xs text-muted-foreground">Completion</Label>
                 <p className="font-medium">{project.completionPercentage}%</p>
               </div>
               <div>
-                <Label className="text-xs text-slate-500">Start Date</Label>
+                <Label className="text-xs text-muted-foreground">Start Date</Label>
                 <p className="font-medium">{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : 'Not set'}</p>
               </div>
               <div>
-                <Label className="text-xs text-slate-500">End Date</Label>
+                <Label className="text-xs text-muted-foreground">End Date</Label>
                 <p className="font-medium">{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'Not set'}</p>
               </div>
             </div>
             <div>
-              <Label className="text-xs text-slate-500">Description</Label>
-              <p className="mt-1 text-slate-600">{project.description || 'No description provided.'}</p>
+              <Label className="text-xs text-muted-foreground">Description</Label>
+              <p className="mt-1 text-muted-foreground">{project.description || 'No description provided.'}</p>
             </div>
           </div>
         )}
