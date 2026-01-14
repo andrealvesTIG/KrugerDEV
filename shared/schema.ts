@@ -118,6 +118,8 @@ export const portfolios = pgTable("portfolios", {
   department: text("department"), // Primary department/business unit
   notes: text("notes"), // Additional notes
   createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id), // Who created the portfolio
+  teamMemberResourceIds: integer("team_member_resource_ids").array(), // Resource IDs with team member access
   deletedAt: timestamp("deleted_at"), // Soft delete timestamp
   deletedBy: varchar("deleted_by").references(() => users.id), // Who deleted it
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
