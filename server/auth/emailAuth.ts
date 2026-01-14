@@ -69,6 +69,40 @@ export async function setupAuth(app: Express) {
   // NOTE: Session middleware is already set up by Replit Auth
   // We only register the email/password auth endpoints here
 
+  // Cloudflare Turnstile verification endpoint
+  app.post("/api/auth/verify-turnstile", async (req, res) => {
+    try {
+      const { token } = req.body;
+
+      if (!token) {
+        return res.status(400).json({ success: false, message: "Missing verification token" });
+      }
+
+      const secretKey = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA";
+      
+      const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          secret: secretKey,
+          response: token,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        res.json({ success: true });
+      } else {
+        console.log("Turnstile verification failed:", data["error-codes"]);
+        res.status(400).json({ success: false, message: "Verification failed" });
+      }
+    } catch (error) {
+      console.error("Turnstile verification error:", error);
+      res.status(500).json({ success: false, message: "Verification service error" });
+    }
+  });
+
   // Register new user
   app.post("/api/auth/register", async (req, res) => {
     try {
