@@ -6,7 +6,6 @@ import { users, passwordResetTokens, magicLinkTokens } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import crypto from "crypto";
 import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail } from "../services/email";
-import { lookupCompanyByEmail } from "../services/companyLookup";
 import { ensureUserOrganization } from "../services/onboarding";
 import { storage } from "../storage";
 
@@ -548,18 +547,15 @@ export async function setupAuth(app: Express) {
         });
       }
 
-      // Lookup company info from email domain
+      // Use domain name as default company name (skip AI lookup to avoid incorrect results)
+      const emailDomain = magicToken.email.split('@')[1] || '';
+      const domainParts = emailDomain.split('.');
       let detectedCompany: string | null = null;
-      let detectedIndustry: string | null = null;
       
-      try {
-        const companyInfo = await lookupCompanyByEmail(magicToken.email);
-        if (!companyInfo.isPersonalEmail && companyInfo.companyName) {
-          detectedCompany = companyInfo.companyName;
-          detectedIndustry = companyInfo.industry;
-        }
-      } catch (err) {
-        console.error("Company lookup error:", err);
+      if (domainParts.length > 0 && domainParts[0]) {
+        // Format domain name nicely: "saltyfreedomusa" -> "Saltyfreedomusa"
+        const name = domainParts[0];
+        detectedCompany = name.charAt(0).toUpperCase() + name.slice(1);
       }
 
       // Create the user (passwordless - no password hash)
@@ -567,7 +563,7 @@ export async function setupAuth(app: Express) {
         email: magicToken.email,
         firstName: magicToken.email.split('@')[0], // Default name from email
         detectedCompany,
-        detectedIndustry,
+        detectedIndustry: null,
         onboardingCompleted: false,
       }).returning();
 

@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { users, organizations, organizationMembers, portfolios, projects, risks, milestones, issues, tasks, resources, changeRequests, projectIntakes } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
-import { extractDomain, isPersonalEmailDomain, lookupCompanyByDomain } from "./companyLookup";
+import { extractDomain, isPersonalEmailDomain } from "./companyLookup";
 
 interface OnboardingData {
   companyName: string;
@@ -564,16 +564,15 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
   // Each new user gets their own organization - no automatic domain matching
   // Users can be invited to existing organizations via the invite system
   
+  // Use the domain name as the organization name (formatted nicely)
+  // e.g., "saltyfreedomusa.com" -> "Saltyfreedomusa"
   let companyName = domain.split('.')[0];
   companyName = companyName.charAt(0).toUpperCase() + companyName.slice(1);
   
-  try {
-    const companyInfo = await lookupCompanyByDomain(domain);
-    if (companyInfo.companyName && !companyInfo.isPersonalEmail) {
-      companyName = companyInfo.companyName;
-    }
-  } catch (error) {
-    console.error('Company lookup failed during auto-org creation:', error);
+  // Check if user has a detected company name already set (from registration)
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (user?.detectedCompany) {
+    companyName = user.detectedCompany;
   }
 
   // Always generate a unique slug for new organizations
