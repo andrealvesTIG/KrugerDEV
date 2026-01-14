@@ -4321,14 +4321,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             max_completion_tokens: 4000,
           });
           
-          // Track AI usage after successful API call
-          const { recordUsageOnly } = await import("./services/usage-tracker");
-          await recordUsageOnly({
-            userId,
-            meterCode: "ai_runs",
-            units: 1,
-            action: "ai_generate_demo_data",
-          });
+          // Track AI usage and deduct credits after successful API call
+          const { recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
+          await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_demo_${Date.now()}`);
           
           const content = response.choices[0]?.message?.content || '{}';
           template = JSON.parse(content);
@@ -5666,14 +5661,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
         max_tokens: 4000,
       });
       
-      // Track AI usage after successful API call
-      const { recordUsageOnly } = await import("./services/usage-tracker");
-      await recordUsageOnly({
-        userId,
-        meterCode: "ai_runs",
-        units: 1,
-        action: "ai_generate_project",
-      });
+      // Track AI usage and deduct credits after successful API call
+      const { recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
+      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_project_${Date.now()}`);
       
       const content = response.choices[0]?.message?.content;
       if (!content) {
