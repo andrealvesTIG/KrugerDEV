@@ -12,6 +12,7 @@ import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinanc
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
+import { ResourceSelector } from "@/components/ResourceSelector";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -722,6 +723,22 @@ function ProjectTimeline({
 function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any }) {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const { currentOrganization } = useOrganization();
+  const { data: resources } = useResources(currentOrganization?.id);
+  const [managerResourceId, setManagerResourceId] = useState<number | null>(null);
+  
+  useEffect(() => {
+    if (project.managerResourceId) {
+      setManagerResourceId(project.managerResourceId);
+    } else if (project.managerId && resources) {
+      const managerResource = resources.find(r => r.userId === project.managerId);
+      if (managerResource) {
+        setManagerResourceId(managerResource.id);
+      }
+    }
+  }, [project.managerResourceId, project.managerId, resources]);
+
+  const managerResource = resources?.find(r => r.id === managerResourceId);
   
   const form = useForm({
     defaultValues: {
@@ -738,7 +755,13 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
   });
 
   const onSubmit = (data: any) => {
-    onUpdate({ id: project.id, ...data }, {
+    const selectedResource = resources?.find(r => r.id === managerResourceId);
+    onUpdate({ 
+      id: project.id, 
+      ...data,
+      managerId: selectedResource?.userId || null,
+      managerResourceId: managerResourceId 
+    }, {
       onSuccess: () => {
         toast({ title: "Success", description: "Project updated successfully" });
         setIsEditing(false);
@@ -828,6 +851,17 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 <Label>Completion (%)</Label>
                 <Input type="number" min="0" max="100" {...form.register("completionPercentage", { valueAsNumber: true })} />
               </div>
+              <div className="space-y-2">
+                <ResourceSelector
+                  organizationId={currentOrganization?.id || null}
+                  selectedResourceId={managerResourceId}
+                  onSelectionChange={setManagerResourceId}
+                  label="Project Manager"
+                  placeholder="Select project manager..."
+                  projectId={project.id}
+                  projectName={project.name}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
@@ -875,6 +909,19 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               <div>
                 <Label className="text-xs text-slate-500">End Date</Label>
                 <p className="font-medium">{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'Not set'}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Project Manager</Label>
+                <p className="font-medium flex items-center gap-2">
+                  {managerResource ? (
+                    <>
+                      <UserIcon className="h-4 w-4 text-muted-foreground" />
+                      {managerResource.displayName}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">Not assigned</span>
+                  )}
+                </p>
               </div>
             </div>
             <div>

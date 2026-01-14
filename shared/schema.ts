@@ -144,7 +144,8 @@ export const projects = pgTable("projects", {
   budget: numeric("budget").notNull().default("0"),
   actualCost: numeric("actual_cost").default("0"), // Actual spend to date
   forecastCost: numeric("forecast_cost"), // Projected final cost
-  managerId: varchar("manager_id").references(() => users.id), // Project Manager
+  managerId: varchar("manager_id").references(() => users.id), // Project Manager (user ID)
+  managerResourceId: integer("manager_resource_id"), // Project Manager (resource ID for display)
   businessSponsorId: varchar("business_sponsor_id").references(() => users.id), // Executive Sponsor
   businessOwnerId: varchar("business_owner_id").references(() => users.id), // Product/Business Owner
   technicalLeadId: varchar("technical_lead_id").references(() => users.id), // Technical Lead
