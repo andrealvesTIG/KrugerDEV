@@ -38,6 +38,7 @@ import { z } from "zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
 import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
@@ -724,7 +725,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const { currentOrganization } = useOrganization();
-  const { data: resources } = useResources(currentOrganization?.id);
+  const { data: resources } = useResources(currentOrganization?.id ?? null);
   const [managerResourceId, setManagerResourceId] = useState<number | null>(null);
   
   useEffect(() => {
@@ -912,16 +913,30 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               </div>
               <div>
                 <Label className="text-xs text-slate-500">Project Manager</Label>
-                <p className="font-medium flex items-center gap-2">
-                  {managerResource ? (
-                    <>
-                      <UserIcon className="h-4 w-4 text-muted-foreground" />
-                      {managerResource.displayName}
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">Not assigned</span>
-                  )}
-                </p>
+                <ResourceSelector
+                  organizationId={currentOrganization?.id ?? 0}
+                  projectId={project.id}
+                  selectedResourceId={managerResourceId}
+                  onSelectionChange={(resourceId) => {
+                    const selectedResource = resources?.find(r => r.id === resourceId);
+                    setManagerResourceId(resourceId);
+                    onUpdate({ 
+                      id: project.id, 
+                      managerId: selectedResource?.userId || null,
+                      managerResourceId: resourceId 
+                    }, {
+                      onSuccess: () => {
+                        toast({ title: "Project Manager updated" });
+                        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+                      },
+                      onError: () => {
+                        toast({ title: "Error", description: "Failed to update project manager", variant: "destructive" });
+                      }
+                    });
+                  }}
+                  placeholder="Click to assign manager"
+                  className="mt-1"
+                />
               </div>
             </div>
             <div>
