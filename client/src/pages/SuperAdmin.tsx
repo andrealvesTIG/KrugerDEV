@@ -617,14 +617,40 @@ function OrganizationsTab() {
   );
 }
 
+interface OrganizationMembership {
+  id: number;
+  organizationId: number;
+  userId: string;
+  role: string;
+  createdAt: string;
+}
+
 function AllUsersTab() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [addingOrgId, setAddingOrgId] = useState<string>("");
+  const [addingOrgRole, setAddingOrgRole] = useState<string>("member");
   
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ['/api/users']
+  });
+
+  const { data: allOrganizations } = useQuery<Organization[]>({
+    queryKey: ['/api/organizations']
+  });
+
+  const { data: userMemberships, refetch: refetchMemberships } = useQuery<OrganizationMembership[]>({
+    queryKey: ['/api/users', editingUser?.id, 'organizations'],
+    queryFn: async () => {
+      if (!editingUser?.id) return [];
+      const res = await fetch(`/api/users/${editingUser.id}/organizations`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch memberships');
+      return res.json();
+    },
+    enabled: !!editingUser?.id,
   });
 
   const updateUserRole = useMutation({
@@ -653,10 +679,62 @@ function AllUsersTab() {
     }
   });
 
+  const addMembership = useMutation({
+    mutationFn: async ({ orgId, userId, role }: { orgId: number; userId: string; role: string }) => {
+      return apiRequest('POST', `/api/organizations/${orgId}/members`, { userId, role });
+    },
+    onSuccess: () => {
+      refetchMemberships();
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      toast({ title: "Success", description: "Organization membership added" });
+      setAddingOrgId("");
+      setAddingOrgRole("member");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to add membership", variant: "destructive" });
+    }
+  });
+
+  const updateMembershipRole = useMutation({
+    mutationFn: async ({ orgId, userId, role }: { orgId: number; userId: string; role: string }) => {
+      return apiRequest('PUT', `/api/organizations/${orgId}/members/${userId}`, { role });
+    },
+    onSuccess: () => {
+      refetchMemberships();
+      toast({ title: "Success", description: "Membership role updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to update role", variant: "destructive" });
+    }
+  });
+
+  const removeMembership = useMutation({
+    mutationFn: async ({ orgId, userId }: { orgId: number; userId: string }) => {
+      return apiRequest('DELETE', `/api/organizations/${orgId}/members/${userId}`);
+    },
+    onSuccess: () => {
+      refetchMemberships();
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      toast({ title: "Success", description: "Membership removed" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to remove membership", variant: "destructive" });
+    }
+  });
+
   const handleDeleteClick = (user: User) => {
     setUserToDelete(user);
     setDeleteUserId(user.id);
   };
+
+  const handleEditClick = (user: User) => {
+    setEditingUser(user);
+  };
+
+  // Get organizations the user is NOT a member of (for adding)
+  const availableOrgs = allOrganizations?.filter(
+    org => !userMemberships?.some(m => m.organizationId === org.id)
+  ) || [];
 
   if (isLoading) return <Loader2 className="animate-spin" />;
 
@@ -702,15 +780,25 @@ function AllUsersTab() {
                   {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteClick(user)}
-                    disabled={user.id === currentUser?.id}
-                    data-testid={`button-delete-user-${user.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEditClick(user)}
+                      data-testid={`button-edit-user-${user.id}`}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteClick(user)}
+                      disabled={user.id === currentUser?.id}
+                      data-testid={`button-delete-user-${user.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -751,6 +839,137 @@ function AllUsersTab() {
                   Delete User
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <DialogContent className="max-w-2xl" data-testid="dialog-edit-user-memberships">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Manage Organization Memberships
+            </DialogTitle>
+            <DialogDescription>
+              Edit organization memberships for {editingUser?.firstName} {editingUser?.lastName} ({editingUser?.email})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Current Memberships</Label>
+              {userMemberships && userMemberships.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Organization</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead className="w-[80px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {userMemberships.map((membership) => {
+                      const org = allOrganizations?.find(o => o.id === membership.organizationId);
+                      return (
+                        <TableRow key={membership.id} data-testid={`membership-row-${membership.organizationId}`}>
+                          <TableCell className="font-medium">
+                            {org?.name || `Org #${membership.organizationId}`}
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={membership.role}
+                              onValueChange={(role) => updateMembershipRole.mutate({
+                                orgId: membership.organizationId,
+                                userId: editingUser!.id,
+                                role
+                              })}
+                            >
+                              <SelectTrigger className="w-[120px]" data-testid={`select-membership-role-${membership.organizationId}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="member">Member</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="owner">Owner</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeMembership.mutate({
+                                orgId: membership.organizationId,
+                                userId: editingUser!.id
+                              })}
+                              disabled={removeMembership.isPending}
+                              data-testid={`button-remove-membership-${membership.organizationId}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground border rounded-md">
+                  This user has no organization memberships.
+                </div>
+              )}
+            </div>
+
+            {availableOrgs.length > 0 && (
+              <div className="border-t pt-4">
+                <Label className="text-sm font-medium mb-2 block">Add to Organization</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={addingOrgId} onValueChange={setAddingOrgId}>
+                    <SelectTrigger className="flex-1" data-testid="select-add-org">
+                      <SelectValue placeholder="Select an organization..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableOrgs.map((org) => (
+                        <SelectItem key={org.id} value={org.id.toString()}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={addingOrgRole} onValueChange={setAddingOrgRole}>
+                    <SelectTrigger className="w-[120px]" data-testid="select-add-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="owner">Owner</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={() => addingOrgId && addMembership.mutate({
+                      orgId: parseInt(addingOrgId),
+                      userId: editingUser!.id,
+                      role: addingOrgRole
+                    })}
+                    disabled={!addingOrgId || addMembership.isPending}
+                    data-testid="button-add-membership"
+                  >
+                    {addMembership.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingUser(null)} data-testid="button-close-edit-memberships">
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
