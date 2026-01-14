@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, Users, X, Plus, Mail, Loader2, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -198,50 +198,50 @@ export function ResourceAssignment({
                 </form>
               </div>
             ) : (
-              <Command>
-                <CommandInput placeholder="Search resources..." />
-                <CommandList>
-                  <CommandEmpty>No resources found.</CommandEmpty>
-                  <CommandGroup>
-                    {availableResources.map(resource => (
-                      <CommandItem
-                        key={resource.id}
-                        value={resource.displayName}
-                        onSelect={() => toggleResource(resource.id)}
-                        data-testid={`resource-option-${resource.id}`}
-                      >
-                        <div className="flex items-center gap-2 w-full">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
-                            {resource.displayName.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1 truncate">
-                            <div className="text-sm font-medium">{resource.displayName}</div>
-                            {resource.title && (
-                              <div className="text-xs text-muted-foreground truncate">{resource.title}</div>
+              <div className="flex flex-col">
+                <Command>
+                  <CommandInput placeholder="Search resources..." />
+                  <CommandList className="max-h-[200px]">
+                    <CommandEmpty>No resources found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableResources.map(resource => (
+                        <CommandItem
+                          key={resource.id}
+                          value={resource.displayName}
+                          onSelect={() => toggleResource(resource.id)}
+                          data-testid={`resource-option-${resource.id}`}
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                              {resource.displayName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 truncate">
+                              <div className="text-sm font-medium">{resource.displayName}</div>
+                              {resource.title && (
+                                <div className="text-xs text-muted-foreground truncate">{resource.title}</div>
+                              )}
+                            </div>
+                            {selectedResourceIds.includes(resource.id) && (
+                              <Check className="h-4 w-4 text-primary" />
                             )}
                           </div>
-                          {selectedResourceIds.includes(resource.id) && (
-                            <Check className="h-4 w-4 text-primary" />
-                          )}
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  <CommandSeparator />
-                  <CommandGroup>
-                    <CommandItem
-                      onSelect={() => setShowInviteForm(true)}
-                      className="text-primary"
-                      data-testid="button-invite-new-resource"
-                    >
-                      <div className="flex items-center gap-2">
-                        <UserPlus className="h-4 w-4" />
-                        <span>Invite new team member...</span>
-                      </div>
-                    </CommandItem>
-                  </CommandGroup>
-                </CommandList>
-              </Command>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+                <div className="border-t p-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteForm(true)}
+                    className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-primary rounded-sm hover:bg-accent transition-colors"
+                    data-testid="button-invite-new-resource"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    <span>Invite new team member...</span>
+                  </button>
+                </div>
+              </div>
             )}
           </PopoverContent>
         </Popover>
