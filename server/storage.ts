@@ -385,9 +385,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(timesheetEntries).where(eq(timesheetEntries.userId, id));
     // 16. Nullify timesheet approvedBy references
     await db.update(timesheetEntries).set({ approvedBy: null }).where(eq(timesheetEntries.approvedBy, id));
-    // 17. Nullify project financials deletedBy
-    await db.update(projectFinancials).set({ deletedBy: null }).where(eq(projectFinancials.deletedBy, id));
-    // 18. Nullify project comments author
+    // 17. Nullify project comments author
     await db.update(projectComments).set({ authorId: null }).where(eq(projectComments.authorId, id));
     // 19. Nullify organization invites invitedBy
     await db.update(organizationInvites).set({ invitedBy: null }).where(eq(organizationInvites.invitedBy, id));
