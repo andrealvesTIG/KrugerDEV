@@ -2775,7 +2775,8 @@ function ProjectGanttTaskRowMeta({
             <div 
               key={col.id}
               className={cn(
-                "w-40 flex-shrink-0 border-r px-1 cursor-pointer flex items-center",
+                colConfig.width,
+                "flex-shrink-0 border-r px-1 cursor-pointer flex items-center",
                 hasChildren && "font-semibold bg-muted/30"
               )}
               onClick={() => onTaskClick(task)}
@@ -2807,7 +2808,8 @@ function ProjectGanttTaskRowMeta({
             <div key={col.id}>
               <div 
                 className={cn(
-                  "w-28 flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px]",
+                  colConfig.width,
+                  "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px]",
                   !hasChildren && "cursor-pointer hover:bg-muted/50"
                 )}
                 onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
@@ -3549,9 +3551,10 @@ function ProjectGanttView({
                 {/* Add task row */}
                 <div className="flex border-t bg-muted/20">
                   <div className="w-8 flex-shrink-0 border-r p-1" />
-                  {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
-                    col.id === 'task' ? (
-                      <div key={col.id} className="w-40 flex-shrink-0 border-r p-1">
+                  {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => {
+                    const colConfig = GANTT_COLUMNS.find(c => c.id === col.id)!;
+                    return col.id === 'task' ? (
+                      <div key={col.id} className={cn(colConfig.width, "flex-shrink-0 border-r p-1")}>
                         <Input
                           placeholder="Add task..."
                           value={newTaskName}
@@ -3562,9 +3565,9 @@ function ProjectGanttView({
                         />
                       </div>
                     ) : (
-                      <div key={col.id} className={cn(col.width, "flex-shrink-0 border-r p-1")} />
-                    )
-                  ))}
+                      <div key={col.id} className={cn(colConfig.width, "flex-shrink-0 border-r p-1")} />
+                    );
+                  })}
                 </div>
               </div>
             </div>
