@@ -1721,8 +1721,22 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
       progress: 0,
       status: "Not Started",
       assignee: "",
+      baselineStartDate: null as string | null,
+      baselineEndDate: null as string | null,
     }
   });
+  
+  const setBaselineFromCurrentDates = () => {
+    const currentStart = form.getValues("startDate");
+    const currentEnd = form.getValues("endDate");
+    if (currentStart) form.setValue("baselineStartDate", currentStart);
+    if (currentEnd) form.setValue("baselineEndDate", currentEnd);
+  };
+  
+  const clearBaseline = () => {
+    form.setValue("baselineStartDate", null);
+    form.setValue("baselineEndDate", null);
+  };
 
   const startDate = form.watch("startDate");
   
@@ -1757,6 +1771,8 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
       progress: task.progress || 0,
       status: task.status || "Not Started",
       assignee: task.assignee || "",
+      baselineStartDate: task.baselineStartDate || null,
+      baselineEndDate: task.baselineEndDate || null,
     });
     setIsDialogOpen(true);
   };
@@ -1777,6 +1793,8 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
       progress: 0,
       status: "Not Started",
       assignee: "",
+      baselineStartDate: null,
+      baselineEndDate: null,
     });
     setIsDialogOpen(true);
   };
@@ -1793,6 +1811,8 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
       status: data.status || "Not Started",
       assignee: data.assignee || null,
       isMilestone: isMilestone,
+      baselineStartDate: data.baselineStartDate || null,
+      baselineEndDate: data.baselineEndDate || null,
     };
 
     if (editingTask) {
@@ -1933,6 +1953,81 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
                 <Label>Description</Label>
                 <Textarea {...form.register("description")} />
               </div>
+              
+              {/* Baseline Section */}
+              <div className="border-2 border-orange-200 dark:border-orange-800 rounded-md p-3 bg-orange-50/50 dark:bg-orange-950/30 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4 text-orange-600" />
+                      Baseline Dates
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Track schedule variance against the original plan
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={setBaselineFromCurrentDates}
+                      data-testid="button-set-baseline"
+                    >
+                      Set Baseline
+                    </Button>
+                    {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={clearBaseline}
+                        data-testid="button-clear-baseline"
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                
+                {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Baseline Start</Label>
+                      <Controller 
+                        control={form.control} 
+                        name="baselineStartDate" 
+                        render={({field}) => (
+                          <Input 
+                            type="date" 
+                            className="h-8 text-sm"
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value || null)}
+                            data-testid="input-baseline-start" 
+                          />
+                        )}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Baseline End</Label>
+                      <Controller 
+                        control={form.control} 
+                        name="baselineEndDate" 
+                        render={({field}) => (
+                          <Input 
+                            type="date" 
+                            className="h-8 text-sm"
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value || null)}
+                            data-testid="input-baseline-end" 
+                          />
+                        )}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               {/* Only allow resource assignments for leaf tasks (tasks without children) */}
               {editingTask && (() => {
                 const editLevel = editingTask.outlineLevel || 1;
