@@ -1179,7 +1179,7 @@ function GanttTaskRow({
         </div>
       )}
       {visibleColumns.includes('outlineLevel') && (
-        <div className="w-14 flex-shrink-0 border-r p-2 flex items-center justify-center">
+        <div className="w-14 flex-shrink-0 border-r px-1 py-0.5 flex items-center justify-center">
           <Badge variant="outline" className="text-xs font-mono">
             {outlineLevel}
           </Badge>
@@ -1188,36 +1188,36 @@ function GanttTaskRow({
       {visibleColumns.includes('task') && (
         <div 
           className={cn(
-            "w-64 flex-shrink-0 border-r p-3 cursor-pointer",
+            "w-64 flex-shrink-0 border-r py-1 cursor-pointer",
             hasChildren && "font-semibold bg-muted/30"
           )}
           onClick={() => onTaskClick(task)}
-          style={{ paddingLeft: `${8 + (outlineLevel - 1) * 20}px` }}
+          style={{ paddingLeft: `${4 + (outlineLevel - 1) * 16}px`, paddingRight: '4px' }}
         >
-          <div className="font-medium text-sm truncate flex items-center gap-1">
+          <div className="font-medium text-xs truncate flex items-center gap-1">
             {hasChildren ? (
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-5 w-5 p-0 flex-shrink-0"
+                className="h-4 w-4 p-0 flex-shrink-0"
                 onClick={(e) => { e.stopPropagation(); onToggleCollapse(task.id); }}
                 data-testid={`task-toggle-${task.id}`}
               >
                 {isCollapsed ? (
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3 w-3" />
                 ) : (
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-3 w-3" />
                 )}
               </Button>
             ) : (
-              <span className="w-5 flex-shrink-0" />
+              <span className="w-4 flex-shrink-0" />
             )}
             <span className="truncate">{task.name}</span>
           </div>
           <Link 
             href={`/projects/${task.projectId}`}
             onClick={(e) => e.stopPropagation()}
-            className="text-xs text-muted-foreground truncate hover:text-primary hover:underline block ml-6"
+            className="text-[10px] text-muted-foreground truncate hover:text-primary hover:underline block ml-5"
             data-testid={`link-project-${task.projectId}`}
           >
             {getProjectName(task.projectId)}
@@ -1225,36 +1225,36 @@ function GanttTaskRow({
         </div>
       )}
       {visibleColumns.includes('wbs') && (
-        <div className="w-20 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+        <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
           {task.wbs || '—'}
         </div>
       )}
       {visibleColumns.includes('startDate') && (
-        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
           {task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—'}
         </div>
       )}
       {visibleColumns.includes('endDate') && (
-        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
           {task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—'}
         </div>
       )}
       {visibleColumns.includes('duration') && (
-        <div className="w-20 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+        <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
           {task.durationDays ? `${task.durationDays}d` : '—'}
         </div>
       )}
       {visibleColumns.includes('progress') && (
-        <div className="w-14 flex-shrink-0 border-r p-2 text-xs text-center font-medium flex items-center justify-center">
+        <div className="w-14 flex-shrink-0 border-r px-1 py-0.5 text-xs text-center font-medium flex items-center justify-center">
           {progressPercent}%
         </div>
       )}
       {visibleColumns.includes('status') && (
-        <div className="w-28 flex-shrink-0 border-r p-2 text-xs flex items-center">
+        <div className="w-28 flex-shrink-0 border-r px-1 py-0.5 text-xs flex items-center">
           <Badge 
             variant="outline" 
             className={cn(
-              "text-xs",
+              "text-[10px] py-0",
               task.status === "Completed" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
               task.status === "In Progress" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
               task.status === "Not Started" && "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
@@ -1265,11 +1265,11 @@ function GanttTaskRow({
         </div>
       )}
       {visibleColumns.includes('priority') && (
-        <div className="w-24 flex-shrink-0 border-r p-2 text-xs flex items-center">
+        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs flex items-center">
           <Badge 
             variant="outline" 
             className={cn(
-              "text-xs",
+              "text-[10px] py-0",
               task.priority === "Critical" && "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
               task.priority === "High" && "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
               task.priority === "Medium" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
@@ -1281,7 +1281,7 @@ function GanttTaskRow({
         </div>
       )}
       {visibleColumns.includes('assignee') && (
-        <div className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
+        <div className="w-32 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate">
           {assignedNames}
         </div>
       )}
@@ -1289,7 +1289,7 @@ function GanttTaskRow({
         <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
           <DialogTrigger asChild>
             <div 
-              className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50 flex items-center"
+              className="w-32 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50 flex items-center"
               onClick={(e) => { e.stopPropagation(); }}
               data-testid={`resources-cell-${task.id}`}
             >
@@ -1328,26 +1328,26 @@ function GanttTaskRow({
         </Dialog>
       )}
       {visibleColumns.includes('phase') && (
-        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
+        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate">
           {task.phase || '—'}
         </div>
       )}
       {visibleColumns.includes('category') && (
-        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
+        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate">
           {task.category || '—'}
         </div>
       )}
-      <div className="flex-1 relative p-2 min-h-[48px]">
+      <div className="flex-1 relative px-1 py-0.5 min-h-[28px]">
         {/* Baseline bar (rendered first, below actual bar) */}
         {hasBaseline && baselineStart && baselineEnd && (
           <div
-            className="absolute rounded-sm cursor-pointer border-2 border-dashed border-orange-400 dark:border-orange-500 bg-orange-100/50 dark:bg-orange-900/30"
+            className="absolute rounded-sm cursor-pointer border border-dashed border-orange-400 dark:border-orange-500 bg-orange-100/50 dark:bg-orange-900/30"
             style={{
               left: `${Math.max(0, baselineLeftPercent)}%`,
               width: `${Math.min(100 - baselineLeftPercent, baselineWidthPercent)}%`,
-              minWidth: '30px',
-              top: '28px',
-              height: '12px'
+              minWidth: '20px',
+              top: '18px',
+              height: '8px'
             }}
             onClick={() => onTaskClick(task)}
             title={`Baseline: ${format(baselineStart, 'MMM d')} - ${format(baselineEnd, 'MMM d')}`}
@@ -1358,16 +1358,16 @@ function GanttTaskRow({
         {hasValidDates ? (
           <div
             className={cn(
-              "absolute rounded-md overflow-hidden cursor-pointer",
+              "absolute rounded overflow-hidden cursor-pointer",
               task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
               task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
             )}
             style={{
               left: `${Math.max(0, leftPercent)}%`,
               width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-              minWidth: '40px',
-              top: '6px',
-              height: '20px'
+              minWidth: '30px',
+              top: '4px',
+              height: '14px'
             }}
             onClick={() => onTaskClick(task)}
           >
@@ -1379,14 +1379,14 @@ function GanttTaskRow({
               )}
               style={{ width: `${progressPercent}%` }}
             />
-            <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-foreground">
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground">
               {progressPercent}%
             </span>
           </div>
         ) : (
           <div className="h-full flex items-center" onClick={() => onTaskClick(task)}>
-            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
-              <CalendarIcon className="h-3 w-3 mr-1" />
+            <Badge variant="outline" className="text-[10px] py-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
+              <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
               No dates
             </Badge>
           </div>
@@ -1396,7 +1396,7 @@ function GanttTaskRow({
         {scheduleVariance !== null && scheduleVariance !== 0 && (
           <div 
             className={cn(
-              "absolute right-1 top-1 text-xs px-1 rounded",
+              "absolute right-0.5 top-0.5 text-[9px] px-0.5 rounded",
               scheduleVariance > 0 
                 ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400" 
                 : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400"
@@ -1691,50 +1691,50 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
         {!embedded && zoomControls}
         <div className="flex border-b bg-muted/50 sticky top-0 z-10">
           {visibleColumns.includes('actions') && (
-            <div className="w-10 flex-shrink-0 border-r p-2"></div>
+            <div className="w-10 flex-shrink-0 border-r px-1 py-1"></div>
           )}
           {visibleColumns.includes('outlineLevel') && (
-            <div className="w-14 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground text-center">Level</div>
+            <div className="w-14 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground text-center">Level</div>
           )}
           {visibleColumns.includes('task') && (
-            <div className="w-64 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Task</div>
+            <div className="w-64 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Task</div>
           )}
           {visibleColumns.includes('wbs') && (
-            <div className="w-20 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">WBS</div>
+            <div className="w-20 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">WBS</div>
           )}
           {visibleColumns.includes('startDate') && (
-            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Start</div>
+            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Start</div>
           )}
           {visibleColumns.includes('endDate') && (
-            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">End</div>
+            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">End</div>
           )}
           {visibleColumns.includes('duration') && (
-            <div className="w-20 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Duration</div>
+            <div className="w-20 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Duration</div>
           )}
           {visibleColumns.includes('progress') && (
-            <div className="w-14 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground text-center">%</div>
+            <div className="w-14 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground text-center">%</div>
           )}
           {visibleColumns.includes('status') && (
-            <div className="w-28 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Status</div>
+            <div className="w-28 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Status</div>
           )}
           {visibleColumns.includes('priority') && (
-            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Priority</div>
+            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Priority</div>
           )}
           {visibleColumns.includes('assignee') && (
-            <div className="w-32 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Assignee</div>
+            <div className="w-32 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Assignee</div>
           )}
           {visibleColumns.includes('resources') && (
-            <div className="w-32 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Resources</div>
+            <div className="w-32 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Resources</div>
           )}
           {visibleColumns.includes('phase') && (
-            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Phase</div>
+            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Phase</div>
           )}
           {visibleColumns.includes('category') && (
-            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Category</div>
+            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Category</div>
           )}
           <div className="flex-1 flex">
             {filteredDates.map((date, i) => (
-              <div key={i} className={cn("flex-1 p-2 text-center text-xs font-medium text-muted-foreground border-l", columnWidth)}>
+              <div key={i} className={cn("flex-1 px-1 py-1 text-center text-xs font-medium text-muted-foreground border-l", columnWidth)}>
                 {format(date, dateFormat)}
               </div>
             ))}
