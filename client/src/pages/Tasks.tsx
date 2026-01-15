@@ -246,6 +246,8 @@ export default function Tasks() {
       progress: 0,
       status: "Not Started",
       assignee: "",
+      baselineStartDate: null as string | null,
+      baselineEndDate: null as string | null,
     }
   });
 
@@ -274,6 +276,8 @@ export default function Tasks() {
       progress: task.progress || 0,
       status: task.status || "Not Started",
       assignee: task.assignee || "",
+      baselineStartDate: task.baselineStartDate || null,
+      baselineEndDate: task.baselineEndDate || null,
     });
     setIsDialogOpen(true);
   };
@@ -293,8 +297,43 @@ export default function Tasks() {
       progress: 0,
       status: "Not Started",
       assignee: "",
+      baselineStartDate: null,
+      baselineEndDate: null,
     });
     setIsDialogOpen(true);
+  };
+
+  const setBaselineFromCurrentDates = () => {
+    const startDate = form.getValues("startDate");
+    const endDate = form.getValues("endDate");
+    form.setValue("baselineStartDate", startDate, { shouldDirty: true });
+    form.setValue("baselineEndDate", endDate, { shouldDirty: true });
+    toast({ 
+      title: "Baseline Set", 
+      description: "Current dates have been saved as baseline" 
+    });
+  };
+
+  const clearBaseline = () => {
+    form.setValue("baselineStartDate", null, { shouldDirty: true });
+    form.setValue("baselineEndDate", null, { shouldDirty: true });
+    toast({ 
+      title: "Baseline Cleared", 
+      description: "Baseline dates have been removed" 
+    });
+  };
+
+  const calculateVariance = () => {
+    const baselineEnd = form.watch("baselineEndDate");
+    const actualEnd = form.watch("endDate");
+    if (!baselineEnd || !actualEnd) return null;
+    try {
+      const baseline = parseISO(baselineEnd);
+      const actual = parseISO(actualEnd);
+      return differenceInDays(actual, baseline);
+    } catch {
+      return null;
+    }
   };
 
   const onSubmit = (data: any) => {
@@ -318,6 +357,8 @@ export default function Tasks() {
       progress: data.progress || 0,
       status: data.status || "Not Started",
       assignee: data.assignee || null,
+      baselineStartDate: data.baselineStartDate || null,
+      baselineEndDate: data.baselineEndDate || null,
     };
 
     if (editingTask) {
@@ -614,6 +655,97 @@ export default function Tasks() {
                   <Label className="text-xs">Description</Label>
                   <Textarea {...form.register("description")} className="text-sm min-h-[60px]" />
                 </div>
+                
+                {/* Baseline Section */}
+                <div className="border rounded-md p-3 bg-muted/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium flex items-center gap-2">
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      Baseline Dates
+                    </Label>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={setBaselineFromCurrentDates}
+                        data-testid="button-set-baseline"
+                      >
+                        Set Baseline
+                      </Button>
+                      {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={clearBaseline}
+                          data-testid="button-clear-baseline"
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {form.watch("baselineStartDate") || form.watch("baselineEndDate") ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Baseline Start</Label>
+                          <Controller 
+                            control={form.control} 
+                            name="baselineStartDate" 
+                            render={({field}) => (
+                              <Input 
+                                type="date" 
+                                className="h-8 text-sm"
+                                value={field.value || ""}
+                                onChange={(e) => field.onChange(e.target.value || null)}
+                                data-testid="input-baseline-start" 
+                              />
+                            )}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Baseline End</Label>
+                          <Controller 
+                            control={form.control} 
+                            name="baselineEndDate" 
+                            render={({field}) => (
+                              <Input 
+                                type="date" 
+                                className="h-8 text-sm"
+                                value={field.value || ""}
+                                onChange={(e) => field.onChange(e.target.value || null)}
+                                data-testid="input-baseline-end" 
+                              />
+                            )}
+                          />
+                        </div>
+                      </div>
+                      {(() => {
+                        const variance = calculateVariance();
+                        if (variance === null) return null;
+                        return (
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-muted-foreground">Schedule Variance:</span>
+                            <Badge 
+                              variant={variance > 0 ? "destructive" : variance < 0 ? "default" : "secondary"}
+                              className="text-xs"
+                            >
+                              {variance > 0 ? `+${variance} days (late)` : variance < 0 ? `${variance} days (early)` : "On schedule"}
+                            </Badge>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No baseline set. Click "Set Baseline" to save the current dates as baseline.
+                    </p>
+                  )}
+                </div>
+                
                 {/* Note: In global Tasks view, we show ResourceAssignment since we don't have full project context to check children */}
                 <ResourceAssignment
                   organizationId={currentOrganization?.id || null}
@@ -739,7 +871,7 @@ export default function Tasks() {
       {hasMore && (
         <div className="flex justify-center py-4">
           <Button 
-            onClick={loadMore} 
+            onClick={() => loadMore()} 
             disabled={isLoadingMore}
             variant="outline"
             data-testid="button-load-more-tasks"
@@ -963,6 +1095,27 @@ function GanttTaskRow({
     widthPercent = (duration / totalDays) * 100;
   }
 
+  // Baseline bar calculations
+  const hasBaseline = task.baselineStartDate && task.baselineEndDate;
+  const baselineStart = hasBaseline ? parseISO(task.baselineStartDate!) : null;
+  const baselineEnd = hasBaseline ? parseISO(task.baselineEndDate!) : null;
+  
+  let baselineLeftPercent = 0;
+  let baselineWidthPercent = 0;
+  
+  if (baselineStart && baselineEnd) {
+    const totalDays = differenceInDays(maxDate, minDate) || 1;
+    const baselineStartOffset = differenceInDays(baselineStart, minDate);
+    const baselineDuration = differenceInDays(baselineEnd, baselineStart) + 1;
+    baselineLeftPercent = (baselineStartOffset / totalDays) * 100;
+    baselineWidthPercent = (baselineDuration / totalDays) * 100;
+  }
+  
+  // Calculate schedule variance
+  const scheduleVariance = (end && baselineEnd) 
+    ? differenceInDays(end, baselineEnd) 
+    : null;
+
   const assignedNames = taskAssignments && taskAssignments.length > 0
     ? taskAssignments.map(a => a.resource.displayName).join(", ")
     : "—";
@@ -1179,18 +1332,37 @@ function GanttTaskRow({
           {task.category || '—'}
         </div>
       )}
-      <div className="flex-1 relative p-2 min-h-[40px]">
+      <div className="flex-1 relative p-2 min-h-[48px]">
+        {/* Baseline bar (rendered first, below actual bar) */}
+        {hasBaseline && baselineStart && baselineEnd && (
+          <div
+            className="absolute rounded-sm cursor-pointer border-2 border-dashed border-orange-400 dark:border-orange-500 bg-orange-100/50 dark:bg-orange-900/30"
+            style={{
+              left: `${Math.max(0, baselineLeftPercent)}%`,
+              width: `${Math.min(100 - baselineLeftPercent, baselineWidthPercent)}%`,
+              minWidth: '30px',
+              top: '28px',
+              height: '12px'
+            }}
+            onClick={() => onTaskClick(task)}
+            title={`Baseline: ${format(baselineStart, 'MMM d')} - ${format(baselineEnd, 'MMM d')}`}
+          />
+        )}
+        
+        {/* Actual task bar */}
         {hasValidDates ? (
           <div
             className={cn(
-              "absolute top-2 bottom-2 rounded-md overflow-hidden cursor-pointer",
+              "absolute rounded-md overflow-hidden cursor-pointer",
               task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
               task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
             )}
             style={{
               left: `${Math.max(0, leftPercent)}%`,
               width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-              minWidth: '40px'
+              minWidth: '40px',
+              top: '6px',
+              height: '20px'
             }}
             onClick={() => onTaskClick(task)}
           >
@@ -1212,6 +1384,21 @@ function GanttTaskRow({
               <CalendarIcon className="h-3 w-3 mr-1" />
               No dates
             </Badge>
+          </div>
+        )}
+        
+        {/* Schedule variance indicator */}
+        {scheduleVariance !== null && scheduleVariance !== 0 && (
+          <div 
+            className={cn(
+              "absolute right-1 top-1 text-xs px-1 rounded",
+              scheduleVariance > 0 
+                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400" 
+                : "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400"
+            )}
+            title={scheduleVariance > 0 ? `${scheduleVariance} days late` : `${Math.abs(scheduleVariance)} days early`}
+          >
+            {scheduleVariance > 0 ? `+${scheduleVariance}d` : `${scheduleVariance}d`}
           </div>
         )}
       </div>
