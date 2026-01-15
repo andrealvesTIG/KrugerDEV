@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -2444,16 +2444,18 @@ function ProjectGanttTaskRow({
         </DropdownMenu>
       </div>
       {/* Dynamic column rendering */}
-      {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => {
-        const colConfig = GANTT_COLUMNS.find(c => c.id === col.id)!;
+      {visibleColumns.map(colId => {
+        const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
+        if (!colConfig) return null;
         
         // Special handling for task name column
-        if (col.id === 'task') {
+        if (colId === 'task') {
           return (
             <div 
-              key={col.id}
+              key={colId}
               className={cn(
-                "w-48 flex-shrink-0 border-r p-2 cursor-pointer",
+                colConfig.width,
+                "flex-shrink-0 border-r p-2 cursor-pointer",
                 hasChildren && "font-semibold bg-muted/30"
               )}
               onClick={() => onTaskClick(task)}
@@ -2485,12 +2487,13 @@ function ProjectGanttTaskRow({
         }
         
         // Special handling for resources column
-        if (col.id === 'resources') {
+        if (colId === 'resources') {
           return (
-            <div key={col.id}>
+            <div key={colId}>
               <div 
                 className={cn(
-                  "w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
+                  colConfig.width,
+                  "flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
                   !hasChildren && "cursor-pointer hover:bg-muted/50"
                 )}
                 onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
@@ -2507,9 +2510,9 @@ function ProjectGanttTaskRow({
         
         // Get value for this column
         let value: React.ReactNode = '—';
-        const centerAlign = ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(col.id);
+        const centerAlign = ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(colId);
         
-        switch (col.id) {
+        switch (colId) {
           case 'taskNumber': value = task.taskNumber || '—'; break;
           case 'wbs': value = task.wbs || '—'; break;
           case 'outlineLevel': value = currentLevel; break;
@@ -2565,13 +2568,13 @@ function ProjectGanttTaskRow({
         
         return (
           <div 
-            key={col.id}
+            key={colId}
             className={cn(
               colConfig.width, 
               "flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
               centerAlign && "text-center",
-              col.id === 'outlineLevel' && "font-medium",
-              col.id === 'progress' && "font-medium"
+              colId === 'outlineLevel' && "font-medium",
+              colId === 'progress' && "font-medium"
             )}
           >
             {value}
@@ -2767,13 +2770,14 @@ function ProjectGanttTaskRowMeta({
       </div>
       
       {/* Dynamic column rendering */}
-      {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => {
-        const colConfig = GANTT_COLUMNS.find(c => c.id === col.id)!;
+      {visibleColumns.map(colId => {
+        const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
+        if (!colConfig) return null;
         
-        if (col.id === 'task') {
+        if (colId === 'task') {
           return (
             <div 
-              key={col.id}
+              key={colId}
               className={cn(
                 colConfig.width,
                 "flex-shrink-0 border-r px-1 cursor-pointer flex items-center",
@@ -2803,9 +2807,9 @@ function ProjectGanttTaskRowMeta({
           );
         }
         
-        if (col.id === 'resources') {
+        if (colId === 'resources') {
           return (
-            <div key={col.id}>
+            <div key={colId}>
               <div 
                 className={cn(
                   colConfig.width,
@@ -2850,9 +2854,9 @@ function ProjectGanttTaskRowMeta({
         }
         
         let value: React.ReactNode = '—';
-        const centerAlign = ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(col.id);
+        const centerAlign = ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(colId);
         
-        switch (col.id) {
+        switch (colId) {
           case 'taskNumber': value = task.taskNumber || '—'; break;
           case 'wbs': value = task.wbs || '—'; break;
           case 'outlineLevel': value = currentLevel; break;
@@ -2908,13 +2912,13 @@ function ProjectGanttTaskRowMeta({
         
         return (
           <div 
-            key={col.id}
+            key={colId}
             className={cn(
               colConfig.width, 
               "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px]",
               centerAlign && "justify-center",
-              col.id === 'outlineLevel' && "font-medium",
-              col.id === 'progress' && "font-medium"
+              colId === 'outlineLevel' && "font-medium",
+              colId === 'progress' && "font-medium"
             )}
           >
             {value}
@@ -3155,6 +3159,67 @@ function TaskDependenciesSection({
   );
 }
 
+function SortableColumnItem({ 
+  id, 
+  label, 
+  isFirst, 
+  isLast, 
+  onMoveUp, 
+  onMoveDown 
+}: { 
+  id: string; 
+  label: string; 
+  isFirst: boolean; 
+  isLast: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      className={cn(
+        "flex items-center gap-2 p-2 bg-background border rounded-md",
+        isDragging && "shadow-md"
+      )}
+    >
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <span className="flex-1 text-sm">{label}</span>
+      <div className="flex items-center gap-1">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-6 w-6" 
+          onClick={onMoveUp} 
+          disabled={isFirst}
+          data-testid={`column-move-up-${id}`}
+        >
+          <ArrowUp className="h-3 w-3" />
+        </Button>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-6 w-6" 
+          onClick={onMoveDown} 
+          disabled={isLast}
+          data-testid={`column-move-down-${id}`}
+        >
+          <ArrowDown className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ProjectGanttView({ 
   tasks, 
   onTaskClick, 
@@ -3323,6 +3388,52 @@ function ProjectGanttView({
       prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
     );
   };
+
+  // Column reordering state and dialog
+  const [isReorderDialogOpen, setIsReorderDialogOpen] = useState(false);
+  const [reorderColumns, setReorderColumns] = useState<GanttColumn[]>([]);
+
+  const openReorderDialog = () => {
+    setReorderColumns([...visibleColumns]);
+    setIsReorderDialogOpen(true);
+  };
+
+  const handleReorderDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setReorderColumns((cols) => {
+        const oldIndex = cols.indexOf(active.id as GanttColumn);
+        const newIndex = cols.indexOf(over.id as GanttColumn);
+        const newCols = [...cols];
+        newCols.splice(oldIndex, 1);
+        newCols.splice(newIndex, 0, active.id as GanttColumn);
+        return newCols;
+      });
+    }
+  };
+
+  const applyColumnOrder = () => {
+    setVisibleColumns(reorderColumns);
+    setIsReorderDialogOpen(false);
+  };
+
+  const moveColumnUp = (col: GanttColumn) => {
+    const idx = reorderColumns.indexOf(col);
+    if (idx > 0) {
+      const newCols = [...reorderColumns];
+      [newCols[idx - 1], newCols[idx]] = [newCols[idx], newCols[idx - 1]];
+      setReorderColumns(newCols);
+    }
+  };
+
+  const moveColumnDown = (col: GanttColumn) => {
+    const idx = reorderColumns.indexOf(col);
+    if (idx < reorderColumns.length - 1) {
+      const newCols = [...reorderColumns];
+      [newCols[idx], newCols[idx + 1]] = [newCols[idx + 1], newCols[idx]];
+      setReorderColumns(newCols);
+    }
+  };
   
   const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
     const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
@@ -3479,6 +3590,16 @@ function ProjectGanttView({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-1"
+              onClick={openReorderDialog}
+              data-testid="button-reorder-columns"
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              Reorder
+            </Button>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -3510,18 +3631,22 @@ function ProjectGanttView({
                 {/* Header row */}
                 <div className="flex border-b bg-muted/50 sticky top-0 z-10">
                   <div className="w-8 flex-shrink-0 border-r p-1"></div>
-                  {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
-                    <div 
-                      key={col.id}
-                      className={cn(
-                        col.width, 
-                        "flex-shrink-0 border-r p-1 font-semibold text-[10px] text-foreground truncate",
-                        ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "text-center"
-                      )}
-                    >
-                      {col.label}
-                    </div>
-                  ))}
+                  {visibleColumns.map(colId => {
+                    const col = GANTT_COLUMNS.find(c => c.id === colId);
+                    if (!col) return null;
+                    return (
+                      <div 
+                        key={col.id}
+                        className={cn(
+                          col.width, 
+                          "flex-shrink-0 border-r p-1 font-semibold text-[10px] text-foreground truncate",
+                          ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "text-center"
+                        )}
+                      >
+                        {col.label}
+                      </div>
+                    );
+                  })}
                 </div>
                 {/* Task rows - metadata only */}
                 {visibleTasks.length === 0 && tasks.length === 0 ? (
@@ -3551,10 +3676,11 @@ function ProjectGanttView({
                 {/* Add task row */}
                 <div className="flex border-t bg-muted/20">
                   <div className="w-8 flex-shrink-0 border-r p-1" />
-                  {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => {
-                    const colConfig = GANTT_COLUMNS.find(c => c.id === col.id)!;
-                    return col.id === 'task' ? (
-                      <div key={col.id} className={cn(colConfig.width, "flex-shrink-0 border-r p-1")}>
+                  {visibleColumns.map(colId => {
+                    const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
+                    if (!colConfig) return null;
+                    return colId === 'task' ? (
+                      <div key={colId} className={cn(colConfig.width, "flex-shrink-0 border-r p-1")}>
                         <Input
                           placeholder="Add task..."
                           value={newTaskName}
@@ -3565,7 +3691,7 @@ function ProjectGanttView({
                         />
                       </div>
                     ) : (
-                      <div key={col.id} className={cn(colConfig.width, "flex-shrink-0 border-r p-1")} />
+                      <div key={colId} className={cn(colConfig.width, "flex-shrink-0 border-r p-1")} />
                     );
                   })}
                 </div>
@@ -3635,6 +3761,51 @@ function ProjectGanttView({
           <DialogFooter>
             <Button variant="outline" onClick={() => setDependenciesDialogTask(null)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Column Reorder Dialog */}
+      <Dialog open={isReorderDialogOpen} onOpenChange={setIsReorderDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowUpDown className="h-5 w-5" />
+              Reorder Columns
+            </DialogTitle>
+            <DialogDescription>
+              Drag columns or use arrows to change the display order
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 max-h-[400px] overflow-y-auto">
+            <DndContext collisionDetection={closestCorners} onDragEnd={handleReorderDragEnd}>
+              <SortableContext items={reorderColumns} strategy={verticalListSortingStrategy}>
+                <div className="space-y-1">
+                  {reorderColumns.map((colId, idx) => {
+                    const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
+                    return (
+                      <SortableColumnItem 
+                        key={colId} 
+                        id={colId} 
+                        label={colConfig?.label || colId}
+                        isFirst={idx === 0}
+                        isLast={idx === reorderColumns.length - 1}
+                        onMoveUp={() => moveColumnUp(colId)}
+                        onMoveDown={() => moveColumnDown(colId)}
+                      />
+                    );
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsReorderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={applyColumnOrder} data-testid="button-apply-column-order">
+              Apply Order
             </Button>
           </DialogFooter>
         </DialogContent>
