@@ -657,12 +657,17 @@ export default function Tasks() {
                 </div>
                 
                 {/* Baseline Section */}
-                <div className="border rounded-md p-3 bg-muted/30 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium flex items-center gap-2">
-                      <CalendarIcon className="h-3.5 w-3.5" />
-                      Baseline Dates
-                    </Label>
+                <div className="border-2 border-orange-200 dark:border-orange-800 rounded-md p-3 bg-orange-50/50 dark:bg-orange-950/30 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <Label className="text-xs font-medium flex items-center gap-2">
+                        <CalendarIcon className="h-3.5 w-3.5 text-orange-600" />
+                        Baseline Dates
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Track schedule variance against the original plan
+                      </p>
+                    </div>
                     <div className="flex gap-1">
                       <Button
                         type="button"
