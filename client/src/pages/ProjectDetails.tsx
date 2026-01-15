@@ -41,7 +41,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor, useDroppable, useDraggable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -3851,11 +3851,24 @@ function ProjectKanbanView({
     if (!over) return;
     
     const taskId = Number(active.id);
-    const newStatus = String(over.id);
     const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
     
-    if (task && task.status !== newStatus && columns.some(c => c.id === newStatus)) {
-      onStatusChange(taskId, newStatus);
+    // Determine the target column - either dropped on a column directly or on a task within a column
+    let targetColumnId: string | null = null;
+    
+    const overData = over.data.current;
+    if (overData?.type === 'column') {
+      targetColumnId = overData.columnId;
+    } else if (overData?.type === 'task') {
+      targetColumnId = overData.columnId;
+    } else if (columns.some(c => c.id === String(over.id))) {
+      // Fallback: check if over.id is a column id
+      targetColumnId = String(over.id);
+    }
+    
+    if (targetColumnId && task.status !== targetColumnId) {
+      onStatusChange(taskId, targetColumnId);
     }
   };
 
@@ -3900,45 +3913,54 @@ function ProjectKanbanColumn({
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
 }) {
-  const { setNodeRef, isOver } = useSortable({
+  const { setNodeRef, isOver } = useDroppable({
     id: column.id,
+    data: {
+      type: 'column',
+      columnId: column.id,
+    },
   });
 
   return (
     <div 
       ref={setNodeRef}
       className={cn(
-        "space-y-4 min-h-[200px] rounded-lg transition-colors",
+        "space-y-4 min-h-[200px] rounded-lg transition-colors p-2",
         isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
       )}
     >
       <div className={cn("rounded-lg p-3 font-semibold", column.color)}>
         {column.label} ({tasks.length})
       </div>
-      <div className="space-y-3">
-        {tasks.map(task => (
-          <ProjectDraggableTaskCard
-            key={task.id}
-            task={task}
-            onTaskClick={onTaskClick}
-          />
-        ))}
-        {tasks.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
-            Drop tasks here
-          </div>
-        )}
-      </div>
+      <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-3">
+          {tasks.map(task => (
+            <ProjectDraggableTaskCard
+              key={task.id}
+              task={task}
+              onTaskClick={onTaskClick}
+              columnId={column.id}
+            />
+          ))}
+          {tasks.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+              Drop tasks here
+            </div>
+          )}
+        </div>
+      </SortableContext>
     </div>
   );
 }
 
 function ProjectDraggableTaskCard({ 
   task, 
-  onTaskClick 
+  onTaskClick,
+  columnId 
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
+  columnId: string;
 }) {
   const { data: taskAssignments } = useTaskResourceAssignments(task.id);
   const {
@@ -3950,6 +3972,11 @@ function ProjectDraggableTaskCard({
     isDragging,
   } = useSortable({
     id: task.id,
+    data: {
+      type: 'task',
+      task,
+      columnId,
+    },
   });
 
   const style = {
