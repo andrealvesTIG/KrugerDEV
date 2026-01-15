@@ -2231,6 +2231,9 @@ function ProjectGanttTaskRow({
   isCollapsed,
   onToggleCollapse,
   projectName,
+  onSetBaseline,
+  onClearBaseline,
+  onEditDependencies,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -2244,6 +2247,9 @@ function ProjectGanttTaskRow({
   isCollapsed: boolean;
   onToggleCollapse: (taskId: number) => void;
   projectName?: string;
+  onSetBaseline: (task: Task) => void;
+  onClearBaseline: (task: Task) => void;
+  onEditDependencies: (task: Task) => void;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2320,6 +2326,36 @@ function ProjectGanttTaskRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
+            <DropdownMenuItem 
+              onClick={() => onTaskClick(task)}
+              data-testid={`task-edit-${task.id}`}
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit Task
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => onEditDependencies(task)}
+              data-testid={`task-dependencies-${task.id}`}
+            >
+              <Link2 className="h-4 w-4 mr-2" />
+              Dependencies
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => onSetBaseline(task)}
+              disabled={!task.startDate || !task.endDate}
+              data-testid={`task-set-baseline-${task.id}`}
+            >
+              <Flag className="h-4 w-4 mr-2" />
+              Set Baseline
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => onClearBaseline(task)}
+              disabled={!task.baselineStartDate && !task.baselineEndDate}
+              data-testid={`task-clear-baseline-${task.id}`}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Clear Baseline
+            </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={() => onIndent(task)}
               disabled={!canIndent}
@@ -2761,6 +2797,43 @@ function ProjectGanttView({
     }
   };
 
+  // State for dependencies dialog
+  const [dependenciesDialogTask, setDependenciesDialogTask] = useState<Task | null>(null);
+
+  const handleSetBaseline = (task: Task) => {
+    if (!task.startDate || !task.endDate) {
+      toast({ title: "Cannot set baseline", description: "Task must have start and end dates", variant: "destructive" });
+      return;
+    }
+    updateTask.mutate({
+      id: task.id,
+      projectId: task.projectId,
+      baselineStartDate: task.startDate,
+      baselineEndDate: task.endDate,
+    }, {
+      onSuccess: () => {
+        toast({ title: "Baseline set", description: "Current dates saved as baseline" });
+      }
+    });
+  };
+
+  const handleClearBaseline = (task: Task) => {
+    updateTask.mutate({
+      id: task.id,
+      projectId: task.projectId,
+      baselineStartDate: null,
+      baselineEndDate: null,
+    }, {
+      onSuccess: () => {
+        toast({ title: "Baseline cleared", description: "Baseline dates removed" });
+      }
+    });
+  };
+
+  const handleEditDependencies = (task: Task) => {
+    setDependenciesDialogTask(task);
+  };
+
   const toggleColumn = (col: GanttColumn) => {
     if (col === 'task') return;
     setVisibleColumns(prev => 
@@ -2989,6 +3062,9 @@ function ProjectGanttView({
                   isCollapsed={collapsedTasks.has(task.id)}
                   onToggleCollapse={toggleCollapse}
                   projectName={projectName}
+                  onSetBaseline={handleSetBaseline}
+                  onClearBaseline={handleClearBaseline}
+                  onEditDependencies={handleEditDependencies}
                 />
               ))
             )}
@@ -3019,6 +3095,35 @@ function ProjectGanttView({
           </div>
         </div>
       </CardContent>
+
+      {/* Dependencies Dialog */}
+      <Dialog open={!!dependenciesDialogTask} onOpenChange={(open) => !open && setDependenciesDialogTask(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5" />
+              Task Dependencies
+            </DialogTitle>
+            <DialogDescription>
+              Manage predecessor tasks for "{dependenciesDialogTask?.name}"
+            </DialogDescription>
+          </DialogHeader>
+          {dependenciesDialogTask && (
+            <div className="py-4">
+              <TaskDependenciesSection
+                taskId={dependenciesDialogTask.id}
+                projectId={dependenciesDialogTask.projectId}
+                allTasks={tasks}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDependenciesDialogTask(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
