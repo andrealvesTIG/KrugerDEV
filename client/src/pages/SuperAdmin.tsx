@@ -617,14 +617,42 @@ function OrganizationsTab() {
   );
 }
 
+interface OrganizationMembership {
+  id: number;
+  organizationId: number;
+  userId: string;
+  role: string;
+  createdAt: string;
+}
+
 function AllUsersTab() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [addingOrgId, setAddingOrgId] = useState<string>("");
+  const [addingOrgRole, setAddingOrgRole] = useState<string>("member");
+  const [deactivateUserId, setDeactivateUserId] = useState<string | null>(null);
+  const [deactivatedOpen, setDeactivatedOpen] = useState(false);
   
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ['/api/users']
+  });
+
+  const { data: allOrganizations } = useQuery<Organization[]>({
+    queryKey: ['/api/organizations']
+  });
+
+  const { data: userMemberships, refetch: refetchMemberships } = useQuery<OrganizationMembership[]>({
+    queryKey: ['/api/users', editingUser?.id, 'organizations'],
+    queryFn: async () => {
+      if (!editingUser?.id) return [];
+      const res = await fetch(`/api/users/${editingUser.id}/organizations`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch memberships');
+      return res.json();
+    },
+    enabled: !!editingUser?.id,
   });
 
   const updateUserRole = useMutation({
@@ -653,12 +681,97 @@ function AllUsersTab() {
     }
   });
 
+  const addMembership = useMutation({
+    mutationFn: async ({ orgId, userId, role }: { orgId: number; userId: string; role: string }) => {
+      return apiRequest('POST', `/api/organizations/${orgId}/members`, { userId, role });
+    },
+    onSuccess: () => {
+      refetchMemberships();
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      toast({ title: "Success", description: "Organization membership added" });
+      setAddingOrgId("");
+      setAddingOrgRole("member");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to add membership", variant: "destructive" });
+    }
+  });
+
+  const updateMembershipRole = useMutation({
+    mutationFn: async ({ orgId, userId, role }: { orgId: number; userId: string; role: string }) => {
+      return apiRequest('PUT', `/api/organizations/${orgId}/members/${userId}`, { role });
+    },
+    onSuccess: () => {
+      refetchMemberships();
+      toast({ title: "Success", description: "Membership role updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to update role", variant: "destructive" });
+    }
+  });
+
+  const removeMembership = useMutation({
+    mutationFn: async ({ orgId, userId }: { orgId: number; userId: string }) => {
+      return apiRequest('DELETE', `/api/organizations/${orgId}/members/${userId}`);
+    },
+    onSuccess: () => {
+      refetchMemberships();
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      toast({ title: "Success", description: "Membership removed" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to remove membership", variant: "destructive" });
+    }
+  });
+
+  const deactivateUser = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest('PUT', `/api/users/${userId}/deactivate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({ title: "Success", description: "User deactivated" });
+      setDeactivateUserId(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to deactivate user", variant: "destructive" });
+    }
+  });
+
+  const reactivateUser = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest('PUT', `/api/users/${userId}/reactivate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({ title: "Success", description: "User reactivated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to reactivate user", variant: "destructive" });
+    }
+  });
+
   const handleDeleteClick = (user: User) => {
     setUserToDelete(user);
     setDeleteUserId(user.id);
   };
 
+  const handleEditClick = (user: User) => {
+    setEditingUser(user);
+  };
+
+  // Separate active and deactivated users
+  const activeUsers = users?.filter(u => !u.deactivatedAt) || [];
+  const deactivatedUsers = users?.filter(u => u.deactivatedAt) || [];
+
+  // Get organizations the user is NOT a member of (for adding)
+  const availableOrgs = allOrganizations?.filter(
+    org => !userMemberships?.some(m => m.organizationId === org.id)
+  ) || [];
+
   if (isLoading) return <Loader2 className="animate-spin" />;
+
+  const userToDeactivate = users?.find(u => u.id === deactivateUserId);
 
   return (
     <Card>
@@ -674,11 +787,11 @@ function AllUsersTab() {
               <TableHead>Email</TableHead>
               <TableHead>System Role</TableHead>
               <TableHead>Joined</TableHead>
-              <TableHead className="w-[80px]">Actions</TableHead>
+              <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users?.map(user => (
+            {activeUsers?.map(user => (
               <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
                 <TableCell className="font-medium">
                   {user.firstName} {user.lastName}
@@ -702,22 +815,103 @@ function AllUsersTab() {
                   {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteClick(user)}
-                    disabled={user.id === currentUser?.id}
-                    data-testid={`button-delete-user-${user.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEditClick(user)}
+                      data-testid={`button-edit-user-${user.id}`}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeactivateUserId(user.id)}
+                      disabled={user.id === currentUser?.id}
+                      data-testid={`button-deactivate-user-${user.id}`}
+                      title="Deactivate user"
+                    >
+                      <UserPlus className="h-4 w-4 rotate-45 text-amber-500" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteClick(user)}
+                      disabled={user.id === currentUser?.id}
+                      data-testid={`button-delete-user-${user.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-        {(!users || users.length === 0) && (
-          <div className="text-center py-8 text-slate-500">No users found.</div>
+        {activeUsers.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">No active users found.</div>
+        )}
+
+        {deactivatedUsers.length > 0 && (
+          <Collapsible open={deactivatedOpen} onOpenChange={setDeactivatedOpen} className="mt-6">
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between" data-testid="button-toggle-deactivated-users">
+                <span className="flex items-center gap-2">
+                  <Archive className="h-4 w-4" />
+                  Deactivated Users ({deactivatedUsers.length})
+                </span>
+                {deactivatedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Deactivated</TableHead>
+                    <TableHead className="w-[80px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {deactivatedUsers.map(user => (
+                    <TableRow key={user.id} className="opacity-60" data-testid={`user-row-deactivated-${user.id}`}>
+                      <TableCell className="font-medium">
+                        {user.firstName} {user.lastName}
+                      </TableCell>
+                      <TableCell>{user.email || 'N/A'}</TableCell>
+                      <TableCell>
+                        {user.deactivatedAt ? format(new Date(user.deactivatedAt), 'MMM d, yyyy') : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => reactivateUser.mutate(user.id)}
+                            disabled={reactivateUser.isPending}
+                            data-testid={`button-reactivate-user-${user.id}`}
+                            title="Reactivate user"
+                          >
+                            <RotateCcw className="h-4 w-4 text-green-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteClick(user)}
+                            data-testid={`button-delete-deactivated-user-${user.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CollapsibleContent>
+          </Collapsible>
         )}
       </CardContent>
 
@@ -751,6 +945,178 @@ function AllUsersTab() {
                   Delete User
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deactivateUserId} onOpenChange={(open) => !open && setDeactivateUserId(null)}>
+        <DialogContent data-testid="dialog-deactivate-user">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="h-5 w-5 text-amber-500" />
+              Deactivate User
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to deactivate {userToDeactivate?.firstName} {userToDeactivate?.lastName} ({userToDeactivate?.email})? 
+              The user will no longer be able to log in, but their data will be preserved. You can reactivate them later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeactivateUserId(null)} data-testid="button-cancel-deactivate-user">
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              className="bg-amber-500 hover:bg-amber-600"
+              onClick={() => deactivateUserId && deactivateUser.mutate(deactivateUserId)}
+              disabled={deactivateUser.isPending}
+              data-testid="button-confirm-deactivate-user"
+            >
+              {deactivateUser.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deactivating...
+                </>
+              ) : (
+                <>
+                  <Archive className="h-4 w-4 mr-2" />
+                  Deactivate User
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <DialogContent className="max-w-2xl" data-testid="dialog-edit-user-memberships">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Manage Organization Memberships
+            </DialogTitle>
+            <DialogDescription>
+              Edit organization memberships for {editingUser?.firstName} {editingUser?.lastName} ({editingUser?.email})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Current Memberships</Label>
+              {userMemberships && userMemberships.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Organization</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead className="w-[80px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {userMemberships.map((membership) => {
+                      const org = allOrganizations?.find(o => o.id === membership.organizationId);
+                      return (
+                        <TableRow key={membership.id} data-testid={`membership-row-${membership.organizationId}`}>
+                          <TableCell className="font-medium">
+                            {org?.name || `Org #${membership.organizationId}`}
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={membership.role}
+                              onValueChange={(role) => updateMembershipRole.mutate({
+                                orgId: membership.organizationId,
+                                userId: editingUser!.id,
+                                role
+                              })}
+                            >
+                              <SelectTrigger className="w-[120px]" data-testid={`select-membership-role-${membership.organizationId}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="member">Member</SelectItem>
+                                <SelectItem value="org_admin">Org Admin</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="owner">Owner</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeMembership.mutate({
+                                orgId: membership.organizationId,
+                                userId: editingUser!.id
+                              })}
+                              disabled={removeMembership.isPending}
+                              data-testid={`button-remove-membership-${membership.organizationId}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground border rounded-md">
+                  This user has no organization memberships.
+                </div>
+              )}
+            </div>
+
+            {availableOrgs.length > 0 && (
+              <div className="border-t pt-4">
+                <Label className="text-sm font-medium mb-2 block">Add to Organization</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={addingOrgId} onValueChange={setAddingOrgId}>
+                    <SelectTrigger className="flex-1" data-testid="select-add-org">
+                      <SelectValue placeholder="Select an organization..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableOrgs.map((org) => (
+                        <SelectItem key={org.id} value={org.id.toString()}>
+                          {org.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={addingOrgRole} onValueChange={setAddingOrgRole}>
+                    <SelectTrigger className="w-[120px]" data-testid="select-add-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="org_admin">Org Admin</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="owner">Owner</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={() => addingOrgId && addMembership.mutate({
+                      orgId: parseInt(addingOrgId),
+                      userId: editingUser!.id,
+                      role: addingOrgRole
+                    })}
+                    disabled={!addingOrgId || addMembership.isPending}
+                    data-testid="button-add-membership"
+                  >
+                    {addMembership.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingUser(null)} data-testid="button-close-edit-memberships">
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

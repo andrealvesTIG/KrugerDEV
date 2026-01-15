@@ -260,6 +260,7 @@ export async function setupMicrosoftAuth(app: Express) {
             console.error("Company lookup error:", err);
           }
 
+          // emailVerified is true for Microsoft auth since the email is verified by Microsoft
           [existingUser] = await db.insert(users).values({
             email,
             microsoftId,
@@ -270,6 +271,7 @@ export async function setupMicrosoftAuth(app: Express) {
             onboardingCompleted: false,
             detectedCompany,
             detectedIndustry,
+            emailVerified: true,
           }).returning();
         }
       } else {

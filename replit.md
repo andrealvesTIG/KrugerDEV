@@ -100,6 +100,26 @@ The application manages the following core entities with extensive industry-stan
 
 10. **Organizations** - Multi-tenant organizations with soft-delete (deactivate/reactivate) capability
 
+### Organization Roles
+Organizations support multiple membership roles with different permissions:
+
+1. **Owner** - Full administrative access, can manage organization settings and members
+2. **Admin** - Can manage organization settings and members (except removing owner)
+3. **Member** - Standard access to all projects, tasks, risks, and issues in the organization
+4. **Team Member** - Restricted visibility role:
+   - Can only see portfolios they created or are assigned as team member to (via `teamMemberResourceIds`)
+   - Can only see projects where they are assigned to at least one task or explicitly invited (via `invitedProjectIds`)
+   - Can only see tasks they are directly assigned to via resource assignments
+   - Can only see issues they are directly assigned to via resource assignments
+   - Cannot see unassigned items or items assigned to others
+
+The team_member role uses resource assignment relationships to determine visibility:
+- User must have an associated Resource record in the organization
+- **Portfolio visibility**: Portfolios have `createdBy` (user ID) and `teamMemberResourceIds` (array of resource IDs) fields for access control
+- **Project visibility**: Resources have `invitedProjectIds` for explicit project invitations; assignment-based visibility via tasks
+- Visibility is determined by `taskResourceAssignments`, `riskResourceAssignments`, and `issueResourceAssignments` tables
+- Helper functions in `server/routes.ts`: `getTeamMemberAccessData`, `getTeamMemberProjectIds`, `getTeamMemberTaskIds`, `getTeamMemberRiskIds`, `getTeamMemberIssueIds`, `getTeamMemberPortfolioIds`
+
 ### Organization Soft-Delete
 Organizations use soft-delete (deactivation) rather than permanent deletion:
 - When deleted, organizations are marked with `deactivatedAt` and `deactivatedBy` timestamps
@@ -108,6 +128,41 @@ Organizations use soft-delete (deactivation) rather than permanent deletion:
 - Only Super Admins can restore (reactivate) deactivated organizations via the Super Admin console
 - Restore endpoint: `POST /api/admin/organizations/:id/reactivate`
 - View deactivated: `GET /api/admin/organizations/deactivated`
+
+### Email Verification Requirement
+All create operations require the user's email to be verified before allowing creation. This applies to:
+- Organizations, Portfolios, Projects
+- Tasks, Risks, Issues, Milestones
+- Resources, Resource Invites
+- Project Intakes, Change Requests, Documents, Comments
+- Organization Invites, Task Dependencies
+- AI Project Generation, MPP Imports
+
+**Exception**: The demo data generation endpoint (`/api/demo-data/generate`) is exempt to allow new users to generate sample data during onboarding before email verification.
+
+When a create request is blocked due to email verification:
+- Response status: 403 Forbidden
+- Response includes: `{ message: "Email verification required...", emailVerificationRequired: true }`
+
+### Bot Protection (Honeypot + Time-based)
+All public authentication forms are protected against automated bots using a two-layer approach:
+
+1. **Honeypot Fields**: Hidden form fields that real users cannot see. Bots typically fill all fields, so if these hidden fields have values, the submission is rejected.
+   - Component: `client/src/components/HoneypotField.tsx`
+   - Hidden fields: `website_url`, `phone_number` (positioned off-screen)
+
+2. **Time-based Validation**: Tracks when the form loads. If submitted in under 2 seconds, it's likely a bot since humans take longer to read and fill forms.
+   - Minimum submission time: 2000ms
+   - Server-side validation in: `server/auth/emailAuth.ts` (`verifyHoneypot` function)
+
+**Protected Endpoints**:
+- `/api/auth/register` - User registration
+- `/api/auth/login` - User login
+- `/api/auth/forgot-password` - Password reset requests
+- `/api/auth/magic-link/request` - Magic link sign-up
+- `/api/auth/passwordless/request` - Passwordless authentication
+
+**Cloudflare Turnstile**: Remains available as an optional additional protection layer. If `TURNSTILE_SECRET_KEY` and `VITE_TURNSTILE_SITE_KEY` are configured, Turnstile verification is also performed. Without these keys, honeypot protection alone guards against bots.
 
 ### Shared Code Pattern
 The `shared/` directory contains code used by both frontend and backend:

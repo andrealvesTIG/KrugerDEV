@@ -118,6 +118,8 @@ export const portfolios = pgTable("portfolios", {
   department: text("department"), // Primary department/business unit
   notes: text("notes"), // Additional notes
   createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id), // Who created the portfolio
+  teamMemberResourceIds: integer("team_member_resource_ids").array(), // Resource IDs with team member access
   deletedAt: timestamp("deleted_at"), // Soft delete timestamp
   deletedBy: varchar("deleted_by").references(() => users.id), // Who deleted it
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
@@ -144,7 +146,8 @@ export const projects = pgTable("projects", {
   budget: numeric("budget").notNull().default("0"),
   actualCost: numeric("actual_cost").default("0"), // Actual spend to date
   forecastCost: numeric("forecast_cost"), // Projected final cost
-  managerId: varchar("manager_id").references(() => users.id), // Project Manager
+  managerId: varchar("manager_id").references(() => users.id), // Project Manager (user ID)
+  managerResourceId: integer("manager_resource_id"), // Project Manager (resource ID for display)
   businessSponsorId: varchar("business_sponsor_id").references(() => users.id), // Executive Sponsor
   businessOwnerId: varchar("business_owner_id").references(() => users.id), // Product/Business Owner
   technicalLeadId: varchar("technical_lead_id").references(() => users.id), // Technical Lead
@@ -404,6 +407,7 @@ export const resources = pgTable("resources", {
   isBillable: boolean("is_billable").default(true), // Can be billed to clients
   photoUrl: text("photo_url"), // Profile photo URL
   notes: text("notes"),
+  invitedProjectIds: integer("invited_project_ids").array(), // Projects this resource was invited to (for team_member visibility)
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),

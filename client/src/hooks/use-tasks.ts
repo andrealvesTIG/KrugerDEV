@@ -31,11 +31,12 @@ export function useAllTasks() {
   });
 }
 
-export function usePaginatedTasks(limit: number = 100) {
+export function usePaginatedTasks(limit: number = 100, organizationId?: number | null) {
   const query = useInfiniteQuery<PaginatedTasksResponse>({
-    queryKey: ['/api/tasks', 'paginated'],
+    queryKey: ['/api/tasks', 'paginated', organizationId],
     queryFn: async ({ pageParam = 0 }) => {
-      const res = await fetch(`/api/tasks?limit=${limit}&offset=${pageParam}`);
+      const orgParam = organizationId ? `&organizationId=${organizationId}` : '';
+      const res = await fetch(`/api/tasks?limit=${limit}&offset=${pageParam}${orgParam}`);
       if (!res.ok) {
         throw new Error('Failed to fetch tasks');
       }
@@ -46,6 +47,7 @@ export function usePaginatedTasks(limit: number = 100) {
       if (!lastPage.hasMore) return undefined;
       return allPages.length * limit;
     },
+    enabled: organizationId !== undefined,
   });
 
   // Flatten all pages into a single tasks array

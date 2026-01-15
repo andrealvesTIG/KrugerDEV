@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,8 @@ import { queryClient } from "@/lib/queryClient";
 import { Loader2, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { Footer } from "@/components/layout/Footer";
+import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
+import { HoneypotField } from "@/components/HoneypotField";
 
 type AuthMode = "login" | "register" | "forgot-password" | "magic-link";
 
@@ -26,6 +28,12 @@ export default function AuthPage() {
   const [magicLinkEmail, setMagicLinkEmail] = useState("");
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [referralCode, setReferralCode] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileWidgetRef>(null);
+  const [honeypotData, setHoneypotData] = useState<{ honeypot1: string; honeypot2: string; formLoadTime: number } | null>(null);
+  const handleHoneypotChange = useCallback((data: { honeypot1: string; honeypot2: string; formLoadTime: number }) => {
+    setHoneypotData(data);
+  }, []);
 
   const { data: microsoftStatus } = useQuery<{ configured: boolean }>({
     queryKey: ["/api/auth/microsoft/status"],
@@ -47,7 +55,7 @@ export default function AuthPage() {
   }, [search, toast]);
 
   const loginMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string }) => {
+    mutationFn: async (data: { email: string; password: string; turnstileToken?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -60,17 +68,19 @@ export default function AuthPage() {
       }
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    onSuccess: (user) => {
+      queryClient.setQueryData(["/api/auth/user"], user);
       setLocation("/");
     },
     onError: (error: Error) => {
       toast({ title: "Login Failed", description: error.message, variant: "destructive" });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     },
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string }) => {
+    mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string; referralCode?: string; turnstileToken?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,17 +93,25 @@ export default function AuthPage() {
       }
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      setLocation("/");
+    onSuccess: (result) => {
+      queryClient.setQueryData(["/api/auth/user"], result);
+      
+      // If a new organization was created, redirect to onboarding
+      if (result.organizationCreated && result.organizationId && result.organizationName) {
+        setLocation(`/onboarding?orgId=${result.organizationId}&orgName=${encodeURIComponent(result.organizationName)}`);
+      } else {
+        setLocation("/");
+      }
     },
     onError: (error: Error) => {
       toast({ title: "Registration Failed", description: error.message, variant: "destructive" });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     },
   });
 
   const forgotPasswordMutation = useMutation({
-    mutationFn: async (data: { email: string }) => {
+    mutationFn: async (data: { email: string; turnstileToken?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -112,11 +130,13 @@ export default function AuthPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Request Failed", description: error.message, variant: "destructive" });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     },
   });
 
   const magicLinkMutation = useMutation({
-    mutationFn: async (data: { email: string }) => {
+    mutationFn: async (data: { email: string; turnstileToken?: string; honeypot1?: string; honeypot2?: string; formLoadTime?: number }) => {
       const res = await fetch("/api/auth/magic-link/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -135,6 +155,8 @@ export default function AuthPage() {
       setMagicLinkSent(true);
     },
     onError: (error: Error) => {
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
       if (error.message.startsWith("EXISTS:")) {
         toast({ 
           title: "Account Exists", 
@@ -151,14 +173,21 @@ export default function AuthPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const honeypotPayload = honeypotData ? {
+      honeypot1: honeypotData.honeypot1,
+      honeypot2: honeypotData.honeypot2,
+      formLoadTime: honeypotData.formLoadTime,
+    } : {};
+
     if (mode === "login") {
-      loginMutation.mutate({ email, password });
+      loginMutation.mutate({ email, password, turnstileToken: turnstileToken || undefined, ...honeypotPayload });
     } else if (mode === "register") {
-      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined });
+      registerMutation.mutate({ email, password, firstName: firstName || undefined, lastName: lastName || undefined, referralCode: referralCode || undefined, turnstileToken: turnstileToken || undefined, ...honeypotPayload });
     } else if (mode === "forgot-password") {
-      forgotPasswordMutation.mutate({ email });
+      forgotPasswordMutation.mutate({ email, turnstileToken: turnstileToken || undefined, ...honeypotPayload });
     } else if (mode === "magic-link") {
-      magicLinkMutation.mutate({ email: magicLinkEmail });
+      magicLinkMutation.mutate({ email: magicLinkEmail, turnstileToken: turnstileToken || undefined, ...honeypotPayload });
     }
   };
 
@@ -239,6 +268,7 @@ export default function AuthPage() {
             </div>
           ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            <HoneypotField onDataChange={handleHoneypotChange} />
             {mode === "register" && referralCode && (
               <div className="p-3 rounded-md bg-primary/10 border border-primary/20 text-center" data-testid="banner-referral">
                 <p className="text-sm font-medium text-primary">
@@ -328,6 +358,12 @@ export default function AuthPage() {
                 />
               </div>
             )}
+            <TurnstileWidget
+              ref={turnstileRef}
+              onSuccess={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              className="flex justify-center"
+            />
             <Button type="submit" className="w-full" disabled={isPending} data-testid="button-submit-auth">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {mode === "login" && "Sign In"}

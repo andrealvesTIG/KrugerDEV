@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
   Loader2, Briefcase, AlertTriangle, TrendingUp, CheckCircle2, 
   FileInput, Clock, Upload, PenTool, Sparkles, DollarSign,
-  FolderKanban, ArrowRight, Activity, Target, BarChart3
+  FolderKanban, ArrowRight, Activity, Target, BarChart3, Zap
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, Area, AreaChart } from "recharts";
 import { isWithinInterval, parseISO } from "date-fns";
@@ -36,6 +36,12 @@ const COLORS = {
   Cyan: "#06b6d4",
 };
 
+interface AICostsData {
+  aiProjectGeneration: { creditCost: number; description: string; canAfford: boolean };
+  credits: { used: number; remaining: number | null; limit: number | null };
+  canAfford: boolean;
+}
+
 export function ExecutiveDashboard() {
   const { currentOrganization } = useOrganization();
   const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
@@ -43,6 +49,12 @@ export function ExecutiveDashboard() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  // Fetch AI costs for credit warning
+  const { data: aiCosts } = useQuery<AICostsData>({
+    queryKey: ['/api/billing/ai-costs'],
+    enabled: aiDialogOpen,
+  });
   
   const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
   const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
@@ -242,6 +254,19 @@ export function ExecutiveDashboard() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {aiCosts && (
+                  <div className={`flex items-center gap-2 p-3 rounded-lg border ${aiCosts.aiProjectGeneration.canAfford ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'}`}>
+                    <Zap className={`h-4 w-4 ${aiCosts.aiProjectGeneration.canAfford ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`} />
+                    <div className="flex-1 text-sm">
+                      <span className={aiCosts.aiProjectGeneration.canAfford ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'}>
+                        This will use <strong>{aiCosts.aiProjectGeneration.creditCost}</strong> credit{aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''}.
+                      </span>
+                      <span className="text-muted-foreground ml-1">
+                        ({aiCosts.credits.remaining !== null ? `${aiCosts.credits.remaining} remaining` : 'unlimited'})
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="ai-prompt">Project Description</Label>
                   <Textarea
@@ -261,7 +286,7 @@ export function ExecutiveDashboard() {
                 <Button
                   data-testid="button-generate-project"
                   onClick={() => generateProjectMutation.mutate(aiPrompt)}
-                  disabled={!aiPrompt.trim() || generateProjectMutation.isPending}
+                  disabled={!aiPrompt.trim() || generateProjectMutation.isPending || (aiCosts && !aiCosts.aiProjectGeneration.canAfford)}
                 >
                   {generateProjectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
                   Generate

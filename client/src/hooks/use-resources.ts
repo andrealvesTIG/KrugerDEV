@@ -94,6 +94,18 @@ export function useTaskResourceAssignments(taskId: number | null) {
   });
 }
 
+export function useAllTaskResourceAssignments(organizationId: number | null) {
+  return useQuery<{ taskId: number; resourceId: number; resourceName: string }[]>({
+    queryKey: ["/api/organizations", organizationId, "task-assignments"],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const response = await fetch(`/api/organizations/${organizationId}/task-assignments`);
+      if (!response.ok) throw new Error("Failed to fetch all task assignments");
+      return response.json();
+    },
+  });
+}
+
 export function useUpdateTaskResourceAssignments() {
   const queryClient = useQueryClient();
   return useMutation({

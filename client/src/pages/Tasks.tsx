@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
-import { useTaskResourceAssignments, useUpdateTaskResourceAssignments } from "@/hooks/use-resources";
+import { useAuth } from "@/hooks/use-auth";
+import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -39,11 +40,12 @@ const statusColors = {
   "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
-type GroupBy = "none" | "project" | "portfolio";
+type GroupBy = "project" | "portfolio" | "resource";
 
 export default function Tasks() {
   const { currentOrganization } = useOrganization();
-  const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total } = usePaginatedTasks(100);
+  const { user } = useAuth();
+  const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total } = usePaginatedTasks(100, currentOrganization?.id);
   const { data: projects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
@@ -52,7 +54,9 @@ export default function Tasks() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [durationDays, setDurationDays] = useState(7);
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
-  const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [groupBy, setGroupBy] = useState<GroupBy>("project");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [myAssignmentsOnly, setMyAssignmentsOnly] = useState(false);
   const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
@@ -63,11 +67,19 @@ export default function Tasks() {
   const deleteTask = useDeleteTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
+  const { data: orgResources } = useResources(currentOrganization?.id ?? null);
+  const { data: allTaskAssignments } = useAllTaskResourceAssignments(currentOrganization?.id ?? null);
   const { toast } = useToast();
+  const lastInitializedTaskId = useRef<number | null>(null);
+  // Track when an invite already assigned resources to prevent form from overwriting
+  const inviteAssignedRef = useRef(false);
 
+  // Only sync selectedResourceIds from server on INITIAL load for a task
+  // Don't overwrite user changes when query refetches
   useEffect(() => {
-    if (taskAssignments && editingTask) {
+    if (taskAssignments && editingTask && lastInitializedTaskId.current !== editingTask.id) {
       setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      lastInitializedTaskId.current = editingTask.id;
     }
   }, [taskAssignments, editingTask]);
 
@@ -75,14 +87,51 @@ export default function Tasks() {
     setDeleteTaskData(task);
   };
 
+  // Find current user's resource ID for "My Assignments" filter
+  const myResourceId = useMemo(() => {
+    if (!user?.id || !orgResources) return null;
+    const myResource = orgResources.find(r => r.userId === user.id);
+    return myResource?.id ?? null;
+  }, [user?.id, orgResources]);
+
+  // Build set of task IDs assigned to current user
+  const myTaskIds = useMemo(() => {
+    if (!myResourceId || !allTaskAssignments) return new Set<number>();
+    return new Set(
+      allTaskAssignments
+        .filter(a => a.resourceId === myResourceId)
+        .map(a => a.taskId)
+    );
+  }, [myResourceId, allTaskAssignments]);
+
   const projectIds = useMemo(() => new Set(projects?.map(p => p.id) || []), [projects]);
   const tasks = useMemo(() => {
-    const orgTasks = allTasks?.filter(task => projectIds.has(task.projectId)) || [];
+    // Backend already filters by organization, just apply local filters
+    let filteredTasks = allTasks || [];
+    
+    // Filter by project
     if (filterProjectId) {
-      return orgTasks.filter(task => task.projectId === filterProjectId);
+      filteredTasks = filteredTasks.filter(task => task.projectId === filterProjectId);
     }
-    return orgTasks;
-  }, [allTasks, projectIds, filterProjectId]);
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filteredTasks = filteredTasks.filter(task => 
+        task.name.toLowerCase().includes(query) ||
+        task.description?.toLowerCase().includes(query) ||
+        task.assignee?.toLowerCase().includes(query) ||
+        task.status?.toLowerCase().includes(query)
+      );
+    }
+    
+    // Filter to only my assignments
+    if (myAssignmentsOnly && myResourceId) {
+      filteredTasks = filteredTasks.filter(task => myTaskIds.has(task.id));
+    }
+    
+    return filteredTasks;
+  }, [allTasks, filterProjectId, searchQuery, myAssignmentsOnly, myResourceId, myTaskIds]);
 
   const projectMap = useMemo(() => {
     const map = new Map<number, { name: string; portfolioId: number | null }>();
@@ -96,13 +145,19 @@ export default function Tasks() {
     return map;
   }, [portfolios]);
 
-  type TaskGroup = { id: string; name: string; icon: "project" | "portfolio"; tasks: Task[] };
+  type TaskGroup = { id: string; name: string; icon: "project" | "portfolio" | "resource"; tasks: Task[] };
+
+  // Build map of taskId -> resourceIds for resource grouping
+  const taskToResources = useMemo(() => {
+    const map = new Map<number, { resourceId: number; resourceName: string }[]>();
+    allTaskAssignments?.forEach(a => {
+      if (!map.has(a.taskId)) map.set(a.taskId, []);
+      map.get(a.taskId)!.push({ resourceId: a.resourceId, resourceName: a.resourceName });
+    });
+    return map;
+  }, [allTaskAssignments]);
 
   const groupedTasks = useMemo((): TaskGroup[] => {
-    if (groupBy === "none") {
-      return [{ id: "all", name: "All Tasks", icon: "project", tasks }];
-    }
-    
     if (groupBy === "project") {
       const groups = new Map<number, Task[]>();
       tasks.forEach(task => {
@@ -132,8 +187,47 @@ export default function Tasks() {
       }));
     }
     
-    return [{ id: "all", name: "All Tasks", icon: "project", tasks }];
-  }, [tasks, groupBy, projectMap, portfolioMap]);
+    if (groupBy === "resource") {
+      const groups = new Map<number | null, Task[]>();
+      const resourceNames = new Map<number, string>();
+      
+      tasks.forEach(task => {
+        const assignments = taskToResources.get(task.id);
+        if (assignments && assignments.length > 0) {
+          // Add task to each assigned resource's group
+          assignments.forEach(a => {
+            if (!groups.has(a.resourceId)) groups.set(a.resourceId, []);
+            groups.get(a.resourceId)!.push(task);
+            resourceNames.set(a.resourceId, a.resourceName);
+          });
+        } else {
+          // Unassigned tasks
+          if (!groups.has(null)) groups.set(null, []);
+          groups.get(null)!.push(task);
+        }
+      });
+      
+      return Array.from(groups.entries()).map(([resourceId, resourceTasks]) => ({
+        id: resourceId ? `resource-${resourceId}` : "unassigned",
+        name: resourceId ? (resourceNames.get(resourceId) || "Unknown Resource") : "Unassigned",
+        icon: "resource" as const,
+        tasks: resourceTasks,
+      }));
+    }
+    
+    // Default to project grouping
+    const groups = new Map<number, Task[]>();
+    tasks.forEach(task => {
+      if (!groups.has(task.projectId)) groups.set(task.projectId, []);
+      groups.get(task.projectId)!.push(task);
+    });
+    return Array.from(groups.entries()).map(([projectId, projectTasks]) => ({
+      id: `project-${projectId}`,
+      name: projectMap.get(projectId)?.name || "Unknown Project",
+      icon: "project" as const,
+      tasks: projectTasks,
+    }));
+  }, [tasks, groupBy, projectMap, portfolioMap, taskToResources]);
 
   const taskFormSchema = insertTaskSchema.extend({
     name: z.string().min(1, "Task name is required")
@@ -188,6 +282,7 @@ export default function Tasks() {
     setEditingTask(null);
     setDurationDays(7);
     setSelectedResourceIds([]);
+    lastInitializedTaskId.current = null; // Reset to allow re-initialization
     form.reset({
       projectId: projects && projects.length > 0 ? projects[0].id : undefined as any,
       name: "",
@@ -228,7 +323,12 @@ export default function Tasks() {
     if (editingTask) {
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: () => {
-          updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+          // Only update resources if invite didn't already handle it
+          // inviteAssignedRef prevents race condition where form uses stale state
+          if (!inviteAssignedRef.current) {
+            updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+          }
+          inviteAssignedRef.current = false; // Reset for next edit
           toast({ title: "Success", description: "Task updated" });
           setIsDialogOpen(false);
           setEditingTask(null);
@@ -278,6 +378,34 @@ export default function Tasks() {
           <p className="text-muted-foreground">Manage tasks with Gantt Chart and Kanban views</p>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
+          <Button
+            variant={myAssignmentsOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setMyAssignmentsOnly(!myAssignmentsOnly)}
+            className="gap-2"
+            disabled={!myResourceId}
+            title={!myResourceId ? "You need a resource profile linked to your account to filter by your assignments" : ""}
+            data-testid="button-my-assignments"
+          >
+            <UserIcon className="h-4 w-4" />
+            My Assignments
+            {myAssignmentsOnly && myResourceId && (
+              <Badge variant="secondary" className="ml-1">
+                {myTaskIds.size}
+              </Badge>
+            )}
+          </Button>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-[200px]"
+              data-testid="input-search-tasks"
+            />
+          </div>
           <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
             <TabsList>
               <TabsTrigger value="gantt" className="gap-2">
@@ -314,7 +442,6 @@ export default function Tasks() {
               <SelectValue placeholder="Group by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No Grouping</SelectItem>
               <SelectItem value="project">
                 <span className="flex items-center gap-2">
                   <FolderKanban className="h-4 w-4" />
@@ -325,6 +452,12 @@ export default function Tasks() {
                 <span className="flex items-center gap-2">
                   <Briefcase className="h-4 w-4" />
                   By Portfolio
+                </span>
+              </SelectItem>
+              <SelectItem value="resource">
+                <span className="flex items-center gap-2">
+                  <UserIcon className="h-4 w-4" />
+                  By Resources Assigned
                 </span>
               </SelectItem>
             </SelectContent>
@@ -487,6 +620,11 @@ export default function Tasks() {
                   selectedResourceIds={selectedResourceIds}
                   onSelectionChange={setSelectedResourceIds}
                   label="Assigned Resources"
+                  projectId={editingTask?.projectId || form.watch("projectId")}
+                  projectName={projectMap.get(editingTask?.projectId || form.watch("projectId") || 0)?.name}
+                  taskId={editingTask?.id}
+                  taskName={editingTask?.name || form.watch("name")}
+                  onInviteAssigned={() => { inviteAssignedRef.current = true; }}
                 />
                 <DialogFooter className="flex items-center gap-2">
                   {editingTask && (
@@ -578,47 +716,24 @@ export default function Tasks() {
         </div>
       </div>
 
-      {groupBy === "none" ? (
-        view === "gantt" ? (
-          <GanttView tasks={tasks || []} projects={projects || []} onTaskClick={openEditDialog} organizationId={currentOrganization?.id ?? null} />
-        ) : (
-          <KanbanView 
-            tasks={tasks || []} 
-            projects={projects || []} 
-            onTaskClick={openEditDialog}
-            onStatusChange={(taskId, newStatus) => {
-              const task = tasks.find(t => t.id === taskId);
-              if (task) {
-                updateTask.mutate({ 
-                  id: taskId, 
-                  projectId: task.projectId, 
-                  status: newStatus 
-                });
-              }
-            }}
-            onDeleteTask={handleDeleteTaskFromKanban}
-          />
-        )
-      ) : (
-        <GroupedTasksView
-          groupedTasks={groupedTasks}
-          view={view}
-          projects={projects || []}
-          onTaskClick={openEditDialog}
-          onStatusChange={(taskId, newStatus) => {
-            const task = tasks.find(t => t.id === taskId);
-            if (task) {
-              updateTask.mutate({ 
-                id: taskId, 
-                projectId: task.projectId, 
-                status: newStatus 
-              });
-            }
-          }}
-          onDeleteTask={handleDeleteTaskFromKanban}
-          organizationId={currentOrganization?.id ?? null}
-        />
-      )}
+      <GroupedTasksView
+        groupedTasks={groupedTasks}
+        view={view}
+        projects={projects || []}
+        onTaskClick={openEditDialog}
+        onStatusChange={(taskId, newStatus) => {
+          const task = tasks.find(t => t.id === taskId);
+          if (task) {
+            updateTask.mutate({ 
+              id: taskId, 
+              projectId: task.projectId, 
+              status: newStatus 
+            });
+          }
+        }}
+        onDeleteTask={handleDeleteTaskFromKanban}
+        organizationId={currentOrganization?.id ?? null}
+      />
 
       {/* Load More Button */}
       {hasMore && (
@@ -675,7 +790,7 @@ export default function Tasks() {
   );
 }
 
-type TaskGroup = { id: string; name: string; icon: "project" | "portfolio"; tasks: Task[] };
+type TaskGroup = { id: string; name: string; icon: "project" | "portfolio" | "resource"; tasks: Task[] };
 
 function GroupedTasksView({
   groupedTasks,
@@ -728,6 +843,8 @@ function GroupedTasksView({
               )}
               {group.icon === "portfolio" ? (
                 <Briefcase className="h-5 w-5 text-primary" />
+              ) : group.icon === "resource" ? (
+                <UserIcon className="h-5 w-5 text-primary" />
               ) : (
                 <FolderKanban className="h-5 w-5 text-primary" />
               )}
@@ -769,16 +886,23 @@ const taskZoomLabels: Record<TaskZoomLevel, string> = {
   '5year': '5 Years'
 };
 
-type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'progress' | 'resources';
+type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'duration' | 'progress' | 'status' | 'priority' | 'assignee' | 'resources' | 'wbs' | 'phase' | 'category';
 
 const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[] = [
   { id: 'actions', label: '', width: 'w-10' },
   { id: 'outlineLevel', label: 'Level', width: 'w-14' },
   { id: 'task', label: 'Task', width: 'w-64' },
+  { id: 'wbs', label: 'WBS', width: 'w-20' },
   { id: 'startDate', label: 'Start', width: 'w-24' },
   { id: 'endDate', label: 'End', width: 'w-24' },
+  { id: 'duration', label: 'Duration', width: 'w-20' },
   { id: 'progress', label: '%', width: 'w-14' },
+  { id: 'status', label: 'Status', width: 'w-28' },
+  { id: 'priority', label: 'Priority', width: 'w-24' },
+  { id: 'assignee', label: 'Assignee', width: 'w-32' },
   { id: 'resources', label: 'Resources', width: 'w-32' },
+  { id: 'phase', label: 'Phase', width: 'w-24' },
+  { id: 'category', label: 'Category', width: 'w-24' },
 ];
 
 function GanttTaskRow({ 
@@ -812,6 +936,7 @@ function GanttTaskRow({
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const [isEditingResources, setIsEditingResources] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const inviteAssignedRef = useRef(false);
 
   useEffect(() => {
     if (taskAssignments) {
@@ -843,7 +968,11 @@ function GanttTaskRow({
     : "—";
 
   const handleSaveResources = () => {
-    updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    // Only update resources if invite didn't already handle it
+    if (!inviteAssignedRef.current) {
+      updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    }
+    inviteAssignedRef.current = false;
     setIsEditingResources(false);
   };
 
@@ -937,6 +1066,11 @@ function GanttTaskRow({
           </Link>
         </div>
       )}
+      {visibleColumns.includes('wbs') && (
+        <div className="w-20 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+          {task.wbs || '—'}
+        </div>
+      )}
       {visibleColumns.includes('startDate') && (
         <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
           {task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—'}
@@ -947,36 +1081,102 @@ function GanttTaskRow({
           {task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—'}
         </div>
       )}
+      {visibleColumns.includes('duration') && (
+        <div className="w-20 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center">
+          {task.durationDays ? `${task.durationDays}d` : '—'}
+        </div>
+      )}
       {visibleColumns.includes('progress') && (
         <div className="w-14 flex-shrink-0 border-r p-2 text-xs text-center font-medium flex items-center justify-center">
           {progressPercent}%
         </div>
       )}
+      {visibleColumns.includes('status') && (
+        <div className="w-28 flex-shrink-0 border-r p-2 text-xs flex items-center">
+          <Badge 
+            variant="outline" 
+            className={cn(
+              "text-xs",
+              task.status === "Completed" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+              task.status === "In Progress" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+              task.status === "Not Started" && "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+            )}
+          >
+            {task.status || 'Not Started'}
+          </Badge>
+        </div>
+      )}
+      {visibleColumns.includes('priority') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs flex items-center">
+          <Badge 
+            variant="outline" 
+            className={cn(
+              "text-xs",
+              task.priority === "Critical" && "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+              task.priority === "High" && "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+              task.priority === "Medium" && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+              task.priority === "Low" && "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+            )}
+          >
+            {task.priority || 'Medium'}
+          </Badge>
+        </div>
+      )}
+      {visibleColumns.includes('assignee') && (
+        <div className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
+          {assignedNames}
+        </div>
+      )}
       {visibleColumns.includes('resources') && (
-        <div 
-          className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50"
-          onClick={(e) => { e.stopPropagation(); setIsEditingResources(true); }}
-        >
-          {isEditingResources ? (
-            <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+        <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
+          <DialogTrigger asChild>
+            <div 
+              className="w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground cursor-pointer hover:bg-muted/50 flex items-center"
+              onClick={(e) => { e.stopPropagation(); }}
+              data-testid={`resources-cell-${task.id}`}
+            >
+              <span className="truncate block">{assignedNames}</span>
+            </div>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle>Assign Resources</DialogTitle>
+              <DialogDescription>
+                Assign team members to "{task.name}"
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
               <ResourceAssignment
                 organizationId={organizationId}
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
-                label=""
+                label="Resources"
+                projectId={task.projectId}
+                projectName={getProjectName(task.projectId)}
+                taskId={task.id}
+                taskName={task.name}
+                onInviteAssigned={() => { inviteAssignedRef.current = true; }}
               />
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>
-                  <Check className="h-3 w-3" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setIsEditingResources(false)}>
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
             </div>
-          ) : (
-            <span className="truncate block">{assignedNames}</span>
-          )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditingResources(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveResources}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      {visibleColumns.includes('phase') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
+          {task.phase || '—'}
+        </div>
+      )}
+      {visibleColumns.includes('category') && (
+        <div className="w-24 flex-shrink-0 border-r p-2 text-xs text-muted-foreground flex items-center truncate">
+          {task.category || '—'}
         </div>
       )}
       <div className="flex-1 relative p-2 min-h-[40px]">
@@ -1307,17 +1507,38 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
           {visibleColumns.includes('task') && (
             <div className="w-64 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Task</div>
           )}
+          {visibleColumns.includes('wbs') && (
+            <div className="w-20 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">WBS</div>
+          )}
           {visibleColumns.includes('startDate') && (
             <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Start</div>
           )}
           {visibleColumns.includes('endDate') && (
             <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">End</div>
           )}
+          {visibleColumns.includes('duration') && (
+            <div className="w-20 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Duration</div>
+          )}
           {visibleColumns.includes('progress') && (
             <div className="w-14 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground text-center">%</div>
           )}
+          {visibleColumns.includes('status') && (
+            <div className="w-28 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Status</div>
+          )}
+          {visibleColumns.includes('priority') && (
+            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Priority</div>
+          )}
+          {visibleColumns.includes('assignee') && (
+            <div className="w-32 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Assignee</div>
+          )}
           {visibleColumns.includes('resources') && (
             <div className="w-32 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Resources</div>
+          )}
+          {visibleColumns.includes('phase') && (
+            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Phase</div>
+          )}
+          {visibleColumns.includes('category') && (
+            <div className="w-24 flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground">Category</div>
           )}
           <div className="flex-1 flex">
             {filteredDates.map((date, i) => (

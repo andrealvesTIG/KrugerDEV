@@ -5,10 +5,10 @@ import { db } from "../db";
 import { users, passwordResetTokens, magicLinkTokens } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import crypto from "crypto";
-import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail } from "../services/email";
-import { lookupCompanyByEmail } from "../services/companyLookup";
+import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail, sendEmailVerificationEmail } from "../services/email";
 import { ensureUserOrganization } from "../services/onboarding";
 import { storage } from "../storage";
+import { lookupCompanyByEmail } from "../services/companyLookup";
 
 const PgSession = connectPgSimple(session);
 
@@ -36,6 +36,53 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
       resolve(key === derivedKey.toString("hex"));
     });
   });
+}
+
+async function verifyTurnstileToken(token: string): Promise<boolean> {
+  try {
+    const secretKey = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA";
+    
+    const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        secret: secretKey,
+        response: token,
+      }),
+    });
+
+    const data = await response.json();
+    return data.success === true;
+  } catch (error) {
+    console.error("Turnstile verification error:", error);
+    return false;
+  }
+}
+
+interface HoneypotData {
+  honeypot1?: string;
+  honeypot2?: string;
+  formLoadTime?: number;
+}
+
+function verifyHoneypot(data: HoneypotData): { valid: boolean; error?: string } {
+  if (data.honeypot1 || data.honeypot2) {
+    console.log("Honeypot triggered - bot detected");
+    return { valid: false, error: "Invalid submission detected" };
+  }
+  
+  if (data.formLoadTime) {
+    const submissionTime = Date.now();
+    const timeElapsed = submissionTime - data.formLoadTime;
+    const minimumTimeMs = 2000;
+    
+    if (timeElapsed < minimumTimeMs) {
+      console.log(`Form submitted too quickly: ${timeElapsed}ms (minimum: ${minimumTimeMs}ms)`);
+      return { valid: false, error: "Please take your time filling out the form" };
+    }
+  }
+  
+  return { valid: true };
 }
 
 export function getSession() {
@@ -69,11 +116,56 @@ export async function setupAuth(app: Express) {
   // NOTE: Session middleware is already set up by Replit Auth
   // We only register the email/password auth endpoints here
 
+  // Cloudflare Turnstile verification endpoint
+  app.post("/api/auth/verify-turnstile", async (req, res) => {
+    try {
+      const { token } = req.body;
+
+      if (!token) {
+        return res.status(400).json({ success: false, message: "Missing verification token" });
+      }
+
+      const secretKey = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA";
+      
+      const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          secret: secretKey,
+          response: token,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        res.json({ success: true });
+      } else {
+        console.log("Turnstile verification failed:", data["error-codes"]);
+        res.status(400).json({ success: false, message: "Verification failed" });
+      }
+    } catch (error) {
+      console.error("Turnstile verification error:", error);
+      res.status(500).json({ success: false, message: "Verification service error" });
+    }
+  });
+
   // Register new user
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, firstName, lastName } = req.body;
+      const { email, password, firstName, lastName, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
       console.log("Register attempt for:", email);
+
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -105,6 +197,10 @@ export async function setupAuth(app: Express) {
         console.error("Company lookup error:", err);
       }
 
+      // Generate email verification token
+      const emailVerificationToken = crypto.randomBytes(32).toString("hex");
+      const emailVerificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
       const [newUser] = await db.insert(users).values({
         email,
         passwordHash,
@@ -114,12 +210,41 @@ export async function setupAuth(app: Express) {
         onboardingCompleted: false,
         detectedCompany,
         detectedIndustry,
+        emailVerified: false,
+        emailVerificationToken,
+        emailVerificationExpiry,
       }).returning();
 
       console.log("User created:", newUser.id);
 
+      // Send email verification
+      const appUrl = process.env.APP_URL 
+        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'https://fridayreport.ai');
+      const verifyEmailUrl = `${appUrl}/verify-email?token=${emailVerificationToken}`;
+      
+      const emailSent = await sendEmailVerificationEmail(email, verifyEmailUrl);
+      if (!emailSent) {
+        console.log(`\n===== EMAIL VERIFICATION LINK =====`);
+        console.log(`Email: ${email}`);
+        console.log(`Verify URL: ${verifyEmailUrl}`);
+        console.log(`Expires: ${emailVerificationExpiry.toISOString()}`);
+        console.log(`===================================\n`);
+      }
+
+      // Track organization creation for onboarding
+      let organizationCreated = false;
+      let organizationId: number | null = null;
+      let organizationName: string | null = null;
+
       try {
         const orgResult = await ensureUserOrganization(newUser.id, email);
+        organizationCreated = orgResult.created === true;
+        if (orgResult.organization) {
+          organizationId = orgResult.organization.id;
+          organizationName = orgResult.organization.name;
+        }
         if (orgResult.created) {
           console.log(`Auto-created org for new user: ${email}`);
         }
@@ -183,7 +308,13 @@ export async function setupAuth(app: Express) {
 
       const { passwordHash: _, ...userWithoutPassword } = newUser;
       console.log("Sending response for user:", newUser.id);
-      return res.json(userWithoutPassword);
+      return res.json({
+        ...userWithoutPassword,
+        isNewUser: true,
+        organizationCreated,
+        organizationId,
+        organizationName,
+      });
     } catch (error) {
       console.error("Registration error:", error);
       return res.status(500).json({ message: "Registration failed" });
@@ -193,8 +324,19 @@ export async function setupAuth(app: Express) {
   // Login
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
       console.log("Login attempt for:", email);
+
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
@@ -290,7 +432,18 @@ export async function setupAuth(app: Express) {
   // Request password reset
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
+
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
@@ -375,7 +528,12 @@ export async function setupAuth(app: Express) {
   // Reset password
   app.post("/api/auth/reset-password", async (req, res) => {
     try {
-      const { token, password } = req.body;
+      const { token, password, turnstileToken } = req.body;
+
+      // Verify Turnstile token server-side
+      if (!turnstileToken || !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!token || !password) {
         return res.status(400).json({ message: "Token and password are required" });
@@ -422,8 +580,19 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/magic-link/request", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
       console.log("Magic link request for:", email);
+
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
@@ -548,27 +717,26 @@ export async function setupAuth(app: Express) {
         });
       }
 
-      // Lookup company info from email domain
+      // Use domain name as default company name (skip AI lookup to avoid incorrect results)
+      const emailDomain = magicToken.email.split('@')[1] || '';
+      const domainParts = emailDomain.split('.');
       let detectedCompany: string | null = null;
-      let detectedIndustry: string | null = null;
       
-      try {
-        const companyInfo = await lookupCompanyByEmail(magicToken.email);
-        if (!companyInfo.isPersonalEmail && companyInfo.companyName) {
-          detectedCompany = companyInfo.companyName;
-          detectedIndustry = companyInfo.industry;
-        }
-      } catch (err) {
-        console.error("Company lookup error:", err);
+      if (domainParts.length > 0 && domainParts[0]) {
+        // Format domain name nicely: "saltyfreedomusa" -> "Saltyfreedomusa"
+        const name = domainParts[0];
+        detectedCompany = name.charAt(0).toUpperCase() + name.slice(1);
       }
 
       // Create the user (passwordless - no password hash)
+      // emailVerified is true for passwordless signups since they verified via the magic link
       const [newUser] = await db.insert(users).values({
         email: magicToken.email,
         firstName: magicToken.email.split('@')[0], // Default name from email
         detectedCompany,
-        detectedIndustry,
+        detectedIndustry: null,
         onboardingCompleted: false,
+        emailVerified: true,
       }).returning();
 
       console.log("User created via magic link:", newUser.id);
@@ -619,8 +787,19 @@ export async function setupAuth(app: Express) {
   // Passwordless authentication - request (handles both new and existing users)
   app.post("/api/auth/passwordless/request", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
       console.log("Passwordless auth request for:", email);
+
+      // Verify honeypot (bot protection without external service)
+      const honeypotCheck = verifyHoneypot({ honeypot1, honeypot2, formLoadTime });
+      if (!honeypotCheck.valid) {
+        return res.status(400).json({ message: honeypotCheck.error || "Invalid submission" });
+      }
+
+      // Also verify Turnstile token if provided (optional additional protection)
+      if (turnstileToken && !(await verifyTurnstileToken(turnstileToken))) {
+        return res.status(400).json({ message: "Security verification failed. Please try again." });
+      }
 
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
@@ -697,7 +876,8 @@ export async function setupAuth(app: Express) {
 
       res.json({ 
         message: "Check your email for a link to continue.",
-        success: true
+        success: true,
+        userExists: !!existingUser
       });
     } catch (error) {
       console.error("Passwordless auth request error:", error);
@@ -773,6 +953,298 @@ export async function setupAuth(app: Express) {
     } catch (error) {
       console.error("Passwordless sign-in verify error:", error);
       res.status(500).json({ message: "Failed to verify sign-in link" });
+    }
+  });
+
+  // Verify email address
+  app.get("/api/auth/verify-email", async (req, res) => {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "Invalid token", valid: false });
+      }
+
+      // Find user with this verification token
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.emailVerificationToken, token))
+        .limit(1);
+
+      if (!user) {
+        return res.status(400).json({ message: "Invalid verification link", valid: false });
+      }
+
+      // Check if token is expired
+      if (user.emailVerificationExpiry && new Date() > new Date(user.emailVerificationExpiry)) {
+        return res.status(400).json({ message: "Verification link has expired", valid: false, expired: true });
+      }
+
+      // Mark email as verified and clear token
+      await db.update(users)
+        .set({ 
+          emailVerified: true, 
+          emailVerificationToken: null, 
+          emailVerificationExpiry: null 
+        })
+        .where(eq(users.id, user.id));
+
+      console.log("Email verified for user:", user.id);
+
+      res.json({ 
+        success: true, 
+        message: "Email verified successfully",
+        valid: true
+      });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      res.status(500).json({ message: "Failed to verify email", valid: false });
+    }
+  });
+
+  // Resend verification email
+  app.post("/api/auth/resend-verification", async (req, res) => {
+    try {
+      // User must be logged in
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+      
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      if (user.emailVerified) {
+        return res.json({ message: "Email is already verified", alreadyVerified: true });
+      }
+
+      // Generate new verification token
+      const emailVerificationToken = crypto.randomBytes(32).toString("hex");
+      const emailVerificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      await db.update(users)
+        .set({ emailVerificationToken, emailVerificationExpiry })
+        .where(eq(users.id, user.id));
+
+      // Send verification email
+      const appUrl = process.env.APP_URL 
+        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'https://fridayreport.ai');
+      const verifyEmailUrl = `${appUrl}/verify-email?token=${emailVerificationToken}`;
+      
+      const emailSent = await sendEmailVerificationEmail(user.email, verifyEmailUrl);
+      
+      if (!emailSent) {
+        console.log(`\n===== EMAIL VERIFICATION LINK =====`);
+        console.log(`Email: ${user.email}`);
+        console.log(`Verify URL: ${verifyEmailUrl}`);
+        console.log(`Expires: ${emailVerificationExpiry.toISOString()}`);
+        console.log(`===================================\n`);
+      }
+
+      res.json({ success: true, message: "Verification email sent" });
+    } catch (error) {
+      console.error("Resend verification error:", error);
+      res.status(500).json({ message: "Failed to resend verification email" });
+    }
+  });
+
+  // Resource invite verification - handles magic link from resource invitation
+  // Supports auto-signup: if user doesn't have an account, one is created automatically
+  app.get("/api/auth/resource-invite/verify", async (req, res) => {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ message: "Invalid token" });
+      }
+
+      // Find the magic link token
+      const [magicToken] = await db
+        .select()
+        .from(magicLinkTokens)
+        .where(
+          and(
+            eq(magicLinkTokens.token, token),
+            gt(magicLinkTokens.expiresAt, new Date())
+          )
+        )
+        .limit(1);
+
+      if (!magicToken) {
+        return res.status(400).json({ 
+          message: "Invalid or expired invitation link. Please ask for a new invitation.",
+          expired: true
+        });
+      }
+
+      // Verify this is a resource_invite token
+      if (magicToken.type !== "resource_invite") {
+        return res.status(400).json({ 
+          message: "Invalid invitation link type."
+        });
+      }
+
+      // Check if already used
+      if (magicToken.usedAt) {
+        return res.status(400).json({
+          message: "This invitation link has already been used.",
+          alreadyUsed: true
+        });
+      }
+
+      // Parse metadata
+      let metadata: { organizationId?: number; resourceId?: number; projectId?: number; taskId?: number } = {};
+      try {
+        if (magicToken.metadata) {
+          metadata = JSON.parse(magicToken.metadata);
+        }
+      } catch (e) {
+        console.error("Failed to parse magic link metadata:", e);
+      }
+
+      // Import storage functions
+      const { storage } = await import("../storage");
+      const { organizationInvites } = await import("@shared/schema");
+
+      // Check if user with this email already exists
+      const [existingUser] = await db.select().from(users).where(eq(users.email, magicToken.email.toLowerCase())).limit(1);
+      
+      let currentUser = existingUser;
+      let isNewUser = false;
+      
+      if (!existingUser) {
+        // Create a new user account automatically
+        const emailParts = magicToken.email.split('@');
+        const localPart = emailParts[0];
+        
+        // Extract first and last name from email if possible
+        let firstName = localPart;
+        let lastName = "";
+        if (localPart.includes('.')) {
+          const nameParts = localPart.split('.');
+          firstName = nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1);
+          lastName = nameParts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+        } else if (localPart.includes('_')) {
+          const nameParts = localPart.split('_');
+          firstName = nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1);
+          lastName = nameParts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+        } else {
+          firstName = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+        }
+        
+        // Generate a unique user ID
+        const userId = crypto.randomUUID();
+        
+        // Create the user - they're auto-verified since they clicked the magic link
+        const [newUser] = await db.insert(users).values({
+          id: userId,
+          email: magicToken.email.toLowerCase(),
+          firstName,
+          lastName,
+          role: "user",
+          emailVerified: true, // Auto-verified via magic link
+          onboardingCompleted: false,
+        }).returning();
+        
+        currentUser = newUser;
+        isNewUser = true;
+        console.log(`Auto-created user account for ${magicToken.email} via resource invite`);
+      } else if (req.session.userId && req.session.userId !== existingUser.id) {
+        // User is logged in with a different account
+        return res.status(400).json({
+          message: `This invitation was sent to ${magicToken.email}. Please sign out and sign in with that email, or use a different browser.`,
+          emailMismatch: true
+        });
+      }
+
+      // Log the user in by setting their session
+      req.session.userId = currentUser.id;
+      
+      // Get organization info and add user
+      let organizationName = "the team";
+      if (metadata.organizationId) {
+        const org = await storage.getOrganization(metadata.organizationId);
+        if (org) {
+          organizationName = org.name;
+          
+          // Add user to organization if not already a member
+          // Resource invites get team_member role (restricted visibility)
+          const members = await storage.getOrganizationMembers(metadata.organizationId);
+          const isAlreadyMember = members.some(m => m.userId === currentUser.id);
+          
+          if (!isAlreadyMember) {
+            await storage.addOrganizationMember({
+              organizationId: metadata.organizationId,
+              userId: currentUser.id,
+              role: "team_member"
+            });
+            console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId} as team_member`);
+          }
+          
+          // Update any pending invites to accepted
+          await db.update(organizationInvites)
+            .set({ status: "accepted", acceptedAt: new Date() })
+            .where(
+              and(
+                eq(organizationInvites.organizationId, metadata.organizationId),
+                eq(organizationInvites.email, currentUser.email?.toLowerCase() || ""),
+                eq(organizationInvites.status, "pending")
+              )
+            );
+        }
+      }
+
+      // Link the resource to the user and update invited project access
+      if (metadata.resourceId) {
+        const resource = await storage.getResource(metadata.resourceId);
+        if (resource) {
+          const updates: any = {};
+          
+          // Link user to resource if not already linked
+          if (!resource.userId) {
+            updates.userId = currentUser.id;
+            updates.firstName = currentUser.firstName;
+            updates.lastName = currentUser.lastName;
+          }
+          
+          // Add project to invitedProjectIds if provided in invite metadata
+          if (metadata.projectId) {
+            const existingProjectIds = resource.invitedProjectIds || [];
+            if (!existingProjectIds.includes(metadata.projectId)) {
+              updates.invitedProjectIds = [...existingProjectIds, metadata.projectId];
+            }
+          }
+          
+          if (Object.keys(updates).length > 0) {
+            await storage.updateResource(metadata.resourceId, updates);
+            console.log(`Updated resource ${metadata.resourceId}: linked to user ${currentUser.id}, invited projects: ${updates.invitedProjectIds || resource.invitedProjectIds}`);
+          }
+        }
+      }
+
+      // Mark token as used
+      await db.update(magicLinkTokens)
+        .set({ usedAt: new Date() })
+        .where(eq(magicLinkTokens.id, magicToken.id));
+
+      console.log(`Resource invite accepted for user: ${currentUser.id} (new user: ${isNewUser})`);
+
+      res.json({ 
+        success: true,
+        message: isNewUser 
+          ? `Welcome to ${organizationName}! Your account has been created and you're now signed in.`
+          : `Welcome to ${organizationName}! You can now view your project assignments.`,
+        organizationName,
+        isNewUser
+      });
+    } catch (error) {
+      console.error("Resource invite verification error:", error);
+      res.status(500).json({ message: "Failed to verify invitation" });
     }
   });
 }

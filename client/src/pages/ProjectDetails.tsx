@@ -12,6 +12,7 @@ import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinanc
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
+import { ResourceSelector } from "@/components/ResourceSelector";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,6 +38,7 @@ import { z } from "zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
 import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
@@ -369,13 +371,13 @@ export default function ProjectDetails() {
             <ProjectSummaryTab project={project} onUpdate={updateProject} />
           </TabsContent>
           <TabsContent value="tasks">
-            <TasksTab projectId={project.id} />
+            <TasksTab projectId={project.id} projectName={project.name} />
           </TabsContent>
           <TabsContent value="risks">
-            <RisksTab projectId={project.id} />
+            <RisksTab projectId={project.id} projectName={project.name} />
           </TabsContent>
           <TabsContent value="issues">
-            <IssuesTab projectId={project.id} />
+            <IssuesTab projectId={project.id} projectName={project.name} />
           </TabsContent>
           <TabsContent value="financials">
             <FinancialsTab projectId={project.id} />
@@ -722,6 +724,22 @@ function ProjectTimeline({
 function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any }) {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const { currentOrganization } = useOrganization();
+  const { data: resources } = useResources(currentOrganization?.id ?? null);
+  const [managerResourceId, setManagerResourceId] = useState<number | null>(null);
+  
+  useEffect(() => {
+    if (project.managerResourceId) {
+      setManagerResourceId(project.managerResourceId);
+    } else if (project.managerId && resources) {
+      const managerResource = resources.find(r => r.userId === project.managerId);
+      if (managerResource) {
+        setManagerResourceId(managerResource.id);
+      }
+    }
+  }, [project.managerResourceId, project.managerId, resources]);
+
+  const managerResource = resources?.find(r => r.id === managerResourceId);
   
   const form = useForm({
     defaultValues: {
@@ -738,7 +756,13 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
   });
 
   const onSubmit = (data: any) => {
-    onUpdate({ id: project.id, ...data }, {
+    const selectedResource = resources?.find(r => r.id === managerResourceId);
+    onUpdate({ 
+      id: project.id, 
+      ...data,
+      managerId: selectedResource?.userId || null,
+      managerResourceId: managerResourceId 
+    }, {
       onSuccess: () => {
         toast({ title: "Success", description: "Project updated successfully" });
         setIsEditing(false);
@@ -828,6 +852,17 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 <Label>Completion (%)</Label>
                 <Input type="number" min="0" max="100" {...form.register("completionPercentage", { valueAsNumber: true })} />
               </div>
+              <div className="space-y-2">
+                <ResourceSelector
+                  organizationId={currentOrganization?.id || null}
+                  selectedResourceId={managerResourceId}
+                  onSelectionChange={setManagerResourceId}
+                  label="Project Manager"
+                  placeholder="Select project manager..."
+                  projectId={project.id}
+                  projectName={project.name}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
@@ -875,6 +910,33 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               <div>
                 <Label className="text-xs text-muted-foreground">End Date</Label>
                 <p className="font-medium">{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'Not set'}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-500">Project Manager</Label>
+                <ResourceSelector
+                  organizationId={currentOrganization?.id ?? 0}
+                  projectId={project.id}
+                  selectedResourceId={managerResourceId}
+                  onSelectionChange={(resourceId) => {
+                    const selectedResource = resources?.find(r => r.id === resourceId);
+                    setManagerResourceId(resourceId);
+                    onUpdate({ 
+                      id: project.id, 
+                      managerId: selectedResource?.userId || null,
+                      managerResourceId: resourceId 
+                    }, {
+                      onSuccess: () => {
+                        toast({ title: "Project Manager updated" });
+                        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+                      },
+                      onError: () => {
+                        toast({ title: "Error", description: "Failed to update project manager", variant: "destructive" });
+                      }
+                    });
+                  }}
+                  placeholder="Click to assign manager"
+                  className="mt-1"
+                />
               </div>
             </div>
             <div>
@@ -1223,7 +1285,7 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
   );
 }
 
-function RisksTab({ projectId }: { projectId: number }) {
+function RisksTab({ projectId, projectName }: { projectId: number; projectName?: string }) {
   const { currentOrganization } = useOrganization();
   const { data: risks, isLoading } = useRisks(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -1402,6 +1464,8 @@ function RisksTab({ projectId }: { projectId: number }) {
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
                 label="Assigned Resources"
+                projectId={projectId}
+                projectName={projectName}
               />
               <DialogFooter className="gap-2">
                 {editingRisk && (
@@ -1598,7 +1662,7 @@ const taskStatusColors = {
   "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
-function TasksTab({ projectId }: { projectId: number }) {
+function TasksTab({ projectId, projectName }: { projectId: number; projectName?: string }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading } = useTasks(projectId);
   const createTask = useCreateTask();
@@ -1616,6 +1680,8 @@ function TasksTab({ projectId }: { projectId: number }) {
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
+  const lastInitializedTaskId = useRef<number | null>(null);
+  const inviteAssignedRef = useRef(false);
   
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
@@ -1629,9 +1695,12 @@ function TasksTab({ projectId }: { projectId: number }) {
     );
   }, [tasks, searchQuery]);
   
+  // Only sync selectedResourceIds from server on INITIAL load for a task
+  // Don't overwrite user changes when query refetches
   useEffect(() => {
-    if (taskAssignments && editingTask) {
+    if (taskAssignments && editingTask && lastInitializedTaskId.current !== editingTask.id) {
       setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      lastInitializedTaskId.current = editingTask.id;
     }
   }, [taskAssignments, editingTask]);
 
@@ -1697,6 +1766,7 @@ function TasksTab({ projectId }: { projectId: number }) {
     setDurationDays(7);
     setIsMilestone(false);
     setSelectedResourceIds([]);
+    lastInitializedTaskId.current = null; // Reset to allow re-initialization
     form.reset({
       projectId: projectId,
       name: "",
@@ -1728,7 +1798,11 @@ function TasksTab({ projectId }: { projectId: number }) {
     if (editingTask) {
       updateTask.mutate({ id: editingTask.id, ...taskData }, {
         onSuccess: () => {
-          updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+          // Only update resources if invite didn't already handle it
+          if (!inviteAssignedRef.current) {
+            updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+          }
+          inviteAssignedRef.current = false;
           toast({ title: "Success", description: "Task updated" });
           setIsDialogOpen(false);
           setEditingTask(null);
@@ -1876,6 +1950,11 @@ function TasksTab({ projectId }: { projectId: number }) {
                   selectedResourceIds={selectedResourceIds}
                   onSelectionChange={setSelectedResourceIds}
                   label="Assigned Resources"
+                  projectId={projectId}
+                  projectName={projectName}
+                  taskId={editingTask?.id}
+                  taskName={editingTask?.name}
+                  onInviteAssigned={() => { inviteAssignedRef.current = true; }}
                 />
               )}
               <div className="flex items-center space-x-2">
@@ -1951,6 +2030,7 @@ function TasksTab({ projectId }: { projectId: number }) {
           onTaskClick={openEditDialog}
           projectId={projectId}
           organizationId={currentOrganization?.id || null}
+          projectName={projectName}
           onCreateTask={(name) => {
             createTask.mutate({
               projectId,
@@ -2016,6 +2096,7 @@ function ProjectGanttTaskRow({
   hasChildren,
   isCollapsed,
   onToggleCollapse,
+  projectName,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -2028,17 +2109,35 @@ function ProjectGanttTaskRow({
   hasChildren: boolean;
   isCollapsed: boolean;
   onToggleCollapse: (taskId: number) => void;
+  projectName?: string;
 }) {
-  const { data: taskAssignments } = useTaskResourceAssignments(task.id);
+  const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const [isEditingResources, setIsEditingResources] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const inviteAssignedRef = useRef(false);
 
   useEffect(() => {
-    if (taskAssignments) {
+    if (taskAssignments && !hasInitialized) {
+      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      setHasInitialized(true);
+    }
+  }, [taskAssignments, hasInitialized]);
+
+  // Reset initialization when dialog closes
+  useEffect(() => {
+    if (!isEditingResources) {
+      setHasInitialized(false);
+    }
+  }, [isEditingResources]);
+
+  // Re-sync when dialog opens and assignments are available
+  useEffect(() => {
+    if (isEditingResources && taskAssignments) {
       setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
     }
-  }, [taskAssignments]);
+  }, [isEditingResources, taskAssignments]);
 
   const hasValidDates = task.startDate && task.endDate;
   const start = hasValidDates ? parseISO(task.startDate) : null;
@@ -2060,7 +2159,10 @@ function ProjectGanttTaskRow({
     : "—";
 
   const handleSaveResources = () => {
-    updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    if (!inviteAssignedRef.current) {
+      updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    }
+    inviteAssignedRef.current = false;
     setIsEditingResources(false);
   };
 
@@ -2156,36 +2258,52 @@ function ProjectGanttTaskRow({
         </div>
       )}
       {visibleColumns.includes('resources') && (
-        <div 
-          className={cn(
-            "w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
-            !hasChildren && "cursor-pointer hover:bg-muted/50"
-          )}
-          onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
-        >
-          {hasChildren ? (
-            <span className="text-xs text-muted-foreground/70 italic" title="Summary tasks cannot have resource assignments">Summary</span>
-          ) : isEditingResources ? (
-            <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-              <ResourceAssignment
-                organizationId={organizationId}
-                selectedResourceIds={selectedResourceIds}
-                onSelectionChange={setSelectedResourceIds}
-                label=""
-              />
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={handleSaveResources}>
-                  <Check className="h-3 w-3" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setIsEditingResources(false)}>
-                  <X className="h-3 w-3" />
-                </Button>
+        <>
+          <div 
+            className={cn(
+              "w-32 flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
+              !hasChildren && "cursor-pointer hover:bg-muted/50"
+            )}
+            onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
+          >
+            {hasChildren ? (
+              <span className="text-xs text-muted-foreground/70 italic" title="Summary tasks cannot have resource assignments">Summary</span>
+            ) : (
+              <span className="truncate block">{assignedNames}</span>
+            )}
+          </div>
+          <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Assign Resources</DialogTitle>
+                <DialogDescription>
+                  Assign team members to task "{task.name}"
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <ResourceAssignment
+                  organizationId={organizationId}
+                  selectedResourceIds={selectedResourceIds}
+                  onSelectionChange={setSelectedResourceIds}
+                  label="Assigned Resources"
+                  projectId={task.projectId}
+                  projectName={projectName}
+                  taskId={task.id}
+                  taskName={task.name}
+                  onInviteAssigned={() => { inviteAssignedRef.current = true; }}
+                />
               </div>
-            </div>
-          ) : (
-            <span className="truncate block">{assignedNames}</span>
-          )}
-        </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditingResources(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveResources} disabled={assignmentsLoading}>
+                  {assignmentsLoading ? "Loading..." : "Save"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
       <div className="flex-1 relative p-2 min-h-[40px]">
         {hasValidDates ? (
@@ -2233,12 +2351,14 @@ function ProjectGanttView({
   projectId, 
   organizationId,
   onCreateTask,
+  projectName,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
   projectId: number;
   organizationId: number | null;
   onCreateTask: (name: string) => void;
+  projectName?: string;
 }) {
   const updateTask = useUpdateTask();
   const { toast } = useToast();
@@ -2577,6 +2697,7 @@ function ProjectGanttView({
                   hasChildren={!!taskHasChildren[task.id]}
                   isCollapsed={collapsedTasks.has(task.id)}
                   onToggleCollapse={toggleCollapse}
+                  projectName={projectName}
                 />
               ))
             )}
@@ -2879,7 +3000,7 @@ const typeIcons = {
   Question: HelpCircle,
 };
 
-function IssuesTab({ projectId }: { projectId: number }) {
+function IssuesTab({ projectId, projectName }: { projectId: number; projectName?: string }) {
   const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useIssues(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -3042,6 +3163,8 @@ function IssuesTab({ projectId }: { projectId: number }) {
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
                 label="Assigned Resources"
+                projectId={projectId}
+                projectName={projectName}
               />
               <DialogFooter className="gap-2">
                 {editingIssue && (

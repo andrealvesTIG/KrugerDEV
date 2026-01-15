@@ -9,7 +9,8 @@ import { setupMicrosoftAuth } from "./auth/microsoftAuth";
 import { setupProjectOnlineRoutes } from "./services/projectOnline";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users, usageEvents, meters } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects } from "@shared/schema";
+import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
@@ -37,6 +38,20 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only MPP, XML, and CSV files are allowed'));
+    }
+  }
+});
+
+// Configure multer for image uploads (avatars, logos)
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit for images
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'));
     }
   }
 });
@@ -911,6 +926,199 @@ async function userHasAnyOrgAccess(userId: string | undefined): Promise<boolean>
   return membership.length > 0;
 }
 
+// Helper to check if user's email is verified (required for creating records)
+async function requireEmailVerified(userId: string | undefined): Promise<{ verified: boolean; error?: string }> {
+  if (!userId) return { verified: false, error: 'Authentication required' };
+  
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user) return { verified: false, error: 'User not found' };
+  
+  if (!user.emailVerified) {
+    return { 
+      verified: false, 
+      error: 'Email verification required. Please verify your email before creating new items.' 
+    };
+  }
+  
+  return { verified: true };
+}
+
+// Helper to get user's membership role in an organization
+async function getUserOrgRole(userId: string | undefined, orgId: number): Promise<string | null> {
+  if (!userId) return null;
+  const membership = await storage.getUserOrganizations(userId);
+  const orgMembership = membership.find(m => m.organizationId === orgId);
+  return orgMembership?.role || null;
+}
+
+// Helper to check if user is a team_member in any of their orgs
+async function isTeamMemberInOrg(userId: string | undefined, orgId: number): Promise<boolean> {
+  const role = await getUserOrgRole(userId, orgId);
+  return role === 'team_member';
+}
+
+// Helper to get user's resource IDs in an organization
+async function getUserResourceIds(userId: string, orgId: number): Promise<number[]> {
+  const orgResources = await storage.getResources(orgId);
+  return orgResources.filter(r => r.userId === userId).map(r => r.id);
+}
+
+// Cached result type for team member access data
+interface TeamMemberAccessData {
+  resourceIds: number[];
+  projectIds: Set<number>;
+  invitedProjectIds: Set<number>;  // Projects explicitly invited to (see all items)
+  taskIds: Set<number>;
+}
+
+// Helper to get all access data for a team_member in one pass (more efficient)
+async function getTeamMemberAccessData(userId: string, orgId: number): Promise<TeamMemberAccessData> {
+  const orgResources = await storage.getResources(orgId);
+  const userResources = orgResources.filter(r => r.userId === userId);
+  const resourceIds = userResources.map(r => r.id);
+  
+  if (resourceIds.length === 0) {
+    return { resourceIds: [], projectIds: new Set(), invitedProjectIds: new Set(), taskIds: new Set() };
+  }
+  
+  // Get all projects in org to filter tasks
+  const allProjects = await storage.getProjects();
+  const orgProjectIds = new Set(allProjects.filter(p => p.organizationId === orgId).map(p => p.id));
+  
+  // Get all tasks (without org filter - the function doesn't support it)
+  const allTasks = await storage.getAllTasks();
+  const orgTasks = allTasks.filter(t => orgProjectIds.has(t.projectId));
+  
+  // Batch get all task resource assignments
+  const projectIdSet = new Set<number>();
+  const taskIdSet = new Set<number>();
+  
+  // Include projects the resource was explicitly invited to
+  const invitedProjectIdSet = new Set<number>();
+  for (const resource of userResources) {
+    if (resource.invitedProjectIds && Array.isArray(resource.invitedProjectIds)) {
+      for (const projectId of resource.invitedProjectIds) {
+        if (orgProjectIds.has(projectId)) {
+          projectIdSet.add(projectId);
+          invitedProjectIdSet.add(projectId);
+        }
+      }
+    }
+  }
+  
+  // Check assignments for each task, and include ALL tasks from invited projects
+  for (const task of orgTasks) {
+    // If task is in an invited project, include it
+    if (invitedProjectIdSet.has(task.projectId)) {
+      taskIdSet.add(task.id);
+    } else {
+      // Otherwise, check if user is assigned to this task
+      const assignments = await storage.getTaskResourceAssignments(task.id);
+      if (assignments.some(a => resourceIds.includes(a.resourceId))) {
+        projectIdSet.add(task.projectId);
+        taskIdSet.add(task.id);
+      }
+    }
+  }
+  
+  return { resourceIds, projectIds: projectIdSet, invitedProjectIds: invitedProjectIdSet, taskIds: taskIdSet };
+}
+
+// Helper to get project IDs that a team_member has access to (assigned via resources)
+async function getTeamMemberProjectIds(userId: string, orgId: number): Promise<number[]> {
+  const accessData = await getTeamMemberAccessData(userId, orgId);
+  return Array.from(accessData.projectIds);
+}
+
+// Helper to get task IDs that a team_member has access to (directly assigned)
+async function getTeamMemberTaskIds(userId: string, orgId: number): Promise<number[]> {
+  const accessData = await getTeamMemberAccessData(userId, orgId);
+  return Array.from(accessData.taskIds);
+}
+
+// Helper to get risk IDs that a team_member has access to (assigned or in invited projects)
+async function getTeamMemberRiskIds(userId: string, orgId: number): Promise<number[]> {
+  const accessData = await getTeamMemberAccessData(userId, orgId);
+  if (accessData.resourceIds.length === 0) return [];
+  
+  const riskIdSet = new Set<number>();
+  
+  for (const projectId of accessData.projectIds) {
+    const risks = await storage.getRisks(projectId);
+    for (const risk of risks) {
+      // If project is in invited projects, include all risks
+      if (accessData.invitedProjectIds.has(projectId)) {
+        riskIdSet.add(risk.id);
+      } else {
+        // Otherwise, check if user is assigned to this risk
+        const assignments = await storage.getRiskResourceAssignments(risk.id);
+        if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
+          riskIdSet.add(risk.id);
+        }
+      }
+    }
+  }
+  
+  return Array.from(riskIdSet);
+}
+
+// Helper to get issue IDs that a team_member has access to (assigned or in invited projects)
+async function getTeamMemberIssueIds(userId: string, orgId: number): Promise<number[]> {
+  const accessData = await getTeamMemberAccessData(userId, orgId);
+  if (accessData.resourceIds.length === 0) return [];
+  
+  const issueIdSet = new Set<number>();
+  
+  for (const projectId of accessData.projectIds) {
+    const issues = await storage.getIssues(projectId);
+    for (const issue of issues) {
+      // If project is in invited projects, include all issues
+      if (accessData.invitedProjectIds.has(projectId)) {
+        issueIdSet.add(issue.id);
+      } else {
+        // Otherwise, check if user is assigned to this issue
+        const assignments = await storage.getIssueResourceAssignments(issue.id);
+        if (assignments.some(a => accessData.resourceIds.includes(a.resourceId))) {
+          issueIdSet.add(issue.id);
+        }
+      }
+    }
+  }
+  
+  return Array.from(issueIdSet);
+}
+
+// Helper to get portfolio IDs that a team_member has access to
+// Team members can see portfolios if:
+// 1. They created the portfolio (createdBy matches their userId)
+// 2. Their resource ID is in the portfolio's teamMemberResourceIds array
+async function getTeamMemberPortfolioIds(userId: string, orgId: number): Promise<number[]> {
+  const portfolios = await storage.getPortfolios(orgId);
+  const userResourceIds = await getUserResourceIds(userId, orgId);
+  
+  const accessiblePortfolioIds: number[] = [];
+  
+  for (const portfolio of portfolios) {
+    // Check if user created this portfolio
+    if (portfolio.createdBy === userId) {
+      accessiblePortfolioIds.push(portfolio.id);
+      continue;
+    }
+    
+    // Check if user's resource ID is in teamMemberResourceIds
+    if (portfolio.teamMemberResourceIds && Array.isArray(portfolio.teamMemberResourceIds)) {
+      const hasAccess = userResourceIds.some(resourceId => 
+        portfolio.teamMemberResourceIds!.includes(resourceId)
+      );
+      if (hasAccess) {
+        accessiblePortfolioIds.push(portfolio.id);
+      }
+    }
+  }
+  
+  return accessiblePortfolioIds;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -946,6 +1154,55 @@ export async function registerRoutes(
       res.json(updated);
     } catch (err) {
       res.status(500).json({ message: 'Failed to update user role' });
+    }
+  });
+
+  // Deactivate user (super admin only)
+  app.put('/api/users/:userId/deactivate', async (req, res) => {
+    try {
+      const currentUser = req.user as User | undefined;
+      if (!currentUser || currentUser.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
+      // Prevent self-deactivation
+      if (currentUser.id === req.params.userId) {
+        return res.status(400).json({ message: 'Cannot deactivate yourself' });
+      }
+      
+      const [updated] = await db.update(users)
+        .set({ 
+          deactivatedAt: new Date(),
+          deactivatedBy: currentUser.id
+        })
+        .where(eq(users.id, req.params.userId))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error('Failed to deactivate user:', err);
+      res.status(500).json({ message: 'Failed to deactivate user' });
+    }
+  });
+
+  // Reactivate user (super admin only)
+  app.put('/api/users/:userId/reactivate', async (req, res) => {
+    try {
+      const currentUser = req.user as User | undefined;
+      if (!currentUser || currentUser.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
+      const [updated] = await db.update(users)
+        .set({ 
+          deactivatedAt: null,
+          deactivatedBy: null
+        })
+        .where(eq(users.id, req.params.userId))
+        .returning();
+      res.json(updated);
+    } catch (err) {
+      console.error('Failed to reactivate user:', err);
+      res.status(500).json({ message: 'Failed to reactivate user' });
     }
   });
 
@@ -1005,7 +1262,7 @@ export async function registerRoutes(
     }
   });
 
-  // Request avatar upload URL
+  // Request avatar upload URL (legacy - may fail due to sidecar issues)
   app.post('/api/users/:userId/avatar/upload-url', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
@@ -1023,6 +1280,81 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error generating avatar upload URL:", err);
       res.status(500).json({ message: 'Failed to generate upload URL' });
+    }
+  });
+
+  // Direct avatar upload (uses local storage as fallback when object storage is unavailable)
+  app.post('/api/users/:userId/avatar/upload', imageUpload.single('avatar'), async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId || userId !== req.params.userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      // Generate unique filename
+      const ext = req.file.mimetype.split('/')[1] || 'jpg';
+      const filename = `avatar-${userId}-${Date.now()}.${ext}`;
+      
+      // Try object storage first, fall back to local storage
+      let servePath: string;
+      
+      try {
+        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+        
+        if (privateObjectDir) {
+          const objectPath = `${privateObjectDir}/uploads/${filename}`;
+          const pathParts = objectPath.split('/');
+          const bucketName = pathParts[1];
+          const objectName = pathParts.slice(2).join('/');
+
+          const bucket = objectStorageClient.bucket(bucketName);
+          const file = bucket.file(objectName);
+          
+          await file.save(req.file.buffer, {
+            contentType: req.file.mimetype,
+            metadata: {
+              originalName: req.file.originalname,
+              uploadedBy: userId,
+            },
+          });
+
+          servePath = `/objects/uploads/${filename}`;
+        } else {
+          throw new Error('Object storage not configured');
+        }
+      } catch (objectStorageError) {
+        // Fall back to local file storage
+        console.log("Object storage unavailable, using local storage:", (objectStorageError as Error).message);
+        
+        const avatarDir = path.join(process.cwd(), 'public', 'avatars');
+        if (!fs.existsSync(avatarDir)) {
+          fs.mkdirSync(avatarDir, { recursive: true });
+        }
+        
+        const filePath = path.join(avatarDir, filename);
+        fs.writeFileSync(filePath, req.file.buffer);
+        
+        servePath = `/avatars/${filename}`;
+      }
+      
+      // Update user avatar in database
+      await db.update(users)
+        .set({ 
+          avatarUrl: servePath, 
+          profileImageUrl: servePath,
+          updatedAt: new Date() 
+        })
+        .where(eq(users.id, req.params.userId));
+
+      res.json({ objectPath: servePath, success: true });
+    } catch (err) {
+      console.error("Error uploading avatar:", err);
+      res.status(500).json({ message: 'Failed to upload avatar' });
     }
   });
 
@@ -1083,6 +1415,14 @@ export async function registerRoutes(
 
   app.post('/api/organizations', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating (except during onboarding where org is created by system)
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       const { name, slug, description, ownerId } = req.body;
       const org = await storage.createOrganization({ name, slug, description, ownerId });
       // Add creator as org_admin
@@ -1206,6 +1546,36 @@ export async function registerRoutes(
     }
   });
 
+  // --- Get all task resource assignments for organization (for grouping) ---
+  app.get('/api/organizations/:id/task-assignments', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      // Get all task assignments for projects in this organization
+      const assignments = await db
+        .select({
+          taskId: taskResourceAssignments.taskId,
+          resourceId: taskResourceAssignments.resourceId,
+          resourceName: resources.displayName,
+        })
+        .from(taskResourceAssignments)
+        .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
+        .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .where(eq(projects.organizationId, orgId));
+      
+      res.json(assignments);
+    } catch (err) {
+      console.error('Error fetching task assignments:', err);
+      res.json([]);
+    }
+  });
+
   // --- Organization Members ---
   app.get('/api/organizations/:id/members', async (req, res) => {
     try {
@@ -1326,6 +1696,12 @@ export async function registerRoutes(
     try {
       const orgId = Number(req.params.id);
       const currentUserId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(currentUserId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
       
       if (!await userHasOrgAccess(currentUserId, orgId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
@@ -1930,9 +2306,25 @@ export async function registerRoutes(
     const portfolios = await storage.getPortfolios(requestedOrgId);
     
     // Filter portfolios to only those in accessible orgs
-    const filteredPortfolios = portfolios.filter(p => 
+    let filteredPortfolios = portfolios.filter(p => 
       p.organizationId === null || accessibleOrgIds.includes(p.organizationId)
     );
+    
+    // For team_member role, further filter to only portfolios they created or are assigned to
+    if (userId) {
+      const userMemberships = await storage.getUserOrganizations(userId);
+      
+      for (const membership of userMemberships) {
+        if (membership.role === 'team_member') {
+          const teamMemberPortfolioIds = await getTeamMemberPortfolioIds(userId, membership.organizationId);
+          filteredPortfolios = filteredPortfolios.filter(p => 
+            // Keep portfolios not in this org, or portfolios team member has access to
+            p.organizationId !== membership.organizationId || 
+            teamMemberPortfolioIds.includes(p.id)
+          );
+        }
+      }
+    }
     
     res.json(filteredPortfolios);
   });
@@ -1949,6 +2341,12 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       // Check portfolio limit before creation
       if (userId) {
         const { checkAndEnforceLimit, METER_CODES, recordResourceUsage } = await import("./services/billing");
@@ -1963,7 +2361,14 @@ export async function registerRoutes(
       }
       
       const input = api.portfolios.create.input.parse(req.body);
-      const portfolio = await storage.createPortfolio(input);
+      
+      // Set createdBy to current user for team member access control
+      const portfolioData = {
+        ...input,
+        createdBy: userId || undefined,
+      };
+      
+      const portfolio = await storage.createPortfolio(portfolioData);
       
       // Record usage after successful creation
       if (userId) {
@@ -2111,9 +2516,23 @@ export async function registerRoutes(
     const projects = await storage.getProjects(requestedOrgId, portfolioId);
     
     // Filter projects to only those in accessible orgs
-    const filteredProjects = projects.filter(p => 
+    let filteredProjects = projects.filter(p => 
       p.organizationId === null || accessibleOrgIds.includes(p.organizationId)
     );
+    
+    // For team_member role, further filter to only assigned projects
+    // Apply filtering across all orgs where user has team_member role
+    if (userId) {
+      const userOrgs = await storage.getUserOrganizations(userId);
+      for (const membership of userOrgs) {
+        if (membership.role === 'team_member') {
+          const assignedProjectIds = await getTeamMemberProjectIds(userId, membership.organizationId);
+          filteredProjects = filteredProjects.filter(p => 
+            p.organizationId !== membership.organizationId || assignedProjectIds.includes(p.id)
+          );
+        }
+      }
+    }
     
     res.json(filteredProjects);
   });
@@ -2127,6 +2546,12 @@ export async function registerRoutes(
   app.post(api.projects.create.path, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
       
       // Check project limit before creation
       if (userId) {
@@ -2166,6 +2591,26 @@ export async function registerRoutes(
         previousValues: null,
         newValues: JSON.stringify(project),
       });
+      
+      // If the creator is a team_member, auto-add this project to their invitedProjectIds
+      // so they can see the project they just created
+      if (userId && project.organizationId) {
+        const userOrgs = await storage.getUserOrganizations(userId);
+        const membership = userOrgs.find(m => m.organizationId === project.organizationId);
+        if (membership?.role === 'team_member') {
+          // Find the user's resource in this org
+          const resources = await storage.getResources(project.organizationId);
+          const userResource = resources.find(r => r.userId === userId);
+          if (userResource) {
+            const currentInvites = userResource.invitedProjectIds || [];
+            if (!currentInvites.includes(project.id)) {
+              await storage.updateResource(userResource.id, {
+                invitedProjectIds: [...currentInvites, project.id]
+              });
+            }
+          }
+        }
+      }
       
       res.status(201).json(project);
     } catch (err) {
@@ -3065,6 +3510,12 @@ Generated by FridayReport.AI
     try {
       const userId = getUserIdFromRequest(req);
       
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       // Check credit limit before creation
       if (userId) {
         const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
@@ -3197,6 +3648,14 @@ Generated by FridayReport.AI
 
   app.post(api.milestones.create.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       const input = api.milestones.create.input.parse(req.body);
       const milestone = await storage.createMilestone(input);
       res.status(201).json(milestone);
@@ -3240,22 +3699,61 @@ Generated by FridayReport.AI
     // Get user's accessible org IDs and filter issues by project's organization
     const accessibleOrgIds = await getUserOrgIds(userId);
     const allIssues = await storage.getAllIssues();
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
     
     // Get all projects to determine which issues belong to accessible orgs
     const allProjects = await storage.getProjects();
-    const accessibleProjectIds = new Set(
-      allProjects
-        .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
-        .map(p => p.id)
-    );
+    let accessibleProjectIds: Set<number>;
     
-    const filteredIssues = allIssues.filter(issue => accessibleProjectIds.has(issue.projectId));
+    if (organizationId !== null) {
+      // Verify user has access to this organization
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.json([]);
+      }
+      accessibleProjectIds = new Set(
+        allProjects
+          .filter(p => p.organizationId === organizationId)
+          .map(p => p.id)
+      );
+    } else {
+      accessibleProjectIds = new Set(
+        allProjects
+          .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
+          .map(p => p.id)
+      );
+    }
+    
+    let filteredIssues = allIssues.filter(issue => accessibleProjectIds.has(issue.projectId));
+    
+    // For team_member role, further filter to only assigned issues
+    // Apply filtering across all orgs where user has team_member role
+    if (userId) {
+      const userOrgs = await storage.getUserOrganizations(userId);
+      for (const membership of userOrgs) {
+        if (membership.role === 'team_member') {
+          const assignedIssueIds = await getTeamMemberIssueIds(userId, membership.organizationId);
+          // Get projects in this org to filter issues
+          const orgProjects = allProjects.filter(p => p.organizationId === membership.organizationId);
+          const orgProjectIds = new Set(orgProjects.map(p => p.id));
+          filteredIssues = filteredIssues.filter(i => 
+            !orgProjectIds.has(i.projectId) || assignedIssueIds.includes(i.id)
+          );
+        }
+      }
+    }
+    
     res.json(filteredIssues);
   });
 
   app.post(api.issues.create.path, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
       
       // Check credit limit before creation
       if (userId) {
@@ -3484,17 +3982,52 @@ Generated by FridayReport.AI
     
     // Get user's accessible org IDs and filter tasks by project's organization
     const accessibleOrgIds = await getUserOrgIds(userId);
-    const allTasks = await storage.getAllTasks();
+    
+    // Support filtering by organization
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
     
     // Get all projects to determine which tasks belong to accessible orgs
     const allProjects = await storage.getProjects();
-    const accessibleProjectIds = new Set(
-      allProjects
-        .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
-        .map(p => p.id)
-    );
     
-    const filteredTasks = allTasks.filter(task => accessibleProjectIds.has(task.projectId));
+    // Filter projects by organization if specified, otherwise use all accessible
+    let accessibleProjectIds: Set<number>;
+    if (organizationId !== null) {
+      // Verify user has access to this organization
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.json({ tasks: [], total: 0, hasMore: false });
+      }
+      accessibleProjectIds = new Set(
+        allProjects
+          .filter(p => p.organizationId === organizationId)
+          .map(p => p.id)
+      );
+    } else {
+      accessibleProjectIds = new Set(
+        allProjects
+          .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
+          .map(p => p.id)
+      );
+    }
+    
+    const allTasks = await storage.getAllTasks();
+    let filteredTasks = allTasks.filter(task => accessibleProjectIds.has(task.projectId));
+    
+    // For team_member role, further filter to only assigned tasks
+    // Apply filtering across all orgs where user has team_member role
+    if (userId) {
+      const userOrgs = await storage.getUserOrganizations(userId);
+      for (const membership of userOrgs) {
+        if (membership.role === 'team_member') {
+          const assignedTaskIds = await getTeamMemberTaskIds(userId, membership.organizationId);
+          // Get projects in this org to filter tasks
+          const orgProjects = allProjects.filter(p => p.organizationId === membership.organizationId);
+          const orgProjectIds = new Set(orgProjects.map(p => p.id));
+          filteredTasks = filteredTasks.filter(t => 
+            !orgProjectIds.has(t.projectId) || assignedTaskIds.includes(t.id)
+          );
+        }
+      }
+    }
     
     // Support pagination via query params
     const limit = parseInt(req.query.limit as string) || 100;
@@ -3509,6 +4042,12 @@ Generated by FridayReport.AI
   app.post(api.tasks.create.path, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
       
       // Check task limit before creation
       if (userId) {
@@ -3661,6 +4200,14 @@ Generated by FridayReport.AI
 
   app.post(api.tasks.addDependency.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       const taskId = Number(req.params.id);
       const { dependsOnTaskId } = api.tasks.addDependency.input.parse(req.body);
       
@@ -3705,6 +4252,14 @@ Generated by FridayReport.AI
 
   app.post(api.projectFinancials.create.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       const projectId = Number(req.params.projectId);
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
@@ -3855,6 +4410,12 @@ Generated by FridayReport.AI
     try {
       const userId = getUserIdFromRequest(req);
       
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       // Check credit limit before creation
       if (userId) {
         const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
@@ -3910,6 +4471,170 @@ Generated by FridayReport.AI
     if (!existing) return res.status(404).json({ message: "Resource not found" });
     await storage.deleteResource(id);
     res.status(204).send();
+  });
+
+  // Create a resource with invitation - creates resource, org invite, and sends magic link email
+  app.post('/api/resources/invite', async (req, res) => {
+    try {
+      const currentUserId = getUserIdFromRequest(req);
+      if (!currentUserId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(currentUserId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
+      const { organizationId, email, projectId, taskId, taskName, projectName } = req.body;
+      
+      if (!organizationId || !email) {
+        return res.status(400).json({ message: "organizationId and email are required" });
+      }
+      
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!normalizedEmail.includes('@')) {
+        return res.status(400).json({ message: "Invalid email format" });
+      }
+      
+      // Check if user has access to this organization
+      if (!await userHasOrgAccess(currentUserId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      // Check credit limit for resources
+      const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
+      const limitCheck = await checkAndEnforceLimit(currentUserId, METER_CODES.RESOURCES);
+      if (!limitCheck.allowed) {
+        return res.status(403).json({ 
+          message: limitCheck.error || "Credits limit reached. Please upgrade your plan.",
+          limitExceeded: true,
+          resourceType: "resources"
+        });
+      }
+      
+      // Check if resource already exists with this email
+      const existingResources = await storage.getResources(organizationId);
+      const existingResource = existingResources.find(r => r.email?.toLowerCase() === normalizedEmail);
+      if (existingResource) {
+        return res.status(409).json({ 
+          message: "A resource with this email already exists in this organization",
+          existingResourceId: existingResource.id
+        });
+      }
+      
+      // Get organization info
+      const org = await storage.getOrganization(organizationId);
+      if (!org) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+      
+      // Create the resource with email as display name
+      const displayName = normalizedEmail.split('@')[0];
+      const resource = await storage.createResource({
+        organizationId,
+        displayName: displayName.charAt(0).toUpperCase() + displayName.slice(1),
+        email: normalizedEmail,
+        isActive: true,
+        invitedProjectIds: projectId ? [projectId] : null,
+      });
+      
+      // Check if there's already an organization invite for this email
+      const existingInvites = await storage.getOrganizationInvites(organizationId);
+      const pendingInvite = existingInvites.find(i => 
+        i.email.toLowerCase() === normalizedEmail && i.status === 'pending'
+      );
+      
+      // Create organization invite if not already pending
+      if (!pendingInvite) {
+        await storage.createOrganizationInvite({
+          organizationId,
+          email: normalizedEmail,
+          role: 'member',
+          invitedBy: currentUserId,
+          status: 'pending'
+        });
+      }
+      
+      // Generate a magic link token for resource invitation (7 day expiry)
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      
+      // Store the token
+      await db.insert(magicLinkTokens).values({
+        email: normalizedEmail,
+        token,
+        type: "resource_invite",
+        expiresAt,
+        metadata: JSON.stringify({
+          organizationId,
+          resourceId: resource.id,
+          projectId: projectId || null,
+          taskId: taskId || null
+        })
+      });
+      
+      // Get inviter info
+      const inviter = await storage.getUser(currentUserId);
+      const inviterName = inviter 
+        ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') || inviter.email || 'An administrator'
+        : 'An administrator';
+      
+      // Build magic link URL
+      const appUrl = process.env.APP_URL 
+        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'https://fridayreport.ai');
+      const magicLinkUrl = `${appUrl}/resource-invite?token=${token}`;
+      
+      // Send the resource invitation email
+      const { sendResourceInviteEmail } = await import("./services/email");
+      const emailSent = await sendResourceInviteEmail(
+        normalizedEmail,
+        org.name,
+        inviterName,
+        projectName || null,
+        taskName || null,
+        magicLinkUrl
+      );
+      
+      if (!emailSent) {
+        console.log(`\n===== RESOURCE INVITATION LINK =====`);
+        console.log(`Email: ${normalizedEmail}`);
+        console.log(`Organization: ${org.name}`);
+        console.log(`Invite URL: ${magicLinkUrl}`);
+        console.log(`Expires: ${expiresAt.toISOString()}`);
+        console.log(`====================================\n`);
+      }
+      
+      // Assign the new resource to the task if taskId was provided
+      if (taskId) {
+        try {
+          // Get current assignments and add the new resource
+          const currentAssignments = await storage.getTaskResourceAssignments(taskId);
+          const currentResourceIds = currentAssignments.map(a => a.resourceId);
+          if (!currentResourceIds.includes(resource.id)) {
+            await storage.updateTaskResourceAssignments(taskId, [...currentResourceIds, resource.id]);
+            console.log(`Assigned resource ${resource.id} to task ${taskId}`);
+          }
+        } catch (assignErr) {
+          console.error("Failed to auto-assign resource to task:", assignErr);
+          // Don't fail the whole request if assignment fails
+        }
+      }
+      
+      res.status(201).json({
+        resource,
+        inviteSent: true,
+        taskAssigned: !!taskId,
+        message: `Resource created and invitation sent to ${normalizedEmail}`
+      });
+    } catch (err) {
+      console.error("Error creating resource with invitation:", err);
+      res.status(500).json({ message: "Error creating resource with invitation" });
+    }
   });
 
   // ==================== TASK RESOURCE ASSIGNMENTS ====================
@@ -4116,6 +4841,17 @@ Generated by FridayReport.AI
       let template = industry ? industryTemplates[industry as IndustryType] : null;
       
       if (customIndustry && !template) {
+        // Check AI credits limit before making the API call
+        const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
+        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS);
+        if (!limitCheck.allowed) {
+          return res.status(403).json({ 
+            message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
+            limitExceeded: true,
+            resourceType: "ai_runs"
+          });
+        }
+        
         const OpenAI = (await import('openai')).default;
         const openai = new OpenAI({
           apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -4172,6 +4908,10 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             response_format: { type: "json_object" },
             max_completion_tokens: 4000,
           });
+          
+          // Track AI usage and deduct credits after successful API call
+          const { recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
+          await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_demo_${Date.now()}`);
           
           const content = response.choices[0]?.message?.content || '{}';
           template = JSON.parse(content);
@@ -4492,6 +5232,13 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   app.post('/api/project-intakes', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       const { 
         organizationId, projectName, submitterId, description, fundingSource,
         portfolioId, businessUnit, programName
@@ -4707,6 +5454,13 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   app.post('/api/mpp-imports/upload', upload.single('file'), async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       const organizationId = Number(req.body.organizationId);
       
       if (isNaN(organizationId)) {
@@ -4943,6 +5697,12 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
       
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       // Check change request limit before creation
       if (userId) {
         const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
@@ -5030,6 +5790,12 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
       
       // Check document limit before creation
       if (userId) {
@@ -5124,6 +5890,12 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
       }
       
       // Verify project exists and user has access
@@ -5423,6 +6195,12 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         return res.status(401).json({ message: "Authentication required" });
       }
       
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
       // Check AI runs limit before making the API call
       const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
       const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS);
@@ -5509,14 +6287,9 @@ Return ONLY valid JSON, no markdown or explanations.`;
         max_tokens: 4000,
       });
       
-      // Track AI usage after successful API call
-      const { recordUsageOnly } = await import("./services/usage-tracker");
-      await recordUsageOnly({
-        userId,
-        meterCode: "ai_runs",
-        units: 1,
-        action: "ai_generate_project",
-      });
+      // Track AI usage and deduct credits after successful API call
+      const { recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
+      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_project_${Date.now()}`);
       
       const content = response.choices[0]?.message?.content;
       if (!content) {
@@ -6357,6 +7130,121 @@ Return ONLY valid JSON, no markdown or explanations.`;
     } catch (error) {
       console.error("Error fetching usage:", error);
       res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
+  // Get AI operation credit costs for frontend warnings
+  app.get('/api/billing/ai-costs', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const { billingProvider, getAllCreditCosts } = await import("./services/billing");
+      const { meters, planMeterRules, usageRollups } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      
+      // Get user's subscription
+      let subscription = await billingProvider.getSubscriptionForUser(userId);
+      if (!subscription) {
+        subscription = await billingProvider.createSubscription({ planCode: "FREE", userId });
+      }
+      
+      // Get credits meter info
+      const [creditsMeter] = await db.select().from(meters).where(eq(meters.code, "credits")).limit(1);
+      
+      // Get credits limits from plan
+      let creditsIncluded = 0;
+      let creditsHardCap: number | null = null;
+      let hasQuotaRule = false; // Track whether a quota rule exists at all
+      
+      if (creditsMeter) {
+        const rules = await db
+          .select()
+          .from(planMeterRules)
+          .where(
+            and(
+              eq(planMeterRules.planId, subscription.planId),
+              eq(planMeterRules.meterId, creditsMeter.id)
+            )
+          );
+        
+        const quotaRule = rules.find((r) => r.ruleType === "INCLUDED_QUOTA");
+        const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
+        
+        hasQuotaRule = quotaRule !== undefined;
+        creditsIncluded = quotaRule?.includedUnitsMonthly || 0;
+        creditsHardCap = hardCapRule?.hardCapUnits ?? null;
+      }
+      
+      // Get current usage
+      const cycle = await billingProvider.getOrCreateBillingCycle(subscription.id);
+      let creditsUsedHundredths = 0;
+      
+      if (creditsMeter) {
+        const [rollup] = await db
+          .select()
+          .from(usageRollups)
+          .where(
+            and(
+              eq(usageRollups.billingCycleId, cycle.id),
+              eq(usageRollups.meterId, creditsMeter.id)
+            )
+          )
+          .limit(1);
+        
+        creditsUsedHundredths = rollup?.usedUnits || 0;
+      }
+      
+      const creditsUsed = creditsUsedHundredths / 100;
+      
+      // Determine if there's an explicit limit set
+      // If hardCap exists, use it; if quota rule exists (even with 0 units), use quota; if neither, limit is null (unlimited)
+      const hasExplicitLimit = creditsHardCap !== null || hasQuotaRule;
+      const limit = hasExplicitLimit ? (creditsHardCap !== null ? creditsHardCap : creditsIncluded) : null;
+      const remaining = limit !== null ? Math.max(0, limit - creditsUsed) : null;
+      
+      // Get all credit costs
+      const creditCosts = await getAllCreditCosts();
+      
+      // Find AI-related credit costs - check for specific resource types
+      const aiRunCost = creditCosts.find(c => c.resourceType === 'ai_run');
+      const aiProjectCost = creditCosts.find(c => c.resourceType === 'ai_project_generation');
+      const aiDemoCost = creditCosts.find(c => c.resourceType === 'ai_demo_generation');
+      
+      // Use specific costs if available, fallback to ai_run, then default 3 credits
+      const projectCreditCost = aiProjectCost ? aiProjectCost.creditCost / 100 : 
+                                 aiRunCost ? aiRunCost.creditCost / 100 : 3;
+      const demoCreditCost = aiDemoCost ? aiDemoCost.creditCost / 100 : 
+                              aiRunCost ? aiRunCost.creditCost / 100 : 3;
+      
+      // If remaining is null (unlimited), user can afford; otherwise check balance
+      const canAffordProject = remaining === null || remaining >= projectCreditCost;
+      const canAffordDemo = remaining === null || remaining >= demoCreditCost;
+      
+      res.json({
+        aiProjectGeneration: {
+          creditCost: projectCreditCost,
+          description: "Generate a project with AI",
+          canAfford: canAffordProject,
+        },
+        aiDemoDataGeneration: {
+          creditCost: demoCreditCost,
+          description: "Generate demo data with custom industry using AI",
+          canAfford: canAffordDemo,
+        },
+        credits: {
+          used: creditsUsed,
+          remaining: remaining,
+          limit: limit,
+        },
+        // Overall flag for backward compat - true if can afford at least one operation
+        canAfford: canAffordProject || canAffordDemo,
+      });
+    } catch (error) {
+      console.error("Error fetching AI costs:", error);
+      res.status(500).json({ message: "Failed to fetch AI costs" });
     }
   });
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { usePortfolios, useCreatePortfolio, useUpdatePortfolio } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
+import { useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,15 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List } from "lucide-react";
+import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List, Users, X } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertPortfolioSchema } from "@shared/schema";
-import type { InsertPortfolio, Portfolio } from "@shared/schema";
+import type { InsertPortfolio, Portfolio, Resource } from "@shared/schema";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
@@ -418,7 +422,11 @@ function CreatePortfolioDialog({ open, onOpenChange, organizationId }: { open: b
 
 function EditPortfolioDialog({ portfolio, open, onOpenChange }: { portfolio: Portfolio | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
   const updateMutation = useUpdatePortfolio();
+  const { data: resources } = useResources(currentOrganization?.id ?? null);
+  const [teamMemberResourceIds, setTeamMemberResourceIds] = useState<number[]>([]);
+  const [teamMemberOpen, setTeamMemberOpen] = useState(false);
   
   const form = useForm<InsertPortfolio>({
     resolver: zodResolver(insertPortfolioSchema),
@@ -432,12 +440,27 @@ function EditPortfolioDialog({ portfolio, open, onOpenChange }: { portfolio: Por
         description: portfolio.description || "",
         strategy: portfolio.strategy || "",
       });
+      setTeamMemberResourceIds(portfolio.teamMemberResourceIds || []);
     }
   }, [portfolio, form]);
 
+  const toggleResource = (resourceId: number) => {
+    setTeamMemberResourceIds(prev => 
+      prev.includes(resourceId) 
+        ? prev.filter(id => id !== resourceId)
+        : [...prev, resourceId]
+    );
+  };
+
+  const removeResource = (resourceId: number) => {
+    setTeamMemberResourceIds(prev => prev.filter(id => id !== resourceId));
+  };
+
+  const selectedResources = resources?.filter(r => teamMemberResourceIds.includes(r.id)) || [];
+
   const onSubmit = (data: InsertPortfolio) => {
     if (!portfolio) return;
-    updateMutation.mutate({ id: portfolio.id, ...data }, {
+    updateMutation.mutate({ id: portfolio.id, ...data, teamMemberResourceIds }, {
       onSuccess: () => {
         toast({ title: "Success", description: "Portfolio updated successfully" });
         onOpenChange(false);
@@ -450,7 +473,7 @@ function EditPortfolioDialog({ portfolio, open, onOpenChange }: { portfolio: Por
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Edit Portfolio</DialogTitle>
         </DialogHeader>
@@ -468,6 +491,71 @@ function EditPortfolioDialog({ portfolio, open, onOpenChange }: { portfolio: Por
             <Label htmlFor="edit-strategy">Strategic Alignment</Label>
             <Textarea id="edit-strategy" {...form.register("strategy")} placeholder="How does this align with company goals?" data-testid="input-edit-portfolio-strategy" />
           </div>
+          
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Team Members
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Team members added here can see this portfolio even if they have restricted visibility.
+            </p>
+            
+            <div className="flex flex-wrap gap-1 mb-2">
+              {selectedResources.map(resource => (
+                <Badge key={resource.id} variant="secondary" className="pl-2 pr-1 py-1">
+                  {resource.firstName} {resource.lastName}
+                  <button
+                    type="button"
+                    onClick={() => removeResource(resource.id)}
+                    className="ml-1 hover:bg-muted rounded-full p-0.5"
+                    data-testid={`button-remove-team-member-${resource.id}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            
+            <Popover open={teamMemberOpen} onOpenChange={setTeamMemberOpen}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="w-full justify-start" data-testid="button-add-team-members">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Team Members
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search team members..." />
+                  <CommandList>
+                    <CommandEmpty>No resources found.</CommandEmpty>
+                    <CommandGroup>
+                      {resources?.map(resource => (
+                        <CommandItem
+                          key={resource.id}
+                          onSelect={() => toggleResource(resource.id)}
+                          className="cursor-pointer"
+                          data-testid={`option-team-member-${resource.id}`}
+                        >
+                          <Checkbox
+                            checked={teamMemberResourceIds.includes(resource.id)}
+                            className="mr-2"
+                          />
+                          <div className="flex flex-col">
+                            <span>{resource.firstName} {resource.lastName}</span>
+                            {resource.email && (
+                              <span className="text-xs text-muted-foreground">{resource.email}</span>
+                            )}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+
           <DialogFooter>
             <Button type="submit" disabled={updateMutation.isPending} data-testid="button-update-portfolio">
               {updateMutation.isPending ? "Saving..." : "Save Changes"}

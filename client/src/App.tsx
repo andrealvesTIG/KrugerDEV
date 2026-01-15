@@ -35,7 +35,11 @@ import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import VerifyMagicLinkPage from "@/pages/VerifyMagicLinkPage";
 import SignInPage from "@/pages/SignInPage";
+import SignInWaitingPage from "@/pages/SignInWaitingPage";
 import VerifySignInPage from "@/pages/VerifySignInPage";
+import VerifyEmailPage from "@/pages/VerifyEmailPage";
+import ResourceInvitePage from "@/pages/ResourceInvitePage";
+import OnboardingPage from "@/pages/OnboardingPage";
 import Embed from "@/pages/Embed";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyStatement from "@/pages/PrivacyStatement";
@@ -94,12 +98,22 @@ function GuardedRoute({ path, component: Component, moduleKey }: { path: string;
   );
 }
 
+// Redirect from /dashboard to / using proper Wouter navigation
+function DashboardRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation("/");
+  }, [setLocation]);
+  return null;
+}
+
 function Router() {
   return (
     <AppLayout>
       <OnboardingDialog />
       <Switch>
         <GuardedRoute path="/" component={Dashboard} moduleKey="dashboard" />
+        <Route path="/dashboard"><DashboardRedirect /></Route>
         <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
         <Route path="/portfolios/:id">
           <ModuleGuard moduleKey="portfolios"><PortfolioDetails /></ModuleGuard>
@@ -144,8 +158,12 @@ function App() {
               <Route path="/auth" component={AuthPage} />
               <Route path="/auth/verify" component={VerifyMagicLinkPage} />
               <Route path="/signin" component={SignInPage} />
+              <Route path="/signin/waiting" component={SignInWaitingPage} />
               <Route path="/signin/verify" component={VerifySignInPage} />
               <Route path="/reset-password" component={ResetPasswordPage} />
+              <Route path="/verify-email" component={VerifyEmailPage} />
+              <Route path="/resource-invite" component={ResourceInvitePage} />
+              <Route path="/onboarding" component={OnboardingPage} />
               <Route>
                 <Router />
               </Route>
