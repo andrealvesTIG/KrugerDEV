@@ -46,6 +46,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useLocation } from "wouter";
 
 const PROJECT_STAGES = [
@@ -3498,106 +3499,113 @@ function ProjectGanttView({
             </Button>
           </div>
         </div>
-        {/* Split-pane Gantt layout */}
-        <div className="flex h-[500px] text-[11px]">
-          {/* Left pane: Metadata columns (scrollable horizontally) */}
-          <div className="flex-shrink-0 border-r-2 border-primary/20 overflow-x-auto overflow-y-auto" style={{ maxWidth: '60%', minWidth: '300px' }}>
-            <div style={{ minWidth: `${columnsTotalWidth + 40}px` }}>
-              {/* Header row */}
-              <div className="flex border-b bg-muted/50 sticky top-0 z-10">
-                <div className="w-8 flex-shrink-0 border-r p-1"></div>
-                {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
-                  <div 
-                    key={col.id}
-                    className={cn(
-                      col.width, 
-                      "flex-shrink-0 border-r p-1 font-semibold text-[10px] text-foreground truncate",
-                      ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "text-center"
-                    )}
-                  >
-                    {col.label}
-                  </div>
-                ))}
-              </div>
-              {/* Task rows - metadata only */}
-              {visibleTasks.length === 0 && tasks.length === 0 ? (
-                <div className="py-6 text-center text-muted-foreground">
-                  No tasks yet. Add your first task below.
-                </div>
-              ) : (
-                visibleTasks.map(task => (
-                  <ProjectGanttTaskRowMeta
-                    key={task.id}
-                    task={task}
-                    onTaskClick={onTaskClick}
-                    visibleColumns={visibleColumns}
-                    organizationId={organizationId}
-                    onIndent={handleIndent}
-                    onOutdent={handleOutdent}
-                    hasChildren={!!taskHasChildren[task.id]}
-                    isCollapsed={collapsedTasks.has(task.id)}
-                    onToggleCollapse={toggleCollapse}
-                    projectName={projectName}
-                    onSetBaseline={handleSetBaseline}
-                    onClearBaseline={handleClearBaseline}
-                    onEditDependencies={handleEditDependencies}
-                  />
-                ))
-              )}
-              {/* Add task row */}
-              <div className="flex border-t bg-muted/20">
-                <div className="w-8 flex-shrink-0 border-r p-1" />
-                {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
-                  col.id === 'task' ? (
-                    <div key={col.id} className="w-40 flex-shrink-0 border-r p-1">
-                      <Input
-                        placeholder="Add task..."
-                        value={newTaskName}
-                        onChange={(e) => setNewTaskName(e.target.value)}
-                        onKeyDown={handleAddTask}
-                        className="h-6 text-[11px]"
-                        data-testid="input-new-task"
-                      />
+        {/* Split-pane Gantt layout with resizable panels */}
+        <ResizablePanelGroup direction="horizontal" className="h-[500px] text-[11px]">
+          {/* Left pane: Metadata columns (resizable + scrollable) */}
+          <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
+            <div className="h-full overflow-x-auto overflow-y-auto">
+              <div style={{ minWidth: `${columnsTotalWidth + 40}px` }}>
+                {/* Header row */}
+                <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+                  <div className="w-8 flex-shrink-0 border-r p-1"></div>
+                  {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
+                    <div 
+                      key={col.id}
+                      className={cn(
+                        col.width, 
+                        "flex-shrink-0 border-r p-1 font-semibold text-[10px] text-foreground truncate",
+                        ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "text-center"
+                      )}
+                    >
+                      {col.label}
                     </div>
-                  ) : (
-                    <div key={col.id} className={cn(col.width, "flex-shrink-0 border-r p-1")} />
-                  )
-                ))}
-              </div>
-            </div>
-          </div>
-          
-          {/* Right pane: Timeline (scrollable horizontally) */}
-          <div className="flex-1 overflow-x-auto overflow-y-auto">
-            <div style={{ minWidth: `${filteredDates.length * 60}px` }}>
-              {/* Timeline header */}
-              <div className="flex border-b bg-muted/50 sticky top-0 z-10">
-                {filteredDates.map((date, i) => (
-                  <div key={i} className={cn("flex-1 p-1 text-center text-[10px] font-medium text-muted-foreground border-l", columnWidth)}>
-                    {format(date, dateFormat)}
+                  ))}
+                </div>
+                {/* Task rows - metadata only */}
+                {visibleTasks.length === 0 && tasks.length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground">
+                    No tasks yet. Add your first task below.
                   </div>
-                ))}
+                ) : (
+                  visibleTasks.map(task => (
+                    <ProjectGanttTaskRowMeta
+                      key={task.id}
+                      task={task}
+                      onTaskClick={onTaskClick}
+                      visibleColumns={visibleColumns}
+                      organizationId={organizationId}
+                      onIndent={handleIndent}
+                      onOutdent={handleOutdent}
+                      hasChildren={!!taskHasChildren[task.id]}
+                      isCollapsed={collapsedTasks.has(task.id)}
+                      onToggleCollapse={toggleCollapse}
+                      projectName={projectName}
+                      onSetBaseline={handleSetBaseline}
+                      onClearBaseline={handleClearBaseline}
+                      onEditDependencies={handleEditDependencies}
+                    />
+                  ))
+                )}
+                {/* Add task row */}
+                <div className="flex border-t bg-muted/20">
+                  <div className="w-8 flex-shrink-0 border-r p-1" />
+                  {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
+                    col.id === 'task' ? (
+                      <div key={col.id} className="w-40 flex-shrink-0 border-r p-1">
+                        <Input
+                          placeholder="Add task..."
+                          value={newTaskName}
+                          onChange={(e) => setNewTaskName(e.target.value)}
+                          onKeyDown={handleAddTask}
+                          className="h-6 text-[11px]"
+                          data-testid="input-new-task"
+                        />
+                      </div>
+                    ) : (
+                      <div key={col.id} className={cn(col.width, "flex-shrink-0 border-r p-1")} />
+                    )
+                  ))}
+                </div>
               </div>
-              {/* Timeline bars */}
-              {visibleTasks.length === 0 && tasks.length === 0 ? (
-                <div className="h-[28px]" />
-              ) : (
-                visibleTasks.map(task => (
-                  <ProjectGanttTaskRowTimeline
-                    key={task.id}
-                    task={task}
-                    onTaskClick={onTaskClick}
-                    minDate={adjustedMinDate}
-                    maxDate={adjustedMaxDate}
-                    hasChildren={!!taskHasChildren[task.id]}
-                  />
-                ))
-              )}
-              {/* Empty row for add task alignment */}
-              <div className="h-[28px] border-t bg-muted/20" />
             </div>
-          </div>
-        </div>
+          </ResizablePanel>
+          
+          {/* Resizable handle with grip */}
+          <ResizableHandle withHandle />
+          
+          {/* Right pane: Timeline (resizable + scrollable) */}
+          <ResizablePanel defaultSize={50} minSize={20}>
+            <div className="h-full overflow-x-auto overflow-y-auto">
+              <div style={{ minWidth: `${filteredDates.length * 60}px` }}>
+                {/* Timeline header */}
+                <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+                  {filteredDates.map((date, i) => (
+                    <div key={i} className={cn("flex-1 p-1 text-center text-[10px] font-medium text-muted-foreground border-l", columnWidth)}>
+                      {format(date, dateFormat)}
+                    </div>
+                  ))}
+                </div>
+                {/* Timeline bars */}
+                {visibleTasks.length === 0 && tasks.length === 0 ? (
+                  <div className="h-[28px]" />
+                ) : (
+                  visibleTasks.map(task => (
+                    <ProjectGanttTaskRowTimeline
+                      key={task.id}
+                      task={task}
+                      onTaskClick={onTaskClick}
+                      minDate={adjustedMinDate}
+                      maxDate={adjustedMaxDate}
+                      hasChildren={!!taskHasChildren[task.id]}
+                    />
+                  ))
+                )}
+                {/* Empty row for add task alignment */}
+                <div className="h-[28px] border-t bg-muted/20" />
+              </div>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </CardContent>
 
       {/* Dependencies Dialog */}
