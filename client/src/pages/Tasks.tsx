@@ -1055,6 +1055,7 @@ function GanttTaskRow({
   hasChildren,
   isCollapsed,
   onToggleCollapse,
+  allowIndentation = true,
 }: { 
   task: Task; 
   projects: any[]; 
@@ -1068,6 +1069,7 @@ function GanttTaskRow({
   hasChildren: boolean;
   isCollapsed: boolean;
   onToggleCollapse: (taskId: number) => void;
+  allowIndentation?: boolean;
 }) {
   const { data: taskAssignments } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -1144,7 +1146,7 @@ function GanttTaskRow({
       className="flex border-b hover:bg-muted/30 transition-colors group"
       data-testid={`gantt-task-${task.id}`}
     >
-      {visibleColumns.includes('actions') && (
+      {visibleColumns.includes('actions') && allowIndentation && (
         <div className="w-10 flex-shrink-0 border-r p-1 flex items-center justify-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1690,7 +1692,7 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
       <div style={{ minWidth: `${columnsTotalWidth + 400}px` }}>
         {!embedded && zoomControls}
         <div className="flex border-b bg-muted/50 sticky top-0 z-10">
-          {visibleColumns.includes('actions') && (
+          {visibleColumns.includes('actions') && !embedded && (
             <div className="w-10 flex-shrink-0 border-r px-1 py-1"></div>
           )}
           {visibleColumns.includes('outlineLevel') && (
@@ -1755,6 +1757,7 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
             hasChildren={!!taskHasChildren[task.id]}
             isCollapsed={collapsedTasks.has(task.id)}
             onToggleCollapse={toggleCollapse}
+            allowIndentation={!embedded}
           />
         ))}
       </div>
