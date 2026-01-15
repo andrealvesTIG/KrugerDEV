@@ -3,7 +3,7 @@ import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
 import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory } from "@/hooks/use-risks";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
-import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
 import { useMilestones } from "@/hooks/use-milestones";
 import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useDeleteChangeRequest } from "@/hooks/use-change-requests";
 import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument, useDeleteProjectDocument } from "@/hooks/use-project-documents";
@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -1881,190 +1881,229 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
                 <Plus className="mr-2 h-4 w-4" /> Add Task
               </Button>
             </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
               <DialogDescription>
                 {editingTask ? "Modify the task details below." : "Fill in the details to create a new task."}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-              <div className="space-y-2">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
+              {/* Task Name - always visible at top */}
+              <div className="space-y-2 pb-3">
                 <Label>Task Name</Label>
                 <Input {...form.register("name")} data-testid="input-task-name" className={cn(form.formState.errors.name && "border-destructive")} />
                 {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
               </div>
-              <div className="grid grid-cols-3 gap-4 items-end">
-                <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <Input type="date" {...form.register("startDate")} data-testid="input-task-start" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Duration (days)</Label>
-                  <Input 
-                    type="number" 
-                    min="1" 
-                    max="365" 
-                    value={durationDays}
-                    onChange={(e) => handleDurationChange(Math.max(1, Number(e.target.value) || 1))}
-                    data-testid="input-task-duration" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>End Date</Label>
-                  <Input type="date" {...form.register("endDate")} data-testid="input-task-end" disabled className="bg-muted" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 items-end">
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Controller control={form.control} name="status" render={({field}) => (
-                    <Select onValueChange={field.onChange} value={field.value || "Not Started"}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Not Started">Not Started</SelectItem>
-                        <SelectItem value="In Progress">In Progress</SelectItem>
-                        <SelectItem value="Completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )} />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center justify-between">
-                    Progress
-                    <span className="text-muted-foreground text-xs font-normal">{form.watch("progress") || 0}%</span>
-                  </Label>
-                  <Controller control={form.control} name="progress" render={({field}) => (
-                    <div className="h-9 flex items-center">
-                      <Slider
-                        value={[field.value || 0]}
-                        onValueChange={(v) => field.onChange(v[0])}
-                        min={0}
-                        max={100}
-                        step={5}
-                        className="w-full"
-                        data-testid="slider-task-progress"
-                      />
-                    </div>
-                  )} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea {...form.register("description")} />
-              </div>
               
-              {/* Baseline Section */}
-              <div className="border-2 border-orange-200 dark:border-orange-800 rounded-md p-3 bg-orange-50/50 dark:bg-orange-950/30 space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <Label className="text-sm font-medium flex items-center gap-2">
-                      <CalendarIcon className="h-4 w-4 text-orange-600" />
-                      Baseline Dates
-                    </Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Track schedule variance against the original plan
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={setBaselineFromCurrentDates}
-                      data-testid="button-set-baseline"
-                    >
-                      Set Baseline
-                    </Button>
-                    {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={clearBaseline}
-                        data-testid="button-clear-baseline"
-                      >
-                        Clear
-                      </Button>
-                    )}
-                  </div>
-                </div>
+              {/* Tabbed content */}
+              <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
+                  <TabsTrigger value="schedule" className="text-xs">Schedule</TabsTrigger>
+                  <TabsTrigger value="resources" className="text-xs">Resources</TabsTrigger>
+                  <TabsTrigger value="dependencies" className="text-xs" disabled={!editingTask}>Dependencies</TabsTrigger>
+                </TabsList>
                 
-                {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Baseline Start</Label>
-                      <Controller 
-                        control={form.control} 
-                        name="baselineStartDate" 
-                        render={({field}) => (
-                          <Input 
-                            type="date" 
-                            className="h-8 text-sm"
-                            value={field.value || ""}
-                            onChange={(e) => field.onChange(e.target.value || null)}
-                            data-testid="input-baseline-start" 
-                          />
-                        )}
-                      />
+                <div className="flex-1 overflow-y-auto py-4 min-h-[280px]">
+                  {/* Details Tab */}
+                  <TabsContent value="details" className="mt-0 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Status</Label>
+                        <Controller control={form.control} name="status" render={({field}) => (
+                          <Select onValueChange={field.onChange} value={field.value || "Not Started"}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Not Started">Not Started</SelectItem>
+                              <SelectItem value="In Progress">In Progress</SelectItem>
+                              <SelectItem value="Completed">Completed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center justify-between">
+                          Progress
+                          <span className="text-muted-foreground text-xs font-normal">{form.watch("progress") || 0}%</span>
+                        </Label>
+                        <Controller control={form.control} name="progress" render={({field}) => (
+                          <div className="h-9 flex items-center">
+                            <Slider
+                              value={[field.value || 0]}
+                              onValueChange={(v) => field.onChange(v[0])}
+                              min={0}
+                              max={100}
+                              step={5}
+                              className="w-full"
+                              data-testid="slider-task-progress"
+                            />
+                          </div>
+                        )} />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Baseline End</Label>
-                      <Controller 
-                        control={form.control} 
-                        name="baselineEndDate" 
-                        render={({field}) => (
-                          <Input 
-                            type="date" 
-                            className="h-8 text-sm"
-                            value={field.value || ""}
-                            onChange={(e) => field.onChange(e.target.value || null)}
-                            data-testid="input-baseline-end" 
-                          />
-                        )}
-                      />
+                    <div className="space-y-2">
+                      <Label>Description</Label>
+                      <Textarea {...form.register("description")} className="min-h-[80px]" />
                     </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Only allow resource assignments for leaf tasks (tasks without children) */}
-              {editingTask && (() => {
-                const editLevel = editingTask.outlineLevel || 1;
-                const idx = tasks?.findIndex(x => x.id === editingTask.id) ?? -1;
-                const hasChildren = idx >= 0 && tasks && idx < tasks.length - 1 && ((tasks[idx + 1].outlineLevel || 1) > editLevel);
-                return hasChildren;
-              })() ? (
-                <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md flex items-center gap-2">
-                  <UserIcon className="h-4 w-4" />
-                  <span>Resource assignments are only available for leaf tasks. This is a summary task - dates and progress roll up from children.</span>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="isMilestone" 
+                        checked={isMilestone}
+                        onCheckedChange={(checked) => setIsMilestone(checked === true)}
+                        data-testid="checkbox-task-milestone"
+                      />
+                      <Label htmlFor="isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
+                        <MilestoneIcon className="h-4 w-4 text-primary" />
+                        Mark as Milestone
+                      </Label>
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Schedule Tab */}
+                  <TabsContent value="schedule" className="mt-0 space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Start Date</Label>
+                        <Input type="date" {...form.register("startDate")} data-testid="input-task-start" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Duration (days)</Label>
+                        <Input 
+                          type="number" 
+                          min="1" 
+                          max="365" 
+                          value={durationDays}
+                          onChange={(e) => handleDurationChange(Math.max(1, Number(e.target.value) || 1))}
+                          data-testid="input-task-duration" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>End Date</Label>
+                        <Input type="date" {...form.register("endDate")} data-testid="input-task-end" disabled className="bg-muted" />
+                      </div>
+                    </div>
+                    
+                    {/* Baseline Section */}
+                    <div className="border-2 border-orange-200 dark:border-orange-800 rounded-md p-3 bg-orange-50/50 dark:bg-orange-950/30 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <Label className="text-sm font-medium flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4 text-orange-600" />
+                            Baseline Dates
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Track schedule variance against the original plan
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={setBaselineFromCurrentDates}
+                            data-testid="button-set-baseline"
+                          >
+                            Set Baseline
+                          </Button>
+                          {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={clearBaseline}
+                              data-testid="button-clear-baseline"
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {(form.watch("baselineStartDate") || form.watch("baselineEndDate")) && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Baseline Start</Label>
+                            <Controller 
+                              control={form.control} 
+                              name="baselineStartDate" 
+                              render={({field}) => (
+                                <Input 
+                                  type="date" 
+                                  className="h-8 text-sm"
+                                  value={field.value || ""}
+                                  onChange={(e) => field.onChange(e.target.value || null)}
+                                  data-testid="input-baseline-start" 
+                                />
+                              )}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Baseline End</Label>
+                            <Controller 
+                              control={form.control} 
+                              name="baselineEndDate" 
+                              render={({field}) => (
+                                <Input 
+                                  type="date" 
+                                  className="h-8 text-sm"
+                                  value={field.value || ""}
+                                  onChange={(e) => field.onChange(e.target.value || null)}
+                                  data-testid="input-baseline-end" 
+                                />
+                              )}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Resources Tab */}
+                  <TabsContent value="resources" className="mt-0">
+                    {editingTask && (() => {
+                      const editLevel = editingTask.outlineLevel || 1;
+                      const idx = tasks?.findIndex(x => x.id === editingTask.id) ?? -1;
+                      const hasChildren = idx >= 0 && tasks && idx < tasks.length - 1 && ((tasks[idx + 1].outlineLevel || 1) > editLevel);
+                      return hasChildren;
+                    })() ? (
+                      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md flex items-center gap-2">
+                        <UserIcon className="h-4 w-4" />
+                        <span>Resource assignments are only available for leaf tasks. This is a summary task.</span>
+                      </div>
+                    ) : (
+                      <ResourceAssignment
+                        organizationId={currentOrganization?.id || null}
+                        selectedResourceIds={selectedResourceIds}
+                        onSelectionChange={setSelectedResourceIds}
+                        label="Assigned Resources"
+                        projectId={projectId}
+                        projectName={projectName}
+                        taskId={editingTask?.id}
+                        taskName={editingTask?.name}
+                        onInviteAssigned={() => { inviteAssignedRef.current = true; }}
+                      />
+                    )}
+                  </TabsContent>
+                  
+                  {/* Dependencies Tab */}
+                  <TabsContent value="dependencies" className="mt-0">
+                    {editingTask ? (
+                      <TaskDependenciesSection 
+                        taskId={editingTask.id} 
+                        projectId={projectId}
+                        allTasks={tasks || []}
+                      />
+                    ) : (
+                      <div className="text-sm text-muted-foreground text-center py-8">
+                        Save the task first to add dependencies
+                      </div>
+                    )}
+                  </TabsContent>
                 </div>
-              ) : (
-                <ResourceAssignment
-                  organizationId={currentOrganization?.id || null}
-                  selectedResourceIds={selectedResourceIds}
-                  onSelectionChange={setSelectedResourceIds}
-                  label="Assigned Resources"
-                  projectId={projectId}
-                  projectName={projectName}
-                  taskId={editingTask?.id}
-                  taskName={editingTask?.name}
-                  onInviteAssigned={() => { inviteAssignedRef.current = true; }}
-                />
-              )}
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="isMilestone" 
-                  checked={isMilestone}
-                  onCheckedChange={(checked) => setIsMilestone(checked === true)}
-                  data-testid="checkbox-task-milestone"
-                />
-                <Label htmlFor="isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
-                  <MilestoneIcon className="h-4 w-4 text-primary" />
-                  Mark as Milestone (show on project timeline)
-                </Label>
-              </div>
-              <DialogFooter className="sm:justify-between gap-2">
+              </Tabs>
+              
+              <DialogFooter className="pt-4 border-t sm:justify-between gap-2">
                 <div className="flex items-center gap-2">
                   {editingTask && (
                     <Button 
@@ -2435,6 +2474,163 @@ function ProjectGanttTaskRow({
             </Badge>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Task Dependencies Section Component
+function TaskDependenciesSection({ 
+  taskId, 
+  projectId,
+  allTasks 
+}: { 
+  taskId: number; 
+  projectId: number;
+  allTasks: Task[];
+}) {
+  const { data: dependencies, isLoading } = useTaskDependencies(taskId);
+  const addDependency = useAddTaskDependency();
+  const removeDependency = useRemoveTaskDependency();
+  const { toast } = useToast();
+  const [selectedPredecessor, setSelectedPredecessor] = useState<string>("");
+
+  // Get tasks that can be predecessors (exclude self and existing predecessors)
+  const availablePredecessors = allTasks.filter(task => {
+    if (task.id === taskId) return false;
+    if (dependencies?.some(d => d.dependsOnTaskId === task.id)) return false;
+    return true;
+  });
+
+  const handleAddDependency = () => {
+    if (!selectedPredecessor) return;
+    const predecessorId = Number(selectedPredecessor);
+    addDependency.mutate(
+      { taskId, dependsOnTaskId: predecessorId },
+      {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Dependency added" });
+          setSelectedPredecessor("");
+        },
+        onError: (error: any) => {
+          toast({ 
+            title: "Error", 
+            description: error?.message || "Failed to add dependency", 
+            variant: "destructive" 
+          });
+        }
+      }
+    );
+  };
+
+  const handleRemoveDependency = (predecessorId: number) => {
+    removeDependency.mutate(
+      { taskId, dependsOnTaskId: predecessorId },
+      {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Dependency removed" });
+        },
+        onError: (error: any) => {
+          toast({ 
+            title: "Error", 
+            description: error?.message || "Failed to remove dependency", 
+            variant: "destructive" 
+          });
+        }
+      }
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-4">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label className="flex items-center gap-2">
+          <Link2 className="h-4 w-4" />
+          Predecessors
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Tasks that must be completed before this task can start
+        </p>
+      </div>
+
+      {/* Current dependencies */}
+      {dependencies && dependencies.length > 0 ? (
+        <div className="space-y-2">
+          {dependencies.map((dep) => {
+            const predecessorTask = allTasks.find(t => t.id === dep.dependsOnTaskId);
+            return (
+              <div 
+                key={dep.id} 
+                className="flex items-center justify-between p-2 rounded-md bg-muted/50 border"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm truncate">
+                    {predecessorTask?.name || `Task #${dep.dependsOnTaskId}`}
+                  </span>
+                  <Badge variant="outline" className="text-xs flex-shrink-0">
+                    {dep.dependencyType || "Finish-to-Start"}
+                  </Badge>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRemoveDependency(dep.dependsOnTaskId)}
+                  disabled={removeDependency.isPending}
+                  data-testid={`remove-dependency-${dep.dependsOnTaskId}`}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-sm text-muted-foreground text-center py-4 border rounded-md bg-muted/30">
+          No predecessors defined
+        </div>
+      )}
+
+      {/* Add new dependency */}
+      <div className="flex gap-2">
+        <Select value={selectedPredecessor} onValueChange={setSelectedPredecessor}>
+          <SelectTrigger className="flex-1">
+            <SelectValue placeholder="Select a predecessor task..." />
+          </SelectTrigger>
+          <SelectContent>
+            {availablePredecessors.length === 0 ? (
+              <SelectItem value="none" disabled>No available tasks</SelectItem>
+            ) : (
+              availablePredecessors.map(task => (
+                <SelectItem key={task.id} value={String(task.id)}>
+                  {task.name}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleAddDependency}
+          disabled={!selectedPredecessor || addDependency.isPending}
+          data-testid="button-add-dependency"
+        >
+          {addDependency.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Plus className="h-4 w-4" />
+          )}
+        </Button>
       </div>
     </div>
   );
