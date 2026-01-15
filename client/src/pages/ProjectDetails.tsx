@@ -2654,6 +2654,185 @@ function ProjectGanttTaskRow({
   );
 }
 
+// Inline Editable Cell Component for Gantt
+type InlineEditType = 'date' | 'select' | 'number' | 'text' | 'progress' | 'boolean';
+
+interface InlineEditCellProps {
+  value: string | number | boolean | null | undefined;
+  displayValue: React.ReactNode;
+  editType: InlineEditType;
+  options?: { value: string; label: string }[];
+  onSave: (newValue: string | number | boolean | null) => void;
+  className?: string;
+  disabled?: boolean;
+  min?: number;
+  max?: number;
+  suffix?: string;
+}
+
+function InlineEditCell({ 
+  value, 
+  displayValue, 
+  editType, 
+  options, 
+  onSave, 
+  className,
+  disabled = false,
+  min,
+  max,
+  suffix = ''
+}: InlineEditCellProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState<string>('');
+  const [selectOpen, setSelectOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    if (isEditing && editType === 'select') {
+      setSelectOpen(true);
+    }
+  }, [isEditing, editType]);
+
+  const handleStartEdit = () => {
+    if (disabled) return;
+    if (editType === 'date') {
+      setEditValue(value ? String(value) : '');
+    } else if (editType === 'number' || editType === 'progress') {
+      setEditValue(value != null ? String(value) : '');
+    } else if (editType === 'boolean') {
+      const newVal = !value;
+      onSave(newVal);
+      return;
+    } else {
+      setEditValue(value ? String(value) : '');
+    }
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    setIsEditing(false);
+    if (editType === 'date') {
+      onSave(editValue || null);
+    } else if (editType === 'number' || editType === 'progress') {
+      const numVal = editValue === '' ? null : parseFloat(editValue);
+      if (numVal !== null && !isNaN(numVal)) {
+        const clampedVal = Math.max(min ?? -Infinity, Math.min(max ?? Infinity, numVal));
+        onSave(clampedVal);
+      } else {
+        onSave(null);
+      }
+    } else {
+      onSave(editValue || null);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+    }
+  };
+
+  const handleSelectChange = (newVal: string) => {
+    setSelectOpen(false);
+    setIsEditing(false);
+    onSave(newVal);
+  };
+
+  const handleSelectOpenChange = (open: boolean) => {
+    setSelectOpen(open);
+    if (!open) {
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    if (editType === 'select' && options) {
+      return (
+        <Select value={String(value || '')} onValueChange={handleSelectChange} open={selectOpen} onOpenChange={handleSelectOpenChange}>
+          <SelectTrigger className="text-[10px] px-1 min-h-0 py-0.5" data-testid="inline-edit-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map(opt => (
+              <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    if (editType === 'date') {
+      return (
+        <Input
+          ref={inputRef}
+          type="date"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className="text-[10px] px-1 w-full min-h-0 py-0.5"
+          data-testid="inline-edit-date"
+        />
+      );
+    }
+
+    if (editType === 'number' || editType === 'progress') {
+      return (
+        <Input
+          ref={inputRef}
+          type="number"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          min={min}
+          max={max}
+          className="text-[10px] px-1 w-full min-h-0 py-0.5"
+          data-testid="inline-edit-number"
+        />
+      );
+    }
+
+    return (
+      <Input
+        ref={inputRef}
+        type="text"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        className="text-[10px] px-1 w-full min-h-0 py-0.5"
+        data-testid="inline-edit-text"
+      />
+    );
+  }
+
+  return (
+    <div 
+      className={cn(
+        "cursor-pointer hover:bg-muted/50 transition-colors rounded px-0.5 min-h-[18px] flex items-center w-full",
+        disabled && "cursor-default hover:bg-transparent",
+        className
+      )}
+      onClick={handleStartEdit}
+      data-testid="inline-edit-display"
+    >
+      {displayValue}
+    </div>
+  );
+}
+
 // Split-pane Gantt: Metadata row (left pane)
 function ProjectGanttTaskRowMeta({ 
   task, 
@@ -2686,10 +2865,28 @@ function ProjectGanttTaskRowMeta({
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
+  const updateTask = useUpdateTask();
+  const { toast } = useToast();
   const [isEditingResources, setIsEditingResources] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
   const inviteAssignedRef = useRef(false);
+  
+  const handleInlineUpdate = (field: string, value: string | number | boolean | null) => {
+    updateTask.mutate({
+      id: task.id,
+      projectId: task.projectId,
+      [field]: value,
+    }, {
+      onError: (error) => {
+        toast({ 
+          title: "Update failed", 
+          description: error instanceof Error ? error.message : "Failed to update task", 
+          variant: "destructive" 
+        });
+      }
+    });
+  };
 
   useEffect(() => {
     if (taskAssignments && !hasInitialized) {
@@ -2853,62 +3050,332 @@ function ProjectGanttTaskRowMeta({
           );
         }
         
-        let value: React.ReactNode = '—';
         const centerAlign = ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(colId);
+        const isSummaryTask = hasChildren;
         
-        switch (colId) {
-          case 'taskNumber': value = task.taskNumber || '—'; break;
-          case 'wbs': value = task.wbs || '—'; break;
-          case 'outlineLevel': value = currentLevel; break;
-          case 'description': value = <span className="truncate">{task.description || '—'}</span>; break;
-          case 'startDate': value = task.startDate ? format(parseISO(task.startDate), 'MM/dd') : '—'; break;
-          case 'endDate': value = task.endDate ? format(parseISO(task.endDate), 'MM/dd') : '—'; break;
-          case 'baselineStartDate': value = task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd') : '—'; break;
-          case 'baselineEndDate': value = task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd') : '—'; break;
-          case 'actualStartDate': value = task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd') : '—'; break;
-          case 'actualEndDate': value = task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd') : '—'; break;
-          case 'durationDays': value = task.durationDays != null ? `${task.durationDays}d` : '—'; break;
-          case 'progress': value = `${progressPercent}%`; break;
-          case 'status': 
-            value = task.status ? (
-              <Badge variant="outline" className={cn("text-[9px] px-1 py-0", 
-                task.status === 'Completed' && "bg-emerald-100 text-emerald-700 border-emerald-200",
-                task.status === 'In Progress' && "bg-blue-100 text-blue-700 border-blue-200",
-                task.status === 'Not Started' && "bg-slate-100 text-slate-700 border-slate-200"
-              )}>
-                {task.status === 'In Progress' ? 'WIP' : task.status === 'Not Started' ? 'New' : 'Done'}
-              </Badge>
-            ) : '—'; 
-            break;
-          case 'priority': 
-            value = task.priority ? (
-              <Badge variant="outline" className={cn("text-[9px] px-1 py-0",
-                task.priority === 'Critical' && "bg-red-100 text-red-700 border-red-200",
-                task.priority === 'High' && "bg-orange-100 text-orange-700 border-orange-200",
-                task.priority === 'Medium' && "bg-yellow-100 text-yellow-700 border-yellow-200",
-                task.priority === 'Low' && "bg-slate-100 text-slate-700 border-slate-200"
-              )}>
-                {task.priority[0]}
-              </Badge>
-            ) : '—';
-            break;
-          case 'taskType': value = task.taskType || '—'; break;
-          case 'estimatedHours': value = task.estimatedHours != null ? `${task.estimatedHours}h` : '—'; break;
-          case 'actualHours': value = task.actualHours != null ? `${task.actualHours}h` : '—'; break;
-          case 'remainingHours': value = task.remainingHours != null ? `${task.remainingHours}h` : '—'; break;
-          case 'cost': value = task.cost != null ? `$${Number(task.cost).toLocaleString()}` : '—'; break;
-          case 'actualCost': value = task.actualCost != null ? `$${Number(task.actualCost).toLocaleString()}` : '—'; break;
-          case 'assignee': value = <span className="truncate">{task.assignee || '—'}</span>; break;
-          case 'constraintType': value = task.constraintType || '—'; break;
-          case 'constraintDate': value = task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd') : '—'; break;
-          case 'isMilestone': value = task.isMilestone ? <Check className="h-3 w-3 text-primary mx-auto" /> : '—'; break;
-          case 'isCritical': value = task.isCritical ? <Check className="h-3 w-3 text-red-500 mx-auto" /> : '—'; break;
-          case 'isSummary': value = task.isSummary ? <Check className="h-3 w-3 text-blue-500 mx-auto" /> : '—'; break;
-          case 'phase': value = task.phase || '—'; break;
-          case 'category': value = task.category || '—'; break;
-          case 'labels': value = <span className="truncate">{task.labels || '—'}</span>; break;
-          case 'notes': value = <span className="truncate">{task.notes || '—'}</span>; break;
-        }
+        const statusOptions = [
+          { value: 'Not Started', label: 'Not Started' },
+          { value: 'In Progress', label: 'In Progress' },
+          { value: 'Completed', label: 'Completed' },
+        ];
+        
+        const priorityOptions = [
+          { value: 'Low', label: 'Low' },
+          { value: 'Medium', label: 'Medium' },
+          { value: 'High', label: 'High' },
+          { value: 'Critical', label: 'Critical' },
+        ];
+        
+        const taskTypeOptions = [
+          { value: 'Work', label: 'Work' },
+          { value: 'Milestone', label: 'Milestone' },
+          { value: 'Summary', label: 'Summary' },
+        ];
+        
+        const constraintTypeOptions = [
+          { value: 'As Soon As Possible', label: 'ASAP' },
+          { value: 'As Late As Possible', label: 'ALAP' },
+          { value: 'Must Start On', label: 'MSO' },
+          { value: 'Must Finish On', label: 'MFO' },
+          { value: 'Start No Earlier Than', label: 'SNET' },
+          { value: 'Start No Later Than', label: 'SNLT' },
+          { value: 'Finish No Earlier Than', label: 'FNET' },
+          { value: 'Finish No Later Than', label: 'FNLT' },
+        ];
+
+        const renderEditableCell = () => {
+          switch (colId) {
+            case 'taskNumber':
+              return (
+                <InlineEditCell
+                  value={task.taskNumber}
+                  displayValue={<span className="truncate">{task.taskNumber || '—'}</span>}
+                  editType="text"
+                  onSave={(val) => handleInlineUpdate('taskNumber', val as string | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'wbs':
+              return (
+                <InlineEditCell
+                  value={task.wbs}
+                  displayValue={<span className="truncate">{task.wbs || '—'}</span>}
+                  editType="text"
+                  onSave={(val) => handleInlineUpdate('wbs', val as string | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'outlineLevel':
+              return <span>{currentLevel}</span>;
+            case 'description':
+              return (
+                <InlineEditCell
+                  value={task.description}
+                  displayValue={<span className="truncate">{task.description || '—'}</span>}
+                  editType="text"
+                  onSave={(val) => handleInlineUpdate('description', val as string | null)}
+                />
+              );
+            case 'startDate':
+              return (
+                <InlineEditCell
+                  value={task.startDate}
+                  displayValue={task.startDate ? format(parseISO(task.startDate), 'MM/dd') : '—'}
+                  editType="date"
+                  onSave={(val) => handleInlineUpdate('startDate', val as string | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'endDate':
+              return (
+                <InlineEditCell
+                  value={task.endDate}
+                  displayValue={task.endDate ? format(parseISO(task.endDate), 'MM/dd') : '—'}
+                  editType="date"
+                  onSave={(val) => handleInlineUpdate('endDate', val as string | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'baselineStartDate':
+              return task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd') : '—';
+            case 'baselineEndDate':
+              return task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd') : '—';
+            case 'actualStartDate':
+              return (
+                <InlineEditCell
+                  value={task.actualStartDate}
+                  displayValue={task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd') : '—'}
+                  editType="date"
+                  onSave={(val) => handleInlineUpdate('actualStartDate', val as string | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'actualEndDate':
+              return (
+                <InlineEditCell
+                  value={task.actualEndDate}
+                  displayValue={task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd') : '—'}
+                  editType="date"
+                  onSave={(val) => handleInlineUpdate('actualEndDate', val as string | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'durationDays':
+              return (
+                <InlineEditCell
+                  value={task.durationDays}
+                  displayValue={task.durationDays != null ? `${task.durationDays}d` : '—'}
+                  editType="number"
+                  min={0}
+                  onSave={(val) => handleInlineUpdate('durationDays', val as number | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'progress':
+              return (
+                <InlineEditCell
+                  value={progressPercent}
+                  displayValue={`${progressPercent}%`}
+                  editType="progress"
+                  min={0}
+                  max={100}
+                  onSave={(val) => handleInlineUpdate('progress', val as number | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'status':
+              const statusBadge = task.status ? (
+                <Badge variant="outline" className={cn("text-[9px] px-1 py-0", 
+                  task.status === 'Completed' && "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-400 dark:border-emerald-700",
+                  task.status === 'In Progress' && "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/50 dark:text-blue-400 dark:border-blue-700",
+                  task.status === 'Not Started' && "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                )}>
+                  {task.status === 'In Progress' ? 'WIP' : task.status === 'Not Started' ? 'New' : 'Done'}
+                </Badge>
+              ) : '—';
+              return (
+                <InlineEditCell
+                  value={task.status}
+                  displayValue={statusBadge}
+                  editType="select"
+                  options={statusOptions}
+                  onSave={(val) => handleInlineUpdate('status', val as string | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'priority':
+              const priorityBadge = task.priority ? (
+                <Badge variant="outline" className={cn("text-[9px] px-1 py-0",
+                  task.priority === 'Critical' && "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/50 dark:text-red-400 dark:border-red-700",
+                  task.priority === 'High' && "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/50 dark:text-orange-400 dark:border-orange-700",
+                  task.priority === 'Medium' && "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-400 dark:border-yellow-700",
+                  task.priority === 'Low' && "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                )}>
+                  {task.priority[0]}
+                </Badge>
+              ) : '—';
+              return (
+                <InlineEditCell
+                  value={task.priority}
+                  displayValue={priorityBadge}
+                  editType="select"
+                  options={priorityOptions}
+                  onSave={(val) => handleInlineUpdate('priority', val as string | null)}
+                />
+              );
+            case 'taskType':
+              return (
+                <InlineEditCell
+                  value={task.taskType}
+                  displayValue={<span className="truncate">{task.taskType || '—'}</span>}
+                  editType="select"
+                  options={taskTypeOptions}
+                  onSave={(val) => handleInlineUpdate('taskType', val as string | null)}
+                />
+              );
+            case 'estimatedHours':
+              return (
+                <InlineEditCell
+                  value={task.estimatedHours}
+                  displayValue={task.estimatedHours != null ? `${task.estimatedHours}h` : '—'}
+                  editType="number"
+                  min={0}
+                  onSave={(val) => handleInlineUpdate('estimatedHours', val as number | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'actualHours':
+              return (
+                <InlineEditCell
+                  value={task.actualHours}
+                  displayValue={task.actualHours != null ? `${task.actualHours}h` : '—'}
+                  editType="number"
+                  min={0}
+                  onSave={(val) => handleInlineUpdate('actualHours', val as number | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'remainingHours':
+              return (
+                <InlineEditCell
+                  value={task.remainingHours}
+                  displayValue={task.remainingHours != null ? `${task.remainingHours}h` : '—'}
+                  editType="number"
+                  min={0}
+                  onSave={(val) => handleInlineUpdate('remainingHours', val as number | null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'cost':
+              return (
+                <InlineEditCell
+                  value={task.cost != null ? Number(task.cost) : null}
+                  displayValue={task.cost != null ? `$${Number(task.cost).toLocaleString()}` : '—'}
+                  editType="number"
+                  min={0}
+                  onSave={(val) => handleInlineUpdate('cost', val != null ? String(val) : null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'actualCost':
+              return (
+                <InlineEditCell
+                  value={task.actualCost != null ? Number(task.actualCost) : null}
+                  displayValue={task.actualCost != null ? `$${Number(task.actualCost).toLocaleString()}` : '—'}
+                  editType="number"
+                  min={0}
+                  onSave={(val) => handleInlineUpdate('actualCost', val != null ? String(val) : null)}
+                  disabled={isSummaryTask}
+                />
+              );
+            case 'assignee':
+              return (
+                <InlineEditCell
+                  value={task.assignee}
+                  displayValue={<span className="truncate">{task.assignee || '—'}</span>}
+                  editType="text"
+                  onSave={(val) => handleInlineUpdate('assignee', val as string | null)}
+                />
+              );
+            case 'constraintType':
+              return (
+                <InlineEditCell
+                  value={task.constraintType}
+                  displayValue={<span className="truncate">{task.constraintType || '—'}</span>}
+                  editType="select"
+                  options={constraintTypeOptions}
+                  onSave={(val) => handleInlineUpdate('constraintType', val as string | null)}
+                />
+              );
+            case 'constraintDate':
+              return (
+                <InlineEditCell
+                  value={task.constraintDate}
+                  displayValue={task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd') : '—'}
+                  editType="date"
+                  onSave={(val) => handleInlineUpdate('constraintDate', val as string | null)}
+                />
+              );
+            case 'isMilestone':
+              return (
+                <InlineEditCell
+                  value={task.isMilestone}
+                  displayValue={task.isMilestone ? <Check className="h-3 w-3 text-primary mx-auto" /> : <span className="text-muted-foreground/50">—</span>}
+                  editType="boolean"
+                  onSave={(val) => handleInlineUpdate('isMilestone', val as boolean)}
+                />
+              );
+            case 'isCritical':
+              return (
+                <InlineEditCell
+                  value={task.isCritical}
+                  displayValue={task.isCritical ? <Check className="h-3 w-3 text-red-500 mx-auto" /> : <span className="text-muted-foreground/50">—</span>}
+                  editType="boolean"
+                  onSave={(val) => handleInlineUpdate('isCritical', val as boolean)}
+                />
+              );
+            case 'isSummary':
+              return task.isSummary ? <Check className="h-3 w-3 text-blue-500 mx-auto" /> : <span className="text-muted-foreground/50">—</span>;
+            case 'phase':
+              return (
+                <InlineEditCell
+                  value={task.phase}
+                  displayValue={<span className="truncate">{task.phase || '—'}</span>}
+                  editType="text"
+                  onSave={(val) => handleInlineUpdate('phase', val as string | null)}
+                />
+              );
+            case 'category':
+              return (
+                <InlineEditCell
+                  value={task.category}
+                  displayValue={<span className="truncate">{task.category || '—'}</span>}
+                  editType="text"
+                  onSave={(val) => handleInlineUpdate('category', val as string | null)}
+                />
+              );
+            case 'labels':
+              return (
+                <InlineEditCell
+                  value={task.labels}
+                  displayValue={<span className="truncate">{task.labels || '—'}</span>}
+                  editType="text"
+                  onSave={(val) => handleInlineUpdate('labels', val as string | null)}
+                />
+              );
+            case 'notes':
+              return (
+                <InlineEditCell
+                  value={task.notes}
+                  displayValue={<span className="truncate">{task.notes || '—'}</span>}
+                  editType="text"
+                  onSave={(val) => handleInlineUpdate('notes', val as string | null)}
+                />
+              );
+            default:
+              return '—';
+          }
+        };
         
         return (
           <div 
@@ -2921,7 +3388,7 @@ function ProjectGanttTaskRowMeta({
               colId === 'progress' && "font-medium"
             )}
           >
-            {value}
+            {renderEditableCell()}
           </div>
         );
       })}
