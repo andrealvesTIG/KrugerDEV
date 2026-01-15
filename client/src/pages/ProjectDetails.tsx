@@ -2650,6 +2650,351 @@ function ProjectGanttTaskRow({
   );
 }
 
+// Split-pane Gantt: Metadata row (left pane)
+function ProjectGanttTaskRowMeta({ 
+  task, 
+  onTaskClick, 
+  visibleColumns,
+  organizationId,
+  onIndent,
+  onOutdent,
+  hasChildren,
+  isCollapsed,
+  onToggleCollapse,
+  projectName,
+  onSetBaseline,
+  onClearBaseline,
+  onEditDependencies,
+}: { 
+  task: Task; 
+  onTaskClick: (task: Task) => void;
+  visibleColumns: GanttColumn[];
+  organizationId: number | null;
+  onIndent: (task: Task) => void;
+  onOutdent: (task: Task) => void;
+  hasChildren: boolean;
+  isCollapsed: boolean;
+  onToggleCollapse: (taskId: number) => void;
+  projectName?: string;
+  onSetBaseline: (task: Task) => void;
+  onClearBaseline: (task: Task) => void;
+  onEditDependencies: (task: Task) => void;
+}) {
+  const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
+  const updateTaskResources = useUpdateTaskResourceAssignments();
+  const [isEditingResources, setIsEditingResources] = useState(false);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const inviteAssignedRef = useRef(false);
+
+  useEffect(() => {
+    if (taskAssignments && !hasInitialized) {
+      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      setHasInitialized(true);
+    }
+  }, [taskAssignments, hasInitialized]);
+
+  useEffect(() => {
+    if (!isEditingResources) {
+      setHasInitialized(false);
+    }
+  }, [isEditingResources]);
+
+  useEffect(() => {
+    if (isEditingResources && taskAssignments) {
+      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+    }
+  }, [isEditingResources, taskAssignments]);
+
+  const assignedNames = taskAssignments && taskAssignments.length > 0
+    ? taskAssignments.map(a => a.resource.displayName).join(", ")
+    : "—";
+
+  const handleSaveResources = () => {
+    if (!inviteAssignedRef.current) {
+      updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+    }
+    inviteAssignedRef.current = false;
+    setIsEditingResources(false);
+  };
+
+  const progressPercent = task.progress || 0;
+  const currentLevel = task.outlineLevel || 1;
+  const canIndent = currentLevel < 6;
+  const canOutdent = currentLevel > 1;
+
+  return (
+    <div 
+      className="flex border-b hover:bg-muted/30 transition-colors group h-[28px]"
+      data-testid={`gantt-task-meta-${task.id}`}
+    >
+      {/* Actions column */}
+      <div className="w-8 flex-shrink-0 border-r flex items-center justify-center">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-5 w-5 p-0" data-testid={`task-actions-${task.id}`}>
+              <MoreVertical className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => onTaskClick(task)} data-testid={`task-edit-${task.id}`}>
+              <Pencil className="h-3.5 w-3.5 mr-2" />
+              Edit Task
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEditDependencies(task)} data-testid={`task-dependencies-${task.id}`}>
+              <Link2 className="h-3.5 w-3.5 mr-2" />
+              Dependencies
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onSetBaseline(task)} disabled={!task.startDate || !task.endDate} data-testid={`task-set-baseline-${task.id}`}>
+              <Flag className="h-3.5 w-3.5 mr-2" />
+              Set Baseline
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onClearBaseline(task)} disabled={!task.baselineStartDate && !task.baselineEndDate} data-testid={`task-clear-baseline-${task.id}`}>
+              <X className="h-3.5 w-3.5 mr-2" />
+              Clear Baseline
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onIndent(task)} disabled={!canIndent} data-testid={`task-indent-${task.id}`}>
+              <ChevronRight className="h-3.5 w-3.5 mr-2" />
+              Indent
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onOutdent(task)} disabled={!canOutdent} data-testid={`task-outdent-${task.id}`}>
+              <ChevronLeft className="h-3.5 w-3.5 mr-2" />
+              Outdent
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      
+      {/* Dynamic column rendering */}
+      {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => {
+        const colConfig = GANTT_COLUMNS.find(c => c.id === col.id)!;
+        
+        if (col.id === 'task') {
+          return (
+            <div 
+              key={col.id}
+              className={cn(
+                "w-40 flex-shrink-0 border-r px-1 cursor-pointer flex items-center",
+                hasChildren && "font-semibold bg-muted/30"
+              )}
+              onClick={() => onTaskClick(task)}
+              style={{ paddingLeft: `${4 + (currentLevel - 1) * 12}px` }}
+            >
+              <div className="truncate flex items-center gap-0.5">
+                {hasChildren ? (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-4 w-4 p-0 flex-shrink-0"
+                    onClick={(e) => { e.stopPropagation(); onToggleCollapse(task.id); }}
+                    data-testid={`task-toggle-${task.id}`}
+                  >
+                    {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </Button>
+                ) : (
+                  <span className="w-4 flex-shrink-0" />
+                )}
+                {task.isMilestone && <MilestoneIcon className="h-3 w-3 text-primary flex-shrink-0" />}
+                <span className="truncate">{task.name}</span>
+              </div>
+            </div>
+          );
+        }
+        
+        if (col.id === 'resources') {
+          return (
+            <div key={col.id}>
+              <div 
+                className={cn(
+                  "w-28 flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px]",
+                  !hasChildren && "cursor-pointer hover:bg-muted/50"
+                )}
+                onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
+              >
+                {hasChildren ? (
+                  <span className="text-muted-foreground/70 italic truncate">Summary</span>
+                ) : (
+                  <span className="truncate">{assignedNames}</span>
+                )}
+              </div>
+              <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Assign Resources</DialogTitle>
+                    <DialogDescription>Assign team members to task "{task.name}"</DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4">
+                    <ResourceAssignment
+                      organizationId={organizationId}
+                      selectedResourceIds={selectedResourceIds}
+                      onSelectionChange={setSelectedResourceIds}
+                      label="Assigned Resources"
+                      projectId={task.projectId}
+                      projectName={projectName}
+                      taskId={task.id}
+                      taskName={task.name}
+                      onInviteAssigned={() => { inviteAssignedRef.current = true; }}
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsEditingResources(false)}>Cancel</Button>
+                    <Button onClick={handleSaveResources} disabled={assignmentsLoading}>{assignmentsLoading ? "Loading..." : "Save"}</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          );
+        }
+        
+        let value: React.ReactNode = '—';
+        const centerAlign = ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(col.id);
+        
+        switch (col.id) {
+          case 'taskNumber': value = task.taskNumber || '—'; break;
+          case 'wbs': value = task.wbs || '—'; break;
+          case 'outlineLevel': value = currentLevel; break;
+          case 'description': value = <span className="truncate">{task.description || '—'}</span>; break;
+          case 'startDate': value = task.startDate ? format(parseISO(task.startDate), 'MM/dd') : '—'; break;
+          case 'endDate': value = task.endDate ? format(parseISO(task.endDate), 'MM/dd') : '—'; break;
+          case 'baselineStartDate': value = task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd') : '—'; break;
+          case 'baselineEndDate': value = task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd') : '—'; break;
+          case 'actualStartDate': value = task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd') : '—'; break;
+          case 'actualEndDate': value = task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd') : '—'; break;
+          case 'durationDays': value = task.durationDays != null ? `${task.durationDays}d` : '—'; break;
+          case 'progress': value = `${progressPercent}%`; break;
+          case 'status': 
+            value = task.status ? (
+              <Badge variant="outline" className={cn("text-[9px] px-1 py-0", 
+                task.status === 'Completed' && "bg-emerald-100 text-emerald-700 border-emerald-200",
+                task.status === 'In Progress' && "bg-blue-100 text-blue-700 border-blue-200",
+                task.status === 'Not Started' && "bg-slate-100 text-slate-700 border-slate-200"
+              )}>
+                {task.status === 'In Progress' ? 'WIP' : task.status === 'Not Started' ? 'New' : 'Done'}
+              </Badge>
+            ) : '—'; 
+            break;
+          case 'priority': 
+            value = task.priority ? (
+              <Badge variant="outline" className={cn("text-[9px] px-1 py-0",
+                task.priority === 'Critical' && "bg-red-100 text-red-700 border-red-200",
+                task.priority === 'High' && "bg-orange-100 text-orange-700 border-orange-200",
+                task.priority === 'Medium' && "bg-yellow-100 text-yellow-700 border-yellow-200",
+                task.priority === 'Low' && "bg-slate-100 text-slate-700 border-slate-200"
+              )}>
+                {task.priority[0]}
+              </Badge>
+            ) : '—';
+            break;
+          case 'taskType': value = task.taskType || '—'; break;
+          case 'estimatedHours': value = task.estimatedHours != null ? `${task.estimatedHours}h` : '—'; break;
+          case 'actualHours': value = task.actualHours != null ? `${task.actualHours}h` : '—'; break;
+          case 'remainingHours': value = task.remainingHours != null ? `${task.remainingHours}h` : '—'; break;
+          case 'cost': value = task.cost != null ? `$${Number(task.cost).toLocaleString()}` : '—'; break;
+          case 'actualCost': value = task.actualCost != null ? `$${Number(task.actualCost).toLocaleString()}` : '—'; break;
+          case 'assignee': value = <span className="truncate">{task.assignee || '—'}</span>; break;
+          case 'constraintType': value = task.constraintType || '—'; break;
+          case 'constraintDate': value = task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd') : '—'; break;
+          case 'isMilestone': value = task.isMilestone ? <Check className="h-3 w-3 text-primary mx-auto" /> : '—'; break;
+          case 'isCritical': value = task.isCritical ? <Check className="h-3 w-3 text-red-500 mx-auto" /> : '—'; break;
+          case 'isSummary': value = task.isSummary ? <Check className="h-3 w-3 text-blue-500 mx-auto" /> : '—'; break;
+          case 'phase': value = task.phase || '—'; break;
+          case 'category': value = task.category || '—'; break;
+          case 'labels': value = <span className="truncate">{task.labels || '—'}</span>; break;
+          case 'notes': value = <span className="truncate">{task.notes || '—'}</span>; break;
+        }
+        
+        return (
+          <div 
+            key={col.id}
+            className={cn(
+              colConfig.width, 
+              "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px]",
+              centerAlign && "justify-center",
+              col.id === 'outlineLevel' && "font-medium",
+              col.id === 'progress' && "font-medium"
+            )}
+          >
+            {value}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Split-pane Gantt: Timeline row (right pane)
+function ProjectGanttTaskRowTimeline({ 
+  task, 
+  onTaskClick, 
+  minDate, 
+  maxDate,
+  hasChildren,
+}: { 
+  task: Task; 
+  onTaskClick: (task: Task) => void;
+  minDate: Date;
+  maxDate: Date;
+  hasChildren: boolean;
+}) {
+  const hasValidDates = task.startDate && task.endDate;
+  const start = hasValidDates ? parseISO(task.startDate) : null;
+  const end = hasValidDates ? parseISO(task.endDate) : null;
+  
+  let leftPercent = 0;
+  let widthPercent = 0;
+  
+  if (start && end) {
+    const totalDays = differenceInDays(maxDate, minDate) || 1;
+    const startOffset = differenceInDays(start, minDate);
+    const duration = differenceInDays(end, start) + 1;
+    leftPercent = (startOffset / totalDays) * 100;
+    widthPercent = (duration / totalDays) * 100;
+  }
+
+  const progressPercent = task.progress || 0;
+
+  return (
+    <div 
+      className={cn("relative h-[28px] border-b hover:bg-muted/30 transition-colors", hasChildren && "bg-muted/20")}
+      data-testid={`gantt-task-timeline-${task.id}`}
+    >
+      {hasValidDates ? (
+        <div
+          className={cn(
+            "absolute top-1 bottom-1 rounded-sm overflow-hidden cursor-pointer",
+            task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
+            task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
+          )}
+          style={{
+            left: `${Math.max(0, leftPercent)}%`,
+            width: `${Math.min(100 - Math.max(0, leftPercent), widthPercent)}%`,
+            minWidth: '24px'
+          }}
+          onClick={() => onTaskClick(task)}
+        >
+          <div 
+            className={cn(
+              "h-full transition-all",
+              task.status === "Completed" ? "bg-emerald-500" :
+              task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+            )}
+            style={{ width: `${progressPercent}%` }}
+          />
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground">
+            {progressPercent}%
+          </span>
+        </div>
+      ) : (
+        <div className="h-full flex items-center px-1" onClick={() => onTaskClick(task)}>
+          <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
+            No dates
+          </Badge>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Task Dependencies Section Component
 function TaskDependenciesSection({ 
   taskId, 
@@ -3153,79 +3498,103 @@ function ProjectGanttView({
             </Button>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <div style={{ minWidth: `${columnsTotalWidth + 400}px` }}>
-            <div className="flex border-b bg-muted/50 sticky top-0 z-10">
-              {/* Actions column header - always visible */}
-              <div className="w-10 flex-shrink-0 border-r p-2"></div>
-              {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
-                <div 
-                  key={col.id}
-                  className={cn(
-                    col.width, 
-                    "flex-shrink-0 border-r p-2 font-semibold text-xs text-foreground",
-                    ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "text-center"
-                  )}
-                >
-                  {col.label}
+        {/* Split-pane Gantt layout */}
+        <div className="flex h-[500px] text-[11px]">
+          {/* Left pane: Metadata columns (scrollable horizontally) */}
+          <div className="flex-shrink-0 border-r-2 border-primary/20 overflow-x-auto overflow-y-auto" style={{ maxWidth: '60%', minWidth: '300px' }}>
+            <div style={{ minWidth: `${columnsTotalWidth + 40}px` }}>
+              {/* Header row */}
+              <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+                <div className="w-8 flex-shrink-0 border-r p-1"></div>
+                {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
+                  <div 
+                    key={col.id}
+                    className={cn(
+                      col.width, 
+                      "flex-shrink-0 border-r p-1 font-semibold text-[10px] text-foreground truncate",
+                      ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "text-center"
+                    )}
+                  >
+                    {col.label}
+                  </div>
+                ))}
+              </div>
+              {/* Task rows - metadata only */}
+              {visibleTasks.length === 0 && tasks.length === 0 ? (
+                <div className="py-6 text-center text-muted-foreground">
+                  No tasks yet. Add your first task below.
                 </div>
-              ))}
-              <div className="flex-1 flex">
+              ) : (
+                visibleTasks.map(task => (
+                  <ProjectGanttTaskRowMeta
+                    key={task.id}
+                    task={task}
+                    onTaskClick={onTaskClick}
+                    visibleColumns={visibleColumns}
+                    organizationId={organizationId}
+                    onIndent={handleIndent}
+                    onOutdent={handleOutdent}
+                    hasChildren={!!taskHasChildren[task.id]}
+                    isCollapsed={collapsedTasks.has(task.id)}
+                    onToggleCollapse={toggleCollapse}
+                    projectName={projectName}
+                    onSetBaseline={handleSetBaseline}
+                    onClearBaseline={handleClearBaseline}
+                    onEditDependencies={handleEditDependencies}
+                  />
+                ))
+              )}
+              {/* Add task row */}
+              <div className="flex border-t bg-muted/20">
+                <div className="w-8 flex-shrink-0 border-r p-1" />
+                {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
+                  col.id === 'task' ? (
+                    <div key={col.id} className="w-40 flex-shrink-0 border-r p-1">
+                      <Input
+                        placeholder="Add task..."
+                        value={newTaskName}
+                        onChange={(e) => setNewTaskName(e.target.value)}
+                        onKeyDown={handleAddTask}
+                        className="h-6 text-[11px]"
+                        data-testid="input-new-task"
+                      />
+                    </div>
+                  ) : (
+                    <div key={col.id} className={cn(col.width, "flex-shrink-0 border-r p-1")} />
+                  )
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Right pane: Timeline (scrollable horizontally) */}
+          <div className="flex-1 overflow-x-auto overflow-y-auto">
+            <div style={{ minWidth: `${filteredDates.length * 60}px` }}>
+              {/* Timeline header */}
+              <div className="flex border-b bg-muted/50 sticky top-0 z-10">
                 {filteredDates.map((date, i) => (
-                  <div key={i} className={cn("flex-1 p-2 text-center text-xs font-medium text-muted-foreground border-l", columnWidth)}>
+                  <div key={i} className={cn("flex-1 p-1 text-center text-[10px] font-medium text-muted-foreground border-l", columnWidth)}>
                     {format(date, dateFormat)}
                   </div>
                 ))}
               </div>
-            </div>
-            {visibleTasks.length === 0 && tasks.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">
-                No tasks yet. Add your first task below.
-              </div>
-            ) : (
-              visibleTasks.map(task => (
-                <ProjectGanttTaskRow
-                  key={task.id}
-                  task={task}
-                  onTaskClick={onTaskClick}
-                  minDate={adjustedMinDate}
-                  maxDate={adjustedMaxDate}
-                  visibleColumns={visibleColumns}
-                  organizationId={organizationId}
-                  onIndent={handleIndent}
-                  onOutdent={handleOutdent}
-                  hasChildren={!!taskHasChildren[task.id]}
-                  isCollapsed={collapsedTasks.has(task.id)}
-                  onToggleCollapse={toggleCollapse}
-                  projectName={projectName}
-                  onSetBaseline={handleSetBaseline}
-                  onClearBaseline={handleClearBaseline}
-                  onEditDependencies={handleEditDependencies}
-                />
-              ))
-            )}
-            <div className="flex border-t bg-muted/20">
-              {/* Empty actions column cell */}
-              <div className="w-10 flex-shrink-0 border-r p-2" />
-              {GANTT_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
-                col.id === 'task' ? (
-                  <div key={col.id} className="w-48 flex-shrink-0 border-r p-2">
-                    <Input
-                      placeholder="Add new task..."
-                      value={newTaskName}
-                      onChange={(e) => setNewTaskName(e.target.value)}
-                      onKeyDown={handleAddTask}
-                      className="h-8 text-sm"
-                      data-testid="input-new-task"
-                    />
-                  </div>
-                ) : (
-                  <div key={col.id} className={cn(col.width, "flex-shrink-0 border-r p-2")} />
-                )
-              ))}
-              <div className="flex-1 p-2 text-xs text-muted-foreground italic">
-                Press Enter to add task
-              </div>
+              {/* Timeline bars */}
+              {visibleTasks.length === 0 && tasks.length === 0 ? (
+                <div className="h-[28px]" />
+              ) : (
+                visibleTasks.map(task => (
+                  <ProjectGanttTaskRowTimeline
+                    key={task.id}
+                    task={task}
+                    onTaskClick={onTaskClick}
+                    minDate={adjustedMinDate}
+                    maxDate={adjustedMaxDate}
+                    hasChildren={!!taskHasChildren[task.id]}
+                  />
+                ))
+              )}
+              {/* Empty row for add task alignment */}
+              <div className="h-[28px] border-t bg-muted/20" />
             </div>
           </div>
         </div>
