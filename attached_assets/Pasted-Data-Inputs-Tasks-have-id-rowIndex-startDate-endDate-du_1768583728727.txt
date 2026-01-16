@@ -1,0 +1,85 @@
+Data / Inputs
+
+Tasks have { id, rowIndex, startDate, endDate, durationDays }
+
+Dependencies have { fromTaskId, toTaskId, type: "FS"|"SS"|"FF"|"SF", lagDays? }
+
+Render requirements
+
+Draw an SVG (or Canvas) overlay on top of the Gantt timeline that contains all dependency connectors.
+
+For each dependency, compute the anchor points on the “from” and “to” task bars based on type:
+
+FS: from end of predecessor bar → to start of successor bar
+
+SS: from start of predecessor → to start of successor
+
+FF: from end of predecessor → to end of successor
+
+SF: from start of predecessor → to end of successor
+
+Anchors must align to the bar’s vertical center for the task row.
+
+If a task is a milestone (duration 0), treat its bar as a single x-position and use that x for both start/end anchors.
+
+Layout / Routing
+
+Use an orthogonal connector (right-angle polyline):
+
+small horizontal “stub” out of the source anchor (e.g., +8px)
+
+route to a mid-x waypoint (avoid overlapping the bars)
+
+vertical segment to the target row center
+
+final horizontal segment into the target anchor
+
+Add an arrowhead marker at the end (target side).
+
+If the target is to the left of the source (negative direction), route the connector around the left side using a larger offset so it doesn’t cross through bars (back-link support).
+
+Add collision avoidance “good enough” rules:
+
+keep stubs outside bars (min padding)
+
+if multiple links share the same row pair, add small vertical offsets (±3–6px) to reduce exact overlap
+
+Lag handling (visual)
+
+Lag should already affect task dates; just draw to the resulting bar positions. (Do not draw separate “lag segment” unless explicitly enabled.)
+
+Interaction
+
+Recompute connector paths on:
+
+horizontal scroll/zoom
+
+vertical scroll
+
+column resize / layout changes
+
+task move/resize (dragging bars)
+
+Make links clickable/hoverable:
+
+hover highlights the connector and its two tasks
+
+click selects the dependency (for editing/deleting)
+
+Implementation notes
+
+Prefer SVG overlay positioned absolute over the Gantt grid.
+
+Maintain a getBarRect(taskId) utility returning { xStart, xEnd, yCenter } in Gantt viewport coordinates.
+
+Build a getLinkPath(dep) that returns an SVG path d (or polyline points) from anchors + routing rules.
+
+Keep all link rendering in a single layer component to avoid per-row rerenders; memoize paths and update only when inputs/scroll transform changes.
+
+Acceptance
+
+All dependency types (FS/SS/FF/SF) connect to the correct bar endpoints.
+
+Links stay aligned while scrolling/zooming and while resizing/moving tasks.
+
+Arrowheads always point to the successor anchor and never render inside task bars.
