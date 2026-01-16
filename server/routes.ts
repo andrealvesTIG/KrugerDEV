@@ -5280,6 +5280,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           });
           stats.projects++;
           
+          let taskIndex = 1;
           for (const taskTemplate of projectTemplate.tasks) {
             const taskStart = new Date(today);
             taskStart.setDate(taskStart.getDate() - 30);
@@ -5297,6 +5298,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
               status: taskTemplate.status,
               assignee: taskTemplate.assignee,
               isDemo: true,
+              taskIndex: taskIndex++,
             });
             stats.tasks++;
           }
