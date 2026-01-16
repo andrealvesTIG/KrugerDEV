@@ -103,8 +103,8 @@ export function useConvertRiskToIssue() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [api.risks.list.path, variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/risks/all'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/issues/all'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'issues'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/issues', variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects/:projectId/issues', variables.projectId] });
     },
   });
 }
