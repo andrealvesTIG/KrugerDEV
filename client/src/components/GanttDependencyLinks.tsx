@@ -427,13 +427,6 @@ export function GanttDependencyLinks({
               strokeLinecap="round"
               strokeLinejoin="round"
               pointerEvents="none"
-              markerEnd={
-                isHovered || isSelected 
-                  ? "url(#dependency-arrow-hover)" 
-                  : isCritical 
-                    ? "url(#dependency-arrow-critical)"
-                    : "url(#dependency-arrow)"
-              }
               className={cn(
                 "transition-colors duration-150",
                 isHovered || isSelected 
