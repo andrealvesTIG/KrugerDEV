@@ -44,7 +44,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor, useDroppable, useDraggable } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor, useDroppable, useDraggable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -4934,6 +4934,7 @@ function ProjectKanbanView({
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeOverColumn, setActiveOverColumn] = useState<string | null>(null);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -4949,8 +4950,26 @@ function ProjectKanbanView({
     if (task) setActiveTask(task);
   };
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (!over) {
+      setActiveOverColumn(null);
+      return;
+    }
+    
+    const overData = over.data.current;
+    if (overData?.type === 'column') {
+      setActiveOverColumn(overData.columnId);
+    } else if (overData?.type === 'task') {
+      setActiveOverColumn(overData.columnId);
+    } else if (columns.some(c => c.id === String(over.id))) {
+      setActiveOverColumn(String(over.id));
+    }
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveTask(null);
+    setActiveOverColumn(null);
     const { active, over } = event;
     if (!over) return;
     
@@ -4974,6 +4993,11 @@ function ProjectKanbanView({
     if (targetColumnId && task.status !== targetColumnId) {
       onStatusChange(taskId, targetColumnId);
     }
+  };
+  
+  const handleDragCancel = () => {
+    setActiveTask(null);
+    setActiveOverColumn(null);
   };
 
   return (
@@ -5001,7 +5025,9 @@ function ProjectKanbanView({
             sensors={sensors} 
             collisionDetection={closestCorners}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
           >
             <div className={cn("grid grid-cols-1 md:grid-cols-3 gap-6", isFullscreen && "h-full")}>
               {columns.map(column => (
@@ -5010,6 +5036,7 @@ function ProjectKanbanView({
                   column={column}
                   tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
                   onTaskClick={onTaskClick}
+                  isActiveOver={activeOverColumn === column.id}
                 />
               ))}
             </div>
@@ -5034,13 +5061,15 @@ function ProjectKanbanView({
 function ProjectKanbanColumn({ 
   column, 
   tasks, 
-  onTaskClick 
+  onTaskClick,
+  isActiveOver 
 }: { 
   column: { id: string; label: string; color: string }; 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
+  isActiveOver: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef } = useDroppable({
     id: column.id,
     data: {
       type: 'column',
@@ -5053,7 +5082,7 @@ function ProjectKanbanColumn({
       ref={setNodeRef}
       className={cn(
         "space-y-4 min-h-[200px] rounded-lg transition-colors p-2",
-        isOver && "bg-primary/5 ring-2 ring-primary ring-dashed"
+        isActiveOver && "bg-primary/10 ring-2 ring-primary ring-dashed"
       )}
     >
       <div className={cn("rounded-lg p-3 font-semibold", column.color)}>
