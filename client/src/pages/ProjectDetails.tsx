@@ -2032,7 +2032,7 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
     <div 
       className={cn(
         "space-y-4",
-        isFullscreen && "fixed z-40 bg-background p-4 overflow-auto"
+        isFullscreen && "fixed z-40 bg-background p-4 overflow-auto border-4 border-red-500"
       )}
       style={isFullscreen ? { top: 0, right: 0, bottom: 0, left: 256 } : undefined}
     >
