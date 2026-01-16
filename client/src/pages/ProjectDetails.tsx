@@ -26,7 +26,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -3656,6 +3656,7 @@ function ProjectGanttView({
   const [isBaselinePending, setIsBaselinePending] = useState(false);
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
@@ -4300,8 +4301,14 @@ function ProjectGanttView({
   };
 
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-0 flex flex-col">
+    <Card className={cn(
+      "overflow-hidden transition-all duration-200",
+      isFullscreen && "fixed inset-0 z-50 rounded-none"
+    )}>
+      <CardContent className={cn(
+        "p-0 flex flex-col",
+        isFullscreen && "h-full"
+      )}>
         <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">
@@ -4401,11 +4408,20 @@ function ProjectGanttView({
               >
                 <ZoomOut className="h-4 w-4" />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                data-testid="button-gantt-fullscreen"
+                title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              >
+                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
         </div>
         {/* Split-pane Gantt layout with resizable panels */}
-        <ResizablePanelGroup direction="horizontal" className="h-[500px] text-[11px]">
+        <ResizablePanelGroup direction="horizontal" className={cn("text-[11px]", isFullscreen ? "flex-1" : "h-[500px]")}>
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
           <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
             <div className="h-full overflow-x-auto overflow-y-auto relative">
