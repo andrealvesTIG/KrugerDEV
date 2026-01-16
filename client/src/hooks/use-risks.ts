@@ -101,10 +101,11 @@ export function useConvertRiskToIssue() {
       return res.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.risks.list.path, variables.projectId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/risks/all'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/issues', variables.projectId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/projects/:projectId/issues', variables.projectId] });
+      queryClient.invalidateQueries({ predicate: (query) => 
+        Array.isArray(query.queryKey) && 
+        typeof query.queryKey[0] === 'string' && 
+        (query.queryKey[0].includes('/risks') || query.queryKey[0].includes('/issues'))
+      });
     },
   });
 }
