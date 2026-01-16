@@ -1832,7 +1832,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { toast } = useToast();
   
-  const [view, setView] = useState<"gantt" | "kanban">("gantt");
+  const [view, setView] = useState<"table" | "gantt" | "kanban">("table");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -2064,11 +2064,11 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
       style={isFullscreen ? { left: sidebarWidth } : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
+        <Tabs value={view} onValueChange={(v) => setView(v as "table" | "gantt" | "kanban")}>
           <TabsList>
-            <TabsTrigger value="gantt" className="gap-2">
-              <GanttChart className="h-4 w-4" />
-              Gantt
+            <TabsTrigger value="table" className="gap-2">
+              <Table className="h-4 w-4" />
+              Table
             </TabsTrigger>
             <TabsTrigger value="kanban" className="gap-2">
               <Columns3 className="h-4 w-4" />
@@ -2431,7 +2431,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
         />
       </div>
 
-      {view === "gantt" ? (
+      {view === "table" ? (
+        <ProjectTableView 
+          tasks={filteredTasks} 
+          onTaskClick={openEditDialog}
+          isFullscreen={isFullscreen}
+        />
+      ) : view === "gantt" ? (
         <ProjectGanttView 
           tasks={filteredTasks} 
           onTaskClick={openEditDialog}
@@ -5775,6 +5781,109 @@ function ProjectGanttView({
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+function ProjectTableView({ 
+  tasks, 
+  onTaskClick, 
+  isFullscreen,
+}: { 
+  tasks: Task[]; 
+  onTaskClick: (task: Task) => void;
+  isFullscreen?: boolean;
+}) {
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "Completed":
+        return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700">Completed</Badge>;
+      case "In Progress":
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700">In Progress</Badge>;
+      default:
+        return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600">Not Started</Badge>;
+    }
+  };
+
+  return (
+    <div className={cn("flex-1 overflow-auto", isFullscreen && "h-[calc(100vh-120px)]")}>
+      <div className="border rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-muted/50 sticky top-0">
+            <tr className="border-b">
+              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-12">#</th>
+              <th className="text-left p-3 text-xs font-medium text-muted-foreground">Task Name</th>
+              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-28">Status</th>
+              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-20">Progress</th>
+              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-28">Start Date</th>
+              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-28">End Date</th>
+              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-20">Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tasks.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                  No tasks found. Add a task to get started.
+                </td>
+              </tr>
+            ) : (
+              tasks.map((task, index) => {
+                const outlineLevel = task.outlineLevel || 1;
+                const indentPadding = (outlineLevel - 1) * 16;
+                const duration = task.startDate && task.endDate 
+                  ? Math.ceil((new Date(task.endDate).getTime() - new Date(task.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                  : null;
+
+                return (
+                  <tr 
+                    key={task.id} 
+                    className="border-b hover-elevate cursor-pointer"
+                    onClick={() => onTaskClick(task)}
+                    data-testid={`row-task-${task.id}`}
+                  >
+                    <td className="p-3 text-xs text-muted-foreground">{index + 1}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2" style={{ paddingLeft: indentPadding }}>
+                        {task.taskType === "Milestone" && (
+                          <MilestoneIcon className="h-4 w-4 text-primary flex-shrink-0" />
+                        )}
+                        <span className={cn(
+                          "text-sm",
+                          outlineLevel === 1 && "font-medium"
+                        )}>
+                          {task.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-3">{getStatusBadge(task.status || "Not Started")}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden w-12">
+                          <div 
+                            className="h-full bg-primary rounded-full transition-all"
+                            style={{ width: `${task.progress || 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-8">{task.progress || 0}%</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-sm text-muted-foreground">
+                      {task.startDate ? format(new Date(task.startDate), 'MMM d, yyyy') : '-'}
+                    </td>
+                    <td className="p-3 text-sm text-muted-foreground">
+                      {task.endDate ? format(new Date(task.endDate), 'MMM d, yyyy') : '-'}
+                    </td>
+                    <td className="p-3 text-sm text-muted-foreground">
+                      {duration ? `${duration}d` : '-'}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
