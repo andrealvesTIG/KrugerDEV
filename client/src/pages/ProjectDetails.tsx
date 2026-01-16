@@ -1820,9 +1820,20 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const lastInitializedTaskId = useRef<number | null>(null);
   const inviteAssignedRef = useRef(false);
+  
+  // Read sidebar width from DOM when fullscreen changes
+  useEffect(() => {
+    if (isFullscreen) {
+      const sidebar = document.querySelector('[data-sidebar="sidebar"]');
+      if (sidebar) {
+        setSidebarWidth(sidebar.getBoundingClientRect().width);
+      }
+    }
+  }, [isFullscreen]);
   
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
@@ -2034,7 +2045,7 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
         "space-y-4",
         isFullscreen && "fixed top-0 right-0 bottom-0 z-40 bg-background p-4 overflow-auto"
       )}
-      style={isFullscreen ? { left: 'var(--sidebar-width)' } : undefined}
+      style={isFullscreen ? { left: sidebarWidth } : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
