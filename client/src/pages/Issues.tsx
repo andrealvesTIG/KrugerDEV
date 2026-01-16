@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
+import { useCreateRisk } from "@/hooks/use-risks";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
 import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useResources } from "@/hooks/use-resources";
@@ -8,10 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users } from "lucide-react";
+import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users, AlertTriangle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
+import { z } from "zod";
 
 function IssueResourceDisplay({ issueId }: { issueId: number }) {
   const { data: assignments, isLoading } = useIssueResourceAssignments(issueId);
@@ -65,6 +68,7 @@ export default function Issues() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "issue" | "risk">("all");
   const createIssue = useCreateIssue();
+  const createRisk = useCreateRisk();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
   const updateIssueResources = useUpdateIssueResourceAssignments();
@@ -74,6 +78,7 @@ export default function Issues() {
   const [editResourceIds, setEditResourceIds] = useState<number[]>([]);
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
   const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
+  const [isRiskDialogOpen, setIsRiskDialogOpen] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(insertIssueSchema.extend({
@@ -96,6 +101,29 @@ export default function Issues() {
       priority: "Medium",
       status: "Open",
       type: "Bug"
+    }
+  });
+
+  const riskFormSchema = z.object({
+    projectId: z.number().min(1, "Please select a project"),
+    title: z.string().min(1, "Title is required"),
+    description: z.string().optional(),
+    probability: z.enum(["Low", "Medium", "High"]),
+    impact: z.enum(["Low", "Medium", "High"]),
+    status: z.string(),
+    mitigationPlan: z.string().optional(),
+  });
+
+  const riskForm = useForm({
+    resolver: zodResolver(riskFormSchema),
+    defaultValues: {
+      projectId: undefined as unknown as number,
+      title: "",
+      description: "",
+      probability: "Medium" as "Low" | "Medium" | "High",
+      impact: "Medium" as "Low" | "Medium" | "High",
+      status: "Open",
+      mitigationPlan: "",
     }
   });
 
@@ -174,6 +202,33 @@ export default function Issues() {
     });
   };
 
+  const onRiskSubmit = (data: any) => {
+    createRisk.mutate(data, {
+      onSuccess: () => {
+        toast({ title: "Success", description: "Risk created successfully" });
+        setIsRiskDialogOpen(false);
+        riskForm.reset({
+          projectId: undefined as unknown as number,
+          title: "",
+          description: "",
+          probability: "Medium",
+          impact: "Medium",
+          status: "Open",
+          mitigationPlan: "",
+        });
+      },
+      onError: (err: any) => {
+        if (err.limitExceeded) {
+          setLimitError({ message: err.message, resourceType: err.resourceType });
+          setLimitDialogOpen(true);
+          setIsRiskDialogOpen(false);
+        } else {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
+        }
+      }
+    });
+  };
+
   const filteredIssues = issues?.filter(issue => {
     const matchesSearch = issue.title.toLowerCase().includes(search.toLowerCase()) ||
       issue.description?.toLowerCase().includes(search.toLowerCase());
@@ -209,12 +264,13 @@ export default function Issues() {
           <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-page-title">Issues & Risks</h1>
           <p className="mt-1 text-muted-foreground">Track and manage issues and risks across all projects.</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-create-issue">
-              <Plus className="mr-2 h-4 w-4" /> New Issue
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-issue">
+                <Plus className="mr-2 h-4 w-4" /> New Issue
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Create New Issue</DialogTitle>
@@ -313,6 +369,128 @@ export default function Issues() {
             </form>
           </DialogContent>
         </Dialog>
+        
+          <Dialog open={isRiskDialogOpen} onOpenChange={setIsRiskDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" data-testid="button-create-risk">
+                <AlertTriangle className="mr-2 h-4 w-4" /> New Risk
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Create New Risk</DialogTitle>
+                <DialogDescription>Add a new risk to track potential issues</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={riskForm.handleSubmit(onRiskSubmit)} className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Project <span className="text-destructive">*</span></Label>
+                  <Controller
+                    control={riskForm.control}
+                    name="projectId"
+                    render={({ field, fieldState }) => (
+                      <>
+                        <Select onValueChange={(val) => field.onChange(parseInt(val))} value={field.value?.toString()}>
+                          <SelectTrigger data-testid="select-risk-project" className={fieldState.error ? "border-destructive" : ""}>
+                            <SelectValue placeholder="Select a project" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {projects?.map(p => (
+                              <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {fieldState.error && (
+                          <p className="text-sm text-destructive">{fieldState.error.message}</p>
+                        )}
+                      </>
+                    )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Title <span className="text-destructive">*</span></Label>
+                  <Input {...riskForm.register("title")} data-testid="input-risk-title" placeholder="Brief description of the risk" className={riskForm.formState.errors.title ? "border-destructive" : ""} />
+                  {riskForm.formState.errors.title && (
+                    <p className="text-sm text-destructive">{riskForm.formState.errors.title.message as string}</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Probability</Label>
+                    <Controller
+                      control={riskForm.control}
+                      name="probability"
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value || "Medium"}>
+                          <SelectTrigger data-testid="select-risk-probability">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Low">Low</SelectItem>
+                            <SelectItem value="Medium">Medium</SelectItem>
+                            <SelectItem value="High">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Impact</Label>
+                    <Controller
+                      control={riskForm.control}
+                      name="impact"
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value || "Medium"}>
+                          <SelectTrigger data-testid="select-risk-impact">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Low">Low</SelectItem>
+                            <SelectItem value="Medium">Medium</SelectItem>
+                            <SelectItem value="High">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Controller
+                    control={riskForm.control}
+                    name="status"
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || "Open"}>
+                        <SelectTrigger data-testid="select-risk-status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Open">Open</SelectItem>
+                          <SelectItem value="Mitigated">Mitigated</SelectItem>
+                          <SelectItem value="Occurred">Occurred</SelectItem>
+                          <SelectItem value="Closed">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Textarea {...riskForm.register("description")} data-testid="input-risk-description" placeholder="Detailed description of the risk" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Mitigation Plan</Label>
+                  <Textarea {...riskForm.register("mitigationPlan")} data-testid="input-risk-mitigation" placeholder="Steps to mitigate or handle the risk" />
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={createRisk.isPending} data-testid="button-submit-risk">
+                    {createRisk.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Create Risk
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-4">
