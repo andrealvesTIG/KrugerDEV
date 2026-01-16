@@ -3064,8 +3064,9 @@ function ProjectGanttTaskRowMeta({
 
   const hasValidDates = task.startDate && task.endDate;
   
-  // Critical path styling: grey out non-critical tasks when toggle is active
+  // Critical path styling: highlight critical tasks in red, grey out non-critical tasks
   const isNonCritical = showCriticalPath && !isOnCriticalPath;
+  const isCritical = showCriticalPath && isOnCriticalPath;
 
   return (
     <div 
@@ -3073,7 +3074,8 @@ function ProjectGanttTaskRowMeta({
         "flex border-b hover:bg-muted/30 transition-colors group", 
         rowHeight,
         isSelectedForBaseline && baselineSelectionMode && "bg-primary/5",
-        isNonCritical && "opacity-40"
+        isNonCritical && "opacity-40",
+        isCritical && "bg-red-50 dark:bg-red-950/30 border-l-2 border-l-red-500"
       )}
       data-testid={`gantt-task-meta-${task.id}`}
     >
@@ -3587,8 +3589,9 @@ function ProjectGanttTaskRowTimeline({
   // Determine row height - taller when showing baseline
   const rowHeight = showBaseline && hasBaseline ? 'h-[36px]' : 'h-[28px]';
   
-  // Critical path styling: grey out non-critical tasks when toggle is active
+  // Critical path styling: highlight critical tasks in red, grey out non-critical tasks
   const isNonCritical = showCriticalPath && !isOnCriticalPath;
+  const isCritical = showCriticalPath && isOnCriticalPath;
 
   return (
     <div 
@@ -3596,7 +3599,8 @@ function ProjectGanttTaskRowTimeline({
         "relative border-b hover:bg-muted/30 transition-colors", 
         rowHeight, 
         hasChildren && "bg-muted/20",
-        isNonCritical && "opacity-40"
+        isNonCritical && "opacity-40",
+        isCritical && "bg-red-50 dark:bg-red-950/30"
       )}
       data-testid={`gantt-task-timeline-${task.id}`}
     >
@@ -3620,6 +3624,7 @@ function ProjectGanttTaskRowTimeline({
         <div
           className={cn(
             "absolute rounded-sm overflow-hidden cursor-pointer",
+            isCritical ? "bg-red-200 dark:bg-red-900 ring-1 ring-red-500" :
             task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
             task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
           )}
@@ -3635,6 +3640,7 @@ function ProjectGanttTaskRowTimeline({
           <div 
             className={cn(
               "h-full transition-all",
+              isCritical ? "bg-red-500" :
               task.status === "Completed" ? "bg-emerald-500" :
               task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
             )}
