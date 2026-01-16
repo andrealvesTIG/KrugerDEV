@@ -375,7 +375,7 @@ export default function ProjectDetails() {
           <TabsContent value="summary">
             <ProjectSummaryTab project={project} onUpdate={updateProject} />
           </TabsContent>
-          <TabsContent value="tasks">
+          <TabsContent value="tasks" className="relative">
             <TasksTab projectId={project.id} projectName={project.name} />
           </TabsContent>
           <TabsContent value="risks">
