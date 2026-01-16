@@ -398,7 +398,8 @@ export default function Issues() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="flex items-start justify-between rounded-lg border p-4 hover:bg-slate-50 transition-colors"
+                  className="flex items-start justify-between rounded-lg border p-4 hover:bg-slate-50 transition-colors cursor-pointer"
+                  onClick={() => openEditDialog(issue)}
                   data-testid={`card-issue-${issue.id}`}
                 >
                   <div className="flex gap-4">
@@ -417,7 +418,7 @@ export default function Issues() {
                       </div>
                       <p className="text-sm text-muted-foreground">{issue.description}</p>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <Link href={`/projects/${issue.projectId}`}>
+                        <Link href={`/projects/${issue.projectId}`} onClick={(e) => e.stopPropagation()}>
                           <span className="hover:text-primary cursor-pointer">{getProjectName(issue.projectId)}</span>
                         </Link>
                         <IssueResourceDisplay issueId={issue.id} />
@@ -425,7 +426,7 @@ export default function Issues() {
                     </div>
                   </div>
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
                         size="icon"
