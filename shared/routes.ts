@@ -11,17 +11,21 @@ import {
   insertProjectFinancialSchema,
   portfolios,
   projects,
-  risks,
   milestones,
   issues,
   tasks,
   taskChangeLogs,
   projectChangeLogs,
-  riskChangeLogs,
   issueChangeLogs,
   taskDependencies,
   projectFinancials
 } from './schema';
+
+// ============================================
+// TYPE EXPORTS FOR REQUEST TYPES
+// ============================================
+export type CreateRiskRequest = z.infer<typeof insertRiskSchema>;
+export type UpdateRiskRequest = Partial<z.infer<typeof insertRiskSchema>>;
 
 // ============================================
 // SHARED ERROR SCHEMAS
@@ -150,7 +154,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/projects/:projectId/risks',
       responses: {
-        200: z.array(z.custom<typeof risks.$inferSelect>()),
+        200: z.array(z.custom<typeof issues.$inferSelect>()),
       },
     },
     create: {
@@ -158,7 +162,7 @@ export const api = {
       path: '/api/risks',
       input: insertRiskSchema,
       responses: {
-        201: z.custom<typeof risks.$inferSelect>(),
+        201: z.custom<typeof issues.$inferSelect>(),
         400: errorSchemas.validation,
       },
     },
@@ -167,7 +171,7 @@ export const api = {
       path: '/api/risks/:id',
       input: insertRiskSchema.partial(),
       responses: {
-        200: z.custom<typeof risks.$inferSelect>(),
+        200: z.custom<typeof issues.$inferSelect>(),
         400: errorSchemas.validation,
         404: errorSchemas.notFound,
       },
@@ -184,7 +188,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/risks/:id/history',
       responses: {
-        200: z.array(z.custom<typeof riskChangeLogs.$inferSelect>()),
+        200: z.array(z.custom<typeof issueChangeLogs.$inferSelect>()),
         404: errorSchemas.notFound,
       },
     },

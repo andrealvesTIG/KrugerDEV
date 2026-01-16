@@ -88,3 +88,23 @@ export function useRiskHistory(riskId: number) {
     enabled: riskId > 0,
   });
 }
+
+export function useConvertRiskToIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      const res = await fetch(`/api/risks/${id}/convert-to-issue`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to convert risk to issue");
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.risks.list.path, variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/risks/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/issues/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'issues'] });
+    },
+  });
+}

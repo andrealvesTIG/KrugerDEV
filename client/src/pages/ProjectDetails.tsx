@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
-import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory } from "@/hooks/use-risks";
+import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory, useConvertRiskToIssue } from "@/hooks/use-risks";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
 import { useMilestones } from "@/hooks/use-milestones";
@@ -1297,6 +1297,7 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
   const createRisk = useCreateRisk();
   const updateRisk = useUpdateRisk();
   const deleteRisk = useDeleteRisk();
+  const convertRiskToIssue = useConvertRiskToIssue();
   const updateRiskResources = useUpdateRiskResourceAssignments();
   const { data: riskAssignments } = useRiskResourceAssignments(editingRisk?.id ?? null);
   const { toast } = useToast();
@@ -1544,6 +1545,23 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
                   >
                     <History className="h-4 w-4 mr-2" />
                     View History
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => {
+                      convertRiskToIssue.mutate({ id: risk.id, projectId }, {
+                        onSuccess: () => {
+                          toast({ title: "Success", description: "Risk converted to issue" });
+                        },
+                        onError: () => {
+                          toast({ title: "Error", description: "Failed to convert risk to issue", variant: "destructive" });
+                        }
+                      });
+                    }}
+                    disabled={convertRiskToIssue.isPending}
+                    data-testid={`button-convert-risk-${risk.id}`}
+                  >
+                    <ArrowRight className="h-4 w-4 mr-2" />
+                    Convert to Issue
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={() => setDeleteRiskData(risk)}

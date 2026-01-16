@@ -726,6 +726,29 @@ export class DatabaseStorage implements IStorage {
     await db.delete(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
   }
 
+  async convertRiskToIssue(id: number): Promise<Issue | undefined> {
+    const [converted] = await db.update(issues)
+      .set({
+        itemType: 'issue',
+        type: 'Task',
+        probability: null,
+        impact: null,
+        riskScore: null,
+        responseStrategy: null,
+        mitigationPlan: null,
+        contingencyPlan: null,
+        triggerEvents: null,
+        residualRisk: null,
+        ownerId: null,
+        reviewerId: null,
+        identifiedDate: null,
+        proximity: null,
+      })
+      .where(and(eq(issues.id, id), eq(issues.itemType, 'risk')))
+      .returning();
+    return converted;
+  }
+
   // Milestones
   async getMilestones(projectId: number): Promise<Milestone[]> {
     return await db.select().from(milestones).where(
