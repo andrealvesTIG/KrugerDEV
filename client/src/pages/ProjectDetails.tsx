@@ -398,7 +398,7 @@ export default function ProjectDetails() {
             <ProjectSummaryTab project={project} onUpdate={updateProject} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
-            <TasksTab projectId={project.id} projectName={project.name} />
+            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab projectId={project.id} projectName={project.name} />
@@ -1823,7 +1823,7 @@ const taskStatusColors = {
   "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
-function TasksTab({ projectId, projectName }: { projectId: number; projectName?: string }) {
+function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: { projectId: number; projectName?: string; projectStartDate?: string | null; projectEndDate?: string | null }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading } = useTasks(projectId);
   const createTask = useCreateTask();
@@ -2429,6 +2429,8 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
           organizationId={currentOrganization?.id || null}
           projectName={projectName}
           isFullscreen={isFullscreen}
+          projectStartDate={projectStartDate}
+          projectEndDate={projectEndDate}
           onCreateTask={(name) => {
             createTask.mutate({
               projectId,
@@ -3900,6 +3902,8 @@ function ProjectGanttView({
   onCreateTask,
   projectName,
   isFullscreen,
+  projectStartDate,
+  projectEndDate,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
@@ -3908,6 +3912,8 @@ function ProjectGanttView({
   onCreateTask: (name: string) => void;
   projectName?: string;
   isFullscreen?: boolean;
+  projectStartDate?: string | null;
+  projectEndDate?: string | null;
 }) {
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
@@ -4828,10 +4834,31 @@ function ProjectGanttView({
   }, [tasks]);
   
   const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
-    const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
-    
     let minDate: Date;
     let maxDate: Date;
+    
+    // Prefer project start/end dates if available
+    if (projectStartDate && projectEndDate) {
+      const projStart = parseISO(projectStartDate);
+      const projEnd = parseISO(projectEndDate);
+      
+      const totalDays = differenceInDays(projEnd, projStart);
+      let autoZoom: ZoomLevel = 'month';
+      if (totalDays <= 14) autoZoom = 'day';
+      else if (totalDays <= 60) autoZoom = 'week';
+      else if (totalDays <= 180) autoZoom = 'month';
+      else if (totalDays <= 365) autoZoom = 'quarter';
+      else if (totalDays <= 730) autoZoom = 'year';
+      else autoZoom = '5year';
+      
+      minDate = startOfMonth(projStart);
+      maxDate = endOfMonth(projEnd);
+      
+      return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: autoZoom };
+    }
+    
+    // Fall back to task dates
+    const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
     
     if (tasksWithDates.length > 0) {
       const dates = tasksWithDates.flatMap(t => [parseISO(t.startDate), parseISO(t.endDate)]);
@@ -4856,7 +4883,7 @@ function ProjectGanttView({
       maxDate = endOfMonth(addDays(today, 60));
       return { minDate, maxDate, dateRange: eachDayOfInterval({ start: minDate, end: maxDate }), autoZoomLevel: 'month' as ZoomLevel };
     }
-  }, [tasks, today]);
+  }, [tasks, today, projectStartDate, projectEndDate]);
 
   useEffect(() => {
     setZoomLevel(autoZoomLevel);
