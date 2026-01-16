@@ -2414,7 +2414,7 @@ const GANTT_COLUMNS: GanttColumnConfig[] = [
   { id: 'baselineStartDate', label: 'Baseline Start', width: 'w-28', widthPx: 112, category: 'baseline' },
   { id: 'baselineEndDate', label: 'Baseline End', width: 'w-28', widthPx: 112, category: 'baseline' },
   // Progress & Status
-  { id: 'progress', label: '%', width: 'w-14', widthPx: 56, category: 'basic' },
+  { id: 'progress', label: 'Progress %', width: 'w-20', widthPx: 80, category: 'basic' },
   { id: 'status', label: 'Status', width: 'w-28', widthPx: 112, category: 'basic' },
   { id: 'priority', label: 'Priority', width: 'w-20', widthPx: 80, category: 'basic' },
   { id: 'taskType', label: 'Type', width: 'w-24', widthPx: 96, category: 'basic' },
@@ -2925,7 +2925,7 @@ function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.startDate}
-                  displayValue={task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—'}
+                  displayValue={task.startDate ? format(parseISO(task.startDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('startDate', val as string | null)}
                   disabled={isSummaryTask}
@@ -2935,21 +2935,21 @@ function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.endDate}
-                  displayValue={task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—'}
+                  displayValue={task.endDate ? format(parseISO(task.endDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('endDate', val as string | null)}
                   disabled={isSummaryTask}
                 />
               );
             case 'baselineStartDate':
-              return task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yy') : '—';
+              return task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yyyy') : '—';
             case 'baselineEndDate':
-              return task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yy') : '—';
+              return task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yyyy') : '—';
             case 'actualStartDate':
               return (
                 <InlineEditCell
                   value={task.actualStartDate}
-                  displayValue={task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yy') : '—'}
+                  displayValue={task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualStartDate', val as string | null)}
                   disabled={isSummaryTask}
@@ -2959,7 +2959,7 @@ function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.actualEndDate}
-                  displayValue={task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yy') : '—'}
+                  displayValue={task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualEndDate', val as string | null)}
                   disabled={isSummaryTask}
@@ -3116,7 +3116,7 @@ function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.constraintDate}
-                  displayValue={task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yy') : '—'}
+                  displayValue={task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('constraintDate', val as string | null)}
                 />
@@ -4111,8 +4111,8 @@ function ProjectGanttView({
                       </div>
                     );
                   })}
-                  {/* Add column button */}
-                  <div className="flex-shrink-0 border-r p-1 relative">
+                  {/* Add column button - sticky to always be visible */}
+                  <div className="sticky right-0 flex-shrink-0 border-r p-1 bg-muted/50 z-10">
                     <DropdownMenu open={isAddColumnOpen} onOpenChange={setIsAddColumnOpen}>
                       <DropdownMenuTrigger asChild>
                         <Button 
