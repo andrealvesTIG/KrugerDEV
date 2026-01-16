@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, ChevronLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -156,14 +156,17 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
 
       {/* Desktop: Horizontally collapsible sidebar tabs */}
       <div className={`hidden md:flex flex-col transition-all duration-200 ${isDesktopSidebarCollapsed ? 'w-12' : 'w-56'}`}>
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
-          className="flex items-center justify-center p-2 mb-2 bg-card border rounded-lg hover:bg-muted transition-colors"
+          className="h-7 w-7 mb-2 self-end"
           data-testid="button-toggle-settings-sidebar"
           title={isDesktopSidebarCollapsed ? "Expand menu" : "Collapse menu"}
         >
-          <ChevronLeft className={`h-4 w-4 transition-transform ${isDesktopSidebarCollapsed ? 'rotate-180' : ''}`} />
-        </button>
+          {isDesktopSidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          <span className="sr-only">Toggle Settings Menu</span>
+        </Button>
         
         <TabsList className={`flex flex-col h-fit bg-card border rounded-lg p-1 ${isDesktopSidebarCollapsed ? 'w-12' : 'w-56'}`}>
           {settingsTabs.map((tab) => {
