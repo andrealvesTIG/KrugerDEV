@@ -109,3 +109,29 @@ export function useConvertRiskToIssue() {
     },
   });
 }
+
+export interface AiMitigationRequest {
+  title: string;
+  description?: string;
+  probability?: string;
+  impact?: string;
+  projectContext?: string;
+}
+
+export function useAiMitigationSuggestion() {
+  return useMutation({
+    mutationFn: async (data: AiMitigationRequest) => {
+      const res = await fetch('/api/risks/ai-mitigation', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to generate suggestions");
+      }
+      return res.json() as Promise<{ suggestion: string }>;
+    },
+  });
+}

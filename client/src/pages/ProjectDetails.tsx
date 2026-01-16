@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
-import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory, useConvertRiskToIssue } from "@/hooks/use-risks";
+import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
 import { useMilestones } from "@/hooks/use-milestones";
@@ -1299,6 +1299,7 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
   const updateRisk = useUpdateRisk();
   const deleteRisk = useDeleteRisk();
   const convertRiskToIssue = useConvertRiskToIssue();
+  const aiMitigationSuggestion = useAiMitigationSuggestion();
   const updateRiskResources = useUpdateRiskResourceAssignments();
   const { data: riskHistory, isLoading: historyLoading } = useRiskHistory(editingRisk?.id || 0);
   const { data: riskAssignments } = useRiskResourceAssignments(editingRisk?.id ?? null);
@@ -1462,7 +1463,47 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
                 <Textarea {...form.register("description")} data-testid="input-risk-description" />
               </div>
               <div className="space-y-2">
-                <Label>Mitigation Plan</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Mitigation Plan</Label>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      const title = form.getValues("title");
+                      if (!title) {
+                        toast({ title: "Title Required", description: "Please enter a risk title first to get AI suggestions", variant: "destructive" });
+                        return;
+                      }
+                      aiMitigationSuggestion.mutate({
+                        title,
+                        description: form.getValues("description"),
+                        probability: form.getValues("probability"),
+                        impact: form.getValues("impact"),
+                        projectContext: projectName
+                      }, {
+                        onSuccess: (data) => {
+                          form.setValue("mitigationPlan", data.suggestion);
+                          toast({ title: "AI Suggestion Generated", description: "Mitigation plan has been populated" });
+                        },
+                        onError: (err: any) => {
+                          toast({ title: "Error", description: err.message || "Failed to generate suggestions", variant: "destructive" });
+                        }
+                      });
+                    }}
+                    disabled={aiMitigationSuggestion.isPending}
+                    data-testid="button-ai-suggest-mitigation"
+                  >
+                    {aiMitigationSuggestion.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-1" />
+                        AI Suggest
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <Textarea {...form.register("mitigationPlan")} placeholder="How will this risk be mitigated?" data-testid="input-risk-mitigation" />
               </div>
               <ResourceAssignment

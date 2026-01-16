@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
-import { useCreateRisk, useConvertRiskToIssue } from "@/hooks/use-risks";
+import { useCreateRisk, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
 import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useResources } from "@/hooks/use-resources";
@@ -70,6 +70,7 @@ export default function Issues() {
   const createIssue = useCreateIssue();
   const createRisk = useCreateRisk();
   const convertRiskToIssue = useConvertRiskToIssue();
+  const aiMitigationSuggestion = useAiMitigationSuggestion();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
   const updateIssueResources = useUpdateIssueResourceAssignments();
@@ -482,7 +483,49 @@ export default function Issues() {
                   <Textarea {...riskForm.register("description")} data-testid="input-risk-description" placeholder="Detailed description of the risk" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Mitigation Plan</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Mitigation Plan</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        const title = riskForm.getValues("title");
+                        if (!title) {
+                          toast({ title: "Title Required", description: "Please enter a risk title first to get AI suggestions", variant: "destructive" });
+                          return;
+                        }
+                        const projectId = riskForm.getValues("projectId");
+                        const project = projects?.find(p => p.id === projectId);
+                        aiMitigationSuggestion.mutate({
+                          title,
+                          description: riskForm.getValues("description"),
+                          probability: riskForm.getValues("probability"),
+                          impact: riskForm.getValues("impact"),
+                          projectContext: project?.name
+                        }, {
+                          onSuccess: (data) => {
+                            riskForm.setValue("mitigationPlan", data.suggestion);
+                            toast({ title: "AI Suggestion Generated", description: "Mitigation plan has been populated" });
+                          },
+                          onError: (err: any) => {
+                            toast({ title: "Error", description: err.message || "Failed to generate suggestions", variant: "destructive" });
+                          }
+                        });
+                      }}
+                      disabled={aiMitigationSuggestion.isPending}
+                      data-testid="button-ai-suggest-mitigation"
+                    >
+                      {aiMitigationSuggestion.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-1" />
+                          AI Suggest
+                        </>
+                      )}
+                    </Button>
+                  </div>
                   <Textarea {...riskForm.register("mitigationPlan")} data-testid="input-risk-mitigation" placeholder="Steps to mitigate or handle the risk" />
                 </div>
                 <DialogFooter>
