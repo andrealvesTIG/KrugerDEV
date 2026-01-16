@@ -128,7 +128,17 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
 }
 
 function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructure {
-  let updatedStructure = [...structure];
+  const validModuleKeys = new Set(Object.keys(moduleDefinitions));
+  
+  let updatedStructure = structure.map(group => ({
+    ...group,
+    items: group.items.filter(item => {
+      if (item.type === "module") {
+        return validModuleKeys.has(item.key);
+      }
+      return true;
+    })
+  }));
   
   // Ensure timesheets module is in the menu group
   const hasTimesheets = updatedStructure.some(g => 

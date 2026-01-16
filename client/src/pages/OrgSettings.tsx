@@ -612,7 +612,6 @@ const availableModules = [
   { key: "timesheets", name: "Timesheets", icon: Clock, description: "Time tracking" },
   { key: "resources", name: "Resources", icon: Users, description: "Resource management" },
   { key: "calendar", name: "Calendar", icon: Calendar, description: "Calendar view" },
-  { key: "integrations", name: "Integrations", icon: Plug, description: "External integrations" },
   { key: "user-guide", name: "User Guide", icon: BookOpen, description: "Help documentation" },
 ];
 
@@ -626,7 +625,6 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
   timesheets: Clock,
   resources: Users,
   calendar: Calendar,
-  integrations: Plug,
   "user-guide": BookOpen,
 };
 
@@ -653,13 +651,25 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
 }
 
 function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructure {
-  const helpGroup = structure.find(g => g.id === "help");
-  const hasUserGuide = structure.some(g => 
+  const validModuleKeys = new Set(availableModules.map(m => m.key));
+  
+  let cleanedStructure = structure.map(group => ({
+    ...group,
+    items: group.items.filter(item => {
+      if (item.type === "module") {
+        return validModuleKeys.has(item.key);
+      }
+      return true;
+    })
+  }));
+  
+  const helpGroup = cleanedStructure.find(g => g.id === "help");
+  const hasUserGuide = cleanedStructure.some(g => 
     g.items.some(item => item.type === "module" && item.key === "user-guide")
   );
   
   if (!hasUserGuide && helpGroup) {
-    return structure.map(g => {
+    return cleanedStructure.map(g => {
       if (g.id === "help") {
         return { ...g, items: [...g.items, { type: "module" as const, key: "user-guide", hidden: false }] };
       }
@@ -668,7 +678,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   }
   
   if (!helpGroup) {
-    return [...structure, { 
+    return [...cleanedStructure, { 
       id: "help", 
       name: "Help", 
       isDefault: true, 
@@ -677,7 +687,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     }];
   }
   
-  return structure;
+  return cleanedStructure;
 }
 
 function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
