@@ -50,6 +50,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { GanttDependencyLinks } from "@/components/GanttDependencyLinks";
 import { useLocation } from "wouter";
 
 const PROJECT_STAGES = [
@@ -4604,7 +4605,10 @@ function ProjectGanttView({
           {/* Right pane: Timeline (resizable + scrollable) */}
           <ResizablePanel defaultSize={50} minSize={20}>
             <div className="h-full overflow-x-auto overflow-y-auto">
-              <div style={{ minWidth: `${filteredDates.length * 60}px` }}>
+              <div 
+                className="relative"
+                style={{ minWidth: `${filteredDates.length * 60}px` }}
+              >
                 {/* Timeline header */}
                 <div className="flex border-b bg-muted/50 sticky top-0 z-10">
                   {filteredDates.map((date, i) => (
@@ -4633,6 +4637,27 @@ function ProjectGanttView({
                 )}
                 {/* Empty row for add task alignment */}
                 <div className="h-[28px] border-t bg-muted/20" />
+                
+                {/* Dependency links SVG overlay */}
+                {projectDependencies.length > 0 && (
+                  <GanttDependencyLinks
+                    tasks={visibleTasks}
+                    dependencies={projectDependencies}
+                    minDate={adjustedMinDate}
+                    maxDate={adjustedMaxDate}
+                    containerWidth={filteredDates.length * 60}
+                    rowHeight={28}
+                    headerHeight={28}
+                    showBaseline={showBaseline}
+                    onDependencyClick={(dep) => {
+                      // Find the task and open dependencies dialog
+                      const task = tasks.find(t => t.id === dep.taskId);
+                      if (task) {
+                        setDependenciesDialogTask(task);
+                      }
+                    }}
+                  />
+                )}
               </div>
             </div>
           </ResizablePanel>
