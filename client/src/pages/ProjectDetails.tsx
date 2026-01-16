@@ -2703,6 +2703,7 @@ function ProjectGanttTaskRowMeta({
   baselineSelectionMode,
   isSelectedForBaseline,
   onToggleBaselineSelection,
+  showCriticalPath,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -2722,6 +2723,7 @@ function ProjectGanttTaskRowMeta({
   baselineSelectionMode: boolean;
   isSelectedForBaseline: boolean;
   onToggleBaselineSelection: (taskId: number, hasChildren: boolean) => void;
+  showCriticalPath: boolean;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2789,13 +2791,17 @@ function ProjectGanttTaskRowMeta({
   const rowHeight = showBaseline && hasBaseline ? 'h-[36px]' : 'h-[28px]';
 
   const hasValidDates = task.startDate && task.endDate;
+  
+  // Critical path styling: grey out non-critical tasks when toggle is active
+  const isNonCritical = showCriticalPath && !task.isCritical;
 
   return (
     <div 
       className={cn(
         "flex border-b hover:bg-muted/30 transition-colors group", 
         rowHeight,
-        isSelectedForBaseline && baselineSelectionMode && "bg-primary/5"
+        isSelectedForBaseline && baselineSelectionMode && "bg-primary/5",
+        isNonCritical && "opacity-40"
       )}
       data-testid={`gantt-task-meta-${task.id}`}
     >
@@ -3283,6 +3289,7 @@ function ProjectGanttTaskRowTimeline({
   maxDate,
   hasChildren,
   showBaseline,
+  showCriticalPath,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -3290,6 +3297,7 @@ function ProjectGanttTaskRowTimeline({
   maxDate: Date;
   hasChildren: boolean;
   showBaseline: boolean;
+  showCriticalPath: boolean;
 }) {
   const hasValidDates = task.startDate && task.endDate;
   const start = hasValidDates ? parseISO(task.startDate) : null;
@@ -3325,10 +3333,18 @@ function ProjectGanttTaskRowTimeline({
   
   // Determine row height - taller when showing baseline
   const rowHeight = showBaseline && hasBaseline ? 'h-[36px]' : 'h-[28px]';
+  
+  // Critical path styling: grey out non-critical tasks when toggle is active
+  const isNonCritical = showCriticalPath && !task.isCritical;
 
   return (
     <div 
-      className={cn("relative border-b hover:bg-muted/30 transition-colors", rowHeight, hasChildren && "bg-muted/20")}
+      className={cn(
+        "relative border-b hover:bg-muted/30 transition-colors", 
+        rowHeight, 
+        hasChildren && "bg-muted/20",
+        isNonCritical && "opacity-40"
+      )}
       data-testid={`gantt-task-timeline-${task.id}`}
     >
       {/* Baseline bar (rendered below main bar) */}
@@ -3633,6 +3649,7 @@ function ProjectGanttView({
   const [selectedTasksForBaseline, setSelectedTasksForBaseline] = useState<Set<number>>(new Set());
   const [isBaselinePending, setIsBaselinePending] = useState(false);
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
+  const [showCriticalPath, setShowCriticalPath] = useState(false);
   
   // Centralized list of tasks valid for baselining (have start and end dates)
   const validBaselineTasks = useMemo(() => 
@@ -4298,6 +4315,16 @@ function ProjectGanttView({
             </Button>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={showCriticalPath}
+                onCheckedChange={setShowCriticalPath}
+                data-testid="toggle-show-critical-path"
+              />
+              <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setShowCriticalPath(!showCriticalPath)}>
+                Critical Path
+              </Label>
+            </div>
             {hasAnyBaselines && (
               <div className="flex items-center gap-2">
                 <Switch
@@ -4494,6 +4521,7 @@ function ProjectGanttView({
                       baselineSelectionMode={baselineSelectionMode}
                       isSelectedForBaseline={selectedTasksForBaseline.has(task.id)}
                       onToggleBaselineSelection={toggleTaskForBaseline}
+                      showCriticalPath={showCriticalPath}
                     />
                   ))
                 )}
@@ -4555,6 +4583,7 @@ function ProjectGanttView({
                       maxDate={adjustedMaxDate}
                       hasChildren={!!taskHasChildren[task.id]}
                       showBaseline={showBaseline}
+                      showCriticalPath={showCriticalPath}
                     />
                   ))
                 )}
