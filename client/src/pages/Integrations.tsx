@@ -72,6 +72,9 @@ const categories: { id: IntegrationCategory; name: string; icon: React.ReactNode
   { id: "analytics", name: "Analytics & BI", icon: <BarChart3 className="h-4 w-4" />, description: "Connect business intelligence tools" },
 ];
 
+export { integrations, categories };
+export type { Integration, IntegrationCategory };
+
 export default function Integrations() {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();

@@ -29,6 +29,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { ProjectOnlineImportWizard } from "@/components/ProjectOnlineImportWizard";
 import { usePortfolios } from "@/hooks/use-portfolios";
+import IntegrationsPage from "@/pages/Integrations";
 
 interface EnrichedMember extends OrganizationMember {
   user?: User;
@@ -2918,82 +2919,6 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
 }
 
 function IntegrationsSection({ organizationId }: { organizationId: number }) {
-  const [showProjectOnlineWizard, setShowProjectOnlineWizard] = useState(false);
-  const { data: portfolios } = usePortfolios(organizationId);
-  
-  const { data: projectOnlineStatus } = useQuery<{ configured: boolean; connected: boolean; siteUrl: string | null }>({
-    queryKey: ["/api/project-online/status"],
-  });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Plug className="h-5 w-5" />
-          Integrations
-        </CardTitle>
-        <CardDescription>
-          Connect external services to import and sync project data.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <svg viewBox="0 0 23 23" className="w-6 h-6" fill="none">
-                  <path d="M1 1h10v10H1V1z" fill="#F25022"/>
-                  <path d="M12 1h10v10H12V1z" fill="#7FBA00"/>
-                  <path d="M1 12h10v10H1V12z" fill="#00A4EF"/>
-                  <path d="M12 12h10v10H12V12z" fill="#FFB900"/>
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-semibold">Microsoft Project Online</h3>
-                <p className="text-sm text-muted-foreground">
-                  Import projects, tasks, and milestones from MS Project Online
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {projectOnlineStatus?.connected ? (
-                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
-                  Connected
-                </Badge>
-              ) : projectOnlineStatus?.configured ? (
-                <Badge variant="outline" className="text-muted-foreground">
-                  Not Connected
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-amber-600 bg-amber-500/10 border-amber-500/30">
-                  Not Configured
-                </Badge>
-              )}
-              <Button 
-                onClick={() => setShowProjectOnlineWizard(true)}
-                data-testid="button-project-online-import"
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Import Projects
-              </Button>
-            </div>
-          </div>
-          {!projectOnlineStatus?.configured && (
-            <div className="mt-4 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                To use Project Online integration, please configure MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET environment variables with appropriate SharePoint/Project permissions in your Azure AD app registration.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <ProjectOnlineImportWizard
-          open={showProjectOnlineWizard}
-          onOpenChange={setShowProjectOnlineWizard}
-          organizationId={organizationId}
-          portfolios={portfolios || []}
-        />
-      </CardContent>
-    </Card>
-  );
+  return <IntegrationsPage />;
 }
+

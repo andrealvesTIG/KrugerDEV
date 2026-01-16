@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, Plug, CreditCard, ExternalLink, Clock } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -87,7 +87,6 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   timesheets: { name: "Timesheets", href: "/timesheets", icon: Clock },
   resources: { name: "Resources", href: "/resources", icon: Users },
   calendar: { name: "Calendar", href: "/calendar", icon: Calendar },
-  integrations: { name: "Integrations", href: "/integrations", icon: Plug },
   "user-guide": { name: "User Guide", href: "/user-guide", icon: BookOpen },
 };
 
@@ -101,7 +100,6 @@ const navigation = [
   { name: "Timesheets", href: "/timesheets", icon: Clock, key: "timesheets" },
   { name: "Resources", href: "/resources", icon: Users, key: "resources" },
   { name: "Calendar", href: "/calendar", icon: Calendar, key: "calendar" },
-  { name: "Integrations", href: "/integrations", icon: Plug, key: "integrations" },
 ];
 
 const helpNavigation = [
@@ -109,7 +107,7 @@ const helpNavigation = [
 ];
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
-  const mainModules = ["dashboard", "portfolios", "projects", "intakes", "tasks", "issues", "timesheets", "resources", "calendar", "integrations"];
+  const mainModules = ["dashboard", "portfolios", "projects", "intakes", "tasks", "issues", "timesheets", "resources", "calendar"];
   const defaultOrder = mainModules;
   const order = moduleOrder && moduleOrder.length > 0 ? moduleOrder.filter(k => mainModules.includes(k)) : defaultOrder;
   const hidden = hiddenModules || [];
