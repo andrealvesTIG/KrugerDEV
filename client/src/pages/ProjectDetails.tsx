@@ -2880,9 +2880,8 @@ function ProjectGanttTaskRowMeta({
           />
         </div>
       )}
-      {/* Drag handle and actions column */}
-      <div className="w-8 flex-shrink-0 border-r flex items-center justify-center gap-0.5">
-        {/* Drag handle */}
+      {/* Drag handle column */}
+      <div className="w-8 flex-shrink-0 border-r flex items-center justify-center">
         <button
           className="cursor-grab active:cursor-grabbing p-0.5 text-muted-foreground hover:text-foreground touch-none"
           data-testid={`task-drag-handle-${task.id}`}
@@ -2891,39 +2890,6 @@ function ProjectGanttTaskRowMeta({
         >
           <GripVertical className="h-3 w-3" />
         </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-5 w-5 p-0" data-testid={`task-actions-${task.id}`}>
-              <MoreVertical className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => onTaskClick(task)} data-testid={`task-edit-${task.id}`}>
-              <Pencil className="h-3.5 w-3.5 mr-2" />
-              Edit Task
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onEditDependencies(task)} data-testid={`task-dependencies-${task.id}`}>
-              <Link2 className="h-3.5 w-3.5 mr-2" />
-              Dependencies
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onSetBaseline(task)} disabled={!task.startDate || !task.endDate} data-testid={`task-set-baseline-${task.id}`}>
-              <Flag className="h-3.5 w-3.5 mr-2" />
-              Set Baseline
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onClearBaseline(task)} disabled={!task.baselineStartDate && !task.baselineEndDate} data-testid={`task-clear-baseline-${task.id}`}>
-              <X className="h-3.5 w-3.5 mr-2" />
-              Clear Baseline
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onIndent(task)} disabled={!canIndent} data-testid={`task-indent-${task.id}`}>
-              <ChevronRight className="h-3.5 w-3.5 mr-2" />
-              Indent
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onOutdent(task)} disabled={!canOutdent} data-testid={`task-outdent-${task.id}`}>
-              <ChevronLeft className="h-3.5 w-3.5 mr-2" />
-              Outdent
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
       
       {/* Dynamic column rendering */}
@@ -2939,12 +2905,12 @@ function ProjectGanttTaskRowMeta({
               key={colId}
               style={{ width: `${colWidth}px`, paddingLeft: `${4 + (currentLevel - 1) * 12}px` }}
               className={cn(
-                "flex-shrink-0 border-r px-1 cursor-pointer flex items-center overflow-hidden min-w-0",
+                "flex-shrink-0 border-r px-1 cursor-pointer flex items-center overflow-hidden min-w-0 group/taskname",
                 hasChildren && "font-semibold bg-muted/30"
               )}
               onClick={() => onTaskClick(task)}
             >
-              <div className="truncate flex items-center gap-0.5 w-full min-w-0">
+              <div className="truncate flex items-center gap-0.5 flex-1 min-w-0">
                 {hasChildren ? (
                   <Button 
                     variant="ghost" 
@@ -2961,6 +2927,45 @@ function ProjectGanttTaskRowMeta({
                 {task.isMilestone && <MilestoneIcon className="h-3 w-3 text-primary flex-shrink-0" />}
                 <span className="truncate">{task.name}</span>
               </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-5 w-5 p-0 flex-shrink-0 opacity-0 group-hover/taskname:opacity-100 transition-opacity" 
+                    onClick={(e) => e.stopPropagation()}
+                    data-testid={`task-actions-${task.id}`}
+                  >
+                    <MoreVertical className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTaskClick(task); }} data-testid={`task-edit-${task.id}`}>
+                    <Pencil className="h-3.5 w-3.5 mr-2" />
+                    Edit Task
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDependencies(task); }} data-testid={`task-dependencies-${task.id}`}>
+                    <Link2 className="h-3.5 w-3.5 mr-2" />
+                    Dependencies
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSetBaseline(task); }} disabled={!task.startDate || !task.endDate} data-testid={`task-set-baseline-${task.id}`}>
+                    <Flag className="h-3.5 w-3.5 mr-2" />
+                    Set Baseline
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onClearBaseline(task); }} disabled={!task.baselineStartDate && !task.baselineEndDate} data-testid={`task-clear-baseline-${task.id}`}>
+                    <X className="h-3.5 w-3.5 mr-2" />
+                    Clear Baseline
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onIndent(task); }} disabled={!canIndent} data-testid={`task-indent-${task.id}`}>
+                    <ChevronRight className="h-3.5 w-3.5 mr-2" />
+                    Indent
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onOutdent(task); }} disabled={!canOutdent} data-testid={`task-outdent-${task.id}`}>
+                    <ChevronLeft className="h-3.5 w-3.5 mr-2" />
+                    Outdent
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           );
         }
