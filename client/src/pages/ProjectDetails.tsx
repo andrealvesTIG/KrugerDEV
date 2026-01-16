@@ -52,6 +52,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { GanttDependencyLinks } from "@/components/GanttDependencyLinks";
 import { useLocation } from "wouter";
+import { useSidebar } from "@/components/ui/sidebar";
 
 const PROJECT_STAGES = [
   { value: "Initiation", label: "Initiation", description: "Project kickoff" },
@@ -1820,20 +1821,13 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(256);
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const lastInitializedTaskId = useRef<number | null>(null);
   const inviteAssignedRef = useRef(false);
   
-  // Read sidebar width from DOM when fullscreen changes
-  useEffect(() => {
-    if (isFullscreen) {
-      const sidebar = document.querySelector('[data-sidebar="sidebar"]');
-      if (sidebar) {
-        setSidebarWidth(sidebar.getBoundingClientRect().width);
-      }
-    }
-  }, [isFullscreen]);
+  // Get sidebar state to calculate fullscreen positioning
+  const { state: sidebarState } = useSidebar();
+  const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
   
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
