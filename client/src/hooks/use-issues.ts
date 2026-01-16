@@ -15,14 +15,18 @@ export function useIssues(projectId: number) {
   });
 }
 
-export function useAllIssues() {
+export function useAllIssues(organizationId?: number) {
   return useQuery({
-    queryKey: [api.issues.listAll.path],
+    queryKey: [api.issues.listAll.path, organizationId],
     queryFn: async () => {
-      const res = await fetch(api.issues.listAll.path, { credentials: "include" });
+      const url = organizationId 
+        ? `${api.issues.listAll.path}?organizationId=${organizationId}` 
+        : api.issues.listAll.path;
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch issues");
       return api.issues.listAll.responses[200].parse(await res.json());
     },
+    enabled: !!organizationId,
   });
 }
 

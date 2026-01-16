@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
-import { useCreateRisk } from "@/hooks/use-risks";
+import { useCreateRisk, useConvertRiskToIssue } from "@/hooks/use-risks";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
 import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useResources } from "@/hooks/use-resources";
@@ -58,7 +58,7 @@ const typeIcons = {
 
 export default function Issues() {
   const { currentOrganization } = useOrganization();
-  const { data: issues, isLoading } = useAllIssues();
+  const { data: issues, isLoading } = useAllIssues(currentOrganization?.id);
   const { data: projects } = useProjects(currentOrganization?.id);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -69,6 +69,7 @@ export default function Issues() {
   const [typeFilter, setTypeFilter] = useState<"all" | "issue" | "risk">("all");
   const createIssue = useCreateIssue();
   const createRisk = useCreateRisk();
+  const convertRiskToIssue = useConvertRiskToIssue();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
   const updateIssueResources = useUpdateIssueResourceAssignments();
@@ -587,6 +588,9 @@ export default function Issues() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold" data-testid={`text-issue-title-${issue.id}`}>{issue.title}</span>
+                        <Badge variant="outline" className={cn("text-xs", issue.itemType === 'risk' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300")}>
+                          {issue.itemType === 'risk' ? 'Risk' : 'Issue'}
+                        </Badge>
                         <Badge variant="outline" className={cn("text-xs", priorityColors[issue.priority as keyof typeof priorityColors])}>
                           {issue.priority}
                         </Badge>
@@ -621,6 +625,24 @@ export default function Issues() {
                         <Pencil className="h-4 w-4 mr-2" />
                         Edit
                       </DropdownMenuItem>
+                      {issue.itemType === 'risk' && (
+                        <DropdownMenuItem 
+                          onClick={() => {
+                            convertRiskToIssue.mutate({ id: issue.id, projectId: issue.projectId }, {
+                              onSuccess: () => {
+                                toast({ title: "Success", description: "Risk converted to issue" });
+                              },
+                              onError: (err: any) => {
+                                toast({ title: "Error", description: err.message, variant: "destructive" });
+                              }
+                            });
+                          }}
+                          data-testid={`menu-convert-risk-${issue.id}`}
+                        >
+                          <Bug className="h-4 w-4 mr-2" />
+                          Convert to Issue
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem 
                         onClick={() => setDeleteIssueData({ id: issue.id, projectId: issue.projectId })}
                         className="text-red-600 focus:text-red-600"
