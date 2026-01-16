@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, ChevronLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -154,42 +154,34 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </div>
       </div>
 
-      {/* Desktop: Collapsible sidebar tabs */}
-      <div className="hidden md:block">
-        <div className="flex items-center gap-2 mb-2">
-          <button
-            onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
-            className="flex items-center justify-between w-full p-2 bg-card border rounded-lg hover:bg-muted transition-colors"
-            data-testid="button-toggle-settings-sidebar"
-          >
-            <div className="flex items-center gap-2">
-              <ActiveIcon className="h-4 w-4" />
-              {!isDesktopSidebarCollapsed && (
-                <span className="font-medium text-sm">{activeTabInfo.label}</span>
-              )}
-            </div>
-            <ChevronDown className={`h-4 w-4 transition-transform ${isDesktopSidebarCollapsed ? '-rotate-90' : ''}`} />
-          </button>
-        </div>
+      {/* Desktop: Horizontally collapsible sidebar tabs */}
+      <div className={`hidden md:flex flex-col transition-all duration-200 ${isDesktopSidebarCollapsed ? 'w-12' : 'w-56'}`}>
+        <button
+          onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
+          className="flex items-center justify-center p-2 mb-2 bg-card border rounded-lg hover:bg-muted transition-colors"
+          data-testid="button-toggle-settings-sidebar"
+          title={isDesktopSidebarCollapsed ? "Expand menu" : "Collapse menu"}
+        >
+          <ChevronLeft className={`h-4 w-4 transition-transform ${isDesktopSidebarCollapsed ? 'rotate-180' : ''}`} />
+        </button>
         
-        <div className={`overflow-hidden transition-all duration-200 ${isDesktopSidebarCollapsed ? 'max-h-0' : 'max-h-[500px]'}`}>
-          <TabsList className="flex flex-col h-fit w-56 bg-card border rounded-lg p-1">
-            {settingsTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <TabsTrigger 
-                  key={tab.value}
-                  value={tab.value} 
-                  className="w-full justify-start gap-3" 
-                  data-testid={`nav-${tab.value}`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </div>
+        <TabsList className={`flex flex-col h-fit bg-card border rounded-lg p-1 ${isDesktopSidebarCollapsed ? 'w-12' : 'w-56'}`}>
+          {settingsTabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger 
+                key={tab.value}
+                value={tab.value} 
+                className={`w-full gap-3 ${isDesktopSidebarCollapsed ? 'justify-center px-2' : 'justify-start'}`}
+                data-testid={`nav-${tab.value}`}
+                title={isDesktopSidebarCollapsed ? tab.label : undefined}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {!isDesktopSidebarCollapsed && <span>{tab.label}</span>}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
       </div>
 
       <div className="flex-1 min-w-0">
