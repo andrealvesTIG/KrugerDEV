@@ -2742,55 +2742,9 @@ function TaskNameCell({
   onEditDependencies: (task: Task) => void;
   onUpdateName: (taskId: number, name: string) => void;
 }) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragDirection, setDragDirection] = useState<'left' | 'right' | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dragThreshold = 30;
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    setIsDragging(true);
-    setDragStartX(e.clientX);
-    setDragDirection(null);
-    e.preventDefault();
-  };
-
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaX = e.clientX - dragStartX;
-      if (Math.abs(deltaX) > 10) {
-        setDragDirection(deltaX > 0 ? 'right' : 'left');
-      } else {
-        setDragDirection(null);
-      }
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      const deltaX = e.clientX - dragStartX;
-      
-      if (deltaX > dragThreshold && canIndent) {
-        onIndent(task);
-      } else if (deltaX < -dragThreshold && canOutdent) {
-        onOutdent(task);
-      }
-      
-      setIsDragging(false);
-      setDragDirection(null);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging, dragStartX, canIndent, canOutdent, onIndent, onOutdent, task]);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -2800,7 +2754,6 @@ function TaskNameCell({
   }, [isEditing]);
 
   const handleStartEdit = (e: React.MouseEvent) => {
-    if (isDragging) return;
     e.stopPropagation();
     setEditValue(task.name);
     setIsEditing(true);
@@ -2827,36 +2780,29 @@ function TaskNameCell({
       style={{ width: `${colWidth}px`, paddingLeft: `${4 + (currentLevel - 1) * 12}px` }}
       className={cn(
         "flex-shrink-0 border-r px-1 flex items-center overflow-hidden min-w-0 group/taskname relative",
-        hasChildren && "font-semibold bg-muted/30",
-        isDragging && "cursor-ew-resize bg-muted/50"
+        hasChildren && "font-semibold bg-muted/30"
       )}
     >
-      {/* Left arrow indicator (outdent) */}
+      {/* Left arrow button (outdent) */}
       {canOutdent && (
-        <div 
-          className={cn(
-            "absolute left-0 top-0 bottom-0 flex items-center justify-center w-5 opacity-0 group-hover/taskname:opacity-100 transition-opacity cursor-ew-resize z-10",
-            dragDirection === 'left' && "opacity-100 bg-primary/20"
-          )}
-          onMouseDown={handleMouseDown}
-          data-testid={`task-outdent-drag-${task.id}`}
+        <button 
+          className="absolute left-0 top-0 bottom-0 flex items-center justify-center w-5 opacity-0 group-hover/taskname:opacity-100 transition-opacity cursor-pointer z-10 hover:bg-primary/20"
+          onClick={(e) => { e.stopPropagation(); onOutdent(task); }}
+          data-testid={`task-outdent-btn-${task.id}`}
         >
           <ChevronLeft className="h-3 w-3 text-muted-foreground" />
-        </div>
+        </button>
       )}
       
-      {/* Right arrow indicator (indent) */}
+      {/* Right arrow button (indent) */}
       {canIndent && (
-        <div 
-          className={cn(
-            "absolute right-6 top-0 bottom-0 flex items-center justify-center w-5 opacity-0 group-hover/taskname:opacity-100 transition-opacity cursor-ew-resize z-10",
-            dragDirection === 'right' && "opacity-100 bg-primary/20"
-          )}
-          onMouseDown={handleMouseDown}
-          data-testid={`task-indent-drag-${task.id}`}
+        <button 
+          className="absolute right-6 top-0 bottom-0 flex items-center justify-center w-5 opacity-0 group-hover/taskname:opacity-100 transition-opacity cursor-pointer z-10 hover:bg-primary/20"
+          onClick={(e) => { e.stopPropagation(); onIndent(task); }}
+          data-testid={`task-indent-btn-${task.id}`}
         >
           <ChevronRight className="h-3 w-3 text-muted-foreground" />
-        </div>
+        </button>
       )}
 
       <div className="truncate flex items-center gap-0.5 flex-1 min-w-0">
