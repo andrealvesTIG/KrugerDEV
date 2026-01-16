@@ -3,7 +3,7 @@ import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
 import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
-import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency, useProjectDependencies } from "@/hooks/use-tasks";
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency, useProjectDependencies, useReorderTask } from "@/hooks/use-tasks";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useMilestones } from "@/hooks/use-milestones";
 import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useDeleteChangeRequest } from "@/hooks/use-change-requests";
@@ -2710,6 +2710,39 @@ function InlineEditCell({
   );
 }
 
+// Sortable task row wrapper for drag and drop reordering
+function SortableTaskRow({ 
+  task, 
+  children,
+  disabled = false,
+}: { 
+  task: Task; 
+  children: (dragHandleProps: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) => React.ReactNode;
+  disabled?: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id, disabled });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 100 : 'auto',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style as React.CSSProperties}>
+      {children({ listeners: listeners || {}, attributes: attributes || {} })}
+    </div>
+  );
+}
+
 // Split-pane Gantt: Metadata row (left pane)
 function ProjectGanttTaskRowMeta({ 
   task, 
@@ -2720,6 +2753,7 @@ function ProjectGanttTaskRowMeta({
   onOutdent,
   hasChildren,
   isCollapsed,
+  dragHandleProps,
   onToggleCollapse,
   projectName,
   onSetBaseline,
@@ -2741,6 +2775,7 @@ function ProjectGanttTaskRowMeta({
   onOutdent: (task: Task) => void;
   hasChildren: boolean;
   isCollapsed: boolean;
+  dragHandleProps?: { listeners: Record<string, unknown>; attributes: Record<string, unknown> };
   onToggleCollapse: (taskId: number) => void;
   projectName?: string;
   onSetBaseline: (task: Task) => void;
@@ -2845,8 +2880,17 @@ function ProjectGanttTaskRowMeta({
           />
         </div>
       )}
-      {/* Actions column */}
-      <div className="w-8 flex-shrink-0 border-r flex items-center justify-center">
+      {/* Drag handle and actions column */}
+      <div className="w-8 flex-shrink-0 border-r flex items-center justify-center gap-0.5">
+        {/* Drag handle */}
+        <button
+          className="cursor-grab active:cursor-grabbing p-0.5 text-muted-foreground hover:text-foreground touch-none"
+          data-testid={`task-drag-handle-${task.id}`}
+          {...(dragHandleProps?.listeners || {})}
+          {...(dragHandleProps?.attributes || {})}
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-5 w-5 p-0" data-testid={`task-actions-${task.id}`}>
@@ -3675,6 +3719,7 @@ function ProjectGanttView({
   isFullscreen?: boolean;
 }) {
   const updateTask = useUpdateTask();
+  const reorderTask = useReorderTask();
   const { toast } = useToast();
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
@@ -3689,6 +3734,39 @@ function ProjectGanttView({
   const [isBaselinePending, setIsBaselinePending] = useState(false);
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
+  
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+  
+  // Handle task reorder on drag end
+  const handleTaskDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    
+    const activeIndex = tasks.findIndex(t => t.id === active.id);
+    const overIndex = tasks.findIndex(t => t.id === over.id);
+    
+    if (activeIndex === -1 || overIndex === -1) return;
+    
+    reorderTask.mutate({
+      projectId,
+      taskId: Number(active.id),
+      newIndex: overIndex,
+    }, {
+      onSuccess: () => {
+        toast({ title: "Task reordered", description: "Task order updated successfully" });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to reorder task", variant: "destructive" });
+      }
+    });
+  };
   
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
@@ -4575,38 +4653,46 @@ function ProjectGanttView({
                     </button>
                   </div>
                 )}
-                {/* Task rows - metadata only */}
-                {visibleTasks.length === 0 && tasks.length === 0 ? (
-                  <div className="py-6 text-center text-muted-foreground">
-                    No tasks yet. Add your first task below.
-                  </div>
-                ) : (
-                  visibleTasks.map(task => (
-                    <ProjectGanttTaskRowMeta
-                      key={task.id}
-                      task={task}
-                      onTaskClick={onTaskClick}
-                      visibleColumns={visibleColumns}
-                      organizationId={organizationId}
-                      onIndent={handleIndent}
-                      onOutdent={handleOutdent}
-                      hasChildren={!!taskHasChildren[task.id]}
-                      isCollapsed={collapsedTasks.has(task.id)}
-                      onToggleCollapse={toggleCollapse}
-                      projectName={projectName}
-                      onSetBaseline={handleSetBaseline}
-                      onClearBaseline={handleClearBaseline}
-                      onEditDependencies={handleEditDependencies}
-                      columnWidths={columnWidths}
-                      showBaseline={showBaseline}
-                      baselineSelectionMode={baselineSelectionMode}
-                      isSelectedForBaseline={selectedTasksForBaseline.has(task.id)}
-                      onToggleBaselineSelection={toggleTaskForBaseline}
-                      showCriticalPath={showCriticalPath}
-                      isOnCriticalPath={criticalTaskIds.has(task.id)}
-                    />
-                  ))
-                )}
+                {/* Task rows - metadata only with drag and drop */}
+                <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleTaskDragEnd}>
+                  {visibleTasks.length === 0 && tasks.length === 0 ? (
+                    <div className="py-6 text-center text-muted-foreground">
+                      No tasks yet. Add your first task below.
+                    </div>
+                  ) : (
+                    <SortableContext items={visibleTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                      {visibleTasks.map(task => (
+                        <SortableTaskRow key={task.id} task={task}>
+                          {(dragHandleProps) => (
+                            <ProjectGanttTaskRowMeta
+                              task={task}
+                              onTaskClick={onTaskClick}
+                              visibleColumns={visibleColumns}
+                              organizationId={organizationId}
+                              onIndent={handleIndent}
+                              onOutdent={handleOutdent}
+                              hasChildren={!!taskHasChildren[task.id]}
+                              isCollapsed={collapsedTasks.has(task.id)}
+                              dragHandleProps={dragHandleProps}
+                              onToggleCollapse={toggleCollapse}
+                              projectName={projectName}
+                              onSetBaseline={handleSetBaseline}
+                              onClearBaseline={handleClearBaseline}
+                              onEditDependencies={handleEditDependencies}
+                              columnWidths={columnWidths}
+                              showBaseline={showBaseline}
+                              baselineSelectionMode={baselineSelectionMode}
+                              isSelectedForBaseline={selectedTasksForBaseline.has(task.id)}
+                              onToggleBaselineSelection={toggleTaskForBaseline}
+                              showCriticalPath={showCriticalPath}
+                              isOnCriticalPath={criticalTaskIds.has(task.id)}
+                            />
+                          )}
+                        </SortableTaskRow>
+                      ))}
+                    </SortableContext>
+                  )}
+                </DndContext>
                 {/* Add task row */}
                 <div className="flex border-t bg-muted/20">
                   {baselineSelectionMode && <div className="w-8 flex-shrink-0 border-r p-1" />}

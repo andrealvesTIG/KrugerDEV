@@ -117,6 +117,47 @@ export function useDeleteTask() {
   });
 }
 
+export function useReorderTask() {
+  return useMutation({
+    mutationFn: ({ projectId, taskId, newIndex }: { projectId: number; taskId: number; newIndex: number }) =>
+      apiRequest('POST', `/api/projects/${projectId}/tasks/reorder`, { taskId, newIndex }),
+    onMutate: async ({ projectId, taskId, newIndex }) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+      
+      // Snapshot previous value
+      const previousTasks = queryClient.getQueryData<Task[]>(['/api/projects', projectId, 'tasks']);
+      
+      // Optimistically update the cache
+      if (previousTasks) {
+        const taskToMove = previousTasks.find(t => t.id === taskId);
+        if (taskToMove) {
+          const tasksWithoutMoved = previousTasks.filter(t => t.id !== taskId);
+          const clampedIndex = Math.max(0, Math.min(newIndex, tasksWithoutMoved.length));
+          const newTasks = [...tasksWithoutMoved];
+          newTasks.splice(clampedIndex, 0, taskToMove);
+          
+          // Update taskIndex for display
+          const updatedTasks = newTasks.map((t, idx) => ({ ...t, taskIndex: idx + 1 }));
+          queryClient.setQueryData(['/api/projects', projectId, 'tasks'], updatedTasks);
+        }
+      }
+      
+      return { previousTasks, projectId };
+    },
+    onError: (_, __, context) => {
+      // Rollback on error
+      if (context?.previousTasks) {
+        queryClient.setQueryData(['/api/projects', context.projectId, 'tasks'], context.previousTasks);
+      }
+    },
+    onSettled: (_, __, variables) => {
+      // Refetch to get accurate WBS from server
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+    },
+  });
+}
+
 export function useTaskHistory(taskId: number) {
   return useQuery<TaskChangeLog[]>({
     queryKey: ['/api/tasks', taskId, 'history'],

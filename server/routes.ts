@@ -4406,6 +4406,50 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  // Reorder tasks (drag and drop) - updates taskIndex for all affected tasks
+  app.post('/api/projects/:projectId/tasks/reorder', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const { taskId, newIndex } = req.body as { taskId: number; newIndex: number };
+      
+      if (!taskId || newIndex === undefined) {
+        return res.status(400).json({ message: "taskId and newIndex are required" });
+      }
+      
+      // Get all tasks for the project sorted by current taskIndex
+      const allTasks = await storage.getTasksByProject(projectId);
+      const sortedTasks = [...allTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
+      
+      // Find the task being moved
+      const taskToMove = sortedTasks.find(t => t.id === taskId);
+      if (!taskToMove) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      // Remove the task from its current position
+      const tasksWithoutMoved = sortedTasks.filter(t => t.id !== taskId);
+      
+      // Insert at new position (newIndex is 0-based)
+      const clampedIndex = Math.max(0, Math.min(newIndex, tasksWithoutMoved.length));
+      tasksWithoutMoved.splice(clampedIndex, 0, taskToMove);
+      
+      // Update taskIndex for all tasks
+      for (let i = 0; i < tasksWithoutMoved.length; i++) {
+        const task = tasksWithoutMoved[i];
+        if (task.taskIndex !== i + 1) {
+          await storage.updateTask(task.id, { taskIndex: i + 1 });
+        }
+      }
+      
+      // Recalculate WBS
+      await recalculateProjectWBS(projectId);
+      
+      res.json({ message: "Tasks reordered successfully" });
+    } catch (err) {
+      res.status(500).json({ message: "Error reordering tasks" });
+    }
+  });
+
   // Reindex tasks and recalculate WBS for a project
   app.post('/api/projects/:projectId/tasks/reindex', async (req, res) => {
     try {
