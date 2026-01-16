@@ -2380,7 +2380,7 @@ const zoomLabels: Record<ZoomLevel, string> = {
 };
 
 type GanttColumn = 
-  | 'task' | 'taskNumber' | 'wbs' | 'outlineLevel' | 'description'
+  | 'task' | 'taskNumber' | 'wbs' | 'description'
   | 'startDate' | 'endDate' | 'baselineStartDate' | 'baselineEndDate' | 'actualStartDate' | 'actualEndDate'
   | 'durationDays' | 'progress' | 'status' | 'priority' | 'taskType'
   | 'estimatedHours' | 'actualHours' | 'remainingHours'
@@ -2403,11 +2403,10 @@ const GANTT_COLUMNS: GanttColumnConfig[] = [
   { id: 'task', label: 'Task Name', width: 'w-48', widthPx: 192, category: 'basic' },
   { id: 'taskNumber', label: 'Task #', width: 'w-24', widthPx: 96, category: 'basic' },
   { id: 'wbs', label: 'WBS', width: 'w-20', widthPx: 80, category: 'basic' },
-  { id: 'outlineLevel', label: 'Level', width: 'w-14', widthPx: 56, category: 'basic' },
   { id: 'description', label: 'Description', width: 'w-48', widthPx: 192, category: 'basic' },
   // Schedule
-  { id: 'startDate', label: 'Start', width: 'w-24', widthPx: 96, category: 'schedule' },
-  { id: 'endDate', label: 'End', width: 'w-24', widthPx: 96, category: 'schedule' },
+  { id: 'startDate', label: 'Start Date', width: 'w-24', widthPx: 96, category: 'schedule' },
+  { id: 'endDate', label: 'End Date', width: 'w-24', widthPx: 96, category: 'schedule' },
   { id: 'durationDays', label: 'Duration', width: 'w-20', widthPx: 80, category: 'schedule' },
   { id: 'actualStartDate', label: 'Actual Start', width: 'w-24', widthPx: 96, category: 'schedule' },
   { id: 'actualEndDate', label: 'Actual End', width: 'w-24', widthPx: 96, category: 'schedule' },
@@ -2455,375 +2454,9 @@ const COLUMN_CATEGORIES: { id: GanttColumnConfig['category']; label: string }[] 
   { id: 'metadata', label: 'Metadata' },
 ];
 
-const DEFAULT_GANTT_COLUMNS: GanttColumn[] = ['task', 'outlineLevel', 'startDate', 'endDate', 'progress', 'resources'];
+const DEFAULT_GANTT_COLUMNS: GanttColumn[] = ['task', 'startDate', 'endDate', 'progress', 'resources'];
 
-function ProjectGanttTaskRow({ 
-  task, 
-  onTaskClick, 
-  minDate, 
-  maxDate,
-  visibleColumns,
-  organizationId,
-  onIndent,
-  onOutdent,
-  hasChildren,
-  isCollapsed,
-  onToggleCollapse,
-  projectName,
-  onSetBaseline,
-  onClearBaseline,
-  onEditDependencies,
-}: { 
-  task: Task; 
-  onTaskClick: (task: Task) => void;
-  minDate: Date;
-  maxDate: Date;
-  visibleColumns: GanttColumn[];
-  organizationId: number | null;
-  onIndent: (task: Task) => void;
-  onOutdent: (task: Task) => void;
-  hasChildren: boolean;
-  isCollapsed: boolean;
-  onToggleCollapse: (taskId: number) => void;
-  projectName?: string;
-  onSetBaseline: (task: Task) => void;
-  onClearBaseline: (task: Task) => void;
-  onEditDependencies: (task: Task) => void;
-}) {
-  const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
-  const updateTaskResources = useUpdateTaskResourceAssignments();
-  const [isEditingResources, setIsEditingResources] = useState(false);
-  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
-  const [hasInitialized, setHasInitialized] = useState(false);
-  const inviteAssignedRef = useRef(false);
-
-  useEffect(() => {
-    if (taskAssignments && !hasInitialized) {
-      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
-      setHasInitialized(true);
-    }
-  }, [taskAssignments, hasInitialized]);
-
-  // Reset initialization when dialog closes
-  useEffect(() => {
-    if (!isEditingResources) {
-      setHasInitialized(false);
-    }
-  }, [isEditingResources]);
-
-  // Re-sync when dialog opens and assignments are available
-  useEffect(() => {
-    if (isEditingResources && taskAssignments) {
-      setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
-    }
-  }, [isEditingResources, taskAssignments]);
-
-  const hasValidDates = task.startDate && task.endDate;
-  const start = hasValidDates ? parseISO(task.startDate) : null;
-  const end = hasValidDates ? parseISO(task.endDate) : null;
-  
-  let leftPercent = 0;
-  let widthPercent = 0;
-  
-  if (start && end) {
-    const totalDays = differenceInDays(maxDate, minDate) || 1;
-    const startOffset = differenceInDays(start, minDate);
-    const duration = differenceInDays(end, start) + 1;
-    leftPercent = (startOffset / totalDays) * 100;
-    widthPercent = (duration / totalDays) * 100;
-  }
-
-  const assignedNames = taskAssignments && taskAssignments.length > 0
-    ? taskAssignments.map(a => a.resource.displayName).join(", ")
-    : "—";
-
-  const handleSaveResources = () => {
-    if (!inviteAssignedRef.current) {
-      updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
-    }
-    inviteAssignedRef.current = false;
-    setIsEditingResources(false);
-  };
-
-  const progressPercent = task.progress || 0;
-
-  const currentLevel = task.outlineLevel || 1;
-  const canIndent = currentLevel < 6;
-  const canOutdent = currentLevel > 1;
-
-  return (
-    <div 
-      className="flex border-b hover:bg-muted/30 transition-colors group"
-      data-testid={`gantt-task-${task.id}`}
-    >
-      {/* Actions column - always visible */}
-      <div className="w-10 flex-shrink-0 border-r p-1 flex items-center justify-center">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`task-actions-${task.id}`}>
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem 
-              onClick={() => onTaskClick(task)}
-              data-testid={`task-edit-${task.id}`}
-            >
-              <Pencil className="h-4 w-4 mr-2" />
-              Edit Task
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => onEditDependencies(task)}
-              data-testid={`task-dependencies-${task.id}`}
-            >
-              <Link2 className="h-4 w-4 mr-2" />
-              Dependencies
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => onSetBaseline(task)}
-              disabled={!task.startDate || !task.endDate}
-              data-testid={`task-set-baseline-${task.id}`}
-            >
-              <Flag className="h-4 w-4 mr-2" />
-              Set Baseline
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => onClearBaseline(task)}
-              disabled={!task.baselineStartDate && !task.baselineEndDate}
-              data-testid={`task-clear-baseline-${task.id}`}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Clear Baseline
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => onIndent(task)}
-              disabled={!canIndent}
-              data-testid={`task-indent-${task.id}`}
-            >
-              <ChevronRight className="h-4 w-4 mr-2" />
-              {canIndent ? `Indent (→ Level ${currentLevel + 1})` : "Max level reached"}
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => onOutdent(task)}
-              disabled={!canOutdent}
-              data-testid={`task-outdent-${task.id}`}
-            >
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              {canOutdent ? `Outdent (→ Level ${currentLevel - 1})` : "Top level reached"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      {/* Dynamic column rendering */}
-      {visibleColumns.map(colId => {
-        const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
-        if (!colConfig) return null;
-        
-        // Special handling for task name column
-        if (colId === 'task') {
-          return (
-            <div 
-              key={colId}
-              className={cn(
-                colConfig.width,
-                "flex-shrink-0 border-r p-2 cursor-pointer",
-                hasChildren && "font-semibold bg-muted/30"
-              )}
-              onClick={() => onTaskClick(task)}
-              style={{ paddingLeft: `${8 + (currentLevel - 1) * 20}px` }}
-            >
-              <div className="font-medium text-sm truncate flex items-center gap-1">
-                {hasChildren ? (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-5 w-5 p-0 flex-shrink-0"
-                    onClick={(e) => { e.stopPropagation(); onToggleCollapse(task.id); }}
-                    data-testid={`task-toggle-${task.id}`}
-                  >
-                    {isCollapsed ? (
-                      <ChevronRight className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </Button>
-                ) : (
-                  <span className="w-5 flex-shrink-0" />
-                )}
-                {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
-                <span className="truncate">{task.name}</span>
-              </div>
-            </div>
-          );
-        }
-        
-        // Special handling for resources column
-        if (colId === 'resources') {
-          return (
-            <div key={colId}>
-              <div 
-                className={cn(
-                  colConfig.width,
-                  "flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
-                  !hasChildren && "cursor-pointer hover:bg-muted/50"
-                )}
-                onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
-              >
-                {hasChildren ? (
-                  <span className="text-xs text-muted-foreground/70 italic" title="Summary tasks cannot have resource assignments">Summary</span>
-                ) : (
-                  <span className="truncate block">{assignedNames}</span>
-                )}
-              </div>
-            </div>
-          );
-        }
-        
-        // Get value for this column
-        let value: React.ReactNode = '—';
-        const centerAlign = ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(colId);
-        
-        switch (colId) {
-          case 'taskNumber': value = task.taskNumber || '—'; break;
-          case 'wbs': value = task.wbs || '—'; break;
-          case 'outlineLevel': value = currentLevel; break;
-          case 'description': value = task.description ? <span className="truncate block">{task.description}</span> : '—'; break;
-          case 'startDate': value = task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—'; break;
-          case 'endDate': value = task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—'; break;
-          case 'baselineStartDate': value = task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yy') : '—'; break;
-          case 'baselineEndDate': value = task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yy') : '—'; break;
-          case 'actualStartDate': value = task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yy') : '—'; break;
-          case 'actualEndDate': value = task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yy') : '—'; break;
-          case 'durationDays': value = task.durationDays != null ? `${task.durationDays}d` : '—'; break;
-          case 'progress': value = `${progressPercent}%`; break;
-          case 'status': 
-            value = task.status ? (
-              <Badge variant="outline" className={cn("text-xs", 
-                task.status === 'Completed' && "bg-emerald-100 text-emerald-700 border-emerald-200",
-                task.status === 'In Progress' && "bg-blue-100 text-blue-700 border-blue-200",
-                task.status === 'Not Started' && "bg-slate-100 text-slate-700 border-slate-200"
-              )}>
-                {task.status}
-              </Badge>
-            ) : '—'; 
-            break;
-          case 'priority': 
-            value = task.priority ? (
-              <Badge variant="outline" className={cn("text-xs",
-                task.priority === 'Critical' && "bg-red-100 text-red-700 border-red-200",
-                task.priority === 'High' && "bg-orange-100 text-orange-700 border-orange-200",
-                task.priority === 'Medium' && "bg-yellow-100 text-yellow-700 border-yellow-200",
-                task.priority === 'Low' && "bg-slate-100 text-slate-700 border-slate-200"
-              )}>
-                {task.priority}
-              </Badge>
-            ) : '—';
-            break;
-          case 'taskType': value = task.taskType || '—'; break;
-          case 'estimatedHours': value = task.estimatedHours != null ? `${task.estimatedHours}h` : '—'; break;
-          case 'actualHours': value = task.actualHours != null ? `${task.actualHours}h` : '—'; break;
-          case 'remainingHours': value = task.remainingHours != null ? `${task.remainingHours}h` : '—'; break;
-          case 'cost': value = task.cost != null ? `$${Number(task.cost).toLocaleString()}` : '—'; break;
-          case 'actualCost': value = task.actualCost != null ? `$${Number(task.actualCost).toLocaleString()}` : '—'; break;
-          case 'assignee': value = task.assignee || '—'; break;
-          case 'constraintType': value = task.constraintType || '—'; break;
-          case 'constraintDate': value = task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yy') : '—'; break;
-          case 'isMilestone': value = task.isMilestone ? <Check className="h-4 w-4 text-primary mx-auto" /> : '—'; break;
-          case 'isCritical': value = task.isCritical ? <Check className="h-4 w-4 text-red-500 mx-auto" /> : '—'; break;
-          case 'isSummary': value = task.isSummary ? <Check className="h-4 w-4 text-blue-500 mx-auto" /> : '—'; break;
-          case 'phase': value = task.phase || '—'; break;
-          case 'category': value = task.category || '—'; break;
-          case 'labels': value = task.labels ? <span className="truncate block">{task.labels}</span> : '—'; break;
-          case 'notes': value = task.notes ? <span className="truncate block">{task.notes}</span> : '—'; break;
-        }
-        
-        return (
-          <div 
-            key={colId}
-            className={cn(
-              colConfig.width, 
-              "flex-shrink-0 border-r p-2 text-xs text-muted-foreground",
-              centerAlign && "text-center",
-              colId === 'outlineLevel' && "font-medium",
-              colId === 'progress' && "font-medium"
-            )}
-          >
-            {value}
-          </div>
-        );
-      })}
-      
-      {/* Resources Dialog (outside the column loop) */}
-      <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Assign Resources</DialogTitle>
-            <DialogDescription>
-              Assign team members to task "{task.name}"
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <ResourceAssignment
-              organizationId={organizationId}
-              selectedResourceIds={selectedResourceIds}
-              onSelectionChange={setSelectedResourceIds}
-              label="Assigned Resources"
-              projectId={task.projectId}
-              projectName={projectName}
-              taskId={task.id}
-              taskName={task.name}
-              onInviteAssigned={() => { inviteAssignedRef.current = true; }}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditingResources(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveResources} disabled={assignmentsLoading}>
-              {assignmentsLoading ? "Loading..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <div className="flex-1 relative p-2 min-h-[40px]">
-        {hasValidDates ? (
-          <div
-            className={cn(
-              "absolute top-2 bottom-2 rounded-md overflow-hidden cursor-pointer",
-              task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
-              task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
-            )}
-            style={{
-              left: `${Math.max(0, leftPercent)}%`,
-              width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-              minWidth: '40px'
-            }}
-            onClick={() => onTaskClick(task)}
-          >
-            <div 
-              className={cn(
-                "h-full transition-all",
-                task.status === "Completed" ? "bg-emerald-500" :
-                task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
-              )}
-              style={{ width: `${progressPercent}%` }}
-            />
-            <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-foreground">
-              {progressPercent}%
-            </span>
-          </div>
-        ) : (
-          <div className="h-full flex items-center" onClick={() => onTaskClick(task)}>
-            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
-              <CalendarIcon className="h-3 w-3 mr-1" />
-              No dates
-            </Badge>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// NOTE: Legacy ProjectGanttTaskRow removed - use ProjectGanttTaskRowMeta + ProjectGanttTaskRowTimeline instead
 
 // Inline Editable Cell Component for Gantt
 type InlineEditType = 'date' | 'select' | 'number' | 'text' | 'progress' | 'boolean';
@@ -3019,6 +2652,7 @@ function ProjectGanttTaskRowMeta({
   onSetBaseline,
   onClearBaseline,
   onEditDependencies,
+  columnWidths,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -3033,6 +2667,7 @@ function ProjectGanttTaskRowMeta({
   onSetBaseline: (task: Task) => void;
   onClearBaseline: (task: Task) => void;
   onEditDependencies: (task: Task) => void;
+  columnWidths?: Record<GanttColumn, number>;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -3142,17 +2777,18 @@ function ProjectGanttTaskRowMeta({
         const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
         if (!colConfig) return null;
         
+        const colWidth = columnWidths?.[colId] || colConfig.widthPx;
+        
         if (colId === 'task') {
           return (
             <div 
               key={colId}
+              style={{ width: `${colWidth}px`, paddingLeft: `${4 + (currentLevel - 1) * 12}px` }}
               className={cn(
-                colConfig.width,
                 "flex-shrink-0 border-r px-1 cursor-pointer flex items-center",
                 hasChildren && "font-semibold bg-muted/30"
               )}
               onClick={() => onTaskClick(task)}
-              style={{ paddingLeft: `${4 + (currentLevel - 1) * 12}px` }}
             >
               <div className="truncate flex items-center gap-0.5">
                 {hasChildren ? (
@@ -3179,8 +2815,8 @@ function ProjectGanttTaskRowMeta({
           return (
             <div key={colId}>
               <div 
+                style={{ width: `${colWidth}px` }}
                 className={cn(
-                  colConfig.width,
                   "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px]",
                   !hasChildren && "cursor-pointer hover:bg-muted/50"
                 )}
@@ -3221,7 +2857,7 @@ function ProjectGanttTaskRowMeta({
           );
         }
         
-        const centerAlign = ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(colId);
+        const centerAlign = ['progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(colId);
         const isSummaryTask = hasChildren;
         
         const statusOptions = [
@@ -3276,8 +2912,6 @@ function ProjectGanttTaskRowMeta({
                   disabled={isSummaryTask}
                 />
               );
-            case 'outlineLevel':
-              return <span>{currentLevel}</span>;
             case 'description':
               return (
                 <InlineEditCell
@@ -3551,11 +3185,10 @@ function ProjectGanttTaskRowMeta({
         return (
           <div 
             key={colId}
+            style={{ width: `${colWidth}px` }}
             className={cn(
-              colConfig.width, 
               "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px]",
               centerAlign && "justify-center",
-              colId === 'outlineLevel' && "font-medium",
               colId === 'progress' && "font-medium"
             )}
           >
@@ -3879,6 +3512,170 @@ function ProjectGanttView({
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
   const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(DEFAULT_GANTT_COLUMNS);
   const [newTaskName, setNewTaskName] = useState('');
+  
+  // Column widths state (custom widths per column)
+  const [columnWidths, setColumnWidths] = useState<Record<GanttColumn, number>>(() => {
+    const initial: Record<string, number> = {};
+    GANTT_COLUMNS.forEach(col => {
+      initial[col.id] = col.widthPx;
+    });
+    return initial as Record<GanttColumn, number>;
+  });
+  
+  // Resize state
+  const [resizingColumn, setResizingColumn] = useState<GanttColumn | null>(null);
+  const [resizeStartX, setResizeStartX] = useState(0);
+  const [resizeStartWidth, setResizeStartWidth] = useState(0);
+  
+  // Column add dropdown state
+  const [isAddColumnOpen, setIsAddColumnOpen] = useState(false);
+  const [columnSearchQuery, setColumnSearchQuery] = useState('');
+  
+  // Column DnD state for direct header reordering
+  const [draggingColumn, setDraggingColumn] = useState<GanttColumn | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<GanttColumn | null>(null);
+  
+  // Right-click context menu state
+  const [contextMenuColumn, setContextMenuColumn] = useState<GanttColumn | null>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  
+  // Handle column resize
+  const handleResizeStart = (e: React.MouseEvent, colId: GanttColumn) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizingColumn(colId);
+    setResizeStartX(e.clientX);
+    setResizeStartWidth(columnWidths[colId] || 96);
+  };
+  
+  useEffect(() => {
+    if (!resizingColumn) return;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const diff = e.clientX - resizeStartX;
+      const newWidth = Math.max(40, resizeStartWidth + diff);
+      setColumnWidths(prev => ({ ...prev, [resizingColumn]: newWidth }));
+    };
+    
+    const handleMouseUp = () => {
+      setResizingColumn(null);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingColumn, resizeStartX, resizeStartWidth]);
+  
+  // Column context menu (right-click to remove)
+  const handleColumnContextMenu = (e: React.MouseEvent, colId: GanttColumn) => {
+    e.preventDefault();
+    if (colId === 'task') return; // Can't remove task column
+    setContextMenuColumn(colId);
+    // Constrain to viewport bounds (assuming menu is ~150px wide and ~40px tall)
+    const menuWidth = 150;
+    const menuHeight = 40;
+    const x = Math.min(e.clientX, window.innerWidth - menuWidth - 10);
+    const y = Math.min(e.clientY, window.innerHeight - menuHeight - 10);
+    setContextMenuPosition({ x: Math.max(10, x), y: Math.max(10, y) });
+  };
+  
+  const removeColumn = (colId: GanttColumn) => {
+    if (colId === 'task') return;
+    setVisibleColumns(prev => prev.filter(c => c !== colId));
+    setContextMenuColumn(null);
+    setContextMenuPosition(null);
+  };
+  
+  // Close context menu on click outside or Escape key
+  useEffect(() => {
+    if (!contextMenuPosition) return;
+    const handleClick = () => {
+      setContextMenuColumn(null);
+      setContextMenuPosition(null);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setContextMenuColumn(null);
+        setContextMenuPosition(null);
+      }
+    };
+    document.addEventListener('click', handleClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('click', handleClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contextMenuPosition]);
+  
+  // Add column from available fields
+  const availableColumnsToAdd = useMemo(() => {
+    return GANTT_COLUMNS.filter(col => !visibleColumns.includes(col.id));
+  }, [visibleColumns]);
+  
+  const filteredColumnsToAdd = useMemo(() => {
+    if (!columnSearchQuery.trim()) return availableColumnsToAdd;
+    const query = columnSearchQuery.toLowerCase();
+    return availableColumnsToAdd.filter(col => 
+      col.label.toLowerCase().includes(query) || col.id.toLowerCase().includes(query)
+    );
+  }, [availableColumnsToAdd, columnSearchQuery]);
+  
+  const addColumn = (colId: GanttColumn) => {
+    setVisibleColumns(prev => [...prev, colId]);
+    setIsAddColumnOpen(false);
+    setColumnSearchQuery('');
+  };
+  
+  // Column drag-and-drop reordering
+  const handleColumnDragStart = (e: React.DragEvent, colId: GanttColumn) => {
+    if (colId === 'task') return; // Can't drag task column
+    setDraggingColumn(colId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', colId);
+  };
+  
+  const handleColumnDragOver = (e: React.DragEvent, colId: GanttColumn) => {
+    e.preventDefault();
+    if (draggingColumn && draggingColumn !== colId) {
+      setDragOverColumn(colId);
+    }
+  };
+  
+  const handleColumnDragLeave = () => {
+    setDragOverColumn(null);
+  };
+  
+  const handleColumnDrop = (e: React.DragEvent, targetColId: GanttColumn) => {
+    e.preventDefault();
+    if (!draggingColumn || draggingColumn === targetColId) {
+      setDraggingColumn(null);
+      setDragOverColumn(null);
+      return;
+    }
+    
+    setVisibleColumns(prev => {
+      const newCols = [...prev];
+      const dragIdx = newCols.indexOf(draggingColumn);
+      const targetIdx = newCols.indexOf(targetColId);
+      if (dragIdx > -1 && targetIdx > -1) {
+        newCols.splice(dragIdx, 1);
+        newCols.splice(targetIdx, 0, draggingColumn);
+      }
+      return newCols;
+    });
+    
+    setDraggingColumn(null);
+    setDragOverColumn(null);
+  };
+  
+  const handleColumnDragEnd = () => {
+    setDraggingColumn(null);
+    setDragOverColumn(null);
+  };
 
   const handleIndent = (task: Task) => {
     const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
@@ -4171,13 +3968,11 @@ function ProjectGanttView({
 
   const columnsTotalWidth = useMemo(() => {
     let w = 0;
-    GANTT_COLUMNS.forEach(col => {
-      if (visibleColumns.includes(col.id)) {
-        w += col.widthPx;
-      }
+    visibleColumns.forEach(colId => {
+      w += columnWidths[colId] || 96;
     });
     return w;
-  }, [visibleColumns]);
+  }, [visibleColumns, columnWidths]);
 
   const handleZoomIn = () => {
     const idx = zoomLevels.indexOf(zoomLevel);
@@ -4272,20 +4067,113 @@ function ProjectGanttView({
                   {visibleColumns.map(colId => {
                     const col = GANTT_COLUMNS.find(c => c.id === colId);
                     if (!col) return null;
+                    const colWidth = columnWidths[colId] || col.widthPx;
+                    const isDraggable = col.id !== 'task';
                     return (
                       <div 
                         key={col.id}
+                        style={{ width: `${colWidth}px` }}
                         className={cn(
-                          col.width, 
-                          "flex-shrink-0 border-r p-1 font-semibold text-[10px] text-foreground truncate",
-                          ['outlineLevel', 'progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "text-center"
+                          "flex-shrink-0 border-r font-semibold text-[10px] text-foreground relative select-none flex items-center",
+                          ['progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "justify-center",
+                          draggingColumn === col.id && "opacity-50",
+                          dragOverColumn === col.id && "bg-muted"
                         )}
+                        onDragOver={(e) => handleColumnDragOver(e, col.id)}
+                        onDragLeave={handleColumnDragLeave}
+                        onDrop={(e) => handleColumnDrop(e, col.id)}
+                        onContextMenu={(e) => handleColumnContextMenu(e, col.id)}
+                        data-testid={`column-header-${col.id}`}
                       >
-                        {col.label}
+                        {/* Drag grip area */}
+                        {isDraggable && (
+                          <div
+                            className="flex-shrink-0 px-0.5 cursor-grab text-muted-foreground"
+                            draggable
+                            onDragStart={(e) => handleColumnDragStart(e, col.id)}
+                            onDragEnd={handleColumnDragEnd}
+                          >
+                            <GripVertical className="h-3 w-3" />
+                          </div>
+                        )}
+                        <div className="flex-1 p-1 truncate min-w-0">
+                          {col.label}
+                        </div>
+                        {/* Resize handle */}
+                        <div 
+                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-20"
+                          draggable={false}
+                          onMouseDown={(e) => handleResizeStart(e, col.id)}
+                          data-testid={`column-resize-${col.id}`}
+                        >
+                          <div className="absolute inset-y-1 right-0.5 w-0.5 bg-border" />
+                        </div>
                       </div>
                     );
                   })}
+                  {/* Add column button */}
+                  <div className="flex-shrink-0 border-r p-1 relative">
+                    <DropdownMenu open={isAddColumnOpen} onOpenChange={setIsAddColumnOpen}>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-5 w-5"
+                          data-testid="button-add-column"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                        <div className="p-2">
+                          <Input
+                            placeholder="Search fields..."
+                            value={columnSearchQuery}
+                            onChange={(e) => setColumnSearchQuery(e.target.value)}
+                            className="h-7 text-xs"
+                            data-testid="input-column-search"
+                          />
+                        </div>
+                        <div className="max-h-[300px] overflow-y-auto">
+                          {filteredColumnsToAdd.length === 0 ? (
+                            <div className="p-2 text-xs text-muted-foreground text-center">
+                              {availableColumnsToAdd.length === 0 ? "All columns added" : "No matching fields"}
+                            </div>
+                          ) : (
+                            filteredColumnsToAdd.map(col => (
+                              <DropdownMenuItem 
+                                key={col.id}
+                                onClick={() => addColumn(col.id)}
+                                className="text-xs"
+                                data-testid={`add-column-${col.id}`}
+                              >
+                                {col.label}
+                                <span className="ml-auto text-muted-foreground text-[10px]">{col.category}</span>
+                              </DropdownMenuItem>
+                            ))
+                          )}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
+                {/* Context menu for column removal */}
+                {contextMenuPosition && contextMenuColumn && (
+                  <div
+                    className="fixed z-50 bg-popover border rounded-md shadow-lg py-1"
+                    style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
+                    data-testid="column-context-menu"
+                  >
+                    <button
+                      className="w-full px-3 py-1.5 text-left text-sm hover-elevate flex items-center gap-2"
+                      onClick={() => removeColumn(contextMenuColumn)}
+                      data-testid="button-remove-column"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Remove Column
+                    </button>
+                  </div>
+                )}
                 {/* Task rows - metadata only */}
                 {visibleTasks.length === 0 && tasks.length === 0 ? (
                   <div className="py-6 text-center text-muted-foreground">
@@ -4308,6 +4196,7 @@ function ProjectGanttView({
                       onSetBaseline={handleSetBaseline}
                       onClearBaseline={handleClearBaseline}
                       onEditDependencies={handleEditDependencies}
+                      columnWidths={columnWidths}
                     />
                   ))
                 )}
@@ -4317,8 +4206,9 @@ function ProjectGanttView({
                   {visibleColumns.map(colId => {
                     const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
                     if (!colConfig) return null;
+                    const colWidth = columnWidths[colId] || colConfig.widthPx;
                     return colId === 'task' ? (
-                      <div key={colId} className={cn(colConfig.width, "flex-shrink-0 border-r p-1")}>
+                      <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r p-1">
                         <Input
                           placeholder="Add task..."
                           value={newTaskName}
@@ -4329,9 +4219,11 @@ function ProjectGanttView({
                         />
                       </div>
                     ) : (
-                      <div key={colId} className={cn(colConfig.width, "flex-shrink-0 border-r p-1")} />
+                      <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r p-1" />
                     );
                   })}
+                  {/* Spacer for add column button */}
+                  <div className="flex-shrink-0 p-1 w-8" />
                 </div>
               </div>
             </div>
