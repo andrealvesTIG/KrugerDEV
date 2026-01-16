@@ -3609,6 +3609,7 @@ function ProjectGanttView({
   const [baselineMode, setBaselineMode] = useState<'entire' | 'selected'>('entire');
   const [selectedTasksForBaseline, setSelectedTasksForBaseline] = useState<Set<number>>(new Set());
   const [isBaselinePending, setIsBaselinePending] = useState(false);
+  const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   
   // Column widths - use fixed pixel widths (no scaling)
   const [columnWidths, setColumnWidths] = useState<Record<GanttColumn, number>>(() => {
@@ -4620,100 +4621,23 @@ function ProjectGanttView({
                   </div>
                 </div>
                 <div 
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors",
-                    baselineMode === 'selected' ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
-                  )}
-                  onClick={() => setBaselineMode('selected')}
+                  className="flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors border-border hover:bg-muted/50"
+                  onClick={() => {
+                    // Enter inline selection mode in the grid
+                    setSelectedTasksForBaseline(new Set());
+                    setBaselineSelectionMode(true);
+                    setIsBaselineDialogOpen(false);
+                  }}
                   data-testid="baseline-option-selected"
                 >
-                  <div className={cn(
-                    "w-4 h-4 rounded-full border-2 flex items-center justify-center",
-                    baselineMode === 'selected' ? "border-primary" : "border-muted-foreground"
-                  )}>
-                    {baselineMode === 'selected' && <div className="w-2 h-2 rounded-full bg-primary" />}
-                  </div>
+                  <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center border-muted-foreground" />
                   <div>
                     <div className="font-medium text-sm">Baseline Selected Tasks</div>
-                    <div className="text-xs text-muted-foreground">Choose specific tasks or summary tasks to baseline</div>
+                    <div className="text-xs text-muted-foreground">Select tasks directly in the Gantt grid</div>
                   </div>
                 </div>
               </div>
             </div>
-
-            {baselineMode === 'selected' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Select Tasks ({selectedTasksForBaseline.size} selected)</Label>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setSelectedTasksForBaseline(new Set(tasks.map(t => t.id)))}
-                      data-testid="button-select-all-tasks"
-                    >
-                      Select All
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setSelectedTasksForBaseline(new Set())}
-                      data-testid="button-deselect-all-tasks"
-                    >
-                      Clear All
-                    </Button>
-                  </div>
-                </div>
-                <div className="border rounded-md max-h-[300px] overflow-y-auto">
-                  {tasks.map((task, idx) => {
-                    const taskLevel = task.outlineLevel || 1;
-                    const hasChildren = idx + 1 < tasks.length && (tasks[idx + 1].outlineLevel || 1) > taskLevel;
-                    const isSelected = selectedTasksForBaseline.has(task.id);
-                    const hasValidDates = task.startDate && task.endDate;
-                    
-                    return (
-                      <div 
-                        key={task.id}
-                        className={cn(
-                          "flex items-center gap-2 p-2 border-b last:border-b-0 transition-colors",
-                          isSelected ? "bg-primary/5" : "hover:bg-muted/30",
-                          !hasValidDates && "opacity-50"
-                        )}
-                        style={{ paddingLeft: `${(taskLevel - 1) * 16 + 8}px` }}
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleTaskForBaseline(task.id, hasChildren)}
-                          disabled={!hasValidDates}
-                          data-testid={`baseline-task-checkbox-${task.id}`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            {hasChildren && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0">Summary</Badge>
-                            )}
-                            <span className={cn(
-                              "text-sm truncate",
-                              hasChildren && "font-medium"
-                            )}>
-                              {task.name}
-                            </span>
-                          </div>
-                          {hasValidDates && (
-                            <div className="text-xs text-muted-foreground">
-                              {format(parseISO(task.startDate), 'MMM d')} - {format(parseISO(task.endDate), 'MMM d, yyyy')}
-                            </div>
-                          )}
-                          {!hasValidDates && (
-                            <div className="text-xs text-amber-600">No dates set</div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {hasAnyBaselines && (
               <div className="pt-2 border-t">
