@@ -3291,7 +3291,7 @@ function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.startDate}
-                  displayValue={task.startDate ? format(parseISO(task.startDate), 'MM/dd') : '—'}
+                  displayValue={task.startDate ? format(parseISO(task.startDate), 'MM/dd/yy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('startDate', val as string | null)}
                   disabled={isSummaryTask}
@@ -3301,21 +3301,21 @@ function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.endDate}
-                  displayValue={task.endDate ? format(parseISO(task.endDate), 'MM/dd') : '—'}
+                  displayValue={task.endDate ? format(parseISO(task.endDate), 'MM/dd/yy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('endDate', val as string | null)}
                   disabled={isSummaryTask}
                 />
               );
             case 'baselineStartDate':
-              return task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd') : '—';
+              return task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yy') : '—';
             case 'baselineEndDate':
-              return task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd') : '—';
+              return task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yy') : '—';
             case 'actualStartDate':
               return (
                 <InlineEditCell
                   value={task.actualStartDate}
-                  displayValue={task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd') : '—'}
+                  displayValue={task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualStartDate', val as string | null)}
                   disabled={isSummaryTask}
@@ -3325,7 +3325,7 @@ function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.actualEndDate}
-                  displayValue={task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd') : '—'}
+                  displayValue={task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualEndDate', val as string | null)}
                   disabled={isSummaryTask}
@@ -3482,7 +3482,7 @@ function ProjectGanttTaskRowMeta({
               return (
                 <InlineEditCell
                   value={task.constraintDate}
-                  displayValue={task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd') : '—'}
+                  displayValue={task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('constraintDate', val as string | null)}
                 />
