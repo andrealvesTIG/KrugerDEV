@@ -4210,8 +4210,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       // Auto-assign taskIndex if not provided
       if (input.taskIndex === undefined || input.taskIndex === null) {
         const existingTasks = await storage.getTasksByProject(input.projectId);
-        const maxIndex = existingTasks.reduce((max, t) => Math.max(max, t.taskIndex || 0), 0);
-        input.taskIndex = maxIndex + 1;
+        // Use max of: highest existing taskIndex OR count of tasks (for legacy tasks with null taskIndex)
+        const maxExistingIndex = existingTasks.reduce((max, t) => Math.max(max, t.taskIndex || 0), 0);
+        const taskCount = existingTasks.length;
+        input.taskIndex = Math.max(maxExistingIndex, taskCount) + 1;
       }
       
       const task = await storage.createTask(input);
