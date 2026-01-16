@@ -2960,6 +2960,8 @@ function ProjectGanttTaskRowMeta({
   isOnCriticalPath,
   onTrackChange,
   prevTaskLevel,
+  isSelected,
+  onToggleSelection,
 }: { 
   task: Task;
   rowIndex: number;
@@ -2984,6 +2986,8 @@ function ProjectGanttTaskRowMeta({
   isOnCriticalPath: boolean;
   onTrackChange?: (taskId: number, projectId: number, field: string, oldValue: unknown, newValue: unknown) => void;
   prevTaskLevel?: number;
+  isSelected: boolean;
+  onToggleSelection: (taskId: number) => void;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -3073,6 +3077,14 @@ function ProjectGanttTaskRowMeta({
       )}
       data-testid={`gantt-task-meta-${task.id}`}
     >
+      {/* Bulk selection checkbox column */}
+      <div className="w-8 flex-shrink-0 border-r flex items-center justify-center">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={() => onToggleSelection(task.id)}
+          data-testid={`bulk-select-${task.id}`}
+        />
+      </div>
       {/* Baseline selection checkbox column */}
       {baselineSelectionMode && (
         <div className="w-8 flex-shrink-0 border-r flex items-center justify-center">
@@ -3895,6 +3907,61 @@ function ProjectGanttView({
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [showProjectSummary, setShowProjectSummary] = useState(false);
+  
+  // Bulk selection state
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+  const [bulkDeletePending, setBulkDeletePending] = useState(false);
+  
+  const toggleTaskSelection = (taskId: number) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+  
+  const selectAllTasks = () => {
+    setSelectedTaskIds(new Set(tasks.map(t => t.id)));
+  };
+  
+  const clearTaskSelection = () => {
+    setSelectedTaskIds(new Set());
+  };
+  
+  const handleBulkDelete = async () => {
+    if (selectedTaskIds.size === 0) return;
+    
+    setBulkDeletePending(true);
+    const tasksToDelete = Array.from(selectedTaskIds);
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const taskId of tasksToDelete) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          deleteTask.mutate({ id: taskId, projectId }, {
+            onSuccess: () => { successCount++; resolve(); },
+            onError: () => { errorCount++; resolve(); }
+          });
+        });
+      } catch {
+        errorCount++;
+      }
+    }
+    
+    setBulkDeletePending(false);
+    clearTaskSelection();
+    
+    if (errorCount === 0) {
+      toast({ title: "Deleted", description: `${successCount} task${successCount !== 1 ? 's' : ''} deleted successfully` });
+    } else {
+      toast({ title: "Partial success", description: `${successCount} deleted, ${errorCount} failed`, variant: "destructive" });
+    }
+  };
   
   // Undo/redo history for all Gantt chart changes
   type GanttAction = 
@@ -4948,8 +5015,55 @@ function ProjectGanttView({
           <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
             <div className="h-full overflow-x-auto overflow-y-auto relative">
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
+              {/* Bulk actions bar - appears when tasks are selected */}
+              {selectedTaskIds.size > 0 && (
+                <div className="flex items-center gap-3 px-3 py-2 bg-primary/10 border-b">
+                  <span className="text-sm font-medium">{selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? 's' : ''} selected</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllTasks}
+                    data-testid="button-select-all-tasks"
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearTaskSelection}
+                    data-testid="button-clear-selection"
+                  >
+                    Clear
+                  </Button>
+                  <div className="flex-1" />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeletePending}
+                    data-testid="button-bulk-delete"
+                  >
+                    {bulkDeletePending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                    Delete
+                  </Button>
+                </div>
+              )}
               {/* Header row */}
               <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+                {/* Bulk selection header column */}
+                <div className="w-8 flex-shrink-0 border-r p-1 flex items-center justify-center">
+                  <Checkbox
+                    checked={selectedTaskIds.size === tasks.length && tasks.length > 0}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        selectAllTasks();
+                      } else {
+                        clearTaskSelection();
+                      }
+                    }}
+                    data-testid="bulk-select-all"
+                  />
+                </div>
                 {/* Baseline selection header column */}
                 {baselineSelectionMode && (
                   <div className="w-8 flex-shrink-0 border-r p-1 flex items-center justify-center">
@@ -5186,6 +5300,8 @@ function ProjectGanttView({
                               isOnCriticalPath={criticalTaskIds.has(task.id)}
                               onTrackChange={pushToUndoStack}
                               prevTaskLevel={index > 0 ? (visibleTasks[index - 1].outlineLevel || 1) : undefined}
+                              isSelected={selectedTaskIds.has(task.id)}
+                              onToggleSelection={toggleTaskSelection}
                             />
                           )}
                         </SortableTaskRow>
@@ -5195,6 +5311,7 @@ function ProjectGanttView({
                 </DndContext>
                 {/* Add task row */}
                 <div className="flex border-t bg-muted/20">
+                  <div className="w-8 flex-shrink-0 border-r p-1" />
                   {baselineSelectionMode && <div className="w-8 flex-shrink-0 border-r p-1" />}
                   <div className="w-8 flex-shrink-0 border-r p-1" />
                   {visibleColumns.map(colId => {
