@@ -1819,6 +1819,7 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
   const [isMilestone, setIsMilestone] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const { data: taskAssignments } = useTaskResourceAssignments(editingTask?.id ?? null);
   const lastInitializedTaskId = useRef<number | null>(null);
   const inviteAssignedRef = useRef(false);
@@ -2028,7 +2029,10 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="space-y-4">
+    <div className={cn(
+      "space-y-4",
+      isFullscreen && "absolute inset-0 z-40 bg-background p-4 overflow-auto"
+    )}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
           <TabsList>
@@ -2043,6 +2047,15 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            data-testid="button-tasks-fullscreen"
+            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
           <div className="relative max-w-xs w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -2385,6 +2398,7 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
           projectId={projectId}
           organizationId={currentOrganization?.id || null}
           projectName={projectName}
+          isFullscreen={isFullscreen}
           onCreateTask={(name) => {
             createTask.mutate({
               projectId,
@@ -2400,6 +2414,7 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
         <ProjectKanbanView 
           tasks={filteredTasks} 
           onTaskClick={openEditDialog}
+          isFullscreen={isFullscreen}
           onStatusChange={(taskId, newStatus) => {
             const task = tasks?.find(t => t.id === taskId);
             if (task) {
@@ -3633,6 +3648,7 @@ function ProjectGanttView({
   organizationId,
   onCreateTask,
   projectName,
+  isFullscreen,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
@@ -3640,6 +3656,7 @@ function ProjectGanttView({
   organizationId: number | null;
   onCreateTask: (name: string) => void;
   projectName?: string;
+  isFullscreen?: boolean;
 }) {
   const updateTask = useUpdateTask();
   const { toast } = useToast();
@@ -3656,7 +3673,6 @@ function ProjectGanttView({
   const [isBaselinePending, setIsBaselinePending] = useState(false);
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Fetch project dependencies and calculate CPM
   const { data: projectDependenciesData } = useProjectDependencies(projectId);
@@ -4301,10 +4317,7 @@ function ProjectGanttView({
   };
 
   return (
-    <Card className={cn(
-      "overflow-hidden transition-all duration-200",
-      isFullscreen && "fixed inset-0 z-50 rounded-none"
-    )}>
+    <Card className="overflow-hidden transition-all duration-200">
       <CardContent className={cn(
         "p-0 flex flex-col",
         isFullscreen && "h-full"
@@ -4407,15 +4420,6 @@ function ProjectGanttView({
                 data-testid="button-gantt-zoom-out"
               >
                 <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                data-testid="button-gantt-fullscreen"
-                title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-              >
-                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -4920,11 +4924,13 @@ function ProjectGanttView({
 function ProjectKanbanView({ 
   tasks, 
   onTaskClick, 
-  onStatusChange 
+  onStatusChange,
+  isFullscreen,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
+  isFullscreen?: boolean;
 }) {
   const columns = [
     { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
@@ -4933,7 +4939,6 @@ function ProjectKanbanView({
   ];
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeOverColumn, setActiveOverColumn] = useState<string | null>(null);
   
   const sensors = useSensors(
@@ -5001,25 +5006,11 @@ function ProjectKanbanView({
   };
 
   return (
-    <Card className={cn(
-      "overflow-hidden transition-all duration-200",
-      isFullscreen && "fixed inset-0 z-50 rounded-none"
-    )}>
+    <Card className="overflow-hidden transition-all duration-200">
       <CardContent className={cn(
         "p-0 flex flex-col",
         isFullscreen && "h-full"
       )}>
-        <div className="flex items-center justify-end p-3 border-b bg-muted/30">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            data-testid="button-kanban-fullscreen"
-            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          >
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
-        </div>
         <div className={cn("p-4", isFullscreen && "flex-1 overflow-auto")}>
           <DndContext 
             sensors={sensors} 
