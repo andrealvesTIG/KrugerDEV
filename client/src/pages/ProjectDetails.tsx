@@ -26,7 +26,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -3926,6 +3926,50 @@ function ProjectGanttView({
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [showProjectSummary, setShowProjectSummary] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  
+  // Function to recalculate schedule based on dependencies
+  const handleRecalculateSchedule = async () => {
+    setIsRecalculating(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/recalculate-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Invalidate tasks to refresh the view
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+        
+        if (data.adjustedCount > 0) {
+          toast({
+            title: "Schedule Updated",
+            description: `${data.adjustedCount} task(s) adjusted based on dependencies`,
+          });
+        } else {
+          toast({
+            title: "Schedule Up-to-Date",
+            description: "All tasks already comply with dependency constraints",
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to recalculate schedule",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to recalculate schedule",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
   
   // Bulk selection state
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
@@ -4973,6 +5017,22 @@ function ProjectGanttView({
                 Critical Path
               </Label>
             </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRecalculateSchedule}
+                  disabled={isRecalculating}
+                  data-testid="button-recalculate-schedule"
+                  className="gap-1"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", isRecalculating && "animate-spin")} />
+                  <span className="text-xs">Refresh Schedule</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Recalculate all task dates based on dependencies</TooltipContent>
+            </Tooltip>
             {hasAnyBaselines && (
               <div className="flex items-center gap-2">
                 <Switch

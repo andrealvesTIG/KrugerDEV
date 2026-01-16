@@ -4451,6 +4451,78 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  // Recalculate schedule - enforce all dependency date constraints
+  app.post('/api/projects/:projectId/recalculate-schedule', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const tasks = await storage.getTasksByProject(projectId);
+      const dependencies = await storage.getProjectDependencies(projectId);
+      
+      // Build a map of task ID to task for quick lookup
+      const taskMap = new Map(tasks.map(t => [t.id, t]));
+      
+      // Track which tasks were adjusted
+      const adjustedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
+      
+      // Process dependencies in order (topological sort would be ideal, but simple iteration works for most cases)
+      // We may need multiple passes to handle chains of dependencies
+      let changesInPass = true;
+      let passCount = 0;
+      const maxPasses = 10; // Prevent infinite loops
+      
+      while (changesInPass && passCount < maxPasses) {
+        changesInPass = false;
+        passCount++;
+        
+        for (const dep of dependencies) {
+          const predecessorTask = taskMap.get(dep.dependsOnTaskId);
+          const dependentTask = taskMap.get(dep.taskId);
+          
+          if (!predecessorTask?.endDate || !dependentTask) continue;
+          
+          // Calculate the required start date (predecessor end + 1 day + lag)
+          const predecessorEnd = new Date(predecessorTask.endDate);
+          const requiredStart = new Date(predecessorEnd);
+          requiredStart.setDate(requiredStart.getDate() + 1 + (dep.lagDays || 0));
+          
+          const currentStart = dependentTask.startDate ? new Date(dependentTask.startDate) : null;
+          
+          // If current start is before required start, adjust it
+          if (!currentStart || currentStart < requiredStart) {
+            const currentEnd = dependentTask.endDate ? new Date(dependentTask.endDate) : null;
+            const duration = currentStart && currentEnd ? 
+              Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+            
+            const newStartDate = requiredStart.toISOString().split('T')[0];
+            const newEnd = new Date(requiredStart);
+            newEnd.setDate(newEnd.getDate() + duration);
+            const newEndDate = newEnd.toISOString().split('T')[0];
+            
+            // Update in database
+            await storage.updateTask(dep.taskId, { startDate: newStartDate, endDate: newEndDate });
+            
+            // Update in our local map for chain propagation
+            const updatedTask = { ...dependentTask, startDate: newStartDate, endDate: newEndDate };
+            taskMap.set(dep.taskId, updatedTask);
+            
+            adjustedTasks.push({ taskId: dep.taskId, newStartDate, newEndDate });
+            changesInPass = true;
+          }
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        adjustedCount: adjustedTasks.length,
+        adjustedTasks,
+        passCount 
+      });
+    } catch (err) {
+      console.error("Error recalculating schedule:", err);
+      res.status(500).json({ message: "Error recalculating schedule" });
+    }
+  });
+
   // Reorder tasks (drag and drop) - updates taskIndex for all affected tasks
   app.post('/api/projects/:projectId/tasks/reorder', async (req, res) => {
     try {
