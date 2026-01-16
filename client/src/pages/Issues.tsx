@@ -63,6 +63,7 @@ export default function Issues() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "issue" | "risk">("all");
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
@@ -178,7 +179,8 @@ export default function Issues() {
       issue.description?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || issue.status === statusFilter;
     const matchesPriority = priorityFilter === "all" || issue.priority === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
+    const matchesType = typeFilter === "all" || issue.itemType === typeFilter;
+    return matchesSearch && matchesStatus && matchesPriority && matchesType;
   });
 
   const getProjectName = (projectId: number) => {
@@ -204,8 +206,8 @@ export default function Issues() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-page-title">Issues</h1>
-          <p className="mt-1 text-muted-foreground">Track and resolve project issues across all initiatives.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-page-title">Issues & Risks</h1>
+          <p className="mt-1 text-muted-foreground">Track and manage issues and risks across all projects.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -313,12 +315,39 @@ export default function Issues() {
         </Dialog>
       </div>
 
+      <div className="flex gap-2 mb-4">
+        <Button
+          variant={typeFilter === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setTypeFilter("all")}
+          data-testid="button-filter-all"
+        >
+          All
+        </Button>
+        <Button
+          variant={typeFilter === "issue" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setTypeFilter("issue")}
+          data-testid="button-filter-issues"
+        >
+          Issues
+        </Button>
+        <Button
+          variant={typeFilter === "risk" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setTypeFilter("risk")}
+          data-testid="button-filter-risks"
+        >
+          Risks
+        </Button>
+      </div>
+
       <div className="flex flex-col gap-4 sm:flex-row bg-card p-4 rounded-xl border border-border shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-10 border-slate-200"
-            placeholder="Search issues..."
+            placeholder="Search issues and risks..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             data-testid="input-search-issues"
@@ -356,8 +385,8 @@ export default function Issues() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Issues</CardTitle>
-          <CardDescription>{filteredIssues?.length || 0} issues found</CardDescription>
+          <CardTitle>{typeFilter === "all" ? "All Issues & Risks" : typeFilter === "issue" ? "Issues" : "Risks"}</CardTitle>
+          <CardDescription>{filteredIssues?.length || 0} {typeFilter === "all" ? "items" : typeFilter === "issue" ? "issues" : "risks"} found</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">

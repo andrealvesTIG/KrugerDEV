@@ -793,9 +793,12 @@ export class DatabaseStorage implements IStorage {
     return issue;
   }
 
-  async getAllIssues(): Promise<Issue[]> {
+  async getAllIssues(itemType?: 'issue' | 'risk' | 'all'): Promise<Issue[]> {
+    if (itemType === 'all' || !itemType) {
+      return await db.select().from(issues).where(isNull(issues.deletedAt));
+    }
     return await db.select().from(issues).where(
-      and(eq(issues.itemType, 'issue'), isNull(issues.deletedAt))
+      and(eq(issues.itemType, itemType), isNull(issues.deletedAt))
     );
   }
 
