@@ -2032,8 +2032,9 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
     <div 
       className={cn(
         "space-y-4",
-        isFullscreen && "fixed inset-0 z-40 bg-background p-4 overflow-auto ml-[var(--sidebar-width)]"
+        isFullscreen && "fixed top-0 right-0 bottom-0 z-40 bg-background p-4 overflow-auto"
       )}
+      style={isFullscreen ? { left: 'var(--sidebar-width)' } : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
