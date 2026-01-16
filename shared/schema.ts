@@ -173,37 +173,8 @@ export const projects = pgTable("projects", {
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
-// Risks
-export const risks = pgTable("risks", {
-  id: serial("id").primaryKey(),
-  projectId: integer("project_id").references(() => projects.id).notNull(),
-  riskNumber: text("risk_number"), // Auto-generated (e.g., "RISK-001")
-  title: text("title").notNull(),
-  description: text("description"),
-  category: text("category"), // Technical, Schedule, Resource, External, Organizational, Financial
-  probability: text("probability"), // Very Low, Low, Medium, High, Very High
-  impact: text("impact"), // Very Low, Low, Medium, High, Very High
-  riskScore: integer("risk_score"), // Calculated score (probability x impact)
-  status: text("status").default("Open"), // Identified, Open, In Mitigation, Mitigated, Closed, Accepted
-  responseStrategy: text("response_strategy"), // Avoid, Transfer, Mitigate, Accept
-  mitigationPlan: text("mitigation_plan"),
-  contingencyPlan: text("contingency_plan"), // Backup plan if risk occurs
-  triggerEvents: text("trigger_events"), // What triggers this risk
-  residualRisk: text("residual_risk"), // Remaining risk after mitigation
-  ownerId: varchar("owner_id").references(() => users.id), // Risk owner
-  reviewerId: varchar("reviewer_id").references(() => users.id), // Risk reviewer
-  identifiedDate: date("identified_date"), // When risk was identified
-  targetResolutionDate: date("target_resolution_date"),
-  actualResolutionDate: date("actual_resolution_date"),
-  impactCost: numeric("impact_cost"), // Potential cost if risk materializes
-  impactSchedule: text("impact_schedule"), // Schedule impact description
-  proximity: text("proximity"), // Imminent, Near-term, Mid-term, Long-term
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  deletedAt: timestamp("deleted_at"),
-  deletedBy: varchar("deleted_by").references(() => users.id),
-  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
-});
+// Note: Risks are now consolidated into the issues table with itemType = "risk"
+// The 'risks' table is deprecated - use issues with itemType filter instead
 
 // Milestones
 export const milestones = pgTable("milestones", {
@@ -234,18 +205,19 @@ export const milestones = pgTable("milestones", {
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
 });
 
-// Issues
+// Issues (consolidated - includes both issues and risks via itemType)
 export const issues = pgTable("issues", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
-  issueNumber: text("issue_number"), // Auto-generated (e.g., "ISS-001")
+  itemType: text("item_type").default("issue").notNull(), // "issue" or "risk" - distinguishes the type
+  issueNumber: text("issue_number"), // Auto-generated (e.g., "ISS-001" or "RISK-001")
   title: text("title").notNull(),
   description: text("description"),
-  category: text("category"), // Technical, Process, Resource, External, Scope
+  category: text("category"), // Technical, Process, Resource, External, Scope (issues) or Technical, Schedule, Resource, External, Organizational, Financial (risks)
   priority: text("priority").default("Medium"), // Low, Medium, High, Critical
   severity: text("severity"), // Minor, Moderate, Major, Critical, Blocker
-  status: text("status").default("Open"), // Open, In Progress, Pending, Resolved, Closed, Escalated
-  type: text("type").default("Bug"), // Bug, Enhancement, Task, Question, Defect, Support
+  status: text("status").default("Open"), // Open, In Progress, Pending, Resolved, Closed, Escalated (issues) or Identified, Open, In Mitigation, Mitigated, Closed, Accepted (risks)
+  type: text("type").default("Bug"), // Bug, Enhancement, Task, Question, Defect, Support (for issues only)
   escalationLevel: text("escalation_level"), // None, Team Lead, Manager, Director, Executive
   assignee: text("assignee"),
   assigneeId: varchar("assignee_id").references(() => users.id), // Issue assignee
@@ -268,6 +240,19 @@ export const issues = pgTable("issues", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
+  // Risk-specific fields (only used when itemType = "risk")
+  probability: text("probability"), // Very Low, Low, Medium, High, Very High
+  impact: text("impact"), // Very Low, Low, Medium, High, Very High
+  riskScore: integer("risk_score"), // Calculated score (probability x impact)
+  responseStrategy: text("response_strategy"), // Avoid, Transfer, Mitigate, Accept
+  mitigationPlan: text("mitigation_plan"),
+  contingencyPlan: text("contingency_plan"), // Backup plan if risk occurs
+  triggerEvents: text("trigger_events"), // What triggers this risk
+  residualRisk: text("residual_risk"), // Remaining risk after mitigation
+  ownerId: varchar("owner_id").references(() => users.id), // Risk owner
+  reviewerId: varchar("reviewer_id").references(() => users.id), // Risk reviewer
+  identifiedDate: date("identified_date"), // When risk was identified
+  proximity: text("proximity"), // Imminent, Near-term, Mid-term, Long-term
 });
 
 // Tasks (for Gantt Chart)
@@ -339,20 +324,10 @@ export const projectChangeLogs = pgTable("project_change_logs", {
   newValues: text("new_values"),
 });
 
-// Risk Change Logs (Audit Trail)
-export const riskChangeLogs = pgTable("risk_change_logs", {
-  id: serial("id").primaryKey(),
-  riskId: integer("risk_id").references(() => risks.id).notNull(),
-  changedBy: varchar("changed_by").references(() => users.id),
-  changedByName: text("changed_by_name"),
-  changedAt: timestamp("changed_at").defaultNow(),
-  changeType: text("change_type").notNull(),
-  changeSummary: text("change_summary"),
-  previousValues: text("previous_values"),
-  newValues: text("new_values"),
-});
+// Note: Risk Change Logs are now consolidated into Issue Change Logs
+// The 'risk_change_logs' table is deprecated - use issue_change_logs instead
 
-// Issue Change Logs (Audit Trail)
+// Issue Change Logs (Audit Trail) - also handles risks since they're now in issues table
 export const issueChangeLogs = pgTable("issue_change_logs", {
   id: serial("id").primaryKey(),
   issueId: integer("issue_id").references(() => issues.id).notNull(),
@@ -424,23 +399,17 @@ export const taskResourceAssignments = pgTable("task_resource_assignments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Issue Resource Assignments (Join table)
+// Issue Resource Assignments (Join table) - also handles risks since they're now in issues table
 export const issueResourceAssignments = pgTable("issue_resource_assignments", {
   id: serial("id").primaryKey(),
   issueId: integer("issue_id").references(() => issues.id).notNull(),
   resourceId: integer("resource_id").references(() => resources.id).notNull(),
-  role: text("role"), // Role (e.g., "Assignee", "Reviewer")
+  role: text("role"), // Role (e.g., "Assignee", "Reviewer", "Owner", "Mitigator")
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Risk Resource Assignments (Join table)
-export const riskResourceAssignments = pgTable("risk_resource_assignments", {
-  id: serial("id").primaryKey(),
-  riskId: integer("risk_id").references(() => risks.id).notNull(),
-  resourceId: integer("resource_id").references(() => resources.id).notNull(),
-  role: text("role"), // Role (e.g., "Owner", "Mitigator")
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// Note: Risk Resource Assignments are now consolidated into Issue Resource Assignments
+// The 'risk_resource_assignments' table is deprecated - use issue_resource_assignments instead
 
 // Timesheet Entries (Time logging against tasks)
 export const timesheetEntries = pgTable("timesheet_entries", {
@@ -818,9 +787,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     references: [users.id],
     relationName: "projectManager"
   }),
-  risks: many(risks),
   milestones: many(milestones),
-  issues: many(issues),
+  issues: many(issues), // includes both issues and risks (via itemType field)
   tasks: many(tasks),
   financials: many(projectFinancials),
   costItems: many(costItems),
@@ -859,12 +827,7 @@ export const projectIntakesRelations = relations(projectIntakes, ({ one }) => ({
   }),
 }));
 
-export const risksRelations = relations(risks, ({ one }) => ({
-  project: one(projects, {
-    fields: [risks.projectId],
-    references: [projects.id],
-  }),
-}));
+// Note: risksRelations removed - risks are now in issues table with itemType="risk"
 
 export const changeRequestsRelations = relations(changeRequests, ({ one }) => ({
   project: one(projects, {
@@ -911,8 +874,7 @@ export const resourcesRelations = relations(resources, ({ one, many }) => ({
     references: [organizations.id],
   }),
   taskAssignments: many(taskResourceAssignments),
-  issueAssignments: many(issueResourceAssignments),
-  riskAssignments: many(riskResourceAssignments),
+  issueAssignments: many(issueResourceAssignments), // includes both issue and risk resource assignments
 }));
 
 export const taskResourceAssignmentsRelations = relations(taskResourceAssignments, ({ one }) => ({
@@ -937,16 +899,7 @@ export const issueResourceAssignmentsRelations = relations(issueResourceAssignme
   }),
 }));
 
-export const riskResourceAssignmentsRelations = relations(riskResourceAssignments, ({ one }) => ({
-  risk: one(risks, {
-    fields: [riskResourceAssignments.riskId],
-    references: [risks.id],
-  }),
-  resource: one(resources, {
-    fields: [riskResourceAssignments.resourceId],
-    references: [resources.id],
-  }),
-}));
+// Note: riskResourceAssignmentsRelations removed - risk assignments are now in issueResourceAssignments
 
 export const taskChangeLogsRelations = relations(taskChangeLogs, ({ one }) => ({
   task: one(tasks, {
@@ -986,20 +939,23 @@ export const insertOrganizationInviteSchema = createInsertSchema(organizationInv
 export const insertOrganizationAccessRequestSchema = createInsertSchema(organizationAccessRequests).omit({ id: true, createdAt: true, reviewedAt: true });
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true });
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
-export const insertRiskSchema = createInsertSchema(risks).omit({ id: true, createdAt: true });
+// Risk schema is now an alias for Issue schema with itemType="risk"
+export const insertRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
 export const insertIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true });
 export const insertTaskChangeLogSchema = createInsertSchema(taskChangeLogs).omit({ id: true, changedAt: true });
 export const insertProjectChangeLogSchema = createInsertSchema(projectChangeLogs).omit({ id: true, changedAt: true });
-export const insertRiskChangeLogSchema = createInsertSchema(riskChangeLogs).omit({ id: true, changedAt: true });
 export const insertIssueChangeLogSchema = createInsertSchema(issueChangeLogs).omit({ id: true, changedAt: true });
+// Risk change logs are now handled through issue change logs
+export const insertRiskChangeLogSchema = insertIssueChangeLogSchema;
 export const insertTaskDependencySchema = createInsertSchema(taskDependencies).omit({ id: true, createdAt: true });
 export const insertProjectFinancialSchema = createInsertSchema(projectFinancials).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertResourceSchema = createInsertSchema(resources).omit({ id: true, createdAt: true });
 export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourceAssignments).omit({ id: true, createdAt: true });
 export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
-export const insertRiskResourceAssignmentSchema = createInsertSchema(riskResourceAssignments).omit({ id: true, createdAt: true });
+// Risk resource assignments are now handled through issue resource assignments
+export const insertRiskResourceAssignmentSchema = insertIssueResourceAssignmentSchema;
 export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1035,14 +991,15 @@ export type InsertPortfolio = z.infer<typeof insertPortfolioSchema>;
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 
-export type Risk = typeof risks.$inferSelect;
-export type InsertRisk = z.infer<typeof insertRiskSchema>;
-
 export type Milestone = typeof milestones.$inferSelect;
 export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
 
 export type Issue = typeof issues.$inferSelect;
 export type InsertIssue = z.infer<typeof insertIssueSchema>;
+
+// Risk is now an alias for Issue with itemType="risk"
+export type Risk = Issue;
+export type InsertRisk = InsertIssue;
 
 export type Task = typeof tasks.$inferSelect;
 export type InsertTask = z.infer<typeof insertTaskSchema>;
@@ -1053,11 +1010,12 @@ export type InsertTaskChangeLog = z.infer<typeof insertTaskChangeLogSchema>;
 export type ProjectChangeLog = typeof projectChangeLogs.$inferSelect;
 export type InsertProjectChangeLog = z.infer<typeof insertProjectChangeLogSchema>;
 
-export type RiskChangeLog = typeof riskChangeLogs.$inferSelect;
-export type InsertRiskChangeLog = z.infer<typeof insertRiskChangeLogSchema>;
-
 export type IssueChangeLog = typeof issueChangeLogs.$inferSelect;
 export type InsertIssueChangeLog = z.infer<typeof insertIssueChangeLogSchema>;
+
+// Risk change logs are now handled through issue change logs
+export type RiskChangeLog = IssueChangeLog;
+export type InsertRiskChangeLog = InsertIssueChangeLog;
 
 export type TaskDependency = typeof taskDependencies.$inferSelect;
 export type InsertTaskDependency = z.infer<typeof insertTaskDependencySchema>;
@@ -1074,8 +1032,9 @@ export type InsertTaskResourceAssignment = z.infer<typeof insertTaskResourceAssi
 export type IssueResourceAssignment = typeof issueResourceAssignments.$inferSelect;
 export type InsertIssueResourceAssignment = z.infer<typeof insertIssueResourceAssignmentSchema>;
 
-export type RiskResourceAssignment = typeof riskResourceAssignments.$inferSelect;
-export type InsertRiskResourceAssignment = z.infer<typeof insertRiskResourceAssignmentSchema>;
+// Risk resource assignments are now handled through issue resource assignments  
+export type RiskResourceAssignment = IssueResourceAssignment;
+export type InsertRiskResourceAssignment = InsertIssueResourceAssignment;
 
 export type TimesheetEntry = typeof timesheetEntries.$inferSelect;
 export type InsertTimesheetEntry = z.infer<typeof insertTimesheetEntrySchema>;

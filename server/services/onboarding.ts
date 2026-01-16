@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { users, organizations, organizationMembers, portfolios, projects, risks, milestones, issues, tasks, resources, changeRequests, projectIntakes } from "@shared/schema";
+import { users, organizations, organizationMembers, portfolios, projects, milestones, issues, tasks, resources, changeRequests, projectIntakes } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { extractDomain, isPersonalEmailDomain } from "./companyLookup";
 
@@ -406,13 +406,14 @@ export async function completeOnboarding(
     }
     
     for (const risk of projectTemplate.risks) {
-      await db.insert(risks).values({
+      await db.insert(issues).values({
         projectId: project.id,
         title: risk.title,
         description: risk.description,
         probability: risk.probability,
         impact: risk.impact,
         status: 'Open',
+        itemType: 'risk',
         isDemo: true,
       });
     }

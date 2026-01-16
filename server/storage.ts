@@ -1,9 +1,9 @@
 import { db } from "./db";
 import {
-  users, portfolios, projects, risks, milestones, issues, tasks,
+  users, portfolios, projects, milestones, issues, tasks,
   organizations, organizationMembers, organizationInvites, organizationAccessRequests, taskChangeLogs, taskDependencies, projectFinancials,
-  projectChangeLogs, riskChangeLogs, issueChangeLogs,
-  resources, taskResourceAssignments, issueResourceAssignments, riskResourceAssignments,
+  projectChangeLogs, issueChangeLogs,
+  resources, taskResourceAssignments, issueResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
   changeRequests, projectDocuments, projectComments, notifications, statusReportHistory,
   billingTransactions, timesheetEntries,
@@ -365,10 +365,9 @@ export class DatabaseStorage implements IStorage {
     await db.update(projects).set({ businessOwnerId: null }).where(eq(projects.businessOwnerId, id));
     await db.update(projects).set({ technicalLeadId: null }).where(eq(projects.technicalLeadId, id));
     await db.update(projects).set({ deletedBy: null }).where(eq(projects.deletedBy, id));
-    // 8. Nullify user references in risks
-    await db.update(risks).set({ ownerId: null }).where(eq(risks.ownerId, id));
-    await db.update(risks).set({ reviewerId: null }).where(eq(risks.reviewerId, id));
-    await db.update(risks).set({ deletedBy: null }).where(eq(risks.deletedBy, id));
+    // 8. Nullify user references in risks (now stored in issues table with ownerId and reviewerId)
+    await db.update(issues).set({ ownerId: null }).where(and(eq(issues.ownerId, id), eq(issues.itemType, 'risk')));
+    await db.update(issues).set({ reviewerId: null }).where(and(eq(issues.reviewerId, id), eq(issues.itemType, 'risk')));
     // 9. Nullify user references in milestones
     await db.update(milestones).set({ ownerId: null }).where(eq(milestones.ownerId, id));
     await db.update(milestones).set({ deletedBy: null }).where(eq(milestones.deletedBy, id));
@@ -389,7 +388,6 @@ export class DatabaseStorage implements IStorage {
     await db.update(projectIntakes).set({ rejectedBy: null }).where(eq(projectIntakes.rejectedBy, id));
     await db.update(projectIntakes).set({ deletedBy: null }).where(eq(projectIntakes.deletedBy, id));
     // 14. Nullify user references in change log tables
-    await db.update(riskChangeLogs).set({ changedBy: null }).where(eq(riskChangeLogs.changedBy, id));
     await db.update(projectChangeLogs).set({ changedBy: null }).where(eq(projectChangeLogs.changedBy, id));
     await db.update(issueChangeLogs).set({ changedBy: null }).where(eq(issueChangeLogs.changedBy, id));
     await db.update(taskChangeLogs).set({ changedBy: null }).where(eq(taskChangeLogs.changedBy, id));
@@ -693,33 +691,39 @@ export class DatabaseStorage implements IStorage {
     await db.delete(projects).where(eq(projects.id, id));
   }
 
-  // Risks
+  // Risks (now stored in issues table with itemType='risk')
   async getRisks(projectId: number): Promise<Risk[]> {
-    return await db.select().from(risks).where(
-      and(eq(risks.projectId, projectId), isNull(risks.deletedAt))
+    return await db.select().from(issues).where(
+      and(
+        eq(issues.projectId, projectId),
+        eq(issues.itemType, 'risk'),
+        isNull(issues.deletedAt)
+      )
     );
   }
 
   async getRisk(id: number): Promise<Risk | undefined> {
-    const [risk] = await db.select().from(risks).where(eq(risks.id, id));
+    const [risk] = await db.select().from(issues).where(
+      and(eq(issues.id, id), eq(issues.itemType, 'risk'))
+    );
     return risk;
   }
 
   async createRisk(risk: InsertRisk): Promise<Risk> {
-    const [newRisk] = await db.insert(risks).values(risk).returning();
+    const [newRisk] = await db.insert(issues).values({ ...risk, itemType: 'risk' }).returning();
     return newRisk;
   }
 
   async updateRisk(id: number, updates: UpdateRiskRequest): Promise<Risk> {
-    const [updated] = await db.update(risks)
+    const [updated] = await db.update(issues)
       .set(updates)
-      .where(eq(risks.id, id))
+      .where(and(eq(issues.id, id), eq(issues.itemType, 'risk')))
       .returning();
     return updated;
   }
 
   async deleteRisk(id: number): Promise<void> {
-    await db.delete(risks).where(eq(risks.id, id));
+    await db.delete(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
   }
 
   // Milestones
@@ -750,10 +754,14 @@ export class DatabaseStorage implements IStorage {
     await db.delete(milestones).where(eq(milestones.id, id));
   }
 
-  // Issues
+  // Issues (filtering by itemType='issue' to exclude risks)
   async getIssues(projectId: number): Promise<Issue[]> {
     return await db.select().from(issues).where(
-      and(eq(issues.projectId, projectId), isNull(issues.deletedAt))
+      and(
+        eq(issues.projectId, projectId),
+        eq(issues.itemType, 'issue'),
+        isNull(issues.deletedAt)
+      )
     );
   }
 
@@ -763,11 +771,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllIssues(): Promise<Issue[]> {
-    return await db.select().from(issues).where(isNull(issues.deletedAt));
+    return await db.select().from(issues).where(
+      and(eq(issues.itemType, 'issue'), isNull(issues.deletedAt))
+    );
   }
 
   async createIssue(issue: InsertIssue): Promise<Issue> {
-    const [newIssue] = await db.insert(issues).values(issue).returning();
+    const [newIssue] = await db.insert(issues).values({ ...issue, itemType: 'issue' }).returning();
     return newIssue;
   }
 
@@ -845,15 +855,15 @@ export class DatabaseStorage implements IStorage {
     return newLog;
   }
 
-  // Risk Change Logs
+  // Risk Change Logs (now using issue change logs since risks are in issues table)
   async getRiskChangeLogs(riskId: number): Promise<RiskChangeLog[]> {
-    return await db.select().from(riskChangeLogs)
-      .where(eq(riskChangeLogs.riskId, riskId))
-      .orderBy(desc(riskChangeLogs.changedAt));
+    return await db.select().from(issueChangeLogs)
+      .where(eq(issueChangeLogs.issueId, riskId))
+      .orderBy(desc(issueChangeLogs.changedAt));
   }
 
   async createRiskChangeLog(log: InsertRiskChangeLog): Promise<RiskChangeLog> {
-    const [newLog] = await db.insert(riskChangeLogs).values(log).returning();
+    const [newLog] = await db.insert(issueChangeLogs).values(log).returning();
     return newLog;
   }
 
@@ -934,7 +944,9 @@ export class DatabaseStorage implements IStorage {
     
     const allRisks: (Risk & { projectName: string })[] = [];
     for (const project of portfolioProjects) {
-      const projectRisks = await db.select().from(risks).where(eq(risks.projectId, project.id));
+      const projectRisks = await db.select().from(issues).where(
+        and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk'), isNull(issues.deletedAt))
+      );
       allRisks.push(...projectRisks.map(r => ({ ...r, projectName: project.name })));
     }
     return allRisks;
@@ -1050,14 +1062,15 @@ export class DatabaseStorage implements IStorage {
       )
       .limit(limit);
 
-    // Filter risks by accessible projects
-    const riskResults = await db.select().from(risks)
+    // Filter risks by accessible projects (risks are now in issues table with itemType='risk')
+    const riskResults = await db.select().from(issues)
       .where(
         and(
-          sql`${risks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          eq(issues.itemType, 'risk'),
+          sql`${issues.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
-            ilike(risks.title, searchPattern),
-            ilike(risks.description, searchPattern)
+            ilike(issues.title, searchPattern),
+            ilike(issues.description, searchPattern)
           )
         )
       )
@@ -1126,9 +1139,9 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true))).returning();
       stats.tasks += deletedTasks.length;
       
-      // Delete DEMO risks
-      const deletedRisks = await db.delete(risks)
-        .where(and(eq(risks.projectId, project.id), eq(risks.isDemo, true))).returning();
+      // Delete DEMO risks (now in issues table with itemType='risk')
+      const deletedRisks = await db.delete(issues)
+        .where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk'), eq(issues.isDemo, true))).returning();
       stats.risks += deletedRisks.length;
       
       // Delete DEMO milestones
@@ -1148,7 +1161,7 @@ export class DatabaseStorage implements IStorage {
       
       // Check if this demo project has any remaining (non-demo) children before deleting
       const remainingTasks = await db.select({ count: sql`count(*)` }).from(tasks).where(eq(tasks.projectId, project.id));
-      const remainingRisks = await db.select({ count: sql`count(*)` }).from(risks).where(eq(risks.projectId, project.id));
+      const remainingRisks = await db.select({ count: sql`count(*)` }).from(issues).where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk')));
       const remainingMilestones = await db.select({ count: sql`count(*)` }).from(milestones).where(eq(milestones.projectId, project.id));
       const remainingIssues = await db.select({ count: sql`count(*)` }).from(issues).where(eq(issues.projectId, project.id));
       const remainingFinancials = await db.select({ count: sql`count(*)` }).from(projectFinancials).where(eq(projectFinancials.projectId, project.id));
@@ -1191,10 +1204,9 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(resources.organizationId, organizationId), eq(resources.isDemo, true)));
     
     for (const resource of demoResources) {
-      // Delete any task/issue/risk resource assignments for this demo resource
+      // Delete any task/issue resource assignments for this demo resource (risks use issue_resource_assignments now)
       await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, resource.id));
       await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, resource.id));
-      await db.delete(riskResourceAssignments).where(eq(riskResourceAssignments.resourceId, resource.id));
     }
     
     const deletedResources = await db.delete(resources)
@@ -1264,11 +1276,12 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
-      // Get deleted risks
-      const deletedRisks = await db.select().from(risks)
+      // Get deleted risks (now in issues table with itemType='risk')
+      const deletedRisks = await db.select().from(issues)
         .where(and(
-          sql`${risks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
-          isNotNull(risks.deletedAt)
+          eq(issues.itemType, 'risk'),
+          sql`${issues.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
+          isNotNull(issues.deletedAt)
         ));
       for (const r of deletedRisks) {
         const deleter = r.deletedBy ? await this.getUser(r.deletedBy) : null;
@@ -1354,12 +1367,12 @@ export class DatabaseStorage implements IStorage {
         break;
       case 'risk':
         if (organizationId) {
-          const [r] = await db.select().from(risks).where(eq(risks.id, id));
+          const [r] = await db.select().from(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
           if (!r) return false;
           const [p] = await db.select().from(projects).where(and(eq(projects.id, r.projectId), eq(projects.organizationId, organizationId)));
           if (!p) return false;
         }
-        await db.update(risks).set({ deletedAt: now, deletedBy: userId }).where(eq(risks.id, id));
+        await db.update(issues).set({ deletedAt: now, deletedBy: userId }).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
         break;
       case 'milestone':
         if (organizationId) {
@@ -1406,11 +1419,11 @@ export class DatabaseStorage implements IStorage {
         break;
       }
       case 'risk': {
-        const [r] = await db.select().from(risks).where(eq(risks.id, id));
+        const [r] = await db.select().from(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
         if (!r) return false;
         const [p] = await db.select().from(projects).where(and(eq(projects.id, r.projectId), eq(projects.organizationId, organizationId)));
         if (!p) return false;
-        await db.update(risks).set({ deletedAt: null, deletedBy: null }).where(eq(risks.id, id));
+        await db.update(issues).set({ deletedAt: null, deletedBy: null }).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
         break;
       }
       case 'milestone': {
@@ -1452,7 +1465,7 @@ export class DatabaseStorage implements IStorage {
           await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
         }
         await db.delete(tasks).where(eq(tasks.projectId, id));
-        await db.delete(risks).where(eq(risks.projectId, id));
+        // Risks are now in issues table - they get deleted with issues below
         await db.delete(milestones).where(eq(milestones.projectId, id));
         await db.delete(issues).where(eq(issues.projectId, id));
         await db.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
@@ -1471,11 +1484,11 @@ export class DatabaseStorage implements IStorage {
         break;
       }
       case 'risk': {
-        const [r] = await db.select().from(risks).where(eq(risks.id, id));
+        const [r] = await db.select().from(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
         if (!r) return false;
         const [p] = await db.select().from(projects).where(and(eq(projects.id, r.projectId), eq(projects.organizationId, organizationId)));
         if (!p) return false;
-        await db.delete(risks).where(eq(risks.id, id));
+        await db.delete(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
         break;
       }
       case 'milestone': {
@@ -1572,16 +1585,13 @@ export class DatabaseStorage implements IStorage {
       const [keep, ...toDelete] = group;
       
       for (const dup of toDelete) {
-        // Re-point any assignments to the canonical resource
+        // Re-point any assignments to the canonical resource (risks use issue_resource_assignments now)
         await db.update(taskResourceAssignments)
           .set({ resourceId: keep.id })
           .where(eq(taskResourceAssignments.resourceId, dup.id));
         await db.update(issueResourceAssignments)
           .set({ resourceId: keep.id })
           .where(eq(issueResourceAssignments.resourceId, dup.id));
-        await db.update(riskResourceAssignments)
-          .set({ resourceId: keep.id })
-          .where(eq(riskResourceAssignments.resourceId, dup.id));
 
         // Delete the duplicate
         await db.delete(resources).where(eq(resources.id, dup.id));
@@ -1626,10 +1636,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteResource(id: number): Promise<void> {
-    // First delete all assignments for this resource
+    // First delete all assignments for this resource (risks use issue_resource_assignments now)
     await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, id));
     await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, id));
-    await db.delete(riskResourceAssignments).where(eq(riskResourceAssignments.resourceId, id));
     // Then delete the resource
     await db.delete(resources).where(eq(resources.id, id));
   }
@@ -1718,37 +1727,39 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Risk Resource Assignments
+  // Risk Resource Assignments (now using issue resource assignments since risks are in issues table)
   async getRiskResourceAssignments(riskId: number): Promise<(RiskResourceAssignment & { resource: Resource })[]> {
     const assignments = await db.select()
-      .from(riskResourceAssignments)
-      .innerJoin(resources, eq(riskResourceAssignments.resourceId, resources.id))
-      .where(eq(riskResourceAssignments.riskId, riskId));
+      .from(issueResourceAssignments)
+      .innerJoin(resources, eq(issueResourceAssignments.resourceId, resources.id))
+      .where(eq(issueResourceAssignments.issueId, riskId));
     
     return assignments.map(a => ({
-      ...a.risk_resource_assignments,
+      ...a.issue_resource_assignments,
       resource: a.resources
     }));
   }
 
   async addRiskResourceAssignment(assignment: InsertRiskResourceAssignment): Promise<RiskResourceAssignment> {
-    const [newAssignment] = await db.insert(riskResourceAssignments).values(assignment).returning();
+    // Convert riskId to issueId for the assignment
+    const issueAssignment = { issueId: (assignment as any).riskId || (assignment as any).issueId, resourceId: assignment.resourceId, role: assignment.role };
+    const [newAssignment] = await db.insert(issueResourceAssignments).values(issueAssignment).returning();
     return newAssignment;
   }
 
   async removeRiskResourceAssignment(riskId: number, resourceId: number): Promise<void> {
-    await db.delete(riskResourceAssignments)
+    await db.delete(issueResourceAssignments)
       .where(and(
-        eq(riskResourceAssignments.riskId, riskId),
-        eq(riskResourceAssignments.resourceId, resourceId)
+        eq(issueResourceAssignments.issueId, riskId),
+        eq(issueResourceAssignments.resourceId, resourceId)
       ));
   }
 
   async updateRiskResourceAssignments(riskId: number, resourceIds: number[]): Promise<void> {
-    await db.delete(riskResourceAssignments).where(eq(riskResourceAssignments.riskId, riskId));
+    await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.issueId, riskId));
     if (resourceIds.length > 0) {
-      await db.insert(riskResourceAssignments).values(
-        resourceIds.map(resourceId => ({ riskId, resourceId }))
+      await db.insert(issueResourceAssignments).values(
+        resourceIds.map(resourceId => ({ issueId: riskId, resourceId }))
       );
     }
   }
