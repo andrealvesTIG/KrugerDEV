@@ -2937,6 +2937,8 @@ function ProjectGanttTaskRowMeta({
   onToggleBaselineSelection,
   showCriticalPath,
   isOnCriticalPath,
+  onTrackChange,
+  prevTaskLevel,
 }: { 
   task: Task;
   rowIndex: number;
@@ -2959,6 +2961,8 @@ function ProjectGanttTaskRowMeta({
   onToggleBaselineSelection: (taskId: number, hasChildren: boolean) => void;
   showCriticalPath: boolean;
   isOnCriticalPath: boolean;
+  onTrackChange?: (taskId: number, projectId: number, field: string, oldValue: unknown, newValue: unknown) => void;
+  prevTaskLevel?: number;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2969,7 +2973,12 @@ function ProjectGanttTaskRowMeta({
   const [hasInitialized, setHasInitialized] = useState(false);
   const inviteAssignedRef = useRef(false);
   
-  const handleInlineUpdate = (field: string, value: string | number | boolean | null) => {
+  const handleInlineUpdate = (field: string, value: string | number | boolean | null, oldValue?: unknown) => {
+    // Track the change for undo/redo if callback provided (track even if oldValue is undefined/null)
+    if (onTrackChange) {
+      onTrackChange(task.id, task.projectId, field, oldValue ?? null, value);
+    }
+    
     updateTask.mutate({
       id: task.id,
       projectId: task.projectId,
@@ -3018,7 +3027,10 @@ function ProjectGanttTaskRowMeta({
 
   const progressPercent = task.progress || 0;
   const currentLevel = task.outlineLevel || 1;
-  const canIndent = currentLevel < 6;
+  // canIndent: Check max level (6) AND hierarchy rule (can only indent one level deeper than previous task)
+  // First task (no previous) cannot be indented past level 1
+  const maxAllowedLevel = prevTaskLevel !== undefined ? Math.min(6, prevTaskLevel + 1) : 1;
+  const canIndent = currentLevel < maxAllowedLevel;
   const canOutdent = currentLevel > 1;
 
   // Match timeline row height when baseline is shown
@@ -3087,7 +3099,7 @@ function ProjectGanttTaskRowMeta({
               onSetBaseline={onSetBaseline}
               onClearBaseline={onClearBaseline}
               onEditDependencies={onEditDependencies}
-              onUpdateName={(taskId, name) => handleInlineUpdate('name', name)}
+              onUpdateName={(taskId, name) => handleInlineUpdate('name', name, task.name)}
             />
           );
         }
@@ -3185,7 +3197,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.taskNumber}
                   displayValue={<span className="truncate">{task.taskNumber || '—'}</span>}
                   editType="text"
-                  onSave={(val) => handleInlineUpdate('taskNumber', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('taskNumber', val as string | null, task.taskNumber)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3195,7 +3207,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.wbs}
                   displayValue={<span className="truncate">{task.wbs || '—'}</span>}
                   editType="text"
-                  onSave={(val) => handleInlineUpdate('wbs', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('wbs', val as string | null, task.wbs)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3205,7 +3217,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.description}
                   displayValue={<span className="truncate">{task.description || '—'}</span>}
                   editType="text"
-                  onSave={(val) => handleInlineUpdate('description', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('description', val as string | null, task.description)}
                 />
               );
             case 'startDate':
@@ -3214,7 +3226,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.startDate}
                   displayValue={task.startDate ? format(parseISO(task.startDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
-                  onSave={(val) => handleInlineUpdate('startDate', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('startDate', val as string | null, task.startDate)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3224,7 +3236,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.endDate}
                   displayValue={task.endDate ? format(parseISO(task.endDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
-                  onSave={(val) => handleInlineUpdate('endDate', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('endDate', val as string | null, task.endDate)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3238,7 +3250,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.actualStartDate}
                   displayValue={task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
-                  onSave={(val) => handleInlineUpdate('actualStartDate', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('actualStartDate', val as string | null, task.actualStartDate)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3248,7 +3260,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.actualEndDate}
                   displayValue={task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
-                  onSave={(val) => handleInlineUpdate('actualEndDate', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('actualEndDate', val as string | null, task.actualEndDate)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3259,7 +3271,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.durationDays != null ? `${task.durationDays}d` : '—'}
                   editType="number"
                   min={0}
-                  onSave={(val) => handleInlineUpdate('durationDays', val as number | null)}
+                  onSave={(val) => handleInlineUpdate('durationDays', val as number | null, task.durationDays)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3271,7 +3283,7 @@ function ProjectGanttTaskRowMeta({
                   editType="progress"
                   min={0}
                   max={100}
-                  onSave={(val) => handleInlineUpdate('progress', val as number | null)}
+                  onSave={(val) => handleInlineUpdate('progress', val as number | null, task.progress)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3291,7 +3303,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={statusBadge}
                   editType="select"
                   options={statusOptions}
-                  onSave={(val) => handleInlineUpdate('status', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('status', val as string | null, task.status)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3312,7 +3324,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={priorityBadge}
                   editType="select"
                   options={priorityOptions}
-                  onSave={(val) => handleInlineUpdate('priority', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('priority', val as string | null, task.priority)}
                 />
               );
             case 'taskType':
@@ -3322,7 +3334,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={<span className="truncate">{task.taskType || '—'}</span>}
                   editType="select"
                   options={taskTypeOptions}
-                  onSave={(val) => handleInlineUpdate('taskType', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('taskType', val as string | null, task.taskType)}
                 />
               );
             case 'estimatedHours':
@@ -3332,7 +3344,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.estimatedHours != null ? `${task.estimatedHours}h` : '—'}
                   editType="number"
                   min={0}
-                  onSave={(val) => handleInlineUpdate('estimatedHours', val as number | null)}
+                  onSave={(val) => handleInlineUpdate('estimatedHours', val as number | null, task.estimatedHours)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3343,7 +3355,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.actualHours != null ? `${task.actualHours}h` : '—'}
                   editType="number"
                   min={0}
-                  onSave={(val) => handleInlineUpdate('actualHours', val as number | null)}
+                  onSave={(val) => handleInlineUpdate('actualHours', val as number | null, task.actualHours)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3354,7 +3366,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.remainingHours != null ? `${task.remainingHours}h` : '—'}
                   editType="number"
                   min={0}
-                  onSave={(val) => handleInlineUpdate('remainingHours', val as number | null)}
+                  onSave={(val) => handleInlineUpdate('remainingHours', val as number | null, task.remainingHours)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3365,7 +3377,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.cost != null ? `$${Number(task.cost).toLocaleString()}` : '—'}
                   editType="number"
                   min={0}
-                  onSave={(val) => handleInlineUpdate('cost', val != null ? String(val) : null)}
+                  onSave={(val) => handleInlineUpdate('cost', val != null ? String(val) : null, task.cost)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3376,7 +3388,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.actualCost != null ? `$${Number(task.actualCost).toLocaleString()}` : '—'}
                   editType="number"
                   min={0}
-                  onSave={(val) => handleInlineUpdate('actualCost', val != null ? String(val) : null)}
+                  onSave={(val) => handleInlineUpdate('actualCost', val != null ? String(val) : null, task.actualCost)}
                   disabled={isSummaryTask}
                 />
               );
@@ -3386,7 +3398,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.assignee}
                   displayValue={<span className="truncate">{task.assignee || '—'}</span>}
                   editType="text"
-                  onSave={(val) => handleInlineUpdate('assignee', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('assignee', val as string | null, task.assignee)}
                 />
               );
             case 'constraintType':
@@ -3396,7 +3408,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={<span className="truncate">{task.constraintType || '—'}</span>}
                   editType="select"
                   options={constraintTypeOptions}
-                  onSave={(val) => handleInlineUpdate('constraintType', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('constraintType', val as string | null, task.constraintType)}
                 />
               );
             case 'constraintDate':
@@ -3405,7 +3417,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.constraintDate}
                   displayValue={task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
-                  onSave={(val) => handleInlineUpdate('constraintDate', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('constraintDate', val as string | null, task.constraintDate)}
                 />
               );
             case 'isMilestone':
@@ -3414,7 +3426,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.isMilestone}
                   displayValue={task.isMilestone ? <Check className="h-3 w-3 text-primary mx-auto" /> : <span className="text-muted-foreground/50">—</span>}
                   editType="boolean"
-                  onSave={(val) => handleInlineUpdate('isMilestone', val as boolean)}
+                  onSave={(val) => handleInlineUpdate('isMilestone', val as boolean, task.isMilestone)}
                 />
               );
             case 'isCritical':
@@ -3423,7 +3435,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.isCritical}
                   displayValue={task.isCritical ? <Check className="h-3 w-3 text-red-500 mx-auto" /> : <span className="text-muted-foreground/50">—</span>}
                   editType="boolean"
-                  onSave={(val) => handleInlineUpdate('isCritical', val as boolean)}
+                  onSave={(val) => handleInlineUpdate('isCritical', val as boolean, task.isCritical)}
                 />
               );
             case 'isSummary':
@@ -3434,7 +3446,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.phase}
                   displayValue={<span className="truncate">{task.phase || '—'}</span>}
                   editType="text"
-                  onSave={(val) => handleInlineUpdate('phase', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('phase', val as string | null, task.phase)}
                 />
               );
             case 'category':
@@ -3443,7 +3455,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.category}
                   displayValue={<span className="truncate">{task.category || '—'}</span>}
                   editType="text"
-                  onSave={(val) => handleInlineUpdate('category', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('category', val as string | null, task.category)}
                 />
               );
             case 'labels':
@@ -3452,7 +3464,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.labels}
                   displayValue={<span className="truncate">{task.labels || '—'}</span>}
                   editType="text"
-                  onSave={(val) => handleInlineUpdate('labels', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('labels', val as string | null, task.labels)}
                 />
               );
             case 'notes':
@@ -3461,7 +3473,7 @@ function ProjectGanttTaskRowMeta({
                   value={task.notes}
                   displayValue={<span className="truncate">{task.notes || '—'}</span>}
                   editType="text"
-                  onSave={(val) => handleInlineUpdate('notes', val as string | null)}
+                  onSave={(val) => handleInlineUpdate('notes', val as string | null, task.notes)}
                 />
               );
             default:
@@ -3863,10 +3875,12 @@ function ProjectGanttView({
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [showProjectSummary, setShowProjectSummary] = useState(false);
   
-  // Undo/redo history for task reordering
-  type ReorderAction = { taskId: number; fromIndex: number; toIndex: number };
-  const [undoStack, setUndoStack] = useState<ReorderAction[]>([]);
-  const [redoStack, setRedoStack] = useState<ReorderAction[]>([]);
+  // Undo/redo history for all Gantt chart changes
+  type GanttAction = 
+    | { type: 'reorder'; taskId: number; fromIndex: number; toIndex: number }
+    | { type: 'update'; taskId: number; projectId: number; field: string; oldValue: unknown; newValue: unknown };
+  const [undoStack, setUndoStack] = useState<GanttAction[]>([]);
+  const [redoStack, setRedoStack] = useState<GanttAction[]>([]);
   
   // Drag and drop sensors
   const sensors = useSensors(
@@ -3888,7 +3902,7 @@ function ProjectGanttView({
     if (activeIndex === -1 || overIndex === -1) return;
     
     // Save to undo stack
-    setUndoStack(prev => [...prev, { taskId: Number(active.id), fromIndex: activeIndex, toIndex: overIndex }]);
+    setUndoStack(prev => [...prev, { type: 'reorder', taskId: Number(active.id), fromIndex: activeIndex, toIndex: overIndex }]);
     setRedoStack([]); // Clear redo stack on new action
     
     reorderTask.mutate({
@@ -3907,7 +3921,13 @@ function ProjectGanttView({
     });
   };
   
-  // Undo last reorder action
+  // Push a task update to undo stack (for tracking all changes)
+  const pushToUndoStack = (taskId: number, projectId: number, field: string, oldValue: unknown, newValue: unknown) => {
+    setUndoStack(prev => [...prev, { type: 'update', taskId, projectId, field, oldValue, newValue }]);
+    setRedoStack([]); // Clear redo stack on new action
+  };
+  
+  // Undo last action (reorder or update)
   const handleUndo = () => {
     if (undoStack.length === 0) return;
     
@@ -3915,22 +3935,39 @@ function ProjectGanttView({
     setUndoStack(prev => prev.slice(0, -1));
     setRedoStack(prev => [...prev, lastAction]);
     
-    // Reorder back to original position
-    reorderTask.mutate({
-      projectId,
-      taskId: lastAction.taskId,
-      newIndex: lastAction.fromIndex,
-    }, {
-      onSuccess: () => {
-        toast({ title: "Undone", description: "Task order restored" });
-      },
-      onError: () => {
-        // Restore undo stack on error
-        setUndoStack(prev => [...prev, lastAction]);
-        setRedoStack(prev => prev.slice(0, -1));
-        toast({ title: "Error", description: "Failed to undo", variant: "destructive" });
-      }
-    });
+    if (lastAction.type === 'reorder') {
+      // Reorder back to original position
+      reorderTask.mutate({
+        projectId,
+        taskId: lastAction.taskId,
+        newIndex: lastAction.fromIndex,
+      }, {
+        onSuccess: () => {
+          toast({ title: "Undone", description: "Task order restored" });
+        },
+        onError: () => {
+          setUndoStack(prev => [...prev, lastAction]);
+          setRedoStack(prev => prev.slice(0, -1));
+          toast({ title: "Error", description: "Failed to undo", variant: "destructive" });
+        }
+      });
+    } else if (lastAction.type === 'update') {
+      // Restore previous field value
+      updateTask.mutate({
+        id: lastAction.taskId,
+        projectId: lastAction.projectId,
+        [lastAction.field]: lastAction.oldValue,
+      }, {
+        onSuccess: () => {
+          toast({ title: "Undone", description: `Task ${lastAction.field} restored` });
+        },
+        onError: () => {
+          setUndoStack(prev => [...prev, lastAction]);
+          setRedoStack(prev => prev.slice(0, -1));
+          toast({ title: "Error", description: "Failed to undo", variant: "destructive" });
+        }
+      });
+    }
   };
   
   // Redo last undone action
@@ -3941,22 +3978,39 @@ function ProjectGanttView({
     setRedoStack(prev => prev.slice(0, -1));
     setUndoStack(prev => [...prev, lastAction]);
     
-    // Reorder to the target position again
-    reorderTask.mutate({
-      projectId,
-      taskId: lastAction.taskId,
-      newIndex: lastAction.toIndex,
-    }, {
-      onSuccess: () => {
-        toast({ title: "Redone", description: "Task order reapplied" });
-      },
-      onError: () => {
-        // Restore redo stack on error
-        setRedoStack(prev => [...prev, lastAction]);
-        setUndoStack(prev => prev.slice(0, -1));
-        toast({ title: "Error", description: "Failed to redo", variant: "destructive" });
-      }
-    });
+    if (lastAction.type === 'reorder') {
+      // Reorder to the target position again
+      reorderTask.mutate({
+        projectId,
+        taskId: lastAction.taskId,
+        newIndex: lastAction.toIndex,
+      }, {
+        onSuccess: () => {
+          toast({ title: "Redone", description: "Task order reapplied" });
+        },
+        onError: () => {
+          setRedoStack(prev => [...prev, lastAction]);
+          setUndoStack(prev => prev.slice(0, -1));
+          toast({ title: "Error", description: "Failed to redo", variant: "destructive" });
+        }
+      });
+    } else if (lastAction.type === 'update') {
+      // Reapply the change
+      updateTask.mutate({
+        id: lastAction.taskId,
+        projectId: lastAction.projectId,
+        [lastAction.field]: lastAction.newValue,
+      }, {
+        onSuccess: () => {
+          toast({ title: "Redone", description: `Task ${lastAction.field} reapplied` });
+        },
+        onError: () => {
+          setRedoStack(prev => [...prev, lastAction]);
+          setUndoStack(prev => prev.slice(0, -1));
+          toast({ title: "Error", description: "Failed to redo", variant: "destructive" });
+        }
+      });
+    }
   };
   
   // Fetch project dependencies and calculate CPM
@@ -4183,10 +4237,32 @@ function ProjectGanttView({
   const handleIndent = (task: Task) => {
     const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
     const newLevel = Math.min(6, currentLevel + 1);
+    
+    // Check max level
     if (currentLevel >= 6 || newLevel > 6) {
       toast({ title: "Cannot indent", description: "Maximum outline level (6) reached", variant: "destructive" });
       return;
     }
+    
+    // Validate hierarchy: can only indent one level deeper than the previous task
+    const taskIndex = tasks.findIndex(t => t.id === task.id);
+    if (taskIndex > 0) {
+      const prevTask = tasks[taskIndex - 1];
+      const prevLevel = prevTask.outlineLevel || 1;
+      // New level cannot exceed previous task's level + 1
+      if (newLevel > prevLevel + 1) {
+        toast({ title: "Cannot indent", description: "Task can only be one level deeper than the task above", variant: "destructive" });
+        return;
+      }
+    } else if (taskIndex === 0 && newLevel > 1) {
+      // First task cannot be indented past level 1
+      toast({ title: "Cannot indent", description: "First task cannot be a child", variant: "destructive" });
+      return;
+    }
+    
+    // Push to undo stack before making the change
+    pushToUndoStack(task.id, task.projectId, 'outlineLevel', currentLevel, newLevel);
+    
     updateTask.mutate({ 
       id: task.id, 
       projectId: task.projectId, 
@@ -4194,6 +4270,11 @@ function ProjectGanttView({
     }, {
       onSuccess: () => {
         toast({ title: "Updated", description: `Task indented to level ${newLevel}` });
+      },
+      onError: () => {
+        // Remove from undo stack on error
+        setUndoStack(prev => prev.slice(0, -1));
+        toast({ title: "Error", description: "Failed to indent task", variant: "destructive" });
       }
     });
   };
@@ -4205,6 +4286,10 @@ function ProjectGanttView({
       toast({ title: "Cannot outdent", description: "Minimum outline level (1) reached", variant: "destructive" });
       return;
     }
+    
+    // Push to undo stack before making the change
+    pushToUndoStack(task.id, task.projectId, 'outlineLevel', currentLevel, newLevel);
+    
     updateTask.mutate({ 
       id: task.id, 
       projectId: task.projectId, 
@@ -4212,6 +4297,11 @@ function ProjectGanttView({
     }, {
       onSuccess: () => {
         toast({ title: "Updated", description: `Task outdented to level ${newLevel}` });
+      },
+      onError: () => {
+        // Remove from undo stack on error
+        setUndoStack(prev => prev.slice(0, -1));
+        toast({ title: "Error", description: "Failed to outdent task", variant: "destructive" });
       }
     });
   };
@@ -5073,6 +5163,8 @@ function ProjectGanttView({
                               onToggleBaselineSelection={toggleTaskForBaseline}
                               showCriticalPath={showCriticalPath}
                               isOnCriticalPath={criticalTaskIds.has(task.id)}
+                              onTrackChange={pushToUndoStack}
+                              prevTaskLevel={index > 0 ? (visibleTasks[index - 1].outlineLevel || 1) : undefined}
                             />
                           )}
                         </SortableTaskRow>
