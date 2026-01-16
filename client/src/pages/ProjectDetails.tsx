@@ -5523,26 +5523,6 @@ function ProjectGanttView({
                 {/* Empty row for add task alignment */}
                 <div className="h-[28px] border-t bg-muted/20" />
                 
-                {/* Dependency links SVG overlay */}
-                {projectDependencies.length > 0 && (
-                  <GanttDependencyLinks
-                    tasks={visibleTasks}
-                    dependencies={projectDependencies}
-                    minDate={adjustedMinDate}
-                    maxDate={adjustedMaxDate}
-                    containerWidth={filteredDates.length * 60}
-                    rowHeight={28}
-                    headerHeight={28}
-                    showBaseline={showBaseline}
-                    onDependencyClick={(dep) => {
-                      // Find the task and open dependencies dialog
-                      const task = tasks.find(t => t.id === dep.taskId);
-                      if (task) {
-                        setDependenciesDialogTask(task);
-                      }
-                    }}
-                  />
-                )}
               </div>
             </div>
           </ResizablePanel>
