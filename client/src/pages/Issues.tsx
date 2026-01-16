@@ -665,12 +665,12 @@ export default function Issues() {
         </CardContent>
       </Card>
 
-      {/* Edit Issue Dialog */}
+      {/* Edit Issue/Risk Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Edit Issue</DialogTitle>
-            <DialogDescription>Update the issue details below</DialogDescription>
+            <DialogTitle>Edit {editingIssue?.itemType === 'risk' ? 'Risk' : 'Issue'}</DialogTitle>
+            <DialogDescription>Update the {editingIssue?.itemType === 'risk' ? 'risk' : 'issue'} details below</DialogDescription>
           </DialogHeader>
           <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 pt-4">
             <div className="space-y-2">
