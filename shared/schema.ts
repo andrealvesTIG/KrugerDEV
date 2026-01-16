@@ -259,8 +259,9 @@ export const issues = pgTable("issues", {
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
+  taskIndex: integer("task_index"), // Sequential index for ordering tasks (1, 2, 3... per project)
   taskNumber: text("task_number"), // Auto-generated (e.g., "TASK-001")
-  wbs: text("wbs"), // Work Breakdown Structure code (e.g., "1.2.3")
+  wbs: text("wbs"), // Work Breakdown Structure code (e.g., "1.2.3") - MS Project style
   name: text("name").notNull(),
   description: text("description"),
   taskType: text("task_type"), // Work, Milestone, Summary, Fixed Duration, Fixed Units

@@ -3945,6 +3945,54 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // --- Tasks ---
   
+  // Helper function to recalculate WBS numbers for all tasks in a project (MS Project style)
+  async function recalculateProjectWBS(projectId: number) {
+    const allTasks = await storage.getTasksByProject(projectId);
+    if (allTasks.length === 0) return;
+    
+    // Sort tasks by taskIndex (sequential order)
+    const sortedTasks = [...allTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
+    
+    // Track WBS counters at each outline level (index 0 unused, levels 1-6)
+    const wbsCounters: number[] = [0, 0, 0, 0, 0, 0, 0]; 
+    let lastLevel = 0;
+    
+    const updates: Array<{ id: number; wbs: string }> = [];
+    
+    for (const task of sortedTasks) {
+      const level = task.outlineLevel || 1;
+      
+      // Reset all deeper level counters when going to same or shallower level
+      if (level <= lastLevel) {
+        for (let i = level + 1; i < wbsCounters.length; i++) {
+          wbsCounters[i] = 0;
+        }
+      }
+      
+      // Increment counter at current level
+      wbsCounters[level]++;
+      
+      // Build WBS string from level 1 to current level
+      const wbsParts: number[] = [];
+      for (let i = 1; i <= level; i++) {
+        wbsParts.push(wbsCounters[i]);
+      }
+      const wbs = wbsParts.join('.');
+      
+      // Collect updates
+      if (task.wbs !== wbs) {
+        updates.push({ id: task.id, wbs });
+      }
+      
+      lastLevel = level;
+    }
+    
+    // Apply all updates
+    for (const update of updates) {
+      await storage.updateTask(update.id, { wbs: update.wbs });
+    }
+  }
+  
   // Helper function to roll up dates and values from children to parent tasks
   async function rollUpParentTasks(projectId: number) {
     const allTasks = await storage.getTasks(projectId);
@@ -4159,7 +4207,17 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         input.endDate = endDate.toISOString().split('T')[0];
       }
       
+      // Auto-assign taskIndex if not provided
+      if (input.taskIndex === undefined || input.taskIndex === null) {
+        const existingTasks = await storage.getTasksByProject(input.projectId);
+        const maxIndex = existingTasks.reduce((max, t) => Math.max(max, t.taskIndex || 0), 0);
+        input.taskIndex = maxIndex + 1;
+      }
+      
       const task = await storage.createTask(input);
+      
+      // Recalculate WBS for all tasks in the project
+      await recalculateProjectWBS(input.projectId);
       
       // Record usage after successful creation
       if (userId) {
@@ -4258,6 +4316,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         await rollUpParentTasks(updated.projectId);
       }
       
+      // Recalculate WBS if outline level or taskIndex changed
+      if ((input.outlineLevel !== undefined && input.outlineLevel !== previousTask.outlineLevel) ||
+          (input.taskIndex !== undefined && input.taskIndex !== previousTask.taskIndex)) {
+        await recalculateProjectWBS(updated.projectId);
+      }
+      
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -4267,7 +4331,17 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   app.delete(api.tasks.delete.path, async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('task', Number(req.params.id), userId);
+    const taskId = Number(req.params.id);
+    const task = await storage.getTask(taskId);
+    const projectId = task?.projectId;
+    
+    await storage.softDeleteItem('task', taskId, userId);
+    
+    // Recalculate WBS after deletion
+    if (projectId) {
+      await recalculateProjectWBS(projectId);
+    }
+    
     res.status(204).send();
   });
 
@@ -4329,6 +4403,37 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(dependencies);
     } catch (err) {
       res.status(500).json({ message: "Error fetching project dependencies" });
+    }
+  });
+
+  // Reindex tasks and recalculate WBS for a project
+  app.post('/api/projects/:projectId/tasks/reindex', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      
+      // Get all tasks for the project
+      const allTasks = await storage.getTasks(projectId);
+      
+      // Sort by id (creation order) or existing taskIndex
+      const sortedTasks = [...allTasks].sort((a, b) => {
+        if (a.taskIndex && b.taskIndex) return a.taskIndex - b.taskIndex;
+        return a.id - b.id;
+      });
+      
+      // Assign sequential taskIndex
+      for (let i = 0; i < sortedTasks.length; i++) {
+        const task = sortedTasks[i];
+        if (task.taskIndex !== i + 1) {
+          await storage.updateTask(task.id, { taskIndex: i + 1 });
+        }
+      }
+      
+      // Recalculate WBS
+      await recalculateProjectWBS(projectId);
+      
+      res.json({ message: "Tasks reindexed and WBS recalculated", count: sortedTasks.length });
+    } catch (err) {
+      res.status(500).json({ message: "Error reindexing tasks" });
     }
   });
 

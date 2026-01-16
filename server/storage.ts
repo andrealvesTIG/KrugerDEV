@@ -43,7 +43,7 @@ import {
   type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
-import { eq, and, desc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
   billingAuditLogs, 
   subscriptions, 
@@ -134,6 +134,7 @@ export interface IStorage {
 
   // Tasks
   getTasks(projectId: number): Promise<Task[]>;
+  getTasksByProject(projectId: number): Promise<Task[]>;
   getAllTasks(): Promise<Task[]>;
   getTask(id: number): Promise<Task | undefined>;
   createTask(task: InsertTask): Promise<Task>;
@@ -824,7 +825,11 @@ export class DatabaseStorage implements IStorage {
   async getTasks(projectId: number): Promise<Task[]> {
     return await db.select().from(tasks).where(
       and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt))
-    );
+    ).orderBy(asc(tasks.taskIndex));
+  }
+  
+  async getTasksByProject(projectId: number): Promise<Task[]> {
+    return this.getTasks(projectId);
   }
 
   async getAllTasks(): Promise<Task[]> {

@@ -2452,7 +2452,7 @@ const zoomLabels: Record<ZoomLevel, string> = {
 };
 
 type GanttColumn = 
-  | 'task' | 'taskNumber' | 'wbs' | 'description'
+  | 'taskIndex' | 'task' | 'taskNumber' | 'wbs' | 'description'
   | 'startDate' | 'endDate' | 'baselineStartDate' | 'baselineEndDate' | 'actualStartDate' | 'actualEndDate'
   | 'durationDays' | 'progress' | 'status' | 'priority' | 'taskType'
   | 'estimatedHours' | 'actualHours' | 'remainingHours'
@@ -2472,9 +2472,10 @@ type GanttColumnConfig = {
 
 const GANTT_COLUMNS: GanttColumnConfig[] = [
   // Basic
+  { id: 'taskIndex', label: '#', width: 'w-12', widthPx: 48, category: 'basic' },
+  { id: 'wbs', label: 'WBS', width: 'w-20', widthPx: 80, category: 'basic' },
   { id: 'task', label: 'Task Name', width: 'w-48', widthPx: 192, category: 'basic' },
   { id: 'taskNumber', label: 'Task #', width: 'w-24', widthPx: 96, category: 'basic' },
-  { id: 'wbs', label: 'WBS', width: 'w-20', widthPx: 80, category: 'basic' },
   { id: 'description', label: 'Description', width: 'w-48', widthPx: 192, category: 'basic' },
   // Schedule
   { id: 'startDate', label: 'Start Date', width: 'w-24', widthPx: 96, category: 'schedule' },
@@ -2526,7 +2527,7 @@ const COLUMN_CATEGORIES: { id: GanttColumnConfig['category']; label: string }[] 
   { id: 'metadata', label: 'Metadata' },
 ];
 
-const DEFAULT_GANTT_COLUMNS: GanttColumn[] = ['task', 'startDate', 'endDate', 'progress', 'resources'];
+const DEFAULT_GANTT_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'task', 'startDate', 'endDate', 'progress', 'resources'];
 
 // NOTE: Legacy ProjectGanttTaskRow removed - use ProjectGanttTaskRowMeta + ProjectGanttTaskRowTimeline instead
 
@@ -3001,6 +3002,12 @@ function ProjectGanttTaskRowMeta({
 
         const renderEditableCell = () => {
           switch (colId) {
+            case 'taskIndex':
+              return (
+                <div className="text-center font-mono text-muted-foreground">
+                  {task.taskIndex || task.id}
+                </div>
+              );
             case 'taskNumber':
               return (
                 <InlineEditCell
