@@ -2719,13 +2719,13 @@ function TaskNameCell({
   isCollapsed,
   canIndent,
   canOutdent,
-  onTaskClick,
   onToggleCollapse,
   onIndent,
   onOutdent,
   onSetBaseline,
   onClearBaseline,
   onEditDependencies,
+  onUpdateName,
 }: {
   task: Task;
   colWidth: number;
@@ -2734,21 +2734,24 @@ function TaskNameCell({
   isCollapsed: boolean;
   canIndent: boolean;
   canOutdent: boolean;
-  onTaskClick: (task: Task) => void;
   onToggleCollapse: (taskId: number) => void;
   onIndent: (task: Task) => void;
   onOutdent: (task: Task) => void;
   onSetBaseline: (task: Task) => void;
   onClearBaseline: (task: Task) => void;
   onEditDependencies: (task: Task) => void;
+  onUpdateName: (taskId: number, name: string) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
   const [dragDirection, setDragDirection] = useState<'left' | 'right' | null>(null);
-  const dragThreshold = 30; // pixels to trigger indent/outdent
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(task.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dragThreshold = 30;
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return; // Only left click
+    if (e.button !== 0) return;
     setIsDragging(true);
     setDragStartX(e.clientX);
     setDragDirection(null);
@@ -2789,15 +2792,44 @@ function TaskNameCell({
     };
   }, [isDragging, dragStartX, canIndent, canOutdent, onIndent, onOutdent, task]);
 
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleStartEdit = (e: React.MouseEvent) => {
+    if (isDragging) return;
+    e.stopPropagation();
+    setEditValue(task.name);
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    if (editValue.trim() && editValue !== task.name) {
+      onUpdateName(task.id, editValue.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setEditValue(task.name);
+      setIsEditing(false);
+    }
+  };
+
   return (
     <div 
       style={{ width: `${colWidth}px`, paddingLeft: `${4 + (currentLevel - 1) * 12}px` }}
       className={cn(
-        "flex-shrink-0 border-r px-1 cursor-pointer flex items-center overflow-hidden min-w-0 group/taskname relative",
+        "flex-shrink-0 border-r px-1 flex items-center overflow-hidden min-w-0 group/taskname relative",
         hasChildren && "font-semibold bg-muted/30",
         isDragging && "cursor-ew-resize bg-muted/50"
       )}
-      onClick={() => !isDragging && onTaskClick(task)}
     >
       {/* Left arrow indicator (outdent) */}
       {canOutdent && (
@@ -2842,7 +2874,26 @@ function TaskNameCell({
           <span className="w-4 flex-shrink-0" />
         )}
         {task.isMilestone && <MilestoneIcon className="h-3 w-3 text-primary flex-shrink-0" />}
-        <span className="truncate">{task.name}</span>
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            className="flex-1 min-w-0 bg-background border border-primary rounded px-1 text-[11px] h-5 outline-none"
+            data-testid={`task-name-input-${task.id}`}
+          />
+        ) : (
+          <span 
+            className="truncate cursor-text hover:bg-muted/50 px-0.5 rounded"
+            onClick={handleStartEdit}
+            data-testid={`task-name-${task.id}`}
+          >
+            {task.name}
+          </span>
+        )}
       </div>
       
       <DropdownMenu>
@@ -2858,10 +2909,6 @@ function TaskNameCell({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTaskClick(task); }} data-testid={`task-edit-${task.id}`}>
-            <Pencil className="h-3.5 w-3.5 mr-2" />
-            Edit Task
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDependencies(task); }} data-testid={`task-dependencies-${task.id}`}>
             <Link2 className="h-3.5 w-3.5 mr-2" />
             Dependencies
@@ -2924,7 +2971,6 @@ function SortableTaskRow({
 // Split-pane Gantt: Metadata row (left pane)
 function ProjectGanttTaskRowMeta({ 
   task, 
-  onTaskClick, 
   visibleColumns,
   organizationId,
   onIndent,
@@ -2945,8 +2991,7 @@ function ProjectGanttTaskRowMeta({
   showCriticalPath,
   isOnCriticalPath,
 }: { 
-  task: Task; 
-  onTaskClick: (task: Task) => void;
+  task: Task;
   visibleColumns: GanttColumn[];
   organizationId: number | null;
   onIndent: (task: Task) => void;
@@ -3088,13 +3133,13 @@ function ProjectGanttTaskRowMeta({
               isCollapsed={isCollapsed}
               canIndent={canIndent}
               canOutdent={canOutdent}
-              onTaskClick={onTaskClick}
               onToggleCollapse={onToggleCollapse}
               onIndent={onIndent}
               onOutdent={onOutdent}
               onSetBaseline={onSetBaseline}
               onClearBaseline={onClearBaseline}
               onEditDependencies={onEditDependencies}
+              onUpdateName={(taskId, name) => handleInlineUpdate('name', name)}
             />
           );
         }
@@ -4893,7 +4938,6 @@ function ProjectGanttView({
                           {(dragHandleProps) => (
                             <ProjectGanttTaskRowMeta
                               task={task}
-                              onTaskClick={onTaskClick}
                               visibleColumns={visibleColumns}
                               organizationId={organizationId}
                               onIndent={handleIndent}
