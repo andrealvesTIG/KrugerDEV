@@ -4933,6 +4933,7 @@ function ProjectKanbanView({
   ];
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -4976,34 +4977,57 @@ function ProjectKanbanView({
   };
 
   return (
-    <DndContext 
-      sensors={sensors} 
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {columns.map(column => (
-          <ProjectKanbanColumn
-            key={column.id}
-            column={column}
-            tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
-            onTaskClick={onTaskClick}
-          />
-        ))}
-      </div>
-      <DragOverlay>
-        {activeTask && (
-          <div className="opacity-80">
-            <Card className="shadow-lg border-primary">
-              <CardContent className="p-4">
-                <div className="font-medium text-sm">{activeTask.name}</div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </DragOverlay>
-    </DndContext>
+    <Card className={cn(
+      "overflow-hidden transition-all duration-200",
+      isFullscreen && "fixed inset-0 z-50 rounded-none"
+    )}>
+      <CardContent className={cn(
+        "p-0 flex flex-col",
+        isFullscreen && "h-full"
+      )}>
+        <div className="flex items-center justify-end p-3 border-b bg-muted/30">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            data-testid="button-kanban-fullscreen"
+            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+        </div>
+        <div className={cn("p-4", isFullscreen && "flex-1 overflow-auto")}>
+          <DndContext 
+            sensors={sensors} 
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className={cn("grid grid-cols-1 md:grid-cols-3 gap-6", isFullscreen && "h-full")}>
+              {columns.map(column => (
+                <ProjectKanbanColumn
+                  key={column.id}
+                  column={column}
+                  tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
+                  onTaskClick={onTaskClick}
+                />
+              ))}
+            </div>
+            <DragOverlay>
+              {activeTask && (
+                <div className="opacity-80">
+                  <Card className="shadow-lg border-primary">
+                    <CardContent className="p-4">
+                      <div className="font-medium text-sm">{activeTask.name}</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
