@@ -26,7 +26,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2 } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -3861,6 +3861,7 @@ function ProjectGanttView({
   const [isBaselinePending, setIsBaselinePending] = useState(false);
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
+  const [showProjectSummary, setShowProjectSummary] = useState(false);
   
   // Undo/redo history for task reordering
   type ReorderAction = { taskId: number; fromIndex: number; toIndex: number };
@@ -4275,6 +4276,88 @@ function ProjectGanttView({
     return { visibleTasks, taskHasChildren };
   }, [tasks, collapsedTasks]);
 
+  // Calculate project summary task (aggregated from all tasks)
+  const projectSummaryTask = useMemo((): Task | null => {
+    if (!tasks || tasks.length === 0) return null;
+    
+    // Find earliest start date and latest end date
+    let earliestStart: string | null = null;
+    let latestEnd: string | null = null;
+    let totalProgress = 0;
+    let taskCount = 0;
+    let totalEstimatedHours = 0;
+    let totalActualHours = 0;
+    let totalCost = 0;
+    let totalActualCost = 0;
+    
+    for (const task of tasks) {
+      if (task.startDate) {
+        if (!earliestStart || task.startDate < earliestStart) {
+          earliestStart = task.startDate;
+        }
+      }
+      if (task.endDate) {
+        if (!latestEnd || task.endDate > latestEnd) {
+          latestEnd = task.endDate;
+        }
+      }
+      if (task.progress !== null && task.progress !== undefined) {
+        totalProgress += task.progress;
+        taskCount++;
+      }
+      if (task.estimatedHours) totalEstimatedHours += Number(task.estimatedHours);
+      if (task.actualHours) totalActualHours += Number(task.actualHours);
+      if (task.cost) totalCost += Number(task.cost);
+      if (task.actualCost) totalActualCost += Number(task.actualCost);
+    }
+    
+    const avgProgress = taskCount > 0 ? Math.round(totalProgress / taskCount) : 0;
+    
+    return {
+      id: -1, // Special ID for project summary
+      projectId: projectId,
+      name: projectName || 'Project Summary',
+      description: null,
+      taskNumber: null,
+      taskIndex: 0,
+      wbs: '0',
+      taskType: null,
+      priority: 'Medium',
+      startDate: earliestStart,
+      endDate: latestEnd,
+      baselineStartDate: null,
+      baselineEndDate: null,
+      actualStartDate: null,
+      actualEndDate: null,
+      durationDays: earliestStart && latestEnd ? 
+        Math.ceil((new Date(latestEnd).getTime() - new Date(earliestStart).getTime()) / (1000 * 60 * 60 * 24)) + 1 : null,
+      estimatedHours: totalEstimatedHours > 0 ? String(totalEstimatedHours) : null,
+      actualHours: totalActualHours > 0 ? String(totalActualHours) : null,
+      remainingHours: null,
+      progress: avgProgress,
+      status: 'In Progress',
+      constraintType: null,
+      constraintDate: null,
+      assignee: null,
+      ownerId: null,
+      outlineLevel: 0,
+      parentId: null,
+      isMilestone: false,
+      isSummary: true,
+      isCritical: false,
+      cost: totalCost > 0 ? String(totalCost) : null,
+      actualCost: totalActualCost > 0 ? String(totalActualCost) : null,
+      phase: null,
+      category: null,
+      labels: null,
+      notes: null,
+      createdAt: new Date().toISOString(),
+      deletedAt: null,
+      deletedBy: null,
+      isDemo: false,
+    };
+  }, [tasks, projectId, projectName]);
+
   const handleAddTask = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && newTaskName.trim()) {
       onCreateTask(newTaskName.trim());
@@ -4666,6 +4749,16 @@ function ProjectGanttView({
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <Switch
+                checked={showProjectSummary}
+                onCheckedChange={setShowProjectSummary}
+                data-testid="toggle-show-project-summary"
+              />
+              <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setShowProjectSummary(!showProjectSummary)}>
+                Project Summary
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
                 checked={showCriticalPath}
                 onCheckedChange={setShowCriticalPath}
                 data-testid="toggle-show-critical-path"
@@ -4873,6 +4966,80 @@ function ProjectGanttView({
                     </button>
                   </div>
                 )}
+                {/* Project Summary Row (when enabled) */}
+                {showProjectSummary && projectSummaryTask && (
+                  <div 
+                    className="flex border-b bg-primary/10 font-semibold h-[28px]"
+                    data-testid="project-summary-row"
+                  >
+                    {baselineSelectionMode && <div className="w-8 flex-shrink-0 border-r p-1" />}
+                    <div className="w-8 flex-shrink-0 border-r p-1 flex items-center justify-center">
+                      <FolderKanban className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    {visibleColumns.map(colId => {
+                      const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
+                      if (!colConfig) return null;
+                      const colWidth = columnWidths[colId] || colConfig.widthPx;
+                      
+                      if (colId === 'taskIndex') {
+                        return (
+                          <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center justify-center">
+                            <span className="text-[11px] font-mono">0</span>
+                          </div>
+                        );
+                      }
+                      if (colId === 'wbs') {
+                        return (
+                          <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
+                            <span className="text-[11px] font-mono">0</span>
+                          </div>
+                        );
+                      }
+                      if (colId === 'task') {
+                        return (
+                          <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center overflow-hidden">
+                            <span className="truncate text-[11px]">{projectSummaryTask.name}</span>
+                          </div>
+                        );
+                      }
+                      if (colId === 'startDate') {
+                        return (
+                          <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
+                            <span className="text-[11px]">{projectSummaryTask.startDate ? format(new Date(projectSummaryTask.startDate), 'MM/dd/yyyy') : '—'}</span>
+                          </div>
+                        );
+                      }
+                      if (colId === 'endDate') {
+                        return (
+                          <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
+                            <span className="text-[11px]">{projectSummaryTask.endDate ? format(new Date(projectSummaryTask.endDate), 'MM/dd/yyyy') : '—'}</span>
+                          </div>
+                        );
+                      }
+                      if (colId === 'progress') {
+                        return (
+                          <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
+                            <span className="text-[11px]">{projectSummaryTask.progress}%</span>
+                          </div>
+                        );
+                      }
+                      if (colId === 'duration') {
+                        return (
+                          <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
+                            <span className="text-[11px]">{projectSummaryTask.durationDays ? `${projectSummaryTask.durationDays}d` : '—'}</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
+                          <span className="text-[11px] text-muted-foreground">—</span>
+                        </div>
+                      );
+                    })}
+                    <div className="flex-shrink-0 p-1 w-8" />
+                  </div>
+                )}
+                
                 {/* Task rows - metadata only with drag and drop */}
                 <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleTaskDragEnd}>
                   {visibleTasks.length === 0 && tasks.length === 0 ? (
@@ -4961,6 +5128,34 @@ function ProjectGanttView({
                     </div>
                   ))}
                 </div>
+                {/* Project Summary Timeline Row */}
+                {showProjectSummary && projectSummaryTask && projectSummaryTask.startDate && projectSummaryTask.endDate && (
+                  <div className="flex h-[28px] border-b bg-primary/10 relative" data-testid="project-summary-timeline">
+                    {filteredDates.map((_, i) => (
+                      <div key={i} className={cn("flex-1 border-l border-gray-200 dark:border-gray-700", columnWidth)} />
+                    ))}
+                    {(() => {
+                      const startDate = new Date(projectSummaryTask.startDate!);
+                      const endDate = new Date(projectSummaryTask.endDate!);
+                      const totalDays = differenceInDays(adjustedMaxDate, adjustedMinDate) || 1;
+                      const startOffset = differenceInDays(startDate, adjustedMinDate);
+                      const duration = differenceInDays(endDate, startDate) + 1;
+                      const leftPercent = (startOffset / totalDays) * 100;
+                      const widthPercent = (duration / totalDays) * 100;
+                      
+                      return (
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 h-4 rounded bg-primary/60 border border-primary"
+                          style={{
+                            left: `${Math.max(0, leftPercent)}%`,
+                            width: `${Math.min(100 - leftPercent, widthPercent)}%`,
+                          }}
+                        />
+                      );
+                    })()}
+                  </div>
+                )}
+                
                 {/* Timeline bars */}
                 {visibleTasks.length === 0 && tasks.length === 0 ? (
                   <div className="h-[28px]" />
