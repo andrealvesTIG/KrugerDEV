@@ -5035,7 +5035,6 @@ function ProjectGanttView({
                   >
                     Clear
                   </Button>
-                  <div className="flex-1" />
                   <Button
                     variant="destructive"
                     size="sm"
