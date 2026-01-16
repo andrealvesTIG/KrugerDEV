@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -1294,11 +1294,13 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
   const [deleteRiskData, setDeleteRiskData] = useState<Risk | null>(null);
   const [historyRiskId, setHistoryRiskId] = useState<number | null>(null);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const createRisk = useCreateRisk();
   const updateRisk = useUpdateRisk();
   const deleteRisk = useDeleteRisk();
   const convertRiskToIssue = useConvertRiskToIssue();
   const updateRiskResources = useUpdateRiskResourceAssignments();
+  const { data: riskHistory, isLoading: historyLoading } = useRiskHistory(editingRisk?.id || 0);
   const { data: riskAssignments } = useRiskResourceAssignments(editingRisk?.id ?? null);
   const { toast } = useToast();
 
@@ -1323,6 +1325,7 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
 
   const openEditDialog = (risk: Risk) => {
     setEditingRisk(risk);
+    setShowHistory(false);
     form.reset({
       projectId: risk.projectId,
       title: risk.title,
@@ -1338,6 +1341,7 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
   const openCreateDialog = () => {
     setEditingRisk(null);
     setSelectedResourceIds([]);
+    setShowHistory(false);
     form.reset({
       projectId,
       title: "",
@@ -1469,28 +1473,99 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
                 projectId={projectId}
                 projectName={projectName}
               />
-              <DialogFooter className="gap-2">
-                {editingRisk && (
+              
+              {/* Change History Section */}
+              {editingRisk && (
+                <div className="border-t pt-4">
                   <Button 
                     type="button" 
-                    variant="destructive" 
-                    onClick={() => {
-                      deleteRisk.mutate({ id: editingRisk.id, projectId }, {
-                        onSuccess: () => {
-                          toast({ title: "Deleted", description: "Risk deleted" });
-                          setIsDialogOpen(false);
-                          setEditingRisk(null);
-                        }
-                      });
-                    }}
+                    variant="ghost" 
+                    className="w-full justify-between px-0 hover:bg-transparent"
+                    onClick={() => setShowHistory(!showHistory)}
+                    data-testid="button-toggle-risk-history"
                   >
-                    Delete
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <History className="h-4 w-4" />
+                      Change History
+                    </span>
+                    {showHistory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
-                )}
-                <Button type="submit" data-testid="button-save-risk" disabled={createRisk.isPending || updateRisk.isPending}>
-                  {(createRisk.isPending || updateRisk.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingRisk ? "Update Risk" : "Save Risk"}
-                </Button>
+                  {showHistory && (
+                    <div className="mt-3 max-h-48 overflow-y-auto space-y-2">
+                      {historyLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </div>
+                      ) : riskHistory && riskHistory.length > 0 ? (
+                        riskHistory.map((log) => (
+                          <div key={log.id} className="text-xs border-l-2 border-muted pl-3 py-1">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <span className="font-medium text-foreground">{log.changedByName || 'System'}</span>
+                              <span>•</span>
+                              <span>{new Date(log.changedAt!).toLocaleDateString()} {new Date(log.changedAt!).toLocaleTimeString()}</span>
+                            </div>
+                            <div className="mt-1">{log.changeSummary}</div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground py-2">No change history available</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <DialogFooter className="flex justify-between gap-2">
+                <div>
+                  {editingRisk && (
+                    <Button 
+                      type="button" 
+                      variant="secondary"
+                      onClick={() => {
+                        if (editingRisk) {
+                          convertRiskToIssue.mutate({ id: editingRisk.id, projectId }, {
+                            onSuccess: () => {
+                              toast({ title: "Success", description: "Risk converted to issue" });
+                              setIsDialogOpen(false);
+                              setEditingRisk(null);
+                            },
+                            onError: (err: any) => {
+                              toast({ title: "Error", description: err.message, variant: "destructive" });
+                            }
+                          });
+                        }
+                      }}
+                      disabled={convertRiskToIssue.isPending}
+                      data-testid="button-convert-risk-to-issue"
+                    >
+                      {convertRiskToIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Convert to Issue
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {editingRisk && (
+                    <Button 
+                      type="button" 
+                      variant="destructive" 
+                      onClick={() => {
+                        deleteRisk.mutate({ id: editingRisk.id, projectId }, {
+                          onSuccess: () => {
+                            toast({ title: "Deleted", description: "Risk deleted" });
+                            setIsDialogOpen(false);
+                            setEditingRisk(null);
+                          }
+                        });
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                  <Button type="submit" data-testid="button-save-risk" disabled={createRisk.isPending || updateRisk.isPending}>
+                    {(createRisk.isPending || updateRisk.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {editingRisk ? "Update Risk" : "Save Risk"}
+                  </Button>
+                </div>
               </DialogFooter>
             </form>
           </DialogContent>
