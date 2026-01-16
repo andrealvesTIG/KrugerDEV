@@ -170,11 +170,21 @@ function getLinkPath(
   
   // Standard orthogonal routing based on type
   if (type === 'FS') {
-    // Finish to Start: horizontal stub from source, vertical to target row, horizontal to target
+    // Finish to Start: from right edge of predecessor bar to left edge of successor bar
+    // Route: horizontal stub right, then vertical to target row, then horizontal to target
     const stubX1 = fromX + STUB_LENGTH;
-    // If target is far enough, route via stub; otherwise go direct vertical
-    const midX = (stubX1 + toX) / 2;
     
+    // If predecessor is on same row or adjacent, use simple L-shaped path
+    if (Math.abs(fromRect.rowIndex - toRect.rowIndex) <= 1 && toX > stubX1) {
+      // Simple right-angle: horizontal then vertical then horizontal
+      const midX = Math.max(stubX1, (fromX + toX) / 2);
+      return `M ${fromX} ${adjustedFromY}
+              L ${midX} ${adjustedFromY}
+              L ${midX} ${adjustedToY}
+              L ${toX} ${adjustedToY}`;
+    }
+    
+    // Standard routing for non-adjacent rows
     return `M ${fromX} ${adjustedFromY}
             L ${stubX1} ${adjustedFromY}
             L ${stubX1} ${adjustedToY}
