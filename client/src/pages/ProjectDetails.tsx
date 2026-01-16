@@ -3513,8 +3513,15 @@ function ProjectGanttView({
   const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(DEFAULT_GANTT_COLUMNS);
   const [newTaskName, setNewTaskName] = useState('');
   
-  // Column widths state (custom widths per column)
-  const [columnWidths, setColumnWidths] = useState<Record<GanttColumn, number>>(() => {
+  // Left panel width tracking
+  const leftPanelRef = useRef<HTMLDivElement>(null);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(400);
+  
+  // Reserve space for row selector (32px) and add column button (28px)
+  const RESERVED_WIDTH = 60;
+  
+  // Column base widths (proportional weights) - these scale to fit the panel
+  const [columnBaseWidths, setColumnBaseWidths] = useState<Record<GanttColumn, number>>(() => {
     const initial: Record<string, number> = {};
     GANTT_COLUMNS.forEach(col => {
       initial[col.id] = col.widthPx;
@@ -3522,10 +3529,85 @@ function ProjectGanttView({
     return initial as Record<GanttColumn, number>;
   });
   
+  // Calculate total base width of visible columns
+  const totalBaseWidth = useMemo(() => {
+    return visibleColumns.reduce((sum, colId) => sum + (columnBaseWidths[colId] || 96), 0);
+  }, [visibleColumns, columnBaseWidths]);
+  
+  // Scale factor to fit columns in available panel width
+  const scaleFactor = useMemo(() => {
+    const availableWidth = leftPanelWidth - RESERVED_WIDTH;
+    if (totalBaseWidth <= 0 || availableWidth <= 0) return 1;
+    return availableWidth / totalBaseWidth;
+  }, [leftPanelWidth, totalBaseWidth]);
+  
+  // Compute scaled column widths that always fit the available space
+  const columnWidths = useMemo(() => {
+    const availableWidth = leftPanelWidth - RESERVED_WIDTH;
+    const numCols = visibleColumns.length;
+    const minWidthPerCol = 30;
+    const totalMinWidth = numCols * minWidthPerCol;
+    
+    // If available width is too small, distribute evenly at minimum
+    if (availableWidth <= totalMinWidth) {
+      const widths: Record<string, number> = {};
+      const evenWidth = Math.max(minWidthPerCol, Math.floor(availableWidth / numCols));
+      visibleColumns.forEach(colId => {
+        widths[colId] = evenWidth;
+      });
+      return widths as Record<GanttColumn, number>;
+    }
+    
+    // Normal scaling with proportional widths
+    const widths: Record<string, number> = {};
+    let totalScaled = 0;
+    
+    // First pass: calculate scaled widths with minimums
+    visibleColumns.forEach(colId => {
+      const baseWidth = columnBaseWidths[colId] || 96;
+      widths[colId] = Math.max(minWidthPerCol, Math.round(baseWidth * scaleFactor));
+      totalScaled += widths[colId];
+    });
+    
+    // Second pass: if total exceeds available, shrink proportionally
+    if (totalScaled > availableWidth && totalScaled > 0) {
+      const shrinkFactor = availableWidth / totalScaled;
+      visibleColumns.forEach(colId => {
+        widths[colId] = Math.max(minWidthPerCol, Math.floor(widths[colId] * shrinkFactor));
+      });
+    }
+    
+    return widths as Record<GanttColumn, number>;
+  }, [visibleColumns, columnBaseWidths, scaleFactor, leftPanelWidth]);
+  
+  // Update panel width when ref is available or window resizes
+  useEffect(() => {
+    const updateWidth = () => {
+      if (leftPanelRef.current) {
+        setLeftPanelWidth(leftPanelRef.current.offsetWidth);
+      }
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+  
+  // Use ResizeObserver for more accurate panel width tracking
+  useEffect(() => {
+    if (!leftPanelRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setLeftPanelWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(leftPanelRef.current);
+    return () => observer.disconnect();
+  }, []);
+  
   // Resize state
   const [resizingColumn, setResizingColumn] = useState<GanttColumn | null>(null);
   const [resizeStartX, setResizeStartX] = useState(0);
-  const [resizeStartWidth, setResizeStartWidth] = useState(0);
+  const [resizeStartBaseWidth, setResizeStartBaseWidth] = useState(0);
   
   // Column add dropdown state
   const [isAddColumnOpen, setIsAddColumnOpen] = useState(false);
@@ -3539,22 +3621,49 @@ function ProjectGanttView({
   const [contextMenuColumn, setContextMenuColumn] = useState<GanttColumn | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
   
-  // Handle column resize
+  // Handle column resize - adjusts base width and redistributes space from other columns
   const handleResizeStart = (e: React.MouseEvent, colId: GanttColumn) => {
     e.preventDefault();
     e.stopPropagation();
     setResizingColumn(colId);
     setResizeStartX(e.clientX);
-    setResizeStartWidth(columnWidths[colId] || 96);
+    setResizeStartBaseWidth(columnBaseWidths[colId] || 96);
   };
   
   useEffect(() => {
     if (!resizingColumn) return;
     
     const handleMouseMove = (e: MouseEvent) => {
-      const diff = e.clientX - resizeStartX;
-      const newWidth = Math.max(40, resizeStartWidth + diff);
-      setColumnWidths(prev => ({ ...prev, [resizingColumn]: newWidth }));
+      const pixelDiff = e.clientX - resizeStartX;
+      // Convert pixel diff to base width diff using current scale factor
+      const baseDiff = scaleFactor > 0 ? pixelDiff / scaleFactor : pixelDiff;
+      const newBaseWidth = Math.max(30, resizeStartBaseWidth + baseDiff);
+      const widthChange = newBaseWidth - resizeStartBaseWidth;
+      
+      // Redistribute the width change from/to other visible columns proportionally
+      const otherColumns = visibleColumns.filter(c => c !== resizingColumn);
+      if (otherColumns.length === 0) {
+        setColumnBaseWidths(prev => ({ ...prev, [resizingColumn]: newBaseWidth }));
+        return;
+      }
+      
+      setColumnBaseWidths(prev => {
+        // Calculate totals from prev state to ensure consistency
+        const totalOtherBaseWidth = otherColumns.reduce((sum, c) => sum + (prev[c] || 96), 0);
+        if (totalOtherBaseWidth <= 0) {
+          return { ...prev, [resizingColumn]: newBaseWidth };
+        }
+        
+        const updated = { ...prev, [resizingColumn]: newBaseWidth };
+        // Proportionally redistribute to other columns
+        otherColumns.forEach(colId => {
+          const colBase = prev[colId] || 96;
+          const proportion = colBase / totalOtherBaseWidth;
+          const adjustment = -widthChange * proportion;
+          updated[colId] = Math.max(30, colBase + adjustment);
+        });
+        return updated;
+      });
     };
     
     const handleMouseUp = () => {
@@ -3568,7 +3677,7 @@ function ProjectGanttView({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [resizingColumn, resizeStartX, resizeStartWidth]);
+  }, [resizingColumn, resizeStartX, resizeStartBaseWidth, visibleColumns, scaleFactor]);
   
   // Column context menu (right-click to remove)
   const handleColumnContextMenu = (e: React.MouseEvent, colId: GanttColumn) => {
@@ -3966,14 +4075,6 @@ function ProjectGanttView({
     }
   }, [adjustedDateRange, zoomLevel]);
 
-  const columnsTotalWidth = useMemo(() => {
-    let w = 0;
-    visibleColumns.forEach(colId => {
-      w += columnWidths[colId] || 96;
-    });
-    return w;
-  }, [visibleColumns, columnWidths]);
-
   const handleZoomIn = () => {
     const idx = zoomLevels.indexOf(zoomLevel);
     if (idx > 0) setZoomLevel(zoomLevels[idx - 1]);
@@ -4057,107 +4158,106 @@ function ProjectGanttView({
         </div>
         {/* Split-pane Gantt layout with resizable panels */}
         <ResizablePanelGroup direction="horizontal" className="h-[500px] text-[11px]">
-          {/* Left pane: Metadata columns (resizable + scrollable) */}
+          {/* Left pane: Metadata columns (no horizontal scroll - columns scale to fit) */}
           <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
-            <div className="h-full overflow-x-auto overflow-y-auto">
-              <div style={{ minWidth: `${columnsTotalWidth + 40}px` }}>
-                {/* Header row */}
-                <div className="flex border-b bg-muted/50 sticky top-0 z-10">
-                  <div className="w-8 flex-shrink-0 border-r p-1"></div>
-                  {visibleColumns.map(colId => {
-                    const col = GANTT_COLUMNS.find(c => c.id === colId);
-                    if (!col) return null;
-                    const colWidth = columnWidths[colId] || col.widthPx;
-                    const isDraggable = col.id !== 'task';
-                    return (
-                      <div 
-                        key={col.id}
-                        style={{ width: `${colWidth}px` }}
-                        className={cn(
-                          "flex-shrink-0 border-r font-semibold text-[10px] text-foreground relative select-none flex items-center",
-                          ['progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "justify-center",
-                          draggingColumn === col.id && "opacity-50",
-                          dragOverColumn === col.id && "bg-muted"
-                        )}
-                        onDragOver={(e) => handleColumnDragOver(e, col.id)}
-                        onDragLeave={handleColumnDragLeave}
-                        onDrop={(e) => handleColumnDrop(e, col.id)}
-                        onContextMenu={(e) => handleColumnContextMenu(e, col.id)}
-                        data-testid={`column-header-${col.id}`}
-                      >
-                        {/* Drag grip area */}
-                        {isDraggable && (
-                          <div
-                            className="flex-shrink-0 px-0.5 cursor-grab text-muted-foreground"
-                            draggable
-                            onDragStart={(e) => handleColumnDragStart(e, col.id)}
-                            onDragEnd={handleColumnDragEnd}
-                          >
-                            <GripVertical className="h-3 w-3" />
-                          </div>
-                        )}
-                        <div className="flex-1 p-1 truncate min-w-0">
-                          {col.label}
-                        </div>
-                        {/* Resize handle */}
-                        <div 
-                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-20"
-                          draggable={false}
-                          onMouseDown={(e) => handleResizeStart(e, col.id)}
-                          data-testid={`column-resize-${col.id}`}
+            <div ref={leftPanelRef} className="h-full overflow-y-auto relative">
+              {/* Header row */}
+              <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+                <div className="w-8 flex-shrink-0 border-r p-1"></div>
+                {visibleColumns.map(colId => {
+                  const col = GANTT_COLUMNS.find(c => c.id === colId);
+                  if (!col) return null;
+                  const colWidth = columnWidths[colId] || col.widthPx;
+                  const isDraggable = col.id !== 'task';
+                  return (
+                    <div 
+                      key={col.id}
+                      style={{ width: `${colWidth}px` }}
+                      className={cn(
+                        "flex-shrink-0 border-r font-semibold text-[10px] text-foreground relative select-none flex items-center overflow-hidden",
+                        ['progress', 'isMilestone', 'isCritical', 'isSummary'].includes(col.id) && "justify-center",
+                        draggingColumn === col.id && "opacity-50",
+                        dragOverColumn === col.id && "bg-muted"
+                      )}
+                      onDragOver={(e) => handleColumnDragOver(e, col.id)}
+                      onDragLeave={handleColumnDragLeave}
+                      onDrop={(e) => handleColumnDrop(e, col.id)}
+                      onContextMenu={(e) => handleColumnContextMenu(e, col.id)}
+                      data-testid={`column-header-${col.id}`}
+                    >
+                      {/* Drag grip area */}
+                      {isDraggable && (
+                        <div
+                          className="flex-shrink-0 px-0.5 cursor-grab text-muted-foreground"
+                          draggable
+                          onDragStart={(e) => handleColumnDragStart(e, col.id)}
+                          onDragEnd={handleColumnDragEnd}
                         >
-                          <div className="absolute inset-y-1 right-0.5 w-0.5 bg-border" />
+                          <GripVertical className="h-3 w-3" />
                         </div>
+                      )}
+                      <div className="flex-1 p-1 truncate min-w-0">
+                        {col.label}
                       </div>
-                    );
-                  })}
-                  {/* Add column button - sticky to always be visible with left border for separation */}
-                  <div className="sticky right-0 flex-shrink-0 border-l border-r p-1 bg-muted/50 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
-                    <DropdownMenu open={isAddColumnOpen} onOpenChange={setIsAddColumnOpen}>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-5 w-5"
-                          data-testid="button-add-column"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-56">
-                        <div className="p-2">
-                          <Input
-                            placeholder="Search fields..."
-                            value={columnSearchQuery}
-                            onChange={(e) => setColumnSearchQuery(e.target.value)}
-                            className="h-7 text-xs"
-                            data-testid="input-column-search"
-                          />
-                        </div>
-                        <div className="max-h-[300px] overflow-y-auto">
-                          {filteredColumnsToAdd.length === 0 ? (
-                            <div className="p-2 text-xs text-muted-foreground text-center">
-                              {availableColumnsToAdd.length === 0 ? "All columns added" : "No matching fields"}
-                            </div>
-                          ) : (
-                            filteredColumnsToAdd.map(col => (
-                              <DropdownMenuItem 
-                                key={col.id}
-                                onClick={() => addColumn(col.id)}
-                                className="text-xs"
-                                data-testid={`add-column-${col.id}`}
-                              >
-                                {col.label}
-                                <span className="ml-auto text-muted-foreground text-[10px]">{col.category}</span>
-                              </DropdownMenuItem>
-                            ))
-                          )}
-                        </div>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                      {/* Resize handle */}
+                      <div 
+                        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-20"
+                        draggable={false}
+                        onMouseDown={(e) => handleResizeStart(e, col.id)}
+                        data-testid={`column-resize-${col.id}`}
+                      >
+                        <div className="absolute inset-y-1 right-0.5 w-0.5 bg-border" />
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Add column button - fixed at right edge */}
+                <div className="flex-shrink-0 border-l p-1 bg-muted/50">
+                  <DropdownMenu open={isAddColumnOpen} onOpenChange={setIsAddColumnOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-5 w-5"
+                        data-testid="button-add-column"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <div className="p-2">
+                        <Input
+                          placeholder="Search fields..."
+                          value={columnSearchQuery}
+                          onChange={(e) => setColumnSearchQuery(e.target.value)}
+                          className="h-7 text-xs"
+                          data-testid="input-column-search"
+                        />
+                      </div>
+                      <div className="max-h-[300px] overflow-y-auto">
+                        {filteredColumnsToAdd.length === 0 ? (
+                          <div className="p-2 text-xs text-muted-foreground text-center">
+                            {availableColumnsToAdd.length === 0 ? "All columns added" : "No matching fields"}
+                          </div>
+                        ) : (
+                          filteredColumnsToAdd.map(col => (
+                            <DropdownMenuItem 
+                              key={col.id}
+                              onClick={() => addColumn(col.id)}
+                              className="text-xs"
+                              data-testid={`add-column-${col.id}`}
+                            >
+                              {col.label}
+                              <span className="ml-auto text-muted-foreground text-[10px]">{col.category}</span>
+                            </DropdownMenuItem>
+                          ))
+                        )}
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-                {/* Context menu for column removal */}
+              </div>
+              {/* Context menu for column removal */}
                 {contextMenuPosition && contextMenuColumn && (
                   <div
                     className="fixed z-50 bg-popover border rounded-md shadow-lg py-1"
@@ -4225,7 +4325,6 @@ function ProjectGanttView({
                   {/* Spacer for add column button */}
                   <div className="flex-shrink-0 p-1 w-8" />
                 </div>
-              </div>
             </div>
           </ResizablePanel>
           
