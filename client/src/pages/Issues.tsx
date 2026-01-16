@@ -750,12 +750,40 @@ export default function Issues() {
               label="Assigned Resources"
               projectId={editingIssue?.projectId}
             />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={updateIssue.isPending} data-testid="button-update-issue">
-                {updateIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Update Issue
-              </Button>
+            <DialogFooter className="flex justify-between gap-2">
+              <div>
+                {editingIssue?.itemType === 'risk' && (
+                  <Button 
+                    type="button" 
+                    variant="secondary"
+                    onClick={() => {
+                      if (editingIssue) {
+                        convertRiskToIssue.mutate({ id: editingIssue.id, projectId: editingIssue.projectId }, {
+                          onSuccess: () => {
+                            toast({ title: "Success", description: "Risk converted to issue" });
+                            setIsEditDialogOpen(false);
+                          },
+                          onError: (err: any) => {
+                            toast({ title: "Error", description: err.message, variant: "destructive" });
+                          }
+                        });
+                      }
+                    }}
+                    disabled={convertRiskToIssue.isPending}
+                    data-testid="button-convert-risk-to-issue"
+                  >
+                    {convertRiskToIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Convert to Issue
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={updateIssue.isPending} data-testid="button-update-issue">
+                  {updateIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Update {editingIssue?.itemType === 'risk' ? 'Risk' : 'Issue'}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </DialogContent>
