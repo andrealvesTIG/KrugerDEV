@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
+import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useCreateRisk, useConvertRiskToIssue } from "@/hooks/use-risks";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users, AlertTriangle } from "lucide-react";
+import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users, AlertTriangle, History, ChevronDown, ChevronUp } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -80,6 +80,8 @@ export default function Issues() {
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
   const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
   const [isRiskDialogOpen, setIsRiskDialogOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const { data: issueHistory, isLoading: historyLoading } = useIssueHistory(editingIssue?.id || 0);
 
   const form = useForm({
     resolver: zodResolver(insertIssueSchema.extend({
@@ -149,6 +151,7 @@ export default function Issues() {
       type: issue.type || "Bug"
     });
     setEditResourceIds([]);
+    setShowHistory(false);
     setIsEditDialogOpen(true);
   };
 
@@ -750,6 +753,46 @@ export default function Issues() {
               label="Assigned Resources"
               projectId={editingIssue?.projectId}
             />
+            
+            {/* Change History Section */}
+            <div className="border-t pt-4">
+              <Button 
+                type="button" 
+                variant="ghost" 
+                className="w-full justify-between px-0 hover:bg-transparent"
+                onClick={() => setShowHistory(!showHistory)}
+                data-testid="button-toggle-history"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <History className="h-4 w-4" />
+                  Change History
+                </span>
+                {showHistory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              {showHistory && (
+                <div className="mt-3 max-h-48 overflow-y-auto space-y-2">
+                  {historyLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                  ) : issueHistory && issueHistory.length > 0 ? (
+                    issueHistory.map((log) => (
+                      <div key={log.id} className="text-xs border-l-2 border-muted pl-3 py-1">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <span className="font-medium text-foreground">{log.changedByName || 'System'}</span>
+                          <span>•</span>
+                          <span>{new Date(log.changedAt!).toLocaleDateString()} {new Date(log.changedAt!).toLocaleTimeString()}</span>
+                        </div>
+                        <div className="mt-1">{log.changeSummary}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-2">No change history available</p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <DialogFooter className="flex justify-between gap-2">
               <div>
                 {editingIssue?.itemType === 'risk' && (
