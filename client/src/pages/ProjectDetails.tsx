@@ -2971,6 +2971,7 @@ function SortableTaskRow({
 // Split-pane Gantt: Metadata row (left pane)
 function ProjectGanttTaskRowMeta({ 
   task, 
+  rowIndex,
   visibleColumns,
   organizationId,
   onIndent,
@@ -2992,6 +2993,7 @@ function ProjectGanttTaskRowMeta({
   isOnCriticalPath,
 }: { 
   task: Task;
+  rowIndex: number;
   visibleColumns: GanttColumn[];
   organizationId: number | null;
   onIndent: (task: Task) => void;
@@ -3228,7 +3230,7 @@ function ProjectGanttTaskRowMeta({
             case 'taskIndex':
               return (
                 <div className="text-center font-mono text-muted-foreground">
-                  {task.taskIndex || task.id}
+                  {rowIndex}
                 </div>
               );
             case 'taskNumber':
@@ -4933,11 +4935,12 @@ function ProjectGanttView({
                     </div>
                   ) : (
                     <SortableContext items={visibleTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                      {visibleTasks.map(task => (
+                      {visibleTasks.map((task, index) => (
                         <SortableTaskRow key={task.id} task={task}>
                           {(dragHandleProps) => (
                             <ProjectGanttTaskRowMeta
                               task={task}
+                              rowIndex={index + 1}
                               visibleColumns={visibleColumns}
                               organizationId={organizationId}
                               onIndent={handleIndent}
