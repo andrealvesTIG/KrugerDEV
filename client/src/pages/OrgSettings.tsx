@@ -109,6 +109,7 @@ const settingsTabs = [
 function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organization }) {
   const [activeTab, setActiveTab] = useState("general");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   
   const activeTabInfo = settingsTabs.find(t => t.value === activeTab) || settingsTabs[0];
   const ActiveIcon = activeTabInfo.icon;
@@ -153,23 +154,43 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </div>
       </div>
 
-      {/* Desktop: Sidebar tabs */}
-      <TabsList className="hidden md:flex flex-col h-fit w-56 bg-card border rounded-lg p-1">
-        {settingsTabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <TabsTrigger 
-              key={tab.value}
-              value={tab.value} 
-              className="w-full justify-start gap-3" 
-              data-testid={`nav-${tab.value}`}
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-            </TabsTrigger>
-          );
-        })}
-      </TabsList>
+      {/* Desktop: Collapsible sidebar tabs */}
+      <div className="hidden md:block">
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
+            className="flex items-center justify-between w-full p-2 bg-card border rounded-lg hover:bg-muted transition-colors"
+            data-testid="button-toggle-settings-sidebar"
+          >
+            <div className="flex items-center gap-2">
+              <ActiveIcon className="h-4 w-4" />
+              {!isDesktopSidebarCollapsed && (
+                <span className="font-medium text-sm">{activeTabInfo.label}</span>
+              )}
+            </div>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isDesktopSidebarCollapsed ? '-rotate-90' : ''}`} />
+          </button>
+        </div>
+        
+        <div className={`overflow-hidden transition-all duration-200 ${isDesktopSidebarCollapsed ? 'max-h-0' : 'max-h-[500px]'}`}>
+          <TabsList className="flex flex-col h-fit w-56 bg-card border rounded-lg p-1">
+            {settingsTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger 
+                  key={tab.value}
+                  value={tab.value} 
+                  className="w-full justify-start gap-3" 
+                  data-testid={`nav-${tab.value}`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
+      </div>
 
       <div className="flex-1 min-w-0">
         <TabsContent value="general" className="mt-0">
