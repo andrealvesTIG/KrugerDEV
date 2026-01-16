@@ -26,7 +26,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2 } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -3735,6 +3735,11 @@ function ProjectGanttView({
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   
+  // Undo/redo history for task reordering
+  type ReorderAction = { taskId: number; fromIndex: number; toIndex: number };
+  const [undoStack, setUndoStack] = useState<ReorderAction[]>([]);
+  const [redoStack, setRedoStack] = useState<ReorderAction[]>([]);
+  
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -3754,6 +3759,10 @@ function ProjectGanttView({
     
     if (activeIndex === -1 || overIndex === -1) return;
     
+    // Save to undo stack
+    setUndoStack(prev => [...prev, { taskId: Number(active.id), fromIndex: activeIndex, toIndex: overIndex }]);
+    setRedoStack([]); // Clear redo stack on new action
+    
     reorderTask.mutate({
       projectId,
       taskId: Number(active.id),
@@ -3763,7 +3772,61 @@ function ProjectGanttView({
         toast({ title: "Task reordered", description: "Task order updated successfully" });
       },
       onError: () => {
+        // Remove from undo stack on error
+        setUndoStack(prev => prev.slice(0, -1));
         toast({ title: "Error", description: "Failed to reorder task", variant: "destructive" });
+      }
+    });
+  };
+  
+  // Undo last reorder action
+  const handleUndo = () => {
+    if (undoStack.length === 0) return;
+    
+    const lastAction = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    setRedoStack(prev => [...prev, lastAction]);
+    
+    // Reorder back to original position
+    reorderTask.mutate({
+      projectId,
+      taskId: lastAction.taskId,
+      newIndex: lastAction.fromIndex,
+    }, {
+      onSuccess: () => {
+        toast({ title: "Undone", description: "Task order restored" });
+      },
+      onError: () => {
+        // Restore undo stack on error
+        setUndoStack(prev => [...prev, lastAction]);
+        setRedoStack(prev => prev.slice(0, -1));
+        toast({ title: "Error", description: "Failed to undo", variant: "destructive" });
+      }
+    });
+  };
+  
+  // Redo last undone action
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    
+    const lastAction = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    setUndoStack(prev => [...prev, lastAction]);
+    
+    // Reorder to the target position again
+    reorderTask.mutate({
+      projectId,
+      taskId: lastAction.taskId,
+      newIndex: lastAction.toIndex,
+    }, {
+      onSuccess: () => {
+        toast({ title: "Redone", description: "Task order reapplied" });
+      },
+      onError: () => {
+        // Restore redo stack on error
+        setRedoStack(prev => [...prev, lastAction]);
+        setUndoStack(prev => prev.slice(0, -1));
+        toast({ title: "Error", description: "Failed to redo", variant: "destructive" });
       }
     });
   };
@@ -4496,6 +4559,36 @@ function ProjectGanttView({
                 </Label>
               </div>
             )}
+            <div className="flex items-center gap-1 border-l pl-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleUndo}
+                    disabled={undoStack.length === 0 || reorderTask.isPending}
+                    data-testid="button-undo-reorder"
+                  >
+                    <Undo2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Undo reorder</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleRedo}
+                    disabled={redoStack.length === 0 || reorderTask.isPending}
+                    data-testid="button-redo-reorder"
+                  >
+                    <Redo2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Redo reorder</TooltipContent>
+              </Tooltip>
+            </div>
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
