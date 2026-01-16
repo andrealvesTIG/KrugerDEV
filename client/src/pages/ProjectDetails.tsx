@@ -3658,7 +3658,8 @@ function ProjectGanttView({
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   
   // Fetch project dependencies and calculate CPM
-  const { data: projectDependencies = [] } = useProjectDependencies(projectId);
+  const { data: projectDependenciesData } = useProjectDependencies(projectId);
+  const projectDependencies = Array.isArray(projectDependenciesData) ? projectDependenciesData : [];
   
   // Calculate CPM results when tasks or dependencies change
   const cpmResults = useMemo(() => {
@@ -3675,7 +3676,8 @@ function ProjectGanttView({
       constraintDate: t.constraintDate,
     }));
     
-    const cpmDependencies = projectDependencies.map(d => ({
+    const safeDeps = Array.isArray(projectDependencies) ? projectDependencies : [];
+    const cpmDependencies = safeDeps.map(d => ({
       taskId: d.taskId,
       dependsOnTaskId: d.dependsOnTaskId,
       dependencyType: d.dependencyType,
