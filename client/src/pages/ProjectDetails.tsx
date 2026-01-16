@@ -2710,6 +2710,184 @@ function InlineEditCell({
   );
 }
 
+// Task name cell with horizontal drag for indent/outdent (MS Project style)
+function TaskNameCell({
+  task,
+  colWidth,
+  currentLevel,
+  hasChildren,
+  isCollapsed,
+  canIndent,
+  canOutdent,
+  onTaskClick,
+  onToggleCollapse,
+  onIndent,
+  onOutdent,
+  onSetBaseline,
+  onClearBaseline,
+  onEditDependencies,
+}: {
+  task: Task;
+  colWidth: number;
+  currentLevel: number;
+  hasChildren: boolean;
+  isCollapsed: boolean;
+  canIndent: boolean;
+  canOutdent: boolean;
+  onTaskClick: (task: Task) => void;
+  onToggleCollapse: (taskId: number) => void;
+  onIndent: (task: Task) => void;
+  onOutdent: (task: Task) => void;
+  onSetBaseline: (task: Task) => void;
+  onClearBaseline: (task: Task) => void;
+  onEditDependencies: (task: Task) => void;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [dragDirection, setDragDirection] = useState<'left' | 'right' | null>(null);
+  const dragThreshold = 30; // pixels to trigger indent/outdent
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only left click
+    setIsDragging(true);
+    setDragStartX(e.clientX);
+    setDragDirection(null);
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - dragStartX;
+      if (Math.abs(deltaX) > 10) {
+        setDragDirection(deltaX > 0 ? 'right' : 'left');
+      } else {
+        setDragDirection(null);
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      const deltaX = e.clientX - dragStartX;
+      
+      if (deltaX > dragThreshold && canIndent) {
+        onIndent(task);
+      } else if (deltaX < -dragThreshold && canOutdent) {
+        onOutdent(task);
+      }
+      
+      setIsDragging(false);
+      setDragDirection(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragStartX, canIndent, canOutdent, onIndent, onOutdent, task]);
+
+  return (
+    <div 
+      style={{ width: `${colWidth}px`, paddingLeft: `${4 + (currentLevel - 1) * 12}px` }}
+      className={cn(
+        "flex-shrink-0 border-r px-1 cursor-pointer flex items-center overflow-hidden min-w-0 group/taskname relative",
+        hasChildren && "font-semibold bg-muted/30",
+        isDragging && "cursor-ew-resize bg-muted/50"
+      )}
+      onClick={() => !isDragging && onTaskClick(task)}
+    >
+      {/* Left arrow indicator (outdent) */}
+      {canOutdent && (
+        <div 
+          className={cn(
+            "absolute left-0 top-0 bottom-0 flex items-center justify-center w-5 opacity-0 group-hover/taskname:opacity-100 transition-opacity cursor-ew-resize z-10",
+            dragDirection === 'left' && "opacity-100 bg-primary/20"
+          )}
+          onMouseDown={handleMouseDown}
+          data-testid={`task-outdent-drag-${task.id}`}
+        >
+          <ChevronLeft className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )}
+      
+      {/* Right arrow indicator (indent) */}
+      {canIndent && (
+        <div 
+          className={cn(
+            "absolute right-6 top-0 bottom-0 flex items-center justify-center w-5 opacity-0 group-hover/taskname:opacity-100 transition-opacity cursor-ew-resize z-10",
+            dragDirection === 'right' && "opacity-100 bg-primary/20"
+          )}
+          onMouseDown={handleMouseDown}
+          data-testid={`task-indent-drag-${task.id}`}
+        >
+          <ChevronRight className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )}
+
+      <div className="truncate flex items-center gap-0.5 flex-1 min-w-0">
+        {hasChildren ? (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-4 w-4 p-0 flex-shrink-0"
+            onClick={(e) => { e.stopPropagation(); onToggleCollapse(task.id); }}
+            data-testid={`task-toggle-${task.id}`}
+          >
+            {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </Button>
+        ) : (
+          <span className="w-4 flex-shrink-0" />
+        )}
+        {task.isMilestone && <MilestoneIcon className="h-3 w-3 text-primary flex-shrink-0" />}
+        <span className="truncate">{task.name}</span>
+      </div>
+      
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-5 w-5 p-0 flex-shrink-0 opacity-0 group-hover/taskname:opacity-100 transition-opacity" 
+            onClick={(e) => e.stopPropagation()}
+            data-testid={`task-actions-${task.id}`}
+          >
+            <MoreVertical className="h-3 w-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTaskClick(task); }} data-testid={`task-edit-${task.id}`}>
+            <Pencil className="h-3.5 w-3.5 mr-2" />
+            Edit Task
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDependencies(task); }} data-testid={`task-dependencies-${task.id}`}>
+            <Link2 className="h-3.5 w-3.5 mr-2" />
+            Dependencies
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSetBaseline(task); }} disabled={!task.startDate || !task.endDate} data-testid={`task-set-baseline-${task.id}`}>
+            <Flag className="h-3.5 w-3.5 mr-2" />
+            Set Baseline
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onClearBaseline(task); }} disabled={!task.baselineStartDate && !task.baselineEndDate} data-testid={`task-clear-baseline-${task.id}`}>
+            <X className="h-3.5 w-3.5 mr-2" />
+            Clear Baseline
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onIndent(task); }} disabled={!canIndent} data-testid={`task-indent-${task.id}`}>
+            <ChevronRight className="h-3.5 w-3.5 mr-2" />
+            Indent
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onOutdent(task); }} disabled={!canOutdent} data-testid={`task-outdent-${task.id}`}>
+            <ChevronLeft className="h-3.5 w-3.5 mr-2" />
+            Outdent
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 // Sortable task row wrapper for drag and drop reordering
 function SortableTaskRow({ 
   task, 
@@ -2901,72 +3079,23 @@ function ProjectGanttTaskRowMeta({
         
         if (colId === 'task') {
           return (
-            <div 
+            <TaskNameCell
               key={colId}
-              style={{ width: `${colWidth}px`, paddingLeft: `${4 + (currentLevel - 1) * 12}px` }}
-              className={cn(
-                "flex-shrink-0 border-r px-1 cursor-pointer flex items-center overflow-hidden min-w-0 group/taskname",
-                hasChildren && "font-semibold bg-muted/30"
-              )}
-              onClick={() => onTaskClick(task)}
-            >
-              <div className="truncate flex items-center gap-0.5 flex-1 min-w-0">
-                {hasChildren ? (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-4 w-4 p-0 flex-shrink-0"
-                    onClick={(e) => { e.stopPropagation(); onToggleCollapse(task.id); }}
-                    data-testid={`task-toggle-${task.id}`}
-                  >
-                    {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                  </Button>
-                ) : (
-                  <span className="w-4 flex-shrink-0" />
-                )}
-                {task.isMilestone && <MilestoneIcon className="h-3 w-3 text-primary flex-shrink-0" />}
-                <span className="truncate">{task.name}</span>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-5 w-5 p-0 flex-shrink-0 opacity-0 group-hover/taskname:opacity-100 transition-opacity" 
-                    onClick={(e) => e.stopPropagation()}
-                    data-testid={`task-actions-${task.id}`}
-                  >
-                    <MoreVertical className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTaskClick(task); }} data-testid={`task-edit-${task.id}`}>
-                    <Pencil className="h-3.5 w-3.5 mr-2" />
-                    Edit Task
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDependencies(task); }} data-testid={`task-dependencies-${task.id}`}>
-                    <Link2 className="h-3.5 w-3.5 mr-2" />
-                    Dependencies
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onSetBaseline(task); }} disabled={!task.startDate || !task.endDate} data-testid={`task-set-baseline-${task.id}`}>
-                    <Flag className="h-3.5 w-3.5 mr-2" />
-                    Set Baseline
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onClearBaseline(task); }} disabled={!task.baselineStartDate && !task.baselineEndDate} data-testid={`task-clear-baseline-${task.id}`}>
-                    <X className="h-3.5 w-3.5 mr-2" />
-                    Clear Baseline
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onIndent(task); }} disabled={!canIndent} data-testid={`task-indent-${task.id}`}>
-                    <ChevronRight className="h-3.5 w-3.5 mr-2" />
-                    Indent
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onOutdent(task); }} disabled={!canOutdent} data-testid={`task-outdent-${task.id}`}>
-                    <ChevronLeft className="h-3.5 w-3.5 mr-2" />
-                    Outdent
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+              task={task}
+              colWidth={colWidth}
+              currentLevel={currentLevel}
+              hasChildren={hasChildren}
+              isCollapsed={isCollapsed}
+              canIndent={canIndent}
+              canOutdent={canOutdent}
+              onTaskClick={onTaskClick}
+              onToggleCollapse={onToggleCollapse}
+              onIndent={onIndent}
+              onOutdent={onOutdent}
+              onSetBaseline={onSetBaseline}
+              onClearBaseline={onClearBaseline}
+              onEditDependencies={onEditDependencies}
+            />
           );
         }
         
