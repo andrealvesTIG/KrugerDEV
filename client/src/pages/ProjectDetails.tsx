@@ -2056,15 +2056,6 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            data-testid="button-tasks-fullscreen"
-            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          >
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
           <div className="relative max-w-xs w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -2391,6 +2382,15 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            data-testid="button-tasks-fullscreen"
+            title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
         </div>
         
         <ProjectTaskHistoryDialog 
