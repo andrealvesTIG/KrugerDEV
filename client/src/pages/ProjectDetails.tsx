@@ -2962,6 +2962,7 @@ function ProjectGanttTaskRowMeta({
   prevTaskLevel,
   isSelected,
   onToggleSelection,
+  hasDependencies,
 }: { 
   task: Task;
   rowIndex: number;
@@ -2988,6 +2989,7 @@ function ProjectGanttTaskRowMeta({
   prevTaskLevel?: number;
   isSelected: boolean;
   onToggleSelection: (taskId: number) => void;
+  hasDependencies?: boolean;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -3075,7 +3077,8 @@ function ProjectGanttTaskRowMeta({
         rowHeight,
         isSelectedForBaseline && baselineSelectionMode && "bg-primary/5",
         isNonCritical && "opacity-40",
-        isCritical && "bg-red-50 dark:bg-red-950/30 border-l-2 border-l-red-500"
+        isCritical && "bg-red-50 dark:bg-red-950/30 border-l-2 border-l-red-500",
+        hasDependencies && !isCritical && "bg-amber-50/50 dark:bg-amber-950/20"
       )}
       data-testid={`gantt-task-meta-${task.id}`}
     >
@@ -3544,6 +3547,7 @@ function ProjectGanttTaskRowTimeline({
   showBaseline,
   showCriticalPath,
   isOnCriticalPath,
+  hasDependencies,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -3553,6 +3557,7 @@ function ProjectGanttTaskRowTimeline({
   showBaseline: boolean;
   showCriticalPath: boolean;
   isOnCriticalPath: boolean;
+  hasDependencies?: boolean;
 }) {
   const hasValidDates = task.startDate && task.endDate;
   const start = hasValidDates ? parseISO(task.startDate) : null;
@@ -3600,7 +3605,8 @@ function ProjectGanttTaskRowTimeline({
         rowHeight, 
         hasChildren && "bg-muted/20",
         isNonCritical && "opacity-40",
-        isCritical && "bg-red-50 dark:bg-red-950/30"
+        isCritical && "bg-red-50 dark:bg-red-950/30",
+        hasDependencies && !isCritical && "bg-amber-50/50 dark:bg-amber-950/20"
       )}
       data-testid={`gantt-task-timeline-${task.id}`}
     >
@@ -3688,10 +3694,17 @@ function TaskDependenciesSection({
     if (!selectedPredecessor) return;
     const predecessorId = Number(selectedPredecessor);
     addDependency.mutate(
-      { taskId, dependsOnTaskId: predecessorId },
+      { taskId, dependsOnTaskId: predecessorId, projectId },
       {
-        onSuccess: () => {
-          toast({ title: "Success", description: "Dependency added" });
+        onSuccess: (data: any) => {
+          if (data?.dateAdjusted) {
+            toast({ 
+              title: "Dependency added", 
+              description: `Task dates automatically adjusted to start after predecessor (${data.newStartDate} - ${data.newEndDate})`,
+            });
+          } else {
+            toast({ title: "Success", description: "Dependency added" });
+          }
           setSelectedPredecessor("");
         },
         onError: (error: any) => {
@@ -4145,6 +4158,15 @@ function ProjectGanttView({
     }
     return ids;
   }, [cpmResults]);
+  
+  // Set of task IDs that have dependencies (dependent tasks)
+  const tasksWithDependencies = useMemo(() => {
+    const ids = new Set<number>();
+    for (const dep of projectDependencies) {
+      ids.add(dep.taskId); // The dependent task (successor)
+    }
+    return ids;
+  }, [projectDependencies]);
   
   // Centralized list of tasks valid for baselining (have start and end dates)
   const validBaselineTasks = useMemo(() => 
@@ -5307,6 +5329,7 @@ function ProjectGanttView({
                               prevTaskLevel={index > 0 ? (visibleTasks[index - 1].outlineLevel || 1) : undefined}
                               isSelected={selectedTaskIds.has(task.id)}
                               onToggleSelection={toggleTaskSelection}
+                              hasDependencies={tasksWithDependencies.has(task.id)}
                             />
                           )}
                         </SortableTaskRow>
@@ -5406,6 +5429,7 @@ function ProjectGanttView({
                       showBaseline={showBaseline}
                       showCriticalPath={showCriticalPath}
                       isOnCriticalPath={criticalTaskIds.has(task.id)}
+                      hasDependencies={tasksWithDependencies.has(task.id)}
                     />
                   ))
                 )}

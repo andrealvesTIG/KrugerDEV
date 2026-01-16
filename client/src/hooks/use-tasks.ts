@@ -176,10 +176,14 @@ export function useTaskDependencies(taskId: number) {
 
 export function useAddTaskDependency() {
   return useMutation({
-    mutationFn: ({ taskId, dependsOnTaskId }: { taskId: number; dependsOnTaskId: number }) =>
+    mutationFn: ({ taskId, dependsOnTaskId, projectId }: { taskId: number; dependsOnTaskId: number; projectId?: number }) =>
       apiRequest('POST', `/api/tasks/${taskId}/dependencies`, { dependsOnTaskId }),
-    onSuccess: (_, variables) => {
+    onSuccess: (data: any, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks', variables.taskId, 'dependencies'] });
+      // Also invalidate project tasks if dates were adjusted
+      if (variables.projectId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+      }
     },
   });
 }

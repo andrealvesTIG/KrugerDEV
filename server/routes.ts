@@ -4383,7 +4383,50 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         taskId,
         dependsOnTaskId,
       });
-      res.status(201).json(dependency);
+      
+      // Auto-adjust dependent task's start date based on predecessor's end date (Finish-to-Start)
+      let dateAdjusted = false;
+      let newStartDate: string | null = null;
+      let newEndDate: string | null = null;
+      
+      const predecessorTask = await storage.getTask(dependsOnTaskId);
+      const dependentTask = await storage.getTask(taskId);
+      
+      if (predecessorTask?.endDate && dependentTask) {
+        // Calculate new start date: predecessor end date + 1 day
+        const predecessorEnd = new Date(predecessorTask.endDate);
+        const nextDay = new Date(predecessorEnd);
+        nextDay.setDate(nextDay.getDate() + 1);
+        newStartDate = nextDay.toISOString().split('T')[0];
+        
+        // If current start is before the new start, adjust it
+        const currentStart = dependentTask.startDate ? new Date(dependentTask.startDate) : null;
+        if (!currentStart || currentStart < nextDay) {
+          // Calculate duration to maintain task length
+          const currentEnd = dependentTask.endDate ? new Date(dependentTask.endDate) : null;
+          const duration = currentStart && currentEnd ? 
+            Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+          
+          // Set new end date based on duration
+          const newEnd = new Date(nextDay);
+          newEnd.setDate(newEnd.getDate() + duration);
+          newEndDate = newEnd.toISOString().split('T')[0];
+          
+          await storage.updateTask(taskId, { 
+            startDate: newStartDate,
+            endDate: newEndDate,
+          });
+          dateAdjusted = true;
+        }
+      }
+      
+      res.status(201).json({ 
+        ...dependency, 
+        dateAdjusted,
+        adjustedTaskId: dateAdjusted ? taskId : null,
+        newStartDate: dateAdjusted ? newStartDate : null,
+        newEndDate: dateAdjusted ? newEndDate : null,
+      });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: "Error adding dependency" });
