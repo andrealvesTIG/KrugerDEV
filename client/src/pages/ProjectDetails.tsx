@@ -4111,8 +4111,8 @@ function ProjectGanttView({
                       </div>
                     );
                   })}
-                  {/* Add column button - sticky to always be visible */}
-                  <div className="sticky right-0 flex-shrink-0 border-r p-1 bg-muted/50 z-10">
+                  {/* Add column button - sticky to always be visible with left border for separation */}
+                  <div className="sticky right-0 flex-shrink-0 border-l border-r p-1 bg-muted/50 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
                     <DropdownMenu open={isAddColumnOpen} onOpenChange={setIsAddColumnOpen}>
                       <DropdownMenuTrigger asChild>
                         <Button 
