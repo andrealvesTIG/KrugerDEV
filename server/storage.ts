@@ -43,7 +43,7 @@ import {
   type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
   type RecycleBinItem, type RecycleBinItemType
 } from "@shared/schema";
-import { eq, and, desc, or, ilike, sql, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, desc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
   billingAuditLogs, 
   subscriptions, 
@@ -159,6 +159,7 @@ export interface IStorage {
   // Task Dependencies
   getTaskDependencies(taskId: number): Promise<TaskDependency[]>;
   getTaskDependents(taskId: number): Promise<TaskDependency[]>;
+  getProjectDependencies(projectId: number): Promise<TaskDependency[]>;
   createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency>;
   deleteTaskDependency(taskId: number, dependsOnTaskId: number): Promise<void>;
 
@@ -914,6 +915,22 @@ export class DatabaseStorage implements IStorage {
   async getTaskDependents(taskId: number): Promise<TaskDependency[]> {
     return await db.select().from(taskDependencies)
       .where(eq(taskDependencies.dependsOnTaskId, taskId));
+  }
+
+  async getProjectDependencies(projectId: number): Promise<TaskDependency[]> {
+    // Get all tasks for the project first
+    const projectTasks = await db.select().from(tasks)
+      .where(and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt)));
+    const taskIds = projectTasks.map(t => t.id);
+    
+    if (taskIds.length === 0) return [];
+    
+    // Get all dependencies where either taskId or dependsOnTaskId is in the project
+    return await db.select().from(taskDependencies)
+      .where(or(
+        inArray(taskDependencies.taskId, taskIds),
+        inArray(taskDependencies.dependsOnTaskId, taskIds)
+      ));
   }
 
   async createTaskDependency(dependency: InsertTaskDependency): Promise<TaskDependency> {

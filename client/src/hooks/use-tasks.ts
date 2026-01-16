@@ -152,3 +152,11 @@ export function useRemoveTaskDependency() {
     },
   });
 }
+
+export function useProjectDependencies(projectId: number) {
+  return useQuery<TaskDependency[]>({
+    queryKey: ['/api/projects', projectId, 'dependencies'],
+    queryFn: () => fetch(`/api/projects/${projectId}/dependencies`).then(r => r.json()),
+    enabled: projectId > 0,
+  });
+}

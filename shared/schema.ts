@@ -346,6 +346,7 @@ export const taskDependencies = pgTable("task_dependencies", {
   taskId: integer("task_id").references(() => tasks.id).notNull(),
   dependsOnTaskId: integer("depends_on_task_id").references(() => tasks.id).notNull(),
   dependencyType: text("dependency_type").default("finish-to-start"), // finish-to-start, start-to-start, finish-to-finish, start-to-finish
+  lagDays: integer("lag_days").default(0), // Lag or lead time in days (negative for lead)
   createdAt: timestamp("created_at").defaultNow(),
 });
 

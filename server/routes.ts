@@ -4321,6 +4321,17 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.status(204).send();
   });
 
+  // Get all dependencies for a project (for CPM calculation)
+  app.get('/api/projects/:projectId/dependencies', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const dependencies = await storage.getProjectDependencies(projectId);
+      res.json(dependencies);
+    } catch (err) {
+      res.status(500).json({ message: "Error fetching project dependencies" });
+    }
+  });
+
   // Batch baseline update for tasks
   app.post('/api/projects/:projectId/tasks/baseline', async (req, res) => {
     try {

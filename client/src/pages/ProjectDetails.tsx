@@ -3,7 +3,8 @@ import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
 import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
-import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency, useProjectDependencies } from "@/hooks/use-tasks";
+import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useMilestones } from "@/hooks/use-milestones";
 import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useDeleteChangeRequest } from "@/hooks/use-change-requests";
 import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument, useDeleteProjectDocument } from "@/hooks/use-project-documents";
@@ -2704,6 +2705,7 @@ function ProjectGanttTaskRowMeta({
   isSelectedForBaseline,
   onToggleBaselineSelection,
   showCriticalPath,
+  isOnCriticalPath,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -2724,6 +2726,7 @@ function ProjectGanttTaskRowMeta({
   isSelectedForBaseline: boolean;
   onToggleBaselineSelection: (taskId: number, hasChildren: boolean) => void;
   showCriticalPath: boolean;
+  isOnCriticalPath: boolean;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2793,7 +2796,7 @@ function ProjectGanttTaskRowMeta({
   const hasValidDates = task.startDate && task.endDate;
   
   // Critical path styling: grey out non-critical tasks when toggle is active
-  const isNonCritical = showCriticalPath && !task.isCritical;
+  const isNonCritical = showCriticalPath && !isOnCriticalPath;
 
   return (
     <div 
@@ -3290,6 +3293,7 @@ function ProjectGanttTaskRowTimeline({
   hasChildren,
   showBaseline,
   showCriticalPath,
+  isOnCriticalPath,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -3298,6 +3302,7 @@ function ProjectGanttTaskRowTimeline({
   hasChildren: boolean;
   showBaseline: boolean;
   showCriticalPath: boolean;
+  isOnCriticalPath: boolean;
 }) {
   const hasValidDates = task.startDate && task.endDate;
   const start = hasValidDates ? parseISO(task.startDate) : null;
@@ -3335,7 +3340,7 @@ function ProjectGanttTaskRowTimeline({
   const rowHeight = showBaseline && hasBaseline ? 'h-[36px]' : 'h-[28px]';
   
   // Critical path styling: grey out non-critical tasks when toggle is active
-  const isNonCritical = showCriticalPath && !task.isCritical;
+  const isNonCritical = showCriticalPath && !isOnCriticalPath;
 
   return (
     <div 
@@ -3650,6 +3655,43 @@ function ProjectGanttView({
   const [isBaselinePending, setIsBaselinePending] = useState(false);
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
+  
+  // Fetch project dependencies and calculate CPM
+  const { data: projectDependencies = [] } = useProjectDependencies(projectId);
+  
+  // Calculate CPM results when tasks or dependencies change
+  const cpmResults = useMemo(() => {
+    if (tasks.length === 0) return { results: new Map<number, CPMResult>(), criticalPath: [] };
+    
+    const cpmTasks = tasks.map(t => ({
+      id: t.id,
+      name: t.name,
+      startDate: t.startDate,
+      endDate: t.endDate,
+      durationDays: t.durationDays,
+      isMilestone: t.isMilestone,
+      constraintType: t.constraintType,
+      constraintDate: t.constraintDate,
+    }));
+    
+    const cpmDependencies = projectDependencies.map(d => ({
+      taskId: d.taskId,
+      dependsOnTaskId: d.dependsOnTaskId,
+      dependencyType: d.dependencyType,
+      lagDays: d.lagDays,
+    }));
+    
+    return calculateCPM(cpmTasks, cpmDependencies);
+  }, [tasks, projectDependencies]);
+  
+  // Map of task ID to whether it's on critical path (from CPM calculation)
+  const criticalTaskIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const [taskId, result] of Array.from(cpmResults.results.entries())) {
+      if (result.isCritical) ids.add(taskId);
+    }
+    return ids;
+  }, [cpmResults]);
   
   // Centralized list of tasks valid for baselining (have start and end dates)
   const validBaselineTasks = useMemo(() => 
@@ -4522,6 +4564,7 @@ function ProjectGanttView({
                       isSelectedForBaseline={selectedTasksForBaseline.has(task.id)}
                       onToggleBaselineSelection={toggleTaskForBaseline}
                       showCriticalPath={showCriticalPath}
+                      isOnCriticalPath={criticalTaskIds.has(task.id)}
                     />
                   ))
                 )}
@@ -4584,6 +4627,7 @@ function ProjectGanttView({
                       hasChildren={!!taskHasChildren[task.id]}
                       showBaseline={showBaseline}
                       showCriticalPath={showCriticalPath}
+                      isOnCriticalPath={criticalTaskIds.has(task.id)}
                     />
                   ))
                 )}
