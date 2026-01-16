@@ -2785,12 +2785,12 @@ function ProjectGanttTaskRowMeta({
               key={colId}
               style={{ width: `${colWidth}px`, paddingLeft: `${4 + (currentLevel - 1) * 12}px` }}
               className={cn(
-                "flex-shrink-0 border-r px-1 cursor-pointer flex items-center",
+                "flex-shrink-0 border-r px-1 cursor-pointer flex items-center overflow-hidden min-w-0",
                 hasChildren && "font-semibold bg-muted/30"
               )}
               onClick={() => onTaskClick(task)}
             >
-              <div className="truncate flex items-center gap-0.5">
+              <div className="truncate flex items-center gap-0.5 w-full min-w-0">
                 {hasChildren ? (
                   <Button 
                     variant="ghost" 
@@ -2817,15 +2817,15 @@ function ProjectGanttTaskRowMeta({
               <div 
                 style={{ width: `${colWidth}px` }}
                 className={cn(
-                  "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px]",
+                  "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px] overflow-hidden min-w-0",
                   !hasChildren && "cursor-pointer hover:bg-muted/50"
                 )}
                 onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
               >
                 {hasChildren ? (
-                  <span className="text-muted-foreground/70 italic truncate">Summary</span>
+                  <span className="text-muted-foreground/70 italic truncate w-full">Summary</span>
                 ) : (
-                  <span className="truncate">{assignedNames}</span>
+                  <span className="truncate w-full">{assignedNames}</span>
                 )}
               </div>
               <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
@@ -3187,12 +3187,12 @@ function ProjectGanttTaskRowMeta({
             key={colId}
             style={{ width: `${colWidth}px` }}
             className={cn(
-              "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px]",
+              "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px] overflow-hidden min-w-0",
               centerAlign && "justify-center",
               colId === 'progress' && "font-medium"
             )}
           >
-            {renderEditableCell()}
+            <span className="truncate w-full">{renderEditableCell()}</span>
           </div>
         );
       })}
@@ -3513,15 +3513,8 @@ function ProjectGanttView({
   const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(DEFAULT_GANTT_COLUMNS);
   const [newTaskName, setNewTaskName] = useState('');
   
-  // Left panel width tracking
-  const leftPanelRef = useRef<HTMLDivElement>(null);
-  const [leftPanelWidth, setLeftPanelWidth] = useState(400);
-  
-  // Reserve space for row selector (32px) and add column button (28px)
-  const RESERVED_WIDTH = 60;
-  
-  // Column base widths (proportional weights) - these scale to fit the panel
-  const [columnBaseWidths, setColumnBaseWidths] = useState<Record<GanttColumn, number>>(() => {
+  // Column widths - use fixed pixel widths (no scaling)
+  const [columnWidths, setColumnWidths] = useState<Record<GanttColumn, number>>(() => {
     const initial: Record<string, number> = {};
     GANTT_COLUMNS.forEach(col => {
       initial[col.id] = col.widthPx;
@@ -3529,85 +3522,16 @@ function ProjectGanttView({
     return initial as Record<GanttColumn, number>;
   });
   
-  // Calculate total base width of visible columns
-  const totalBaseWidth = useMemo(() => {
-    return visibleColumns.reduce((sum, colId) => sum + (columnBaseWidths[colId] || 96), 0);
-  }, [visibleColumns, columnBaseWidths]);
-  
-  // Scale factor to fit columns in available panel width
-  const scaleFactor = useMemo(() => {
-    const availableWidth = leftPanelWidth - RESERVED_WIDTH;
-    if (totalBaseWidth <= 0 || availableWidth <= 0) return 1;
-    return availableWidth / totalBaseWidth;
-  }, [leftPanelWidth, totalBaseWidth]);
-  
-  // Compute scaled column widths that always fit the available space
-  const columnWidths = useMemo(() => {
-    const availableWidth = leftPanelWidth - RESERVED_WIDTH;
-    const numCols = visibleColumns.length;
-    const minWidthPerCol = 30;
-    const totalMinWidth = numCols * minWidthPerCol;
-    
-    // If available width is too small, distribute evenly at minimum
-    if (availableWidth <= totalMinWidth) {
-      const widths: Record<string, number> = {};
-      const evenWidth = Math.max(minWidthPerCol, Math.floor(availableWidth / numCols));
-      visibleColumns.forEach(colId => {
-        widths[colId] = evenWidth;
-      });
-      return widths as Record<GanttColumn, number>;
-    }
-    
-    // Normal scaling with proportional widths
-    const widths: Record<string, number> = {};
-    let totalScaled = 0;
-    
-    // First pass: calculate scaled widths with minimums
-    visibleColumns.forEach(colId => {
-      const baseWidth = columnBaseWidths[colId] || 96;
-      widths[colId] = Math.max(minWidthPerCol, Math.round(baseWidth * scaleFactor));
-      totalScaled += widths[colId];
-    });
-    
-    // Second pass: if total exceeds available, shrink proportionally
-    if (totalScaled > availableWidth && totalScaled > 0) {
-      const shrinkFactor = availableWidth / totalScaled;
-      visibleColumns.forEach(colId => {
-        widths[colId] = Math.max(minWidthPerCol, Math.floor(widths[colId] * shrinkFactor));
-      });
-    }
-    
-    return widths as Record<GanttColumn, number>;
-  }, [visibleColumns, columnBaseWidths, scaleFactor, leftPanelWidth]);
-  
-  // Update panel width when ref is available or window resizes
-  useEffect(() => {
-    const updateWidth = () => {
-      if (leftPanelRef.current) {
-        setLeftPanelWidth(leftPanelRef.current.offsetWidth);
-      }
-    };
-    updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
-  }, []);
-  
-  // Use ResizeObserver for more accurate panel width tracking
-  useEffect(() => {
-    if (!leftPanelRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setLeftPanelWidth(entry.contentRect.width);
-      }
-    });
-    observer.observe(leftPanelRef.current);
-    return () => observer.disconnect();
-  }, []);
+  // Calculate total width of visible columns (for min-width of scrollable container)
+  const totalColumnsWidth = useMemo(() => {
+    // 32px for actions column + 32px for add column button
+    return 64 + visibleColumns.reduce((sum, colId) => sum + (columnWidths[colId] || 96), 0);
+  }, [visibleColumns, columnWidths]);
   
   // Resize state
   const [resizingColumn, setResizingColumn] = useState<GanttColumn | null>(null);
   const [resizeStartX, setResizeStartX] = useState(0);
-  const [resizeStartBaseWidth, setResizeStartBaseWidth] = useState(0);
+  const [resizeStartWidth, setResizeStartWidth] = useState(0);
   
   // Column add dropdown state
   const [isAddColumnOpen, setIsAddColumnOpen] = useState(false);
@@ -3621,13 +3545,13 @@ function ProjectGanttView({
   const [contextMenuColumn, setContextMenuColumn] = useState<GanttColumn | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
   
-  // Handle column resize - adjusts base width and redistributes space from other columns
+  // Handle column resize - adjusts only the resized column's width (panel scrolls if needed)
   const handleResizeStart = (e: React.MouseEvent, colId: GanttColumn) => {
     e.preventDefault();
     e.stopPropagation();
     setResizingColumn(colId);
     setResizeStartX(e.clientX);
-    setResizeStartBaseWidth(columnBaseWidths[colId] || 96);
+    setResizeStartWidth(columnWidths[colId] || 96);
   };
   
   useEffect(() => {
@@ -3635,35 +3559,10 @@ function ProjectGanttView({
     
     const handleMouseMove = (e: MouseEvent) => {
       const pixelDiff = e.clientX - resizeStartX;
-      // Convert pixel diff to base width diff using current scale factor
-      const baseDiff = scaleFactor > 0 ? pixelDiff / scaleFactor : pixelDiff;
-      const newBaseWidth = Math.max(30, resizeStartBaseWidth + baseDiff);
-      const widthChange = newBaseWidth - resizeStartBaseWidth;
+      const newWidth = Math.max(40, resizeStartWidth + pixelDiff);
       
-      // Redistribute the width change from/to other visible columns proportionally
-      const otherColumns = visibleColumns.filter(c => c !== resizingColumn);
-      if (otherColumns.length === 0) {
-        setColumnBaseWidths(prev => ({ ...prev, [resizingColumn]: newBaseWidth }));
-        return;
-      }
-      
-      setColumnBaseWidths(prev => {
-        // Calculate totals from prev state to ensure consistency
-        const totalOtherBaseWidth = otherColumns.reduce((sum, c) => sum + (prev[c] || 96), 0);
-        if (totalOtherBaseWidth <= 0) {
-          return { ...prev, [resizingColumn]: newBaseWidth };
-        }
-        
-        const updated = { ...prev, [resizingColumn]: newBaseWidth };
-        // Proportionally redistribute to other columns
-        otherColumns.forEach(colId => {
-          const colBase = prev[colId] || 96;
-          const proportion = colBase / totalOtherBaseWidth;
-          const adjustment = -widthChange * proportion;
-          updated[colId] = Math.max(30, colBase + adjustment);
-        });
-        return updated;
-      });
+      // Only update the resized column - other columns keep their widths
+      setColumnWidths(prev => ({ ...prev, [resizingColumn]: newWidth }));
     };
     
     const handleMouseUp = () => {
@@ -3677,7 +3576,7 @@ function ProjectGanttView({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [resizingColumn, resizeStartX, resizeStartBaseWidth, visibleColumns, scaleFactor]);
+  }, [resizingColumn, resizeStartX, resizeStartWidth]);
   
   // Column context menu (right-click to remove)
   const handleColumnContextMenu = (e: React.MouseEvent, colId: GanttColumn) => {
@@ -4158,9 +4057,10 @@ function ProjectGanttView({
         </div>
         {/* Split-pane Gantt layout with resizable panels */}
         <ResizablePanelGroup direction="horizontal" className="h-[500px] text-[11px]">
-          {/* Left pane: Metadata columns (no horizontal scroll - columns scale to fit) */}
+          {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
           <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
-            <div ref={leftPanelRef} className="h-full overflow-y-auto relative">
+            <div className="h-full overflow-x-auto overflow-y-auto relative">
+              <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Header row */}
               <div className="flex border-b bg-muted/50 sticky top-0 z-10">
                 <div className="w-8 flex-shrink-0 border-r p-1"></div>
@@ -4325,6 +4225,7 @@ function ProjectGanttView({
                   {/* Spacer for add column button */}
                   <div className="flex-shrink-0 p-1 w-8" />
                 </div>
+              </div>
             </div>
           </ResizablePanel>
           
