@@ -2700,6 +2700,9 @@ function ProjectGanttTaskRowMeta({
   onEditDependencies,
   columnWidths,
   showBaseline,
+  baselineSelectionMode,
+  isSelectedForBaseline,
+  onToggleBaselineSelection,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -2716,6 +2719,9 @@ function ProjectGanttTaskRowMeta({
   onEditDependencies: (task: Task) => void;
   columnWidths?: Record<GanttColumn, number>;
   showBaseline: boolean;
+  baselineSelectionMode: boolean;
+  isSelectedForBaseline: boolean;
+  onToggleBaselineSelection: (taskId: number, hasChildren: boolean) => void;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2782,11 +2788,28 @@ function ProjectGanttTaskRowMeta({
   const hasBaseline = task.baselineStartDate && task.baselineEndDate;
   const rowHeight = showBaseline && hasBaseline ? 'h-[36px]' : 'h-[28px]';
 
+  const hasValidDates = task.startDate && task.endDate;
+
   return (
     <div 
-      className={cn("flex border-b hover:bg-muted/30 transition-colors group", rowHeight)}
+      className={cn(
+        "flex border-b hover:bg-muted/30 transition-colors group", 
+        rowHeight,
+        isSelectedForBaseline && baselineSelectionMode && "bg-primary/5"
+      )}
       data-testid={`gantt-task-meta-${task.id}`}
     >
+      {/* Baseline selection checkbox column */}
+      {baselineSelectionMode && (
+        <div className="w-8 flex-shrink-0 border-r flex items-center justify-center">
+          <Checkbox
+            checked={isSelectedForBaseline}
+            onCheckedChange={() => onToggleBaselineSelection(task.id, hasChildren)}
+            disabled={!hasValidDates}
+            data-testid={`baseline-select-${task.id}`}
+          />
+        </div>
+      )}
       {/* Actions column */}
       <div className="w-8 flex-shrink-0 border-r flex items-center justify-center">
         <DropdownMenu>
@@ -3611,6 +3634,16 @@ function ProjectGanttView({
   const [isBaselinePending, setIsBaselinePending] = useState(false);
   const [baselineSelectionMode, setBaselineSelectionMode] = useState(false);
   
+  // Centralized list of tasks valid for baselining (have start and end dates)
+  const validBaselineTasks = useMemo(() => 
+    tasks.filter(t => t.startDate && t.endDate), 
+    [tasks]
+  );
+  const validBaselineTaskIds = useMemo(() => 
+    new Set(validBaselineTasks.map(t => t.id)),
+    [validBaselineTasks]
+  );
+  
   // Column widths - use fixed pixel widths (no scaling)
   const [columnWidths, setColumnWidths] = useState<Record<GanttColumn, number>>(() => {
     const initial: Record<string, number> = {};
@@ -4029,7 +4062,7 @@ function ProjectGanttView({
     });
   };
 
-  const handleBaselineSubmit = async () => {
+  const handleBaselineSubmit = async (): Promise<boolean> => {
     setIsBaselinePending(true);
     try {
       const taskIds = baselineMode === 'selected' ? Array.from(selectedTasksForBaseline) : undefined;
@@ -4052,12 +4085,14 @@ function ProjectGanttView({
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
       setIsBaselineDialogOpen(false);
       setShowBaseline(true);
+      return true;
     } catch (error) {
       toast({ 
         title: "Error", 
         description: "Failed to set baseline", 
         variant: "destructive" 
       });
+      return false;
     } finally {
       setIsBaselinePending(false);
     }
@@ -4204,7 +4239,7 @@ function ProjectGanttView({
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="p-0">
+      <CardContent className="p-0 flex flex-col">
         <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">
@@ -4305,6 +4340,22 @@ function ProjectGanttView({
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Header row */}
               <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+                {/* Baseline selection header column */}
+                {baselineSelectionMode && (
+                  <div className="w-8 flex-shrink-0 border-r p-1 flex items-center justify-center">
+                    <Checkbox
+                      checked={selectedTasksForBaseline.size === validBaselineTasks.length && validBaselineTasks.length > 0}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedTasksForBaseline(new Set(validBaselineTasks.map(t => t.id)));
+                        } else {
+                          setSelectedTasksForBaseline(new Set());
+                        }
+                      }}
+                      data-testid="baseline-select-all"
+                    />
+                  </div>
+                )}
                 <div className="w-8 flex-shrink-0 border-r p-1"></div>
                 {visibleColumns.map(colId => {
                   const col = GANTT_COLUMNS.find(c => c.id === colId);
@@ -4440,11 +4491,15 @@ function ProjectGanttView({
                       onEditDependencies={handleEditDependencies}
                       columnWidths={columnWidths}
                       showBaseline={showBaseline}
+                      baselineSelectionMode={baselineSelectionMode}
+                      isSelectedForBaseline={selectedTasksForBaseline.has(task.id)}
+                      onToggleBaselineSelection={toggleTaskForBaseline}
                     />
                   ))
                 )}
                 {/* Add task row */}
                 <div className="flex border-t bg-muted/20">
+                  {baselineSelectionMode && <div className="w-8 flex-shrink-0 border-r p-1" />}
                   <div className="w-8 flex-shrink-0 border-r p-1" />
                   {visibleColumns.map(colId => {
                     const colConfig = GANTT_COLUMNS.find(c => c.id === colId);
@@ -4509,6 +4564,69 @@ function ProjectGanttView({
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
+
+        {/* Action bar for baseline selection mode */}
+        {baselineSelectionMode && (
+          <div className="bg-background border-t p-3 flex items-center justify-between gap-4 flex-shrink-0">
+            <div className="flex items-center gap-2 text-sm">
+              <Flag className="h-4 w-4 text-primary" />
+              <span className="font-medium">{selectedTasksForBaseline.size} task{selectedTasksForBaseline.size !== 1 ? 's' : ''} selected</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setSelectedTasksForBaseline(new Set(validBaselineTasks.map(t => t.id)))}
+                data-testid="button-select-all-baseline"
+              >
+                Select All
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setSelectedTasksForBaseline(new Set())}
+                data-testid="button-clear-baseline-selection"
+              >
+                Clear
+              </Button>
+              <div className="w-px h-6 bg-border mx-1" />
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setBaselineSelectionMode(false);
+                  setSelectedTasksForBaseline(new Set());
+                }}
+                data-testid="button-cancel-baseline-selection"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={async () => {
+                  setBaselineMode('selected');
+                  const success = await handleBaselineSubmit();
+                  if (success) {
+                    setBaselineSelectionMode(false);
+                    setSelectedTasksForBaseline(new Set());
+                  }
+                }}
+                disabled={selectedTasksForBaseline.size === 0 || isBaselinePending}
+                data-testid="button-apply-baseline-selection"
+              >
+                {isBaselinePending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Applying...
+                  </>
+                ) : (
+                  <>
+                    <Flag className="h-4 w-4 mr-2" />
+                    Apply Baseline
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
 
       {/* Dependencies Dialog */}
