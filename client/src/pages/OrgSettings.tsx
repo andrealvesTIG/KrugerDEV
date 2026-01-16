@@ -91,63 +91,110 @@ export default function OrgSettings() {
         </div>
       </div>
 
-      <Tabs defaultValue="general" orientation="vertical" className="flex gap-6">
-        <TabsList className="flex-col h-fit w-56 bg-card border rounded-lg p-1">
-          <TabsTrigger value="general" className="w-full justify-start gap-3" data-testid="nav-general">
-            <Building2 className="h-4 w-4" />
-            General
-          </TabsTrigger>
-          <TabsTrigger value="modules" className="w-full justify-start gap-3" data-testid="nav-modules">
-            <Eye className="h-4 w-4" />
-            Module Visibility
-          </TabsTrigger>
-          <TabsTrigger value="intake" className="w-full justify-start gap-3" data-testid="nav-intake">
-            <GitBranch className="h-4 w-4" />
-            Intake Workflow
-          </TabsTrigger>
-          <TabsTrigger value="members" className="w-full justify-start gap-3" data-testid="nav-members">
-            <Users className="h-4 w-4" />
-            Team Members
-          </TabsTrigger>
-          <TabsTrigger value="recycle" className="w-full justify-start gap-3" data-testid="nav-recycle">
-            <Trash2 className="h-4 w-4" />
-            Recycle Bin
-          </TabsTrigger>
-          <TabsTrigger value="demo" className="w-full justify-start gap-3" data-testid="nav-demo">
-            <Sparkles className="h-4 w-4" />
-            Demo Data
-          </TabsTrigger>
-          <TabsTrigger value="integrations" className="w-full justify-start gap-3" data-testid="nav-integrations">
-            <Plug className="h-4 w-4" />
-            Integrations
-          </TabsTrigger>
-        </TabsList>
-
-        <div className="flex-1 min-w-0">
-          <TabsContent value="general" className="mt-0">
-            <GeneralSection organization={currentOrganization} />
-          </TabsContent>
-          <TabsContent value="modules" className="mt-0">
-            <ModuleVisibilitySection organization={currentOrganization} />
-          </TabsContent>
-          <TabsContent value="intake" className="mt-0">
-            <IntakeWorkflowSection organizationId={currentOrganization.id} />
-          </TabsContent>
-          <TabsContent value="members" className="mt-0">
-            <MembersSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
-          </TabsContent>
-          <TabsContent value="recycle" className="mt-0">
-            <RecycleBinSection organizationId={currentOrganization.id} />
-          </TabsContent>
-          <TabsContent value="demo" className="mt-0">
-            <DemoDataSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
-          </TabsContent>
-          <TabsContent value="integrations" className="mt-0">
-            <IntegrationsSection organizationId={currentOrganization.id} />
-          </TabsContent>
-        </div>
-      </Tabs>
+      <OrgSettingsTabs currentOrganization={currentOrganization} />
     </div>
+  );
+}
+
+const settingsTabs = [
+  { value: "general", label: "General", icon: Building2 },
+  { value: "modules", label: "Module Visibility", icon: Eye },
+  { value: "intake", label: "Intake Workflow", icon: GitBranch },
+  { value: "members", label: "Team Members", icon: Users },
+  { value: "recycle", label: "Recycle Bin", icon: Trash2 },
+  { value: "demo", label: "Demo Data", icon: Sparkles },
+  { value: "integrations", label: "Integrations", icon: Plug },
+];
+
+function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organization }) {
+  const [activeTab, setActiveTab] = useState("general");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  const activeTabInfo = settingsTabs.find(t => t.value === activeTab) || settingsTabs[0];
+  const ActiveIcon = activeTabInfo.icon;
+
+  return (
+    <Tabs value={activeTab} onValueChange={(value) => {
+      setActiveTab(value);
+      setIsMobileMenuOpen(false);
+    }} orientation="vertical" className="flex flex-col md:flex-row gap-4 md:gap-6">
+      {/* Mobile: Collapsible menu header */}
+      <div className="md:hidden">
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="flex items-center justify-between w-full p-3 bg-card border rounded-lg"
+          data-testid="button-mobile-settings-menu"
+        >
+          <div className="flex items-center gap-3">
+            <ActiveIcon className="h-4 w-4" />
+            <span className="font-medium">{activeTabInfo.label}</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 transition-transform ${isMobileMenuOpen ? 'rotate-180' : ''}`} />
+        </button>
+        
+        {/* Mobile: Collapsible menu with actual TabsTriggers */}
+        <div className={`overflow-hidden transition-all duration-200 ${isMobileMenuOpen ? 'max-h-96 mt-2' : 'max-h-0'}`}>
+          <TabsList className="flex flex-col h-fit w-full bg-card border rounded-lg p-1">
+            {settingsTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger 
+                  key={tab.value}
+                  value={tab.value} 
+                  className="w-full justify-start gap-3" 
+                  data-testid={`nav-mobile-${tab.value}`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
+      </div>
+
+      {/* Desktop: Sidebar tabs */}
+      <TabsList className="hidden md:flex flex-col h-fit w-56 bg-card border rounded-lg p-1">
+        {settingsTabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <TabsTrigger 
+              key={tab.value}
+              value={tab.value} 
+              className="w-full justify-start gap-3" 
+              data-testid={`nav-${tab.value}`}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
+
+      <div className="flex-1 min-w-0">
+        <TabsContent value="general" className="mt-0">
+          <GeneralSection organization={currentOrganization} />
+        </TabsContent>
+        <TabsContent value="modules" className="mt-0">
+          <ModuleVisibilitySection organization={currentOrganization} />
+        </TabsContent>
+        <TabsContent value="intake" className="mt-0">
+          <IntakeWorkflowSection organizationId={currentOrganization.id} />
+        </TabsContent>
+        <TabsContent value="members" className="mt-0">
+          <MembersSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
+        </TabsContent>
+        <TabsContent value="recycle" className="mt-0">
+          <RecycleBinSection organizationId={currentOrganization.id} />
+        </TabsContent>
+        <TabsContent value="demo" className="mt-0">
+          <DemoDataSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
+        </TabsContent>
+        <TabsContent value="integrations" className="mt-0">
+          <IntegrationsSection organizationId={currentOrganization.id} />
+        </TabsContent>
+      </div>
+    </Tabs>
   );
 }
 
