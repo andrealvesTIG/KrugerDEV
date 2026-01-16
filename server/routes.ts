@@ -4379,6 +4379,36 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(400).json({ message: "A task cannot depend on itself" });
       }
       
+      // Check if the dependent task (taskId) has children - only leaf tasks can have dependencies
+      const dependentTask = await storage.getTask(taskId);
+      if (dependentTask) {
+        const allTasks = await storage.getTasksByProject(dependentTask.projectId);
+        const sortedTasks = [...allTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
+        const taskIdx = sortedTasks.findIndex(t => t.id === taskId);
+        if (taskIdx >= 0 && taskIdx < sortedTasks.length - 1) {
+          const taskLevel = dependentTask.outlineLevel || 1;
+          const nextTaskLevel = sortedTasks[taskIdx + 1].outlineLevel || 1;
+          if (nextTaskLevel > taskLevel) {
+            return res.status(400).json({ message: "Dependencies are only allowed for leaf tasks (tasks without children)" });
+          }
+        }
+      }
+      
+      // Check if the predecessor task (dependsOnTaskId) has children
+      const predecessorTask = await storage.getTask(dependsOnTaskId);
+      if (predecessorTask) {
+        const allTasks = await storage.getTasksByProject(predecessorTask.projectId);
+        const sortedTasks = [...allTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
+        const taskIdx = sortedTasks.findIndex(t => t.id === dependsOnTaskId);
+        if (taskIdx >= 0 && taskIdx < sortedTasks.length - 1) {
+          const taskLevel = predecessorTask.outlineLevel || 1;
+          const nextTaskLevel = sortedTasks[taskIdx + 1].outlineLevel || 1;
+          if (nextTaskLevel > taskLevel) {
+            return res.status(400).json({ message: "Cannot add dependency on a parent task (tasks with children)" });
+          }
+        }
+      }
+      
       const dependency = await storage.createTaskDependency({
         taskId,
         dependsOnTaskId,
@@ -4389,21 +4419,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       let newStartDate: string | null = null;
       let newEndDate: string | null = null;
       
-      const predecessorTask = await storage.getTask(dependsOnTaskId);
-      const dependentTask = await storage.getTask(taskId);
+      // Re-fetch tasks for date adjustment (fresh data after dependency creation)
+      const predecessorTaskForDates = await storage.getTask(dependsOnTaskId);
+      const dependentTaskForDates = await storage.getTask(taskId);
       
-      if (predecessorTask?.endDate && dependentTask) {
+      if (predecessorTaskForDates?.endDate && dependentTaskForDates) {
         // Calculate new start date: predecessor end date + 1 day
-        const predecessorEnd = new Date(predecessorTask.endDate);
+        const predecessorEnd = new Date(predecessorTaskForDates.endDate);
         const nextDay = new Date(predecessorEnd);
         nextDay.setDate(nextDay.getDate() + 1);
         newStartDate = nextDay.toISOString().split('T')[0];
         
         // If current start is before the new start, adjust it
-        const currentStart = dependentTask.startDate ? new Date(dependentTask.startDate) : null;
+        const currentStart = dependentTaskForDates.startDate ? new Date(dependentTaskForDates.startDate) : null;
         if (!currentStart || currentStart < nextDay) {
           // Calculate duration to maintain task length
-          const currentEnd = dependentTask.endDate ? new Date(dependentTask.endDate) : null;
+          const currentEnd = dependentTaskForDates.endDate ? new Date(dependentTaskForDates.endDate) : null;
           const duration = currentStart && currentEnd ? 
             Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) : 0;
           

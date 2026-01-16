@@ -2307,7 +2307,17 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
                   
                   {/* Dependencies Tab */}
                   <TabsContent value="dependencies" className="mt-0">
-                    {editingTask ? (
+                    {editingTask && (() => {
+                      const editLevel = editingTask.outlineLevel || 1;
+                      const idx = tasks?.findIndex(x => x.id === editingTask.id) ?? -1;
+                      const hasChildren = idx >= 0 && tasks && idx < tasks.length - 1 && ((tasks[idx + 1].outlineLevel || 1) > editLevel);
+                      return hasChildren;
+                    })() ? (
+                      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md flex items-center gap-2">
+                        <Link2 className="h-4 w-4" />
+                        <span>Dependencies are only available for leaf tasks. This is a summary task with children.</span>
+                      </div>
+                    ) : editingTask ? (
                       <TaskDependenciesSection 
                         taskId={editingTask.id} 
                         projectId={projectId}
@@ -3685,10 +3695,14 @@ function TaskDependenciesSection({
   const { toast } = useToast();
   const [selectedPredecessor, setSelectedPredecessor] = useState<string>("");
 
-  // Get tasks that can be predecessors (exclude self and existing predecessors)
-  const availablePredecessors = allTasks.filter(task => {
+  // Get tasks that can be predecessors (exclude self, existing predecessors, and parent tasks)
+  const availablePredecessors = allTasks.filter((task, index) => {
     if (task.id === taskId) return false;
     if (dependencies?.some(d => d.dependsOnTaskId === task.id)) return false;
+    // Exclude tasks with children (parent/summary tasks)
+    const taskLevel = task.outlineLevel || 1;
+    const hasChildren = index < allTasks.length - 1 && ((allTasks[index + 1].outlineLevel || 1) > taskLevel);
+    if (hasChildren) return false;
     return true;
   });
 
