@@ -710,6 +710,29 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     })
   }));
   
+  // Ensure timesheets module is in the menu group
+  const hasTimesheets = cleanedStructure.some(g => 
+    g.items.some(item => item.type === "module" && item.key === "timesheets")
+  );
+  
+  if (!hasTimesheets) {
+    const menuGroup = cleanedStructure.find(g => g.id === "menu");
+    if (menuGroup) {
+      cleanedStructure = cleanedStructure.map(g => {
+        if (g.id === "menu") {
+          // Add timesheets after issues if it exists, otherwise at the end
+          const issuesIndex = g.items.findIndex(item => item.type === "module" && item.key === "issues");
+          const insertIndex = issuesIndex >= 0 ? issuesIndex + 1 : g.items.length;
+          const newItems = [...g.items];
+          newItems.splice(insertIndex, 0, { type: "module" as const, key: "timesheets", hidden: false });
+          return { ...g, items: newItems };
+        }
+        return g;
+      });
+    }
+  }
+  
+  // Ensure user-guide is in help group
   const helpGroup = cleanedStructure.find(g => g.id === "help");
   const hasUserGuide = cleanedStructure.some(g => 
     g.items.some(item => item.type === "module" && item.key === "user-guide")
