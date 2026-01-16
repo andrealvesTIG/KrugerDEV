@@ -30,6 +30,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { useTaskHistory } from "@/hooks/use-tasks";
 import { Textarea } from "@/components/ui/textarea";
 import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
@@ -2698,6 +2699,7 @@ function ProjectGanttTaskRowMeta({
   onClearBaseline,
   onEditDependencies,
   columnWidths,
+  showBaseline,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
@@ -2713,6 +2715,7 @@ function ProjectGanttTaskRowMeta({
   onClearBaseline: (task: Task) => void;
   onEditDependencies: (task: Task) => void;
   columnWidths?: Record<GanttColumn, number>;
+  showBaseline: boolean;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2775,9 +2778,13 @@ function ProjectGanttTaskRowMeta({
   const canIndent = currentLevel < 6;
   const canOutdent = currentLevel > 1;
 
+  // Match timeline row height when baseline is shown
+  const hasBaseline = task.baselineStartDate && task.baselineEndDate;
+  const rowHeight = showBaseline && hasBaseline ? 'h-[36px]' : 'h-[28px]';
+
   return (
     <div 
-      className="flex border-b hover:bg-muted/30 transition-colors group h-[28px]"
+      className={cn("flex border-b hover:bg-muted/30 transition-colors group", rowHeight)}
       data-testid={`gantt-task-meta-${task.id}`}
     >
       {/* Actions column */}
@@ -3252,46 +3259,84 @@ function ProjectGanttTaskRowTimeline({
   minDate, 
   maxDate,
   hasChildren,
+  showBaseline,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
   minDate: Date;
   maxDate: Date;
   hasChildren: boolean;
+  showBaseline: boolean;
 }) {
   const hasValidDates = task.startDate && task.endDate;
   const start = hasValidDates ? parseISO(task.startDate) : null;
   const end = hasValidDates ? parseISO(task.endDate) : null;
   
+  // Calculate baseline bar position
+  const hasBaseline = task.baselineStartDate && task.baselineEndDate;
+  const baselineStart = hasBaseline ? parseISO(task.baselineStartDate!) : null;
+  const baselineEnd = hasBaseline ? parseISO(task.baselineEndDate!) : null;
+  
   let leftPercent = 0;
   let widthPercent = 0;
+  let baselineLeftPercent = 0;
+  let baselineWidthPercent = 0;
+  
+  const totalDays = differenceInDays(maxDate, minDate) || 1;
   
   if (start && end) {
-    const totalDays = differenceInDays(maxDate, minDate) || 1;
     const startOffset = differenceInDays(start, minDate);
     const duration = differenceInDays(end, start) + 1;
     leftPercent = (startOffset / totalDays) * 100;
     widthPercent = (duration / totalDays) * 100;
   }
+  
+  if (baselineStart && baselineEnd) {
+    const baselineStartOffset = differenceInDays(baselineStart, minDate);
+    const baselineDuration = differenceInDays(baselineEnd, baselineStart) + 1;
+    baselineLeftPercent = (baselineStartOffset / totalDays) * 100;
+    baselineWidthPercent = (baselineDuration / totalDays) * 100;
+  }
 
   const progressPercent = task.progress || 0;
+  
+  // Determine row height - taller when showing baseline
+  const rowHeight = showBaseline && hasBaseline ? 'h-[36px]' : 'h-[28px]';
 
   return (
     <div 
-      className={cn("relative h-[28px] border-b hover:bg-muted/30 transition-colors", hasChildren && "bg-muted/20")}
+      className={cn("relative border-b hover:bg-muted/30 transition-colors", rowHeight, hasChildren && "bg-muted/20")}
       data-testid={`gantt-task-timeline-${task.id}`}
     >
+      {/* Baseline bar (rendered below main bar) */}
+      {showBaseline && hasBaseline && (
+        <div
+          className="absolute rounded-sm bg-muted-foreground/30 dark:bg-muted-foreground/20"
+          style={{
+            left: `${Math.max(0, baselineLeftPercent)}%`,
+            width: `${Math.min(100 - Math.max(0, baselineLeftPercent), baselineWidthPercent)}%`,
+            minWidth: '8px',
+            top: '22px',
+            height: '6px',
+          }}
+          title={`Baseline: ${task.baselineStartDate} - ${task.baselineEndDate}`}
+        />
+      )}
+      
+      {/* Main task bar */}
       {hasValidDates ? (
         <div
           className={cn(
-            "absolute top-1 bottom-1 rounded-sm overflow-hidden cursor-pointer",
+            "absolute rounded-sm overflow-hidden cursor-pointer",
             task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
             task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
           )}
           style={{
             left: `${Math.max(0, leftPercent)}%`,
             width: `${Math.min(100 - Math.max(0, leftPercent), widthPercent)}%`,
-            minWidth: '24px'
+            minWidth: '24px',
+            top: '4px',
+            height: showBaseline && hasBaseline ? '16px' : '20px',
           }}
           onClick={() => onTaskClick(task)}
         >
@@ -3557,6 +3602,13 @@ function ProjectGanttView({
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
   const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(DEFAULT_GANTT_COLUMNS);
   const [newTaskName, setNewTaskName] = useState('');
+  
+  // Baseline state
+  const [showBaseline, setShowBaseline] = useState(false);
+  const [isBaselineDialogOpen, setIsBaselineDialogOpen] = useState(false);
+  const [baselineMode, setBaselineMode] = useState<'entire' | 'selected'>('entire');
+  const [selectedTasksForBaseline, setSelectedTasksForBaseline] = useState<Set<number>>(new Set());
+  const [isBaselinePending, setIsBaselinePending] = useState(false);
   
   // Column widths - use fixed pixel widths (no scaling)
   const [columnWidths, setColumnWidths] = useState<Record<GanttColumn, number>>(() => {
@@ -3922,6 +3974,126 @@ function ProjectGanttView({
       setReorderColumns(newCols);
     }
   };
+
+  // Baseline handlers
+  const openBaselineDialog = () => {
+    setBaselineMode('entire');
+    setSelectedTasksForBaseline(new Set());
+    setIsBaselineDialogOpen(true);
+  };
+
+  const toggleTaskForBaseline = (taskId: number, includeChildren: boolean = false) => {
+    setSelectedTasksForBaseline(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+        // Also remove children if this is a summary task
+        if (includeChildren) {
+          const taskIndex = tasks.findIndex(t => t.id === taskId);
+          const task = tasks[taskIndex];
+          if (task) {
+            const taskLevel = task.outlineLevel || 1;
+            for (let i = taskIndex + 1; i < tasks.length; i++) {
+              const childTask = tasks[i];
+              const childLevel = childTask.outlineLevel || 1;
+              if (childLevel > taskLevel) {
+                next.delete(childTask.id);
+              } else {
+                break;
+              }
+            }
+          }
+        }
+      } else {
+        next.add(taskId);
+        // Also add children if this is a summary task
+        if (includeChildren) {
+          const taskIndex = tasks.findIndex(t => t.id === taskId);
+          const task = tasks[taskIndex];
+          if (task) {
+            const taskLevel = task.outlineLevel || 1;
+            for (let i = taskIndex + 1; i < tasks.length; i++) {
+              const childTask = tasks[i];
+              const childLevel = childTask.outlineLevel || 1;
+              if (childLevel > taskLevel) {
+                next.add(childTask.id);
+              } else {
+                break;
+              }
+            }
+          }
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleBaselineSubmit = async () => {
+    setIsBaselinePending(true);
+    try {
+      const taskIds = baselineMode === 'selected' ? Array.from(selectedTasksForBaseline) : undefined;
+      const response = await fetch(`/api/projects/${projectId}/tasks/baseline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ taskIds }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to set baseline');
+      }
+      
+      const result = await response.json();
+      toast({ 
+        title: "Baseline Set", 
+        description: `${result.updatedCount} task(s) baselined successfully` 
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+      setIsBaselineDialogOpen(false);
+      setShowBaseline(true);
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: "Failed to set baseline", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsBaselinePending(false);
+    }
+  };
+
+  const handleClearAllBaselines = async () => {
+    setIsBaselinePending(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/tasks/baseline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ clearBaseline: true }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to clear baselines');
+      }
+      
+      toast({ title: "Baselines Cleared", description: "All task baselines have been removed" });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+      setShowBaseline(false);
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: "Failed to clear baselines", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsBaselinePending(false);
+    }
+  };
+
+  // Check if any tasks have baselines
+  const hasAnyBaselines = useMemo(() => {
+    return tasks.some(t => t.baselineStartDate && t.baselineEndDate);
+  }, [tasks]);
   
   const { minDate, maxDate, dateRange, autoZoomLevel } = useMemo(() => {
     const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
@@ -4078,26 +4250,50 @@ function ProjectGanttView({
               <ArrowUpDown className="h-3.5 w-3.5" />
               Reorder
             </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-1"
+              onClick={openBaselineDialog}
+              data-testid="button-baseline-schedule"
+            >
+              <Flag className="h-3.5 w-3.5" />
+              Baseline Schedule
+            </Button>
           </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleZoomIn}
-              disabled={zoomLevels.indexOf(zoomLevel) === 0}
-              data-testid="button-gantt-zoom-in"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleZoomOut}
-              disabled={zoomLevels.indexOf(zoomLevel) === zoomLevels.length - 1}
-              data-testid="button-gantt-zoom-out"
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-3">
+            {hasAnyBaselines && (
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={showBaseline}
+                  onCheckedChange={setShowBaseline}
+                  data-testid="toggle-show-baseline"
+                />
+                <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setShowBaseline(!showBaseline)}>
+                  Show Baseline
+                </Label>
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleZoomIn}
+                disabled={zoomLevels.indexOf(zoomLevel) === 0}
+                data-testid="button-gantt-zoom-in"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleZoomOut}
+                disabled={zoomLevels.indexOf(zoomLevel) === zoomLevels.length - 1}
+                data-testid="button-gantt-zoom-out"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
         {/* Split-pane Gantt layout with resizable panels */}
@@ -4242,6 +4438,7 @@ function ProjectGanttView({
                       onClearBaseline={handleClearBaseline}
                       onEditDependencies={handleEditDependencies}
                       columnWidths={columnWidths}
+                      showBaseline={showBaseline}
                     />
                   ))
                 )}
@@ -4301,6 +4498,7 @@ function ProjectGanttView({
                       minDate={adjustedMinDate}
                       maxDate={adjustedMaxDate}
                       hasChildren={!!taskHasChildren[task.id]}
+                      showBaseline={showBaseline}
                     />
                   ))
                 )}
@@ -4381,6 +4579,178 @@ function ProjectGanttView({
             </Button>
             <Button onClick={applyColumnOrder} data-testid="button-apply-column-order">
               Apply Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Baseline Schedule Dialog */}
+      <Dialog open={isBaselineDialogOpen} onOpenChange={setIsBaselineDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Flag className="h-5 w-5" />
+              Baseline Schedule
+            </DialogTitle>
+            <DialogDescription>
+              Capture the current schedule as a baseline for comparison
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Baseline Options</Label>
+              <div className="space-y-2">
+                <div 
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors",
+                    baselineMode === 'entire' ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                  )}
+                  onClick={() => setBaselineMode('entire')}
+                  data-testid="baseline-option-entire"
+                >
+                  <div className={cn(
+                    "w-4 h-4 rounded-full border-2 flex items-center justify-center",
+                    baselineMode === 'entire' ? "border-primary" : "border-muted-foreground"
+                  )}>
+                    {baselineMode === 'entire' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">Baseline Entire Schedule</div>
+                    <div className="text-xs text-muted-foreground">Set baseline for all {tasks.length} tasks in this project</div>
+                  </div>
+                </div>
+                <div 
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors",
+                    baselineMode === 'selected' ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                  )}
+                  onClick={() => setBaselineMode('selected')}
+                  data-testid="baseline-option-selected"
+                >
+                  <div className={cn(
+                    "w-4 h-4 rounded-full border-2 flex items-center justify-center",
+                    baselineMode === 'selected' ? "border-primary" : "border-muted-foreground"
+                  )}>
+                    {baselineMode === 'selected' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">Baseline Selected Tasks</div>
+                    <div className="text-xs text-muted-foreground">Choose specific tasks or summary tasks to baseline</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {baselineMode === 'selected' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Select Tasks ({selectedTasksForBaseline.size} selected)</Label>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setSelectedTasksForBaseline(new Set(tasks.map(t => t.id)))}
+                      data-testid="button-select-all-tasks"
+                    >
+                      Select All
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setSelectedTasksForBaseline(new Set())}
+                      data-testid="button-deselect-all-tasks"
+                    >
+                      Clear All
+                    </Button>
+                  </div>
+                </div>
+                <div className="border rounded-md max-h-[300px] overflow-y-auto">
+                  {tasks.map((task, idx) => {
+                    const taskLevel = task.outlineLevel || 1;
+                    const hasChildren = idx + 1 < tasks.length && (tasks[idx + 1].outlineLevel || 1) > taskLevel;
+                    const isSelected = selectedTasksForBaseline.has(task.id);
+                    const hasValidDates = task.startDate && task.endDate;
+                    
+                    return (
+                      <div 
+                        key={task.id}
+                        className={cn(
+                          "flex items-center gap-2 p-2 border-b last:border-b-0 transition-colors",
+                          isSelected ? "bg-primary/5" : "hover:bg-muted/30",
+                          !hasValidDates && "opacity-50"
+                        )}
+                        style={{ paddingLeft: `${(taskLevel - 1) * 16 + 8}px` }}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleTaskForBaseline(task.id, hasChildren)}
+                          disabled={!hasValidDates}
+                          data-testid={`baseline-task-checkbox-${task.id}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            {hasChildren && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0">Summary</Badge>
+                            )}
+                            <span className={cn(
+                              "text-sm truncate",
+                              hasChildren && "font-medium"
+                            )}>
+                              {task.name}
+                            </span>
+                          </div>
+                          {hasValidDates && (
+                            <div className="text-xs text-muted-foreground">
+                              {format(parseISO(task.startDate), 'MMM d')} - {format(parseISO(task.endDate), 'MMM d, yyyy')}
+                            </div>
+                          )}
+                          {!hasValidDates && (
+                            <div className="text-xs text-amber-600">No dates set</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {hasAnyBaselines && (
+              <div className="pt-2 border-t">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="text-destructive hover:text-destructive"
+                  onClick={handleClearAllBaselines}
+                  disabled={isBaselinePending}
+                  data-testid="button-clear-all-baselines"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Clear All Baselines
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBaselineDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleBaselineSubmit}
+              disabled={isBaselinePending || (baselineMode === 'selected' && selectedTasksForBaseline.size === 0)}
+              data-testid="button-apply-baseline"
+            >
+              {isBaselinePending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Applying...
+                </>
+              ) : (
+                <>
+                  <Flag className="h-4 w-4 mr-2" />
+                  Set Baseline
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

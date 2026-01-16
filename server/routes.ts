@@ -4321,6 +4321,60 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.status(204).send();
   });
 
+  // Batch baseline update for tasks
+  app.post('/api/projects/:projectId/tasks/baseline', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const projectId = Number(req.params.projectId);
+      
+      // Validate project exists
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const { taskIds, clearBaseline } = req.body as { taskIds?: number[]; clearBaseline?: boolean };
+      
+      // Get all tasks for the project
+      const allTasks = await storage.getTasks(projectId);
+      
+      // Determine which tasks to update
+      let tasksToUpdate = allTasks;
+      if (taskIds && taskIds.length > 0) {
+        tasksToUpdate = allTasks.filter(t => taskIds.includes(t.id));
+      }
+      
+      // Update baseline dates for each task
+      const updates = await Promise.all(
+        tasksToUpdate.map(async (task) => {
+          if (clearBaseline) {
+            return storage.updateTask(task.id, {
+              baselineStartDate: null,
+              baselineEndDate: null,
+            });
+          } else {
+            // Only set baseline if task has valid dates
+            if (task.startDate && task.endDate) {
+              return storage.updateTask(task.id, {
+                baselineStartDate: task.startDate,
+                baselineEndDate: task.endDate,
+              });
+            }
+            return task;
+          }
+        })
+      );
+      
+      res.json({ 
+        message: clearBaseline ? "Baseline cleared" : "Baseline set",
+        updatedCount: updates.length 
+      });
+    } catch (err) {
+      console.error('Error updating baselines:', err);
+      res.status(500).json({ message: "Error updating baselines" });
+    }
+  });
+
   // Project Financials
   app.get(api.projectFinancials.list.path, async (req, res) => {
     const projectId = Number(req.params.projectId);
