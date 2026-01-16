@@ -52,7 +52,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { GanttDependencyLinks } from "@/components/GanttDependencyLinks";
 import { useLocation } from "wouter";
-import { useSidebarSafe } from "@/components/ui/sidebar";
+import { useSidebarState } from "@/components/layout/Sidebar";
 
 const PROJECT_STAGES = [
   { value: "Initiation", label: "Initiation", description: "Project kickoff" },
@@ -1826,8 +1826,9 @@ function TasksTab({ projectId, projectName }: { projectId: number; projectName?:
   const inviteAssignedRef = useRef(false);
   
   // Get sidebar state to calculate fullscreen positioning
-  const { state: sidebarState } = useSidebarSafe();
-  const sidebarWidth = sidebarState === "collapsed" ? 48 : 256;
+  // Sidebar is w-72 (288px) when expanded, w-20 (80px) when collapsed
+  const { isCollapsed } = useSidebarState();
+  const sidebarWidth = isCollapsed ? 80 : 288;
   
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
