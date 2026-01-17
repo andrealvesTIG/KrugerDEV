@@ -5401,7 +5401,11 @@ function ProjectGanttView({
                     className="flex border-b bg-primary/10 font-semibold h-[28px]"
                     data-testid="project-summary-row"
                   >
+                    {/* Bulk selection column placeholder */}
+                    <div className="w-8 flex-shrink-0 border-r p-1" />
+                    {/* Baseline selection column (conditional) */}
                     {baselineSelectionMode && <div className="w-8 flex-shrink-0 border-r p-1" />}
+                    {/* Icon column (same position as drag handle) */}
                     <div className="w-8 flex-shrink-0 border-r p-1 flex items-center justify-center">
                       <FolderKanban className="h-3.5 w-3.5 text-primary" />
                     </div>
