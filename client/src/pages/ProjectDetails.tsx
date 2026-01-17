@@ -1967,12 +1967,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
       const end = durationDays === 0 ? start : addDays(start, durationDays - 1);
       form.setValue("endDate", format(end, 'yyyy-MM-dd'));
       form.setValue("durationDays", durationDays);
-      // Auto-convert to milestone if user explicitly sets duration to 0
-      if (durationDays === 0 && !isMilestone) {
-        setIsMilestone(true);
-      }
     }
-  }, [startDate, durationDays, form, isMilestone]);
+  }, [startDate, durationDays, form]);
   
   // Handle duration input change - allow empty during typing
   const handleDurationInputChange = (value: string) => {
