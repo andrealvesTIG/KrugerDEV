@@ -404,16 +404,16 @@ export default function SignInPage() {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {/* Free Plan */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            {/* Free Forever Plan */}
             <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-700">
               <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold text-white mb-2">Free</h3>
+                <h3 className="text-xl font-semibold text-white mb-2">Free Forever</h3>
                 <div className="text-4xl font-bold text-white mb-1">$0</div>
-                <p className="text-slate-400 text-sm">Forever free</p>
+                <p className="text-slate-400 text-sm">1 user included</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["Up to 5 team members", "Unlimited projects", "Basic dashboards", "Email support", "Community access"].map((feature, i) => (
+                {["Unlimited projects", "Basic dashboards", "Gantt charts", "Email support", "Community access"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
@@ -425,25 +425,45 @@ export default function SignInPage() {
               </Button>
             </div>
             
-            {/* Pro Plan */}
+            {/* Professional Plan */}
+            <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-700">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-semibold text-white mb-2">Professional</h3>
+                <div className="text-4xl font-bold text-white mb-1">$12</div>
+                <p className="text-slate-400 text-sm">per month, up to 3 users</p>
+              </div>
+              <ul className="space-y-3 mb-6">
+                {["Everything in Free", "Advanced reporting", "Team collaboration", "Priority email support", "MS Project import"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Button variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700" onClick={scrollToSignIn} data-testid="button-pricing-professional">
+                Start Free
+              </Button>
+            </div>
+            
+            {/* Business Plan */}
             <div className="p-6 rounded-2xl bg-gradient-to-b from-primary/10 to-slate-900/50 border-2 border-primary relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <Badge className="bg-primary text-white">Most Popular</Badge>
               </div>
               <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold text-white mb-2">Pro</h3>
-                <div className="text-4xl font-bold text-white mb-1">$15</div>
-                <p className="text-slate-400 text-sm">per user / month</p>
+                <h3 className="text-xl font-semibold text-white mb-2">Business</h3>
+                <div className="text-4xl font-bold text-white mb-1">$28</div>
+                <p className="text-slate-400 text-sm">per month, up to 25 users</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["Unlimited team members", "Advanced Gantt charts", "Resource management", "AI-powered insights", "Priority support", "Custom branding"].map((feature, i) => (
+                {["Everything in Pro", "Resource planning", "AI-powered insights", "Advanced analytics", "Priority support", "Power BI integration"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
                     <CheckCircle className="h-4 w-4 text-primary flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <Button className="w-full bg-primary hover:bg-primary/90" onClick={scrollToSignIn} data-testid="button-pricing-pro">
+              <Button className="w-full bg-primary hover:bg-primary/90" onClick={scrollToSignIn} data-testid="button-pricing-business">
                 Start Free
               </Button>
             </div>
@@ -453,10 +473,10 @@ export default function SignInPage() {
               <div className="text-center mb-6">
                 <h3 className="text-xl font-semibold text-white mb-2">Enterprise</h3>
                 <div className="text-4xl font-bold text-white mb-1">Custom</div>
-                <p className="text-slate-400 text-sm">Contact for pricing</p>
+                <p className="text-slate-400 text-sm">Unlimited users</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["Everything in Pro", "SSO / SAML", "Dedicated support", "SLA guarantee", "Custom integrations", "On-premise option"].map((feature, i) => (
+                {["Everything in Business", "SSO / SAML", "Dedicated support", "SLA guarantee", "Custom integrations", "Advanced security"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}

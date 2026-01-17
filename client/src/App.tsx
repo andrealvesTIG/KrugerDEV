@@ -10,6 +10,7 @@ import { OnboardingDialog } from "@/components/OnboardingDialog";
 import NotFound from "@/pages/not-found";
 import { ReactNode, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 // Pages
 import Dashboard from "@/pages/Dashboard";
@@ -107,12 +108,37 @@ function DashboardRedirect() {
   return null;
 }
 
+// Home page that shows SignIn for unauthenticated users, Dashboard for authenticated
+function HomePage() {
+  const { user, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <SignInPage />;
+  }
+  
+  return (
+    <AppLayout>
+      <OnboardingDialog />
+      <ModuleGuard moduleKey="dashboard">
+        <Dashboard />
+      </ModuleGuard>
+    </AppLayout>
+  );
+}
+
 function Router() {
   return (
     <AppLayout>
       <OnboardingDialog />
       <Switch>
-        <GuardedRoute path="/" component={Dashboard} moduleKey="dashboard" />
         <Route path="/dashboard"><DashboardRedirect /></Route>
         <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
         <Route path="/portfolios/:id">
@@ -155,6 +181,7 @@ function App() {
           <OrganizationProvider>
             <Toaster />
             <Switch>
+              <Route path="/" component={HomePage} />
               <Route path="/auth" component={AuthPage} />
               <Route path="/auth/verify" component={VerifyMagicLinkPage} />
               <Route path="/signin" component={SignInPage} />
