@@ -189,18 +189,19 @@ export default function SignInPage() {
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <img src={logoIcon} alt="FridayReport.AI" className="h-8 w-8" />
-              <span className="text-xl font-bold text-white">FridayReport.AI</span>
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <img src={logoIcon} alt="FridayReport.AI" className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0" />
+              <span className="text-base sm:text-xl font-bold text-white truncate">FridayReport.AI</span>
             </div>
-            <div className="flex items-center gap-4">
-              <Link href="/auth" className="text-slate-300 hover:text-white text-sm font-medium transition-colors" data-testid="link-nav-login">
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+              <Link href="/auth" className="text-slate-300 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
                 Login
               </Link>
-              <Button onClick={scrollToSignIn} size="sm" className="bg-primary hover:bg-primary/90" data-testid="button-nav-get-started">
-                Get Started Free
+              <Button onClick={scrollToSignIn} size="sm" className="bg-primary hover:bg-primary/90 text-xs sm:text-sm px-2 sm:px-3" data-testid="button-nav-get-started">
+                <span className="hidden sm:inline">Get Started Free</span>
+                <span className="sm:hidden">Start Free</span>
               </Button>
             </div>
           </div>
