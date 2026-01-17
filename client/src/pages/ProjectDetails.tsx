@@ -2070,6 +2070,10 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
               <Table className="h-4 w-4" />
               Table
             </TabsTrigger>
+            <TabsTrigger value="gantt" className="gap-2">
+              <GanttChartSquare className="h-4 w-4" />
+              Gantt
+            </TabsTrigger>
             <TabsTrigger value="kanban" className="gap-2">
               <Columns3 className="h-4 w-4" />
               Kanban
