@@ -1823,6 +1823,42 @@ const taskStatusColors = {
   "Completed": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
+// Compute WBS (Work Breakdown Structure) values based on task hierarchy
+// Returns a Map of task.id -> computed WBS string
+function computeWbsValues(tasks: Task[]): Map<number, string> {
+  const wbsMap = new Map<number, string>();
+  if (!tasks || tasks.length === 0) return wbsMap;
+  
+  // Track counters for each level
+  const levelCounters: number[] = [0, 0, 0, 0, 0, 0]; // 6 levels max
+  let lastLevel = 0;
+  
+  for (const task of tasks) {
+    const level = (task.outlineLevel || 1) - 1; // Convert to 0-indexed
+    
+    // If we're going to a higher level (lower number), reset all lower level counters
+    if (level <= lastLevel) {
+      for (let i = level + 1; i < levelCounters.length; i++) {
+        levelCounters[i] = 0;
+      }
+    }
+    
+    // Increment counter for current level
+    levelCounters[level]++;
+    
+    // Build WBS string from level counters
+    const wbsParts: number[] = [];
+    for (let i = 0; i <= level; i++) {
+      wbsParts.push(levelCounters[i]);
+    }
+    
+    wbsMap.set(task.id, wbsParts.join('.'));
+    lastLevel = level;
+  }
+  
+  return wbsMap;
+}
+
 function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: { projectId: number; projectName?: string; projectStartDate?: string | null; projectEndDate?: string | null }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading } = useTasks(projectId);
@@ -2495,7 +2531,7 @@ const zoomLabels: Record<ZoomLevel, string> = {
 };
 
 type GanttColumn = 
-  | 'taskIndex' | 'task' | 'taskNumber' | 'wbs' | 'description'
+  | 'taskIndex' | 'task' | 'taskNumber' | 'wbs' | 'outlineLevel' | 'description'
   | 'startDate' | 'endDate' | 'baselineStartDate' | 'baselineEndDate' | 'actualStartDate' | 'actualEndDate'
   | 'durationDays' | 'progress' | 'status' | 'priority' | 'taskType'
   | 'estimatedHours' | 'actualHours' | 'remainingHours'
@@ -2517,6 +2553,7 @@ const GANTT_COLUMNS: GanttColumnConfig[] = [
   // Basic
   { id: 'taskIndex', label: '#', width: 'w-12', widthPx: 48, category: 'basic' },
   { id: 'wbs', label: 'WBS', width: 'w-20', widthPx: 80, category: 'basic' },
+  { id: 'outlineLevel', label: 'Outline Level', width: 'w-20', widthPx: 80, category: 'basic' },
   { id: 'task', label: 'Task Name', width: 'w-48', widthPx: 192, category: 'basic' },
   { id: 'taskNumber', label: 'Task #', width: 'w-24', widthPx: 96, category: 'basic' },
   { id: 'description', label: 'Description', width: 'w-48', widthPx: 192, category: 'basic' },
@@ -2985,6 +3022,7 @@ function ProjectGanttTaskRowMeta({
   isSelected,
   onToggleSelection,
   hasDependencies,
+  computedWbs,
 }: { 
   task: Task;
   rowIndex: number;
@@ -3012,6 +3050,7 @@ function ProjectGanttTaskRowMeta({
   isSelected: boolean;
   onToggleSelection: (taskId: number) => void;
   hasDependencies?: boolean;
+  computedWbs?: string;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -3262,14 +3301,14 @@ function ProjectGanttTaskRowMeta({
                 />
               );
             case 'wbs':
+              // Use computed WBS if available, otherwise fall back to stored value
+              const displayWbs = computedWbs || task.wbs || '—';
               return (
-                <InlineEditCell
-                  value={task.wbs}
-                  displayValue={<span className="truncate">{task.wbs || '—'}</span>}
-                  editType="text"
-                  onSave={(val) => handleInlineUpdate('wbs', val as string | null, task.wbs)}
-                  disabled={isSummaryTask}
-                />
+                <span className="truncate font-mono text-muted-foreground">{displayWbs}</span>
+              );
+            case 'outlineLevel':
+              return (
+                <span className="truncate text-muted-foreground">{task.outlineLevel || 1}</span>
               );
             case 'description':
               return (
@@ -4511,9 +4550,9 @@ function ProjectGanttView({
     });
   };
 
-  // Determine which tasks have children and filter visible tasks
+  // Determine which tasks have children, filter visible tasks, and compute WBS
   // Uses tasks in their original order to preserve hierarchy
-  const { visibleTasks, taskHasChildren } = useMemo(() => {
+  const { visibleTasks, taskHasChildren, wbsMap } = useMemo(() => {
     const taskHasChildren: Record<number, boolean> = {};
 
     // First pass: determine which tasks have children based on outline levels
@@ -4553,7 +4592,10 @@ function ProjectGanttView({
       }
     }
 
-    return { visibleTasks, taskHasChildren };
+    // Compute WBS values based on task hierarchy (using ALL tasks, not just visible)
+    const wbsMap = computeWbsValues(tasks);
+
+    return { visibleTasks, taskHasChildren, wbsMap };
   }, [tasks, collapsedTasks]);
 
   // Calculate project summary task (aggregated from all tasks)
@@ -5441,6 +5483,7 @@ function ProjectGanttView({
                               isSelected={selectedTaskIds.has(task.id)}
                               onToggleSelection={toggleTaskSelection}
                               hasDependencies={tasksWithDependencies.has(task.id)}
+                              computedWbs={wbsMap.get(task.id)}
                             />
                           )}
                         </SortableTaskRow>
