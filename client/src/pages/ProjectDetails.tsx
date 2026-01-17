@@ -2530,7 +2530,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
             if (task) {
               // Auto-update progress based on status
               let progressUpdate: number | undefined;
-              if (newStatus === "In Progress") {
+              if (newStatus === "Not Started") {
+                progressUpdate = 0;
+              } else if (newStatus === "In Progress") {
                 progressUpdate = 50;
               } else if (newStatus === "Completed") {
                 progressUpdate = 100;
