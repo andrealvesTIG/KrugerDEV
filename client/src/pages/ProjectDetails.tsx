@@ -5108,6 +5108,10 @@ function ProjectGanttView({
     if (idx < zoomLevels.length - 1) setZoomLevel(zoomLevels[idx + 1]);
   };
 
+  const handleZoomToProject = () => {
+    setZoomLevel(autoZoomLevel);
+  };
+
   return (
     <Card className="overflow-hidden transition-all duration-200">
       <CardContent className={cn(
@@ -5256,6 +5260,19 @@ function ProjectGanttView({
             </div>
             {!hideTimeline && (
               <div className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleZoomToProject}
+                      data-testid="button-gantt-zoom-fit"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Fit to project timeline</TooltipContent>
+                </Tooltip>
                 <Button
                   variant="outline"
                   size="icon"
