@@ -3998,100 +3998,99 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const allTasks = await storage.getTasks(projectId);
     if (allTasks.length === 0) return;
     
-    // Build parent-child relationships based on outline levels and task order
-    // A parent task is one that has a subsequent task with a higher outline level
+    // Build parent-child relationships using parentId field
+    const childrenByParent = new Map<number, typeof allTasks>();
+    const taskById = new Map<number, typeof allTasks[0]>();
+    
+    for (const task of allTasks) {
+      taskById.set(task.id, task);
+      if (task.parentId) {
+        const children = childrenByParent.get(task.parentId) || [];
+        children.push(task);
+        childrenByParent.set(task.parentId, children);
+      }
+    }
+    
+    // Recursive function to get all leaf descendants
+    function getLeafDescendants(taskId: number): typeof allTasks {
+      const children = childrenByParent.get(taskId) || [];
+      if (children.length === 0) {
+        // This task is a leaf - return it
+        const task = taskById.get(taskId);
+        return task ? [task] : [];
+      }
+      // Get leaf descendants from all children
+      const leaves: typeof allTasks = [];
+      for (const child of children) {
+        leaves.push(...getLeafDescendants(child.id));
+      }
+      return leaves;
+    }
+    
     const updates: Array<{ taskId: number; updates: any }> = [];
     
-    for (let i = 0; i < allTasks.length; i++) {
-      const task = allTasks[i];
-      const taskLevel = task.outlineLevel || 1;
+    // Process all tasks that have children (are parents)
+    for (const [parentId, children] of childrenByParent.entries()) {
+      const parentTask = taskById.get(parentId);
+      if (!parentTask) continue;
       
-      // Find all children of this task (immediate children = next tasks until we hit same or lower level)
-      const children: typeof allTasks = [];
-      for (let j = i + 1; j < allTasks.length; j++) {
-        const childLevel = allTasks[j].outlineLevel || 1;
-        if (childLevel <= taskLevel) break; // Same or lower level = not a child
-        if (childLevel === taskLevel + 1) {
-          children.push(allTasks[j]); // Direct child
-        }
-      }
+      // Get all leaf descendants for this parent
+      const leafTasks = getLeafDescendants(parentId);
       
-      // If this task has children, roll up values
-      if (children.length > 0) {
-        // Get all descendants for full roll-up
-        const allDescendants: typeof allTasks = [];
-        for (let j = i + 1; j < allTasks.length; j++) {
-          const descLevel = allTasks[j].outlineLevel || 1;
-          if (descLevel <= taskLevel) break;
-          allDescendants.push(allTasks[j]);
+      // Calculate roll-up values from leaf tasks with valid dates
+      const validLeaves = leafTasks.filter(t => t.startDate && t.endDate);
+      if (validLeaves.length > 0) {
+        const startDates = validLeaves.map(t => new Date(t.startDate!).getTime());
+        const endDates = validLeaves.map(t => new Date(t.endDate!).getTime());
+        const minStart = new Date(Math.min(...startDates)).toISOString().split('T')[0];
+        const maxEnd = new Date(Math.max(...endDates)).toISOString().split('T')[0];
+        
+        // Calculate weighted average progress based on duration
+        let totalDuration = 0;
+        let weightedProgress = 0;
+        for (const leaf of validLeaves) {
+          const duration = Math.max(1, Math.ceil((new Date(leaf.endDate!).getTime() - new Date(leaf.startDate!).getTime()) / (1000 * 60 * 60 * 24)) + 1);
+          totalDuration += duration;
+          weightedProgress += (leaf.progress || 0) * duration;
         }
+        const avgProgress = totalDuration > 0 ? Math.round(weightedProgress / totalDuration) : 0;
         
-        // Only roll up from leaf descendants (those without children of their own)
-        const leafTasks = allDescendants.filter((desc, idx) => {
-          const descIdx = allTasks.findIndex(t => t.id === desc.id);
-          if (descIdx >= 0 && descIdx < allTasks.length - 1) {
-            const nextLevel = allTasks[descIdx + 1].outlineLevel || 1;
-            const descLevel = desc.outlineLevel || 1;
-            return nextLevel <= descLevel; // No children = leaf
-          }
-          return true; // Last task is a leaf
-        });
+        // Calculate total hours and costs from leaf tasks
+        const totalEstimatedHours = leafTasks.reduce((sum, t) => sum + Number(t.estimatedHours || 0), 0);
+        const totalActualHours = leafTasks.reduce((sum, t) => sum + Number(t.actualHours || 0), 0);
+        const totalCost = leafTasks.reduce((sum, t) => sum + Number(t.cost || 0), 0);
+        const totalActualCost = leafTasks.reduce((sum, t) => sum + Number(t.actualCost || 0), 0);
         
-        // Calculate roll-up values from leaf tasks
-        const validLeaves = leafTasks.filter(t => t.startDate && t.endDate);
-        if (validLeaves.length > 0) {
-          const startDates = validLeaves.map(t => new Date(t.startDate!).getTime());
-          const endDates = validLeaves.map(t => new Date(t.endDate!).getTime());
-          const minStart = new Date(Math.min(...startDates)).toISOString().split('T')[0];
-          const maxEnd = new Date(Math.max(...endDates)).toISOString().split('T')[0];
-          
-          // Calculate weighted average progress based on duration
-          let totalDuration = 0;
-          let weightedProgress = 0;
-          for (const leaf of validLeaves) {
-            const duration = Math.max(1, Math.ceil((new Date(leaf.endDate!).getTime() - new Date(leaf.startDate!).getTime()) / (1000 * 60 * 60 * 24)) + 1);
-            totalDuration += duration;
-            weightedProgress += (leaf.progress || 0) * duration;
-          }
-          const avgProgress = totalDuration > 0 ? Math.round(weightedProgress / totalDuration) : 0;
-          
-          // Calculate total hours and costs
-          const totalEstimatedHours = leafTasks.reduce((sum, t) => sum + Number(t.estimatedHours || 0), 0);
-          const totalActualHours = leafTasks.reduce((sum, t) => sum + Number(t.actualHours || 0), 0);
-          const totalCost = leafTasks.reduce((sum, t) => sum + Number(t.cost || 0), 0);
-          const totalActualCost = leafTasks.reduce((sum, t) => sum + Number(t.actualCost || 0), 0);
-          
-          // Check if any values changed (dates, progress, hours, costs, or isSummary flag)
-          const estHoursStr = totalEstimatedHours > 0 ? String(totalEstimatedHours) : null;
-          const actHoursStr = totalActualHours > 0 ? String(totalActualHours) : null;
-          const costStr = totalCost > 0 ? String(totalCost) : null;
-          const actCostStr = totalActualCost > 0 ? String(totalActualCost) : null;
-          
-          const needsUpdate = 
-            task.startDate !== minStart || 
-            task.endDate !== maxEnd || 
-            task.progress !== avgProgress ||
-            task.estimatedHours !== estHoursStr ||
-            task.actualHours !== actHoursStr ||
-            task.cost !== costStr ||
-            task.actualCost !== actCostStr ||
-            !task.isSummary;
-          
-          if (needsUpdate) {
-            updates.push({
-              taskId: task.id,
-              updates: {
-                startDate: minStart,
-                endDate: maxEnd,
-                progress: avgProgress,
-                estimatedHours: estHoursStr,
-                actualHours: actHoursStr,
-                cost: costStr,
-                actualCost: actCostStr,
-                isSummary: true, // Mark as summary task
-              }
-            });
-          }
+        // Check if any values changed
+        const estHoursStr = totalEstimatedHours > 0 ? String(totalEstimatedHours) : null;
+        const actHoursStr = totalActualHours > 0 ? String(totalActualHours) : null;
+        const costStr = totalCost > 0 ? String(totalCost) : null;
+        const actCostStr = totalActualCost > 0 ? String(totalActualCost) : null;
+        
+        const needsUpdate = 
+          parentTask.startDate !== minStart || 
+          parentTask.endDate !== maxEnd || 
+          parentTask.progress !== avgProgress ||
+          parentTask.estimatedHours !== estHoursStr ||
+          parentTask.actualHours !== actHoursStr ||
+          parentTask.cost !== costStr ||
+          parentTask.actualCost !== actCostStr ||
+          !parentTask.isSummary;
+        
+        if (needsUpdate) {
+          updates.push({
+            taskId: parentId,
+            updates: {
+              startDate: minStart,
+              endDate: maxEnd,
+              progress: avgProgress,
+              estimatedHours: estHoursStr,
+              actualHours: actHoursStr,
+              cost: costStr,
+              actualCost: actCostStr,
+              isSummary: true, // Mark as summary task
+            }
+          });
         }
       }
     }
