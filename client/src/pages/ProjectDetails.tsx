@@ -26,7 +26,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -5145,8 +5145,38 @@ function ProjectGanttView({
     if (idx < zoomLevels.length - 1) setZoomLevel(zoomLevels[idx + 1]);
   };
 
-  const handleZoomToProject = () => {
-    setZoomLevel(autoZoomLevel);
+  const handleScrollToSelectedTask = () => {
+    // Get the first selected task
+    const selectedId = selectedTaskIds.size > 0 ? Array.from(selectedTaskIds)[0] : null;
+    const selectedTask = selectedId ? tasks.find(t => t.id === selectedId) : null;
+    
+    if (selectedTask && selectedTask.startDate && selectedTask.endDate) {
+      // Calculate optimal zoom level to show the task
+      const taskStart = parseISO(selectedTask.startDate);
+      const taskEnd = parseISO(selectedTask.endDate);
+      const taskDays = differenceInDays(taskEnd, taskStart) + 1;
+      
+      // Choose zoom level based on task duration
+      let optimalZoom: ZoomLevel = 'month';
+      if (taskDays <= 7) optimalZoom = 'day';
+      else if (taskDays <= 30) optimalZoom = 'week';
+      else if (taskDays <= 90) optimalZoom = 'month';
+      else if (taskDays <= 365) optimalZoom = 'quarter';
+      else optimalZoom = 'year';
+      
+      setZoomLevel(optimalZoom);
+      
+      // Scroll to the task row in the Gantt view
+      setTimeout(() => {
+        const taskElement = document.querySelector(`[data-testid="gantt-task-timeline-${selectedTask.id}"]`);
+        if (taskElement) {
+          taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    } else {
+      // No task selected or task has no dates - just fit to project timeline
+      setZoomLevel(autoZoomLevel);
+    }
   };
 
   return (
@@ -5302,13 +5332,14 @@ function ProjectGanttView({
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={handleZoomToProject}
-                      data-testid="button-gantt-zoom-fit"
+                      onClick={handleScrollToSelectedTask}
+                      disabled={selectedTaskIds.size === 0}
+                      data-testid="button-gantt-scroll-to-task"
                     >
-                      <Maximize2 className="h-4 w-4" />
+                      <Focus className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Fit to project timeline</TooltipContent>
+                  <TooltipContent>Scroll to selected task</TooltipContent>
                 </Tooltip>
                 <Button
                   variant="outline"
