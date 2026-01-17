@@ -6096,14 +6096,24 @@ function ProjectDraggableTaskCard({
     },
   });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
+    touchAction: 'none',
   };
 
   const assignedNames = taskAssignments && taskAssignments.length > 0
     ? taskAssignments.map(a => a.resource.displayName).join(", ")
     : null;
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (isDragging) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onTaskClick(task);
+  };
 
   return (
     <div
@@ -6111,11 +6121,11 @@ function ProjectDraggableTaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={cn(isDragging && "opacity-50")}
+      className={cn("cursor-grab active:cursor-grabbing", isDragging && "opacity-50")}
     >
       <Card 
-        className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing"
-        onClick={() => onTaskClick(task)}
+        className="hover:shadow-md transition-shadow"
+        onClick={handleClick}
         data-testid={`kanban-task-${task.id}`}
       >
         <CardContent className="p-4">
