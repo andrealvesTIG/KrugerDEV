@@ -2528,10 +2528,19 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
           onStatusChange={(taskId, newStatus) => {
             const task = tasks?.find(t => t.id === taskId);
             if (task) {
+              // Auto-update progress based on status
+              let progressUpdate: number | undefined;
+              if (newStatus === "In Progress") {
+                progressUpdate = 50;
+              } else if (newStatus === "Completed") {
+                progressUpdate = 100;
+              }
+              
               updateTask.mutate({ 
                 id: taskId, 
                 projectId: task.projectId, 
-                status: newStatus 
+                status: newStatus,
+                ...(progressUpdate !== undefined && { progress: progressUpdate })
               });
             }
           }}
