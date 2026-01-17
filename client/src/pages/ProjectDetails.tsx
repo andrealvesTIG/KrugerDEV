@@ -5058,8 +5058,10 @@ function ProjectGanttView({
       adjMaxDate = new Date(maxDate.getFullYear(), 11, 31);
     } else if (zoomLevel === '5year') {
       const startYear = minDate.getFullYear();
+      const endYear = maxDate.getFullYear();
       adjMinDate = new Date(startYear, 0, 1);
-      adjMaxDate = new Date(startYear + 4, 11, 31);
+      // Ensure we show all years up to maxDate, with at least 5 years span
+      adjMaxDate = new Date(Math.max(startYear + 4, endYear), 11, 31);
     }
     
     const adjustedDateRange = eachDayOfInterval({ start: adjMinDate, end: adjMaxDate });
