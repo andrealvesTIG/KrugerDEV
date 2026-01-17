@@ -2870,6 +2870,7 @@ function TaskNameCell({
   onClearBaseline,
   onEditDependencies,
   onUpdateName,
+  onEdit,
 }: {
   task: Task;
   colWidth: number;
@@ -2885,6 +2886,7 @@ function TaskNameCell({
   onClearBaseline: (task: Task) => void;
   onEditDependencies: (task: Task) => void;
   onUpdateName: (taskId: number, name: string) => void;
+  onEdit: (task: Task) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
@@ -2999,6 +3001,10 @@ function TaskNameCell({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(task); }} data-testid={`task-edit-${task.id}`}>
+            <Pencil className="h-3.5 w-3.5 mr-2" />
+            Edit
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDependencies(task); }} data-testid={`task-dependencies-${task.id}`}>
             <Link2 className="h-3.5 w-3.5 mr-2" />
             Dependencies
@@ -3074,6 +3080,7 @@ function ProjectGanttTaskRowMeta({
   onSetBaseline,
   onClearBaseline,
   onEditDependencies,
+  onEdit,
   columnWidths,
   showBaseline,
   baselineSelectionMode,
@@ -3102,6 +3109,7 @@ function ProjectGanttTaskRowMeta({
   onSetBaseline: (task: Task) => void;
   onClearBaseline: (task: Task) => void;
   onEditDependencies: (task: Task) => void;
+  onEdit: (task: Task) => void;
   columnWidths?: Record<GanttColumn, number>;
   showBaseline: boolean;
   baselineSelectionMode: boolean;
@@ -3263,6 +3271,7 @@ function ProjectGanttTaskRowMeta({
               onClearBaseline={onClearBaseline}
               onEditDependencies={onEditDependencies}
               onUpdateName={(taskId, name) => handleInlineUpdate('name', name, task.name)}
+              onEdit={onEdit}
             />
           );
         }
@@ -5581,6 +5590,7 @@ function ProjectGanttView({
                               onSetBaseline={handleSetBaseline}
                               onClearBaseline={handleClearBaseline}
                               onEditDependencies={handleEditDependencies}
+                              onEdit={onTaskClick}
                               columnWidths={columnWidths}
                               showBaseline={showBaseline}
                               baselineSelectionMode={baselineSelectionMode}
