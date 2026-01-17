@@ -3744,9 +3744,9 @@ function ProjectGanttTaskRowTimeline({
   const isNonCritical = showCriticalPath && !isOnCriticalPath;
   const isCritical = showCriticalPath && isOnCriticalPath;
   
-  // Check if this is a milestone (either marked as milestone or has 0 duration)
-  const duration = start && end ? differenceInDays(end, start) : 0;
-  const isMilestoneTask = task.isMilestone || duration === 0;
+  // Check if this is a milestone (explicitly marked as milestone OR durationDays is explicitly 0)
+  // Note: A 1-day task has same start/end date but durationDays=1, not a milestone
+  const isMilestoneTask = task.isMilestone || (task.durationDays !== null && task.durationDays !== undefined && task.durationDays === 0);
 
   return (
     <div 
