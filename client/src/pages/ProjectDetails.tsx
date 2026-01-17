@@ -1878,7 +1878,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { toast } = useToast();
   
-  const [view, setView] = useState<"table" | "gantt" | "kanban">("table");
+  const [view, setView] = useState<"table" | "gantt" | "kanban">("gantt");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -2112,13 +2112,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as "table" | "gantt" | "kanban")}>
           <TabsList>
-            <TabsTrigger value="table" className="gap-2">
-              <Table className="h-4 w-4" />
-              Table
-            </TabsTrigger>
             <TabsTrigger value="gantt" className="gap-2">
               <GanttChartSquare className="h-4 w-4" />
               Gantt
+            </TabsTrigger>
+            <TabsTrigger value="table" className="gap-2">
+              <Table className="h-4 w-4" />
+              Table
             </TabsTrigger>
             <TabsTrigger value="kanban" className="gap-2">
               <Columns3 className="h-4 w-4" />
