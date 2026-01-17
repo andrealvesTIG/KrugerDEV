@@ -142,7 +142,7 @@ export default function SignInPage() {
   };
 
   const handleMicrosoftSignIn = () => {
-    window.location.href = "/api/auth/microsoft";
+    window.location.href = "/api/auth/microsoft/login";
   };
 
   const scrollToSignIn = () => {
