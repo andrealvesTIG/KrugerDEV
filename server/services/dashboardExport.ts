@@ -647,7 +647,7 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
     fill: { color: COLORS.lightGray },
   });
   
-  slide.addText("FridayReport.AI  |  https://fridayreport.ai", {
+  slide.addText("FridayReport.AI  |  https://app.fridayreport.ai", {
     x: 0.3,
     y: 5.35,
     w: 5,
@@ -993,7 +993,7 @@ export async function generateDashboardPdf(data: DashboardData): Promise<Buffer>
     
     // Footer
     doc.rect(0, doc.page.height - 25, pageWidth, 25).fill("#f3f4f6");
-    doc.fontSize(7).fillColor("#6b7280").text("FridayReport.AI  |  https://fridayreport.ai", 40, doc.page.height - 17);
+    doc.fontSize(7).fillColor("#6b7280").text("FridayReport.AI  |  https://app.fridayreport.ai", 40, doc.page.height - 17);
     
     doc.end();
   });
@@ -1397,7 +1397,7 @@ export function generateDashboardHTML(data: DashboardData): string {
     
     <div style="text-align: center; margin-top: 20px;">
       <p style="font-size: 14px; font-weight: 600; color: #2563eb; margin-bottom: 4px;">FridayReport.AI</p>
-      <a href="https://fridayreport.ai" style="font-size: 12px; color: #2563eb; text-decoration: none;">https://fridayreport.ai</a>
+      <a href="https://app.fridayreport.ai" style="font-size: 12px; color: #2563eb; text-decoration: none;">https://app.fridayreport.ai</a>
       <p style="font-size: 11px; color: #9ca3af; margin-top: 12px;">
         This report was generated automatically by FridayReport.AI
       </p>
