@@ -1846,6 +1846,14 @@ function computeWbsValues(tasks: Task[]): Map<number, string> {
     // Increment counter for current level
     levelCounters[level]++;
     
+    // Ensure all parent levels have at least 1 if this is a child task
+    // This prevents WBS like "0.1" when a child appears without a parent
+    for (let i = 0; i < level; i++) {
+      if (levelCounters[i] === 0) {
+        levelCounters[i] = 1;
+      }
+    }
+    
     // Build WBS string from level counters
     const wbsParts: number[] = [];
     for (let i = 0; i <= level; i++) {
