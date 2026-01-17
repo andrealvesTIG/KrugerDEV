@@ -6040,6 +6040,26 @@ function ProjectKanbanView({
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeOverColumn, setActiveOverColumn] = useState<string | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
+  
+  // Calculate which tasks are summary tasks (have children)
+  const summaryTaskIds = useMemo(() => {
+    const parentIds = new Set<number>();
+    for (const task of tasks) {
+      if (task.parentId) {
+        parentIds.add(task.parentId);
+      }
+    }
+    return parentIds;
+  }, [tasks]);
+  
+  // Filter tasks: only show leaf tasks (no children) by default
+  const filteredTasks = useMemo(() => {
+    if (showSummary) {
+      return tasks;
+    }
+    return tasks.filter(t => !summaryTaskIds.has(t.id));
+  }, [tasks, showSummary, summaryTaskIds]);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -6111,6 +6131,23 @@ function ProjectKanbanView({
         "p-0 flex flex-col",
         isFullscreen && "h-full"
       )}>
+        {/* Filter bar */}
+        <div className="flex items-center gap-3 p-3 border-b bg-muted/30">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="show-summary"
+              checked={showSummary}
+              onCheckedChange={(checked) => setShowSummary(!!checked)}
+              data-testid="kanban-show-summary"
+            />
+            <label htmlFor="show-summary" className="text-sm cursor-pointer select-none">
+              Show Summary
+            </label>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+          </span>
+        </div>
         <div className={cn("p-4", isFullscreen && "flex-1 overflow-auto")}>
           <DndContext 
             sensors={sensors} 
@@ -6125,7 +6162,7 @@ function ProjectKanbanView({
                 <ProjectKanbanColumn
                   key={column.id}
                   column={column}
-                  tasks={tasks.filter(t => (t.status || "Not Started") === column.id)}
+                  tasks={filteredTasks.filter(t => (t.status || "Not Started") === column.id)}
                   onTaskClick={onTaskClick}
                   isActiveOver={activeOverColumn === column.id}
                 />
