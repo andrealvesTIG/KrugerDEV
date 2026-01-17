@@ -3747,6 +3747,10 @@ function ProjectGanttTaskRowTimeline({
   // Critical path styling: highlight critical tasks in red, grey out non-critical tasks
   const isNonCritical = showCriticalPath && !isOnCriticalPath;
   const isCritical = showCriticalPath && isOnCriticalPath;
+  
+  // Check if this is a milestone (either marked as milestone or has 0 duration)
+  const duration = start && end ? differenceInDays(end, start) : 0;
+  const isMilestoneTask = task.isMilestone || duration === 0;
 
   return (
     <div 
@@ -3775,37 +3779,63 @@ function ProjectGanttTaskRowTimeline({
         />
       )}
       
-      {/* Main task bar */}
+      {/* Main task bar or milestone diamond */}
       {hasValidDates ? (
-        <div
-          className={cn(
-            "absolute rounded-sm overflow-hidden cursor-pointer",
-            isCritical ? "bg-red-200 dark:bg-red-900 ring-1 ring-red-500" :
-            task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
-            task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
-          )}
-          style={{
-            left: `${Math.max(0, leftPercent)}%`,
-            width: `${Math.min(100 - Math.max(0, leftPercent), widthPercent)}%`,
-            minWidth: '24px',
-            top: '4px',
-            height: showBaseline && hasBaseline ? '16px' : '20px',
-          }}
-          onClick={() => onTaskClick(task)}
-        >
-          <div 
+        isMilestoneTask ? (
+          <div
+            className="absolute cursor-pointer flex items-center justify-center"
+            style={{
+              left: `calc(${Math.max(0, leftPercent)}% - 8px)`,
+              top: '4px',
+              height: showBaseline && hasBaseline ? '16px' : '20px',
+            }}
+            onClick={() => onTaskClick(task)}
+            title={`Milestone: ${task.name}`}
+          >
+            <div
+              className={cn(
+                "rotate-45 border-2",
+                isCritical ? "bg-red-500 border-red-700" :
+                task.status === "Completed" ? "bg-emerald-500 border-emerald-700" :
+                task.status === "In Progress" ? "bg-blue-500 border-blue-700" : "bg-purple-500 border-purple-700"
+              )}
+              style={{
+                width: showBaseline && hasBaseline ? '12px' : '14px',
+                height: showBaseline && hasBaseline ? '12px' : '14px',
+              }}
+            />
+          </div>
+        ) : (
+          <div
             className={cn(
-              "h-full transition-all",
-              isCritical ? "bg-red-500" :
-              task.status === "Completed" ? "bg-emerald-500" :
-              task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+              "absolute rounded-sm overflow-hidden cursor-pointer",
+              isCritical ? "bg-red-200 dark:bg-red-900 ring-1 ring-red-500" :
+              task.status === "Completed" ? "bg-emerald-200 dark:bg-emerald-900" :
+              task.status === "In Progress" ? "bg-blue-200 dark:bg-blue-900" : "bg-slate-200 dark:bg-slate-700"
             )}
-            style={{ width: `${progressPercent}%` }}
-          />
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground">
-            {progressPercent}%
-          </span>
-        </div>
+            style={{
+              left: `${Math.max(0, leftPercent)}%`,
+              width: `${Math.min(100 - Math.max(0, leftPercent), widthPercent)}%`,
+              minWidth: '24px',
+              top: '4px',
+              height: showBaseline && hasBaseline ? '16px' : '20px',
+            }}
+            onClick={() => onTaskClick(task)}
+          >
+            <div 
+              className={cn(
+                "h-full transition-all",
+                isCritical ? "bg-red-500" :
+                task.status === "Completed" ? "bg-emerald-500" :
+                task.status === "In Progress" ? "bg-blue-500" : "bg-slate-400"
+              )}
+              style={{ width: `${progressPercent}%` }}
+            />
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground">
+              {progressPercent}%
+            </span>
+          </div>
+        )
       ) : (
         <div className="h-full flex items-center px-1" onClick={() => onTaskClick(task)}>
           <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
