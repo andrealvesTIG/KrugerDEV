@@ -5215,7 +5215,8 @@ function ProjectGanttView({
           </div>
         </div>
         {/* Split-pane Gantt layout with resizable panels */}
-        <ResizablePanelGroup direction="horizontal" className={cn("text-[11px]", isFullscreen ? "flex-1" : "h-[500px]")}>
+        {/* Key changes based on hideTimeline to force complete remount and avoid ResizablePanel index errors */}
+        <ResizablePanelGroup key={hideTimeline ? "table-mode" : "gantt-mode"} direction="horizontal" className={cn("text-[11px]", isFullscreen ? "flex-1" : "h-[500px]")}>
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
           <ResizablePanel defaultSize={hideTimeline ? 100 : 50} minSize={20} maxSize={hideTimeline ? 100 : 80}>
             <div className="h-full overflow-x-auto overflow-y-auto relative">
