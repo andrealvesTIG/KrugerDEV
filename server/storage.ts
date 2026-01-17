@@ -1170,11 +1170,12 @@ export class DatabaseStorage implements IStorage {
       resources: 0,
     };
 
-    // Get all DEMO projects for this organization (only isDemo=true)
-    const demoProjects = await db.select().from(projects)
-      .where(and(eq(projects.organizationId, organizationId), eq(projects.isDemo, true)));
+    // Get ALL projects for this organization (not just demo ones)
+    // We need to delete demo items from ALL projects, not just demo projects
+    const allProjects = await db.select().from(projects)
+      .where(eq(projects.organizationId, organizationId));
     
-    for (const project of demoProjects) {
+    for (const project of allProjects) {
       // Delete DEMO tasks for this project (and their dependencies/logs)
       const demoTasks = await db.select().from(tasks)
         .where(and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true)));
@@ -1182,6 +1183,7 @@ export class DatabaseStorage implements IStorage {
         await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
         await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
         await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+        await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, task.id));
       }
       const deletedTasks = await db.delete(tasks)
         .where(and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true))).returning();
@@ -1197,17 +1199,22 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(milestones.projectId, project.id), eq(milestones.isDemo, true))).returning();
       stats.milestones += deletedMilestones.length;
       
-      // Delete DEMO issues
+      // Delete DEMO issues (non-risk)
       const deletedIssues = await db.delete(issues)
-        .where(and(eq(issues.projectId, project.id), eq(issues.isDemo, true))).returning();
+        .where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'issue'), eq(issues.isDemo, true))).returning();
       stats.issues += deletedIssues.length;
       
       // Delete DEMO financials
       const deletedFinancials = await db.delete(projectFinancials)
         .where(and(eq(projectFinancials.projectId, project.id), eq(projectFinancials.isDemo, true))).returning();
       stats.financials += deletedFinancials.length;
-      
-      // Check if this demo project has any remaining (non-demo) children before deleting
+    }
+    
+    // Now delete demo projects that have no remaining children
+    const demoProjects = await db.select().from(projects)
+      .where(and(eq(projects.organizationId, organizationId), eq(projects.isDemo, true)));
+    
+    for (const project of demoProjects) {
       const remainingTasks = await db.select({ count: sql`count(*)` }).from(tasks).where(eq(tasks.projectId, project.id));
       const remainingRisks = await db.select({ count: sql`count(*)` }).from(issues).where(and(eq(issues.projectId, project.id), eq(issues.itemType, 'risk')));
       const remainingMilestones = await db.select({ count: sql`count(*)` }).from(milestones).where(eq(milestones.projectId, project.id));
