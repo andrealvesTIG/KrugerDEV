@@ -239,7 +239,7 @@ export default function SignInPage() {
                 className="bg-primary hover:bg-primary/90 text-white px-8 py-6 text-lg shadow-lg shadow-primary/25"
                 data-testid="button-hero-start-trial"
               >
-                Start Free Trial
+                Get Started Free
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <Button 
@@ -254,7 +254,7 @@ export default function SignInPage() {
             </div>
             
             <p className="mt-6 text-sm text-slate-400">
-              No credit card required. Start managing projects in minutes.
+              Free forever for small teams. No credit card required.
             </p>
           </div>
         </div>
@@ -389,6 +389,88 @@ export default function SignInPage() {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/30">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 bg-primary/10 text-primary border-primary/20">
+              Simple Pricing
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Free Forever, Scale When Ready
+            </h2>
+            <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+              Start for free with unlimited projects. Upgrade only when you need advanced features.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {/* Free Plan */}
+            <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-700">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-semibold text-white mb-2">Free</h3>
+                <div className="text-4xl font-bold text-white mb-1">$0</div>
+                <p className="text-slate-400 text-sm">Forever free</p>
+              </div>
+              <ul className="space-y-3 mb-6">
+                {["Up to 5 team members", "Unlimited projects", "Basic dashboards", "Email support", "Community access"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Button variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700" onClick={scrollToSignIn} data-testid="button-pricing-free">
+                Get Started
+              </Button>
+            </div>
+            
+            {/* Pro Plan */}
+            <div className="p-6 rounded-2xl bg-gradient-to-b from-primary/10 to-slate-900/50 border-2 border-primary relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <Badge className="bg-primary text-white">Most Popular</Badge>
+              </div>
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-semibold text-white mb-2">Pro</h3>
+                <div className="text-4xl font-bold text-white mb-1">$15</div>
+                <p className="text-slate-400 text-sm">per user / month</p>
+              </div>
+              <ul className="space-y-3 mb-6">
+                {["Unlimited team members", "Advanced Gantt charts", "Resource management", "AI-powered insights", "Priority support", "Custom branding"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-primary flex-shrink-0" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Button className="w-full bg-primary hover:bg-primary/90" onClick={scrollToSignIn} data-testid="button-pricing-pro">
+                Start Free
+              </Button>
+            </div>
+            
+            {/* Enterprise Plan */}
+            <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-700">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-semibold text-white mb-2">Enterprise</h3>
+                <div className="text-4xl font-bold text-white mb-1">Custom</div>
+                <p className="text-slate-400 text-sm">Contact for pricing</p>
+              </div>
+              <ul className="space-y-3 mb-6">
+                {["Everything in Pro", "SSO / SAML", "Dedicated support", "SLA guarantee", "Custom integrations", "On-premise option"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Button variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700" onClick={scrollToSignIn} data-testid="button-pricing-enterprise">
+                Contact Sales
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA / Sign In Section */}
       <section id="signin-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-800/50 to-slate-900">
         <div className="max-w-7xl mx-auto">
@@ -404,7 +486,7 @@ export default function SignInPage() {
               <div className="flex flex-wrap gap-4 text-sm text-slate-400">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-400" />
-                  <span>Free 14-day trial</span>
+                  <span>Free forever for small teams</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-400" />
