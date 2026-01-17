@@ -2202,7 +2202,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
                     </div>
                     <div className="space-y-2">
                       <Label>Description</Label>
-                      <Textarea {...form.register("description")} className="min-h-[80px]" />
+                      <Textarea {...form.register("description")} className="min-h-[80px] focus-visible:ring-inset" />
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox 
