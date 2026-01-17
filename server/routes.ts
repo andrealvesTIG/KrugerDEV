@@ -3993,8 +3993,53 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   }
   
+  // Helper function to recalculate parentId for all tasks based on outline levels (MS Project style)
+  async function recalculateParentIds(projectId: number) {
+    const allTasks = await storage.getTasksByProject(projectId);
+    if (allTasks.length === 0) return;
+    
+    // Sort tasks by taskIndex (sequential display order)
+    const sortedTasks = [...allTasks].sort((a, b) => (a.taskIndex || 0) - (b.taskIndex || 0));
+    
+    // Track the most recent task at each outline level (for finding parent)
+    const taskAtLevel: (number | null)[] = [null, null, null, null, null, null, null]; // index 0 unused, levels 1-6
+    
+    const updates: Array<{ id: number; parentId: number | null }> = [];
+    
+    for (const task of sortedTasks) {
+      const level = task.outlineLevel || 1;
+      
+      // Find parent: the most recent task at level-1
+      let newParentId: number | null = null;
+      if (level > 1) {
+        newParentId = taskAtLevel[level - 1] || null;
+      }
+      
+      // Queue update if parentId changed
+      if (task.parentId !== newParentId) {
+        updates.push({ id: task.id, parentId: newParentId });
+      }
+      
+      // Update task at current level
+      taskAtLevel[level] = task.id;
+      
+      // Clear deeper levels (they can't be parents anymore once we move to this level)
+      for (let i = level + 1; i < taskAtLevel.length; i++) {
+        taskAtLevel[i] = null;
+      }
+    }
+    
+    // Apply all updates
+    for (const update of updates) {
+      await storage.updateTask(update.id, { parentId: update.parentId });
+    }
+  }
+  
   // Helper function to roll up dates and values from children to parent tasks
   async function rollUpParentTasks(projectId: number) {
+    // First, ensure parentId is correctly set based on outline levels
+    await recalculateParentIds(projectId);
+    
     const allTasks = await storage.getTasks(projectId);
     if (allTasks.length === 0) return;
     
