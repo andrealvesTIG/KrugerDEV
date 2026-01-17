@@ -405,15 +405,15 @@ export default function SignInPage() {
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-            {/* Free Forever Plan */}
+            {/* Free Plan */}
             <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-700">
               <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold text-white mb-2">Free Forever</h3>
+                <h3 className="text-xl font-semibold text-white mb-2">Free</h3>
                 <div className="text-4xl font-bold text-white mb-1">$0</div>
-                <p className="text-slate-400 text-sm">1 user included</p>
+                <p className="text-slate-400 text-sm">Forever free</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["Unlimited projects", "Basic dashboards", "Gantt charts", "Email support", "Community access"].map((feature, i) => (
+                {["200 AI credits/month", "Up to 40 projects", "200 tasks, 200 issues", "1 seat included", "Basic dashboards"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
@@ -430,10 +430,10 @@ export default function SignInPage() {
               <div className="text-center mb-6">
                 <h3 className="text-xl font-semibold text-white mb-2">Professional</h3>
                 <div className="text-4xl font-bold text-white mb-1">$12</div>
-                <p className="text-slate-400 text-sm">per month, up to 3 users</p>
+                <p className="text-slate-400 text-sm">per month</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["Everything in Free", "Advanced reporting", "Team collaboration", "Priority email support", "MS Project import"].map((feature, i) => (
+                {["500 AI credits/month", "Up to 100 projects", "500 tasks, 500 issues", "Up to 3 seats", "Advanced reporting"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
@@ -453,10 +453,10 @@ export default function SignInPage() {
               <div className="text-center mb-6">
                 <h3 className="text-xl font-semibold text-white mb-2">Business</h3>
                 <div className="text-4xl font-bold text-white mb-1">$28</div>
-                <p className="text-slate-400 text-sm">per month, up to 25 users</p>
+                <p className="text-slate-400 text-sm">per month</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["Everything in Pro", "Resource planning", "AI-powered insights", "Advanced analytics", "Priority support", "Power BI integration"].map((feature, i) => (
+                {["1,000 AI credits/month", "Up to 200 projects", "1,000 tasks, 1,000 issues", "Up to 25 seats", "Priority support", "Power BI integration"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
                     <CheckCircle className="h-4 w-4 text-primary flex-shrink-0" />
                     {feature}
@@ -473,10 +473,10 @@ export default function SignInPage() {
               <div className="text-center mb-6">
                 <h3 className="text-xl font-semibold text-white mb-2">Enterprise</h3>
                 <div className="text-4xl font-bold text-white mb-1">Custom</div>
-                <p className="text-slate-400 text-sm">Unlimited users</p>
+                <p className="text-slate-400 text-sm">Contact for pricing</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["Everything in Business", "SSO / SAML", "Dedicated support", "SLA guarantee", "Custom integrations", "Advanced security"].map((feature, i) => (
+                {["Unlimited AI credits", "Unlimited projects", "Unlimited tasks & issues", "Unlimited seats", "SSO / SAML", "Dedicated support"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
