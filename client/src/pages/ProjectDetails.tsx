@@ -2472,10 +2472,26 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
       </div>
 
       {view === "table" ? (
-        <ProjectTableView 
+        <ProjectGanttView 
           tasks={filteredTasks} 
           onTaskClick={openEditDialog}
+          projectId={projectId}
+          organizationId={currentOrganization?.id || null}
+          projectName={projectName}
           isFullscreen={isFullscreen}
+          projectStartDate={projectStartDate}
+          projectEndDate={projectEndDate}
+          hideTimeline={true}
+          onCreateTask={(name) => {
+            createTask.mutate({
+              projectId,
+              name,
+              startDate: format(new Date(), 'yyyy-MM-dd'),
+              endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+              status: "Not Started",
+              progress: 0,
+            });
+          }}
         />
       ) : view === "gantt" ? (
         <ProjectGanttView 
@@ -3967,6 +3983,7 @@ function ProjectGanttView({
   isFullscreen,
   projectStartDate,
   projectEndDate,
+  hideTimeline = false,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
@@ -3977,6 +3994,7 @@ function ProjectGanttView({
   isFullscreen?: boolean;
   projectStartDate?: string | null;
   projectEndDate?: string | null;
+  hideTimeline?: boolean;
 }) {
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
@@ -5034,9 +5052,11 @@ function ProjectGanttView({
       )}>
         <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">
-              View: {zoomLabels[zoomLevel]}
-            </span>
+            {!hideTimeline && (
+              <span className="text-sm font-medium text-muted-foreground">
+                View: {zoomLabels[zoomLevel]}
+              </span>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1">
@@ -5100,16 +5120,18 @@ function ProjectGanttView({
                 Project Summary
               </Label>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={showCriticalPath}
-                onCheckedChange={setShowCriticalPath}
-                data-testid="toggle-show-critical-path"
-              />
-              <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setShowCriticalPath(!showCriticalPath)}>
-                Critical Path
-              </Label>
-            </div>
+            {!hideTimeline && (
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={showCriticalPath}
+                  onCheckedChange={setShowCriticalPath}
+                  data-testid="toggle-show-critical-path"
+                />
+                <Label className="text-xs text-muted-foreground cursor-pointer" onClick={() => setShowCriticalPath(!showCriticalPath)}>
+                  Critical Path
+                </Label>
+              </div>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -5126,7 +5148,7 @@ function ProjectGanttView({
               </TooltipTrigger>
               <TooltipContent>Recalculate all task dates based on dependencies</TooltipContent>
             </Tooltip>
-            {hasAnyBaselines && (
+            {!hideTimeline && hasAnyBaselines && (
               <div className="flex items-center gap-2">
                 <Switch
                   checked={showBaseline}
@@ -5168,32 +5190,34 @@ function ProjectGanttView({
                 <TooltipContent>Redo reorder</TooltipContent>
               </Tooltip>
             </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleZoomIn}
-                disabled={zoomLevels.indexOf(zoomLevel) === 0}
-                data-testid="button-gantt-zoom-in"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleZoomOut}
-                disabled={zoomLevels.indexOf(zoomLevel) === zoomLevels.length - 1}
-                data-testid="button-gantt-zoom-out"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-            </div>
+            {!hideTimeline && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleZoomIn}
+                  disabled={zoomLevels.indexOf(zoomLevel) === 0}
+                  data-testid="button-gantt-zoom-in"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleZoomOut}
+                  disabled={zoomLevels.indexOf(zoomLevel) === zoomLevels.length - 1}
+                  data-testid="button-gantt-zoom-out"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
         {/* Split-pane Gantt layout with resizable panels */}
         <ResizablePanelGroup direction="horizontal" className={cn("text-[11px]", isFullscreen ? "flex-1" : "h-[500px]")}>
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
-          <ResizablePanel defaultSize={50} minSize={20} maxSize={80}>
+          <ResizablePanel defaultSize={hideTimeline ? 100 : 50} minSize={20} maxSize={hideTimeline ? 100 : 80}>
             <div className="h-full overflow-x-auto overflow-y-auto relative">
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Bulk actions bar - appears when tasks are selected */}
@@ -5522,77 +5546,79 @@ function ProjectGanttView({
             </div>
           </ResizablePanel>
           
-          {/* Resizable handle with grip */}
-          <ResizableHandle withHandle />
+          {/* Resizable handle with grip - hidden in table view */}
+          {!hideTimeline && <ResizableHandle withHandle />}
           
-          {/* Right pane: Timeline (resizable + scrollable) */}
-          <ResizablePanel defaultSize={50} minSize={20}>
-            <div className="h-full overflow-x-auto overflow-y-auto">
-              <div 
-                className="relative"
-                style={{ minWidth: `${filteredDates.length * 60}px` }}
-              >
-                {/* Timeline header */}
-                <div className="flex border-b bg-muted/50 sticky top-0 z-10">
-                  {filteredDates.map((date, i) => (
-                    <div key={i} className={cn("flex-1 p-1 text-center text-[10px] font-medium text-muted-foreground border-l", columnWidth)}>
-                      {format(date, dateFormat)}
-                    </div>
-                  ))}
-                </div>
-                {/* Project Summary Timeline Row */}
-                {showProjectSummary && projectSummaryTask && projectSummaryTask.startDate && projectSummaryTask.endDate && (
-                  <div className="flex h-[28px] border-b bg-primary/10 relative" data-testid="project-summary-timeline">
-                    {filteredDates.map((_, i) => (
-                      <div key={i} className={cn("flex-1 border-l border-gray-200 dark:border-gray-700", columnWidth)} />
+          {/* Right pane: Timeline (resizable + scrollable) - hidden in table view */}
+          {!hideTimeline && (
+            <ResizablePanel defaultSize={50} minSize={20}>
+              <div className="h-full overflow-x-auto overflow-y-auto">
+                <div 
+                  className="relative"
+                  style={{ minWidth: `${filteredDates.length * 60}px` }}
+                >
+                  {/* Timeline header */}
+                  <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+                    {filteredDates.map((date, i) => (
+                      <div key={i} className={cn("flex-1 p-1 text-center text-[10px] font-medium text-muted-foreground border-l", columnWidth)}>
+                        {format(date, dateFormat)}
+                      </div>
                     ))}
-                    {(() => {
-                      const startDate = new Date(projectSummaryTask.startDate!);
-                      const endDate = new Date(projectSummaryTask.endDate!);
-                      const totalDays = differenceInDays(adjustedMaxDate, adjustedMinDate) || 1;
-                      const startOffset = differenceInDays(startDate, adjustedMinDate);
-                      const duration = differenceInDays(endDate, startDate) + 1;
-                      const leftPercent = (startOffset / totalDays) * 100;
-                      const widthPercent = (duration / totalDays) * 100;
-                      
-                      return (
-                        <div
-                          className="absolute top-1/2 -translate-y-1/2 h-4 rounded bg-primary/60 border border-primary"
-                          style={{
-                            left: `${Math.max(0, leftPercent)}%`,
-                            width: `${Math.min(100 - leftPercent, widthPercent)}%`,
-                          }}
-                        />
-                      );
-                    })()}
                   </div>
-                )}
-                
-                {/* Timeline bars */}
-                {visibleTasks.length === 0 && tasks.length === 0 ? (
-                  <div className="h-[28px]" />
-                ) : (
-                  visibleTasks.map(task => (
-                    <ProjectGanttTaskRowTimeline
-                      key={task.id}
-                      task={task}
-                      onTaskClick={onTaskClick}
-                      minDate={adjustedMinDate}
-                      maxDate={adjustedMaxDate}
-                      hasChildren={!!taskHasChildren[task.id]}
-                      showBaseline={showBaseline}
-                      showCriticalPath={showCriticalPath}
-                      isOnCriticalPath={criticalTaskIds.has(task.id)}
-                      hasDependencies={tasksWithDependencies.has(task.id)}
-                    />
-                  ))
-                )}
-                {/* Empty row for add task alignment */}
-                <div className="h-[28px] border-t bg-muted/20" />
-                
+                  {/* Project Summary Timeline Row */}
+                  {showProjectSummary && projectSummaryTask && projectSummaryTask.startDate && projectSummaryTask.endDate && (
+                    <div className="flex h-[28px] border-b bg-primary/10 relative" data-testid="project-summary-timeline">
+                      {filteredDates.map((_, i) => (
+                        <div key={i} className={cn("flex-1 border-l border-gray-200 dark:border-gray-700", columnWidth)} />
+                      ))}
+                      {(() => {
+                        const startDate = new Date(projectSummaryTask.startDate!);
+                        const endDate = new Date(projectSummaryTask.endDate!);
+                        const totalDays = differenceInDays(adjustedMaxDate, adjustedMinDate) || 1;
+                        const startOffset = differenceInDays(startDate, adjustedMinDate);
+                        const duration = differenceInDays(endDate, startDate) + 1;
+                        const leftPercent = (startOffset / totalDays) * 100;
+                        const widthPercent = (duration / totalDays) * 100;
+                        
+                        return (
+                          <div
+                            className="absolute top-1/2 -translate-y-1/2 h-4 rounded bg-primary/60 border border-primary"
+                            style={{
+                              left: `${Math.max(0, leftPercent)}%`,
+                              width: `${Math.min(100 - leftPercent, widthPercent)}%`,
+                            }}
+                          />
+                        );
+                      })()}
+                    </div>
+                  )}
+                  
+                  {/* Timeline bars */}
+                  {visibleTasks.length === 0 && tasks.length === 0 ? (
+                    <div className="h-[28px]" />
+                  ) : (
+                    visibleTasks.map(task => (
+                      <ProjectGanttTaskRowTimeline
+                        key={task.id}
+                        task={task}
+                        onTaskClick={onTaskClick}
+                        minDate={adjustedMinDate}
+                        maxDate={adjustedMaxDate}
+                        hasChildren={!!taskHasChildren[task.id]}
+                        showBaseline={showBaseline}
+                        showCriticalPath={showCriticalPath}
+                        isOnCriticalPath={criticalTaskIds.has(task.id)}
+                        hasDependencies={tasksWithDependencies.has(task.id)}
+                      />
+                    ))
+                  )}
+                  {/* Empty row for add task alignment */}
+                  <div className="h-[28px] border-t bg-muted/20" />
+                  
+                </div>
               </div>
-            </div>
-          </ResizablePanel>
+            </ResizablePanel>
+          )}
         </ResizablePanelGroup>
 
         {/* Action bar for baseline selection mode */}
@@ -5828,109 +5854,6 @@ function ProjectGanttView({
         </DialogContent>
       </Dialog>
     </Card>
-  );
-}
-
-function ProjectTableView({ 
-  tasks, 
-  onTaskClick, 
-  isFullscreen,
-}: { 
-  tasks: Task[]; 
-  onTaskClick: (task: Task) => void;
-  isFullscreen?: boolean;
-}) {
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "Completed":
-        return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700">Completed</Badge>;
-      case "In Progress":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700">In Progress</Badge>;
-      default:
-        return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600">Not Started</Badge>;
-    }
-  };
-
-  return (
-    <div className={cn("flex-1 overflow-auto", isFullscreen && "h-[calc(100vh-120px)]")}>
-      <div className="border rounded-lg overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-muted/50 sticky top-0">
-            <tr className="border-b">
-              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-12">#</th>
-              <th className="text-left p-3 text-xs font-medium text-muted-foreground">Task Name</th>
-              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-28">Status</th>
-              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-20">Progress</th>
-              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-28">Start Date</th>
-              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-28">End Date</th>
-              <th className="text-left p-3 text-xs font-medium text-muted-foreground w-20">Duration</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center py-12 text-muted-foreground">
-                  No tasks found. Add a task to get started.
-                </td>
-              </tr>
-            ) : (
-              tasks.map((task, index) => {
-                const outlineLevel = task.outlineLevel || 1;
-                const indentPadding = (outlineLevel - 1) * 16;
-                const duration = task.startDate && task.endDate 
-                  ? Math.ceil((new Date(task.endDate).getTime() - new Date(task.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
-                  : null;
-
-                return (
-                  <tr 
-                    key={task.id} 
-                    className="border-b hover-elevate cursor-pointer"
-                    onClick={() => onTaskClick(task)}
-                    data-testid={`row-task-${task.id}`}
-                  >
-                    <td className="p-3 text-xs text-muted-foreground">{index + 1}</td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-2" style={{ paddingLeft: indentPadding }}>
-                        {task.taskType === "Milestone" && (
-                          <MilestoneIcon className="h-4 w-4 text-primary flex-shrink-0" />
-                        )}
-                        <span className={cn(
-                          "text-sm",
-                          outlineLevel === 1 && "font-medium"
-                        )}>
-                          {task.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-3">{getStatusBadge(task.status || "Not Started")}</td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden w-12">
-                          <div 
-                            className="h-full bg-primary rounded-full transition-all"
-                            style={{ width: `${task.progress || 0}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground w-8">{task.progress || 0}%</span>
-                      </div>
-                    </td>
-                    <td className="p-3 text-sm text-muted-foreground">
-                      {task.startDate ? format(new Date(task.startDate), 'MMM d, yyyy') : '-'}
-                    </td>
-                    <td className="p-3 text-sm text-muted-foreground">
-                      {task.endDate ? format(new Date(task.endDate), 'MMM d, yyyy') : '-'}
-                    </td>
-                    <td className="p-3 text-sm text-muted-foreground">
-                      {duration ? `${duration}d` : '-'}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
   );
 }
 
