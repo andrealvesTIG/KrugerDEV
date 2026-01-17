@@ -51,6 +51,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { GanttDependencyLinks } from "@/components/GanttDependencyLinks";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { useLocation } from "wouter";
 import { useSidebarState } from "@/components/layout/Sidebar";
 
@@ -2666,6 +2668,7 @@ function InlineEditCell({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState<string>('');
   const [selectOpen, setSelectOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -2754,17 +2757,54 @@ function InlineEditCell({
     }
 
     if (editType === 'date') {
+      const selectedDate = editValue ? parseISO(editValue) : undefined;
       return (
-        <Input
-          ref={inputRef}
-          type="date"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={handleSave}
-          onKeyDown={handleKeyDown}
-          className="text-[10px] px-1 w-full min-h-0 py-0.5"
-          data-testid="inline-edit-date"
-        />
+        <Popover open={true} onOpenChange={(open) => { if (!open) { setIsEditing(false); } }}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-[10px] px-1 w-full min-h-0 h-6 justify-start font-normal"
+              data-testid="inline-edit-date"
+            >
+              <CalendarIcon className="mr-1 h-3 w-3" />
+              {selectedDate ? format(selectedDate, 'MM/dd/yyyy') : 'Select date'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start" side="bottom">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                if (date) {
+                  const dateStr = format(date, 'yyyy-MM-dd');
+                  onSave(dateStr);
+                }
+                setIsEditing(false);
+              }}
+              initialFocus
+            />
+            <div className="border-t p-2 flex justify-between">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  onSave(null);
+                  setIsEditing(false);
+                }}
+              >
+                Clear
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setIsEditing(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       );
     }
 
@@ -3364,9 +3404,25 @@ function ProjectGanttTaskRowMeta({
                 />
               );
             case 'baselineStartDate':
-              return task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yyyy') : '—';
+              return (
+                <InlineEditCell
+                  value={task.baselineStartDate}
+                  displayValue={task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yyyy') : '—'}
+                  editType="date"
+                  onSave={(val) => handleInlineUpdate('baselineStartDate', val as string | null, task.baselineStartDate)}
+                  disabled={isSummaryTask}
+                />
+              );
             case 'baselineEndDate':
-              return task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yyyy') : '—';
+              return (
+                <InlineEditCell
+                  value={task.baselineEndDate}
+                  displayValue={task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yyyy') : '—'}
+                  editType="date"
+                  onSave={(val) => handleInlineUpdate('baselineEndDate', val as string | null, task.baselineEndDate)}
+                  disabled={isSummaryTask}
+                />
+              );
             case 'actualStartDate':
               return (
                 <InlineEditCell
