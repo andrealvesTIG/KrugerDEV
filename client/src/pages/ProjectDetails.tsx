@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
+import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskDependencies, useAddTaskDependency, useRemoveTaskDependency, useProjectDependencies, useReorderTask } from "@/hooks/use-tasks";
@@ -754,10 +755,20 @@ function ProjectTimeline({
 
 function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any }) {
   const { toast } = useToast();
-  const [isEditing, setIsEditing] = useState(false);
   const { currentOrganization } = useOrganization();
   const { data: resources } = useResources(currentOrganization?.id ?? null);
+  const { data: portfolios } = usePortfolios(currentOrganization?.id);
+  const createPortfolio = useCreatePortfolio();
   const [managerResourceId, setManagerResourceId] = useState<number | null>(null);
+  const [showNewPortfolioDialog, setShowNewPortfolioDialog] = useState(false);
+  const [newPortfolioName, setNewPortfolioName] = useState("");
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState({
+    name: project.name || "",
+    description: project.description || "",
+    budget: project.budget || "0",
+    completionPercentage: project.completionPercentage || 0,
+  });
   
   useEffect(() => {
     if (project.managerResourceId) {
@@ -770,214 +781,343 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
     }
   }, [project.managerResourceId, project.managerId, resources]);
 
-  const managerResource = resources?.find(r => r.id === managerResourceId);
-  
-  const form = useForm({
-    defaultValues: {
+  useEffect(() => {
+    setEditValues({
       name: project.name || "",
       description: project.description || "",
-      status: project.status || "Initiation",
-      priority: project.priority || "Medium",
-      startDate: project.startDate ? format(new Date(project.startDate), 'yyyy-MM-dd') : "",
-      endDate: project.endDate ? format(new Date(project.endDate), 'yyyy-MM-dd') : "",
       budget: project.budget || "0",
-      health: project.health || "Green",
       completionPercentage: project.completionPercentage || 0,
-    }
-  });
+    });
+  }, [project]);
 
-  const onSubmit = (data: any) => {
-    const selectedResource = resources?.find(r => r.id === managerResourceId);
+  const autoSave = (field: string, value: any) => {
     onUpdate({ 
       id: project.id, 
-      ...data,
-      managerId: selectedResource?.userId || null,
-      managerResourceId: managerResourceId 
+      [field]: value 
     }, {
       onSuccess: () => {
-        toast({ title: "Success", description: "Project updated successfully" });
-        setIsEditing(false);
+        toast({ title: "Saved" });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to save changes", variant: "destructive" });
       }
     });
   };
 
+  const handleFieldBlur = (field: string) => {
+    const value = editValues[field as keyof typeof editValues];
+    if (value !== project[field]) {
+      autoSave(field, value);
+    }
+    setEditingField(null);
+  };
+
+  const handleSelectChange = (field: string, value: string) => {
+    autoSave(field, value);
+  };
+
+  const handlePortfolioChange = (value: string) => {
+    if (value === "new") {
+      setShowNewPortfolioDialog(true);
+      return;
+    }
+    const portfolioId = value === "none" ? null : Number(value);
+    autoSave("portfolioId", portfolioId);
+  };
+
+  const handleCreatePortfolio = async () => {
+    if (!newPortfolioName.trim() || !currentOrganization?.id) return;
+    try {
+      const newPortfolio = await createPortfolio.mutateAsync({
+        organizationId: currentOrganization.id,
+        name: newPortfolioName.trim(),
+        status: "Active",
+        healthScore: "Green",
+      });
+      toast({ title: "Portfolio created" });
+      setShowNewPortfolioDialog(false);
+      setNewPortfolioName("");
+      autoSave("portfolioId", newPortfolio.id);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDateChange = (field: string, date: Date | undefined) => {
+    if (date) {
+      autoSave(field, format(date, 'yyyy-MM-dd'));
+    }
+  };
+
+  const currentPortfolio = portfolios?.find(p => p.id === project.portfolioId);
+
   return (
     <>
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <div>
-          <CardTitle>Project Summary</CardTitle>
-          <CardDescription>View and edit project details</CardDescription>
-        </div>
-        <Button 
-          variant={isEditing ? "outline" : "default"} 
-          onClick={() => setIsEditing(!isEditing)}
-          data-testid="button-edit-project"
-        >
-          {isEditing ? "Cancel" : "Edit Project"}
-        </Button>
+      <CardHeader>
+        <CardTitle>Project Summary</CardTitle>
+        <CardDescription>Click any field to edit - changes are saved automatically</CardDescription>
       </CardHeader>
       <CardContent>
-        {isEditing ? (
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label>Project Name</Label>
-                <Input {...form.register("name")} data-testid="input-project-name" />
-              </div>
-              <div className="space-y-2">
-                <Label>Budget</Label>
-                <Input type="number" {...form.register("budget")} data-testid="input-project-budget" />
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Controller control={form.control} name="status" render={({field}) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Initiation">Initiation</SelectItem>
-                      <SelectItem value="Planning">Planning</SelectItem>
-                      <SelectItem value="Execution">Execution</SelectItem>
-                      <SelectItem value="Monitoring">Monitoring</SelectItem>
-                      <SelectItem value="Closing">Closing</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )} />
-              </div>
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Controller control={form.control} name="priority" render={({field}) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Critical">Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )} />
-              </div>
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input type="date" {...form.register("startDate")} />
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input type="date" {...form.register("endDate")} />
-              </div>
-              <div className="space-y-2">
-                <Label>Health</Label>
-                <Controller control={form.control} name="health" render={({field}) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Green">Green</SelectItem>
-                      <SelectItem value="Yellow">Yellow</SelectItem>
-                      <SelectItem value="Red">Red</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )} />
-              </div>
-              <div className="space-y-2">
-                <Label>Completion (%)</Label>
-                <Input type="number" min="0" max="100" {...form.register("completionPercentage", { valueAsNumber: true })} />
-              </div>
-              <div className="space-y-2">
-                <ResourceSelector
-                  organizationId={currentOrganization?.id || null}
-                  selectedResourceId={managerResourceId}
-                  onSelectionChange={setManagerResourceId}
-                  label="Project Manager"
-                  placeholder="Select project manager..."
-                  projectId={project.id}
-                  projectName={project.name}
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div>
+              <Label className="text-xs text-muted-foreground">Project Name</Label>
+              {editingField === 'name' ? (
+                <Input
+                  value={editValues.name}
+                  onChange={(e) => setEditValues(prev => ({ ...prev, name: e.target.value }))}
+                  onBlur={() => handleFieldBlur('name')}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('name')}
+                  autoFocus
+                  data-testid="input-project-name"
                 />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea {...form.register("description")} className="min-h-[100px]" />
-            </div>
-            <div className="flex justify-end">
-              <Button type="submit" data-testid="button-save-project">Save Changes</Button>
-            </div>
-          </form>
-        ) : (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div>
-                <Label className="text-xs text-muted-foreground">Project Name</Label>
-                <p className="font-medium">{project.name}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Status</Label>
-                <p className="font-medium">{project.status}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Priority</Label>
-                <p className="font-medium">{project.priority}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Budget</Label>
-                <p className="font-medium">${Number(project.budget).toLocaleString()}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Health</Label>
-                <Badge className={cn(
-                  project.health === 'Green' ? "bg-emerald-100 text-emerald-800" :
-                  project.health === 'Yellow' ? "bg-amber-100 text-amber-800" :
-                  "bg-rose-100 text-rose-800"
-                )}>{project.health}</Badge>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Completion</Label>
-                <p className="font-medium">{project.completionPercentage}%</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Start Date</Label>
-                <p className="font-medium">{project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : 'Not set'}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">End Date</Label>
-                <p className="font-medium">{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'Not set'}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-slate-500">Project Manager</Label>
-                <ResourceSelector
-                  organizationId={currentOrganization?.id ?? 0}
-                  projectId={project.id}
-                  selectedResourceId={managerResourceId}
-                  onSelectionChange={(resourceId) => {
-                    const selectedResource = resources?.find(r => r.id === resourceId);
-                    setManagerResourceId(resourceId);
-                    onUpdate({ 
-                      id: project.id, 
-                      managerId: selectedResource?.userId || null,
-                      managerResourceId: resourceId 
-                    }, {
-                      onSuccess: () => {
-                        toast({ title: "Project Manager updated" });
-                        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
-                      },
-                      onError: () => {
-                        toast({ title: "Error", description: "Failed to update project manager", variant: "destructive" });
-                      }
-                    });
-                  }}
-                  placeholder="Click to assign manager"
-                  className="mt-1"
-                />
-              </div>
+              ) : (
+                <p 
+                  className="font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors"
+                  onClick={() => setEditingField('name')}
+                  data-testid="text-project-name"
+                >
+                  {project.name}
+                </p>
+              )}
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Description</Label>
-              <p className="mt-1 text-muted-foreground">{project.description || 'No description provided.'}</p>
+              <Label className="text-xs text-muted-foreground">Portfolio</Label>
+              <Select 
+                value={project.portfolioId?.toString() || "none"} 
+                onValueChange={handlePortfolioChange}
+              >
+                <SelectTrigger className="mt-1" data-testid="select-project-portfolio">
+                  <SelectValue placeholder="Select portfolio">
+                    {currentPortfolio?.name || "No Portfolio"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Portfolio</SelectItem>
+                  {portfolios?.map((p) => (
+                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                  ))}
+                  <SelectItem value="new" className="text-primary font-medium">
+                    <div className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Add New Portfolio
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Status</Label>
+              <Select value={project.status || "Initiation"} onValueChange={(v) => handleSelectChange('status', v)}>
+                <SelectTrigger className="mt-1" data-testid="select-project-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Initiation">Initiation</SelectItem>
+                  <SelectItem value="Planning">Planning</SelectItem>
+                  <SelectItem value="Execution">Execution</SelectItem>
+                  <SelectItem value="Monitoring">Monitoring</SelectItem>
+                  <SelectItem value="Closing">Closing</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Priority</Label>
+              <Select value={project.priority || "Medium"} onValueChange={(v) => handleSelectChange('priority', v)}>
+                <SelectTrigger className="mt-1" data-testid="select-project-priority">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Budget</Label>
+              {editingField === 'budget' ? (
+                <Input
+                  type="number"
+                  value={editValues.budget}
+                  onChange={(e) => setEditValues(prev => ({ ...prev, budget: e.target.value }))}
+                  onBlur={() => handleFieldBlur('budget')}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('budget')}
+                  autoFocus
+                  data-testid="input-project-budget"
+                />
+              ) : (
+                <p 
+                  className="font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors"
+                  onClick={() => setEditingField('budget')}
+                  data-testid="text-project-budget"
+                >
+                  ${Number(project.budget).toLocaleString()}
+                </p>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Health</Label>
+              <Select value={project.health || "Green"} onValueChange={(v) => handleSelectChange('health', v)}>
+                <SelectTrigger className="mt-1" data-testid="select-project-health">
+                  <Badge className={cn(
+                    "w-full justify-center",
+                    project.health === 'Green' ? "bg-emerald-100 text-emerald-800" :
+                    project.health === 'Yellow' ? "bg-amber-100 text-amber-800" :
+                    "bg-rose-100 text-rose-800"
+                  )}>{project.health}</Badge>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Green">Green</SelectItem>
+                  <SelectItem value="Yellow">Yellow</SelectItem>
+                  <SelectItem value="Red">Red</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Completion</Label>
+              {editingField === 'completionPercentage' ? (
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={editValues.completionPercentage}
+                  onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))}
+                  onBlur={() => handleFieldBlur('completionPercentage')}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')}
+                  autoFocus
+                  data-testid="input-project-completion"
+                />
+              ) : (
+                <p 
+                  className="font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors"
+                  onClick={() => setEditingField('completionPercentage')}
+                  data-testid="text-project-completion"
+                >
+                  {project.completionPercentage}%
+                </p>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Start Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal mt-1" data-testid="button-start-date">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : 'Select date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={project.startDate ? new Date(project.startDate) : undefined}
+                    onSelect={(date) => handleDateChange('startDate', date)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">End Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal mt-1" data-testid="button-end-date">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'Select date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={project.endDate ? new Date(project.endDate) : undefined}
+                    onSelect={(date) => handleDateChange('endDate', date)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Project Manager</Label>
+              <ResourceSelector
+                organizationId={currentOrganization?.id ?? 0}
+                projectId={project.id}
+                selectedResourceId={managerResourceId}
+                onSelectionChange={(resourceId) => {
+                  const selectedResource = resources?.find(r => r.id === resourceId);
+                  setManagerResourceId(resourceId);
+                  onUpdate({ 
+                    id: project.id, 
+                    managerId: selectedResource?.userId || null,
+                    managerResourceId: resourceId 
+                  }, {
+                    onSuccess: () => {
+                      toast({ title: "Project Manager updated" });
+                      queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+                    },
+                    onError: () => {
+                      toast({ title: "Error", description: "Failed to update project manager", variant: "destructive" });
+                    }
+                  });
+                }}
+                placeholder="Click to assign manager"
+                className="mt-1"
+              />
             </div>
           </div>
-        )}
+          <div>
+            <Label className="text-xs text-muted-foreground">Description</Label>
+            {editingField === 'description' ? (
+              <Textarea
+                value={editValues.description}
+                onChange={(e) => setEditValues(prev => ({ ...prev, description: e.target.value }))}
+                onBlur={() => handleFieldBlur('description')}
+                className="mt-1 min-h-[100px]"
+                autoFocus
+                data-testid="input-project-description"
+              />
+            ) : (
+              <p 
+                className="mt-1 text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors min-h-[40px]"
+                onClick={() => setEditingField('description')}
+                data-testid="text-project-description"
+              >
+                {project.description || 'Click to add description...'}
+              </p>
+            )}
+          </div>
+        </div>
       </CardContent>
     </Card>
+    
+    <Dialog open={showNewPortfolioDialog} onOpenChange={setShowNewPortfolioDialog}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Create New Portfolio</DialogTitle>
+          <DialogDescription>Add a new portfolio to organize your projects.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Portfolio Name</Label>
+            <Input
+              value={newPortfolioName}
+              onChange={(e) => setNewPortfolioName(e.target.value)}
+              placeholder="Enter portfolio name"
+              data-testid="input-new-portfolio-name"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowNewPortfolioDialog(false)}>Cancel</Button>
+          <Button onClick={handleCreatePortfolio} disabled={!newPortfolioName.trim() || createPortfolio.isPending} data-testid="button-create-new-portfolio">
+            {createPortfolio.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Create Portfolio
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     
     <ProjectCommentsFeed projectId={project.id} />
   </>
