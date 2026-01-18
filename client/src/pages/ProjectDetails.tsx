@@ -540,13 +540,15 @@ function ProjectTimeline({
       });
     });
     
-    // Add tasks marked as milestones (use end date as the milestone date)
-    tasks?.filter(t => t.isMilestone).forEach((t) => {
+    // Add tasks marked as milestones (use end date or start date as the milestone date)
+    tasks?.filter(t => t.isMilestone && (t.endDate || t.startDate)).forEach((t) => {
+      const dateStr = t.endDate || t.startDate;
+      if (!dateStr) return;
       events.push({
         id: t.id,
         type: 'task-milestone',
         title: t.name,
-        date: parseISO(t.endDate),
+        date: parseISO(dateStr),
         completed: t.status === 'Completed',
       });
     });
