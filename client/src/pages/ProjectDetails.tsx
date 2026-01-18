@@ -10,7 +10,7 @@ import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useD
 import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument, useDeleteProjectDocument } from "@/hooks/use-project-documents";
 import { useProjectComments, useCreateProjectComment, useDeleteProjectComment } from "@/hooks/use-project-comments";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
-import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources } from "@/hooks/use-resources";
+import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { ResourceSelector } from "@/components/ResourceSelector";
@@ -1872,6 +1872,7 @@ function computeWbsValues(tasks: Task[]): Map<number, string> {
 function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: { projectId: number; projectName?: string; projectStartDate?: string | null; projectEndDate?: string | null }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading } = useTasks(projectId);
+  const { data: resources } = useResources(currentOrganization?.id ?? null);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
@@ -2525,6 +2526,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
           tasks={filteredTasks} 
           onTaskClick={openEditDialog}
           isFullscreen={isFullscreen}
+          organizationId={currentOrganization?.id ?? null}
+          projectId={projectId}
+          resources={resources}
+          onResourceAssign={(taskId, resourceIds) => {
+            updateTaskResources.mutate({ taskId, resourceIds });
+          }}
           onStatusChange={(taskId, newStatus) => {
             const task = tasks?.find(t => t.id === taskId);
             if (task) {
@@ -6023,26 +6030,74 @@ function ProjectGanttView({
   );
 }
 
+type GroupByField = 'status' | 'priority' | 'assignee' | 'phase';
+
+const GROUP_BY_OPTIONS: { value: GroupByField; label: string }[] = [
+  { value: 'status', label: 'Status' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'assignee', label: 'Assignee' },
+  { value: 'phase', label: 'Phase' },
+];
+
+const STATUS_COLUMNS = [
+  { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
+  { id: "In Progress", label: "In Progress", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
+  { id: "Completed", label: "Completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
+];
+
+const PRIORITY_COLUMNS = [
+  { id: "Low", label: "Low", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
+  { id: "Medium", label: "Medium", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
+  { id: "High", label: "High", color: "bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200" },
+  { id: "Critical", label: "Critical", color: "bg-rose-100 text-rose-700 dark:bg-rose-800 dark:text-rose-200" },
+];
+
 function ProjectKanbanView({ 
   tasks, 
   onTaskClick, 
   onStatusChange,
   isFullscreen,
+  organizationId,
+  projectId,
+  resources,
+  onResourceAssign,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
   isFullscreen?: boolean;
+  organizationId: number | null;
+  projectId: number;
+  resources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
+  onResourceAssign?: (taskId: number, resourceIds: number[]) => void;
 }) {
-  const columns = [
-    { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" },
-    { id: "In Progress", label: "In Progress", color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" },
-    { id: "Completed", label: "Completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
-  ];
-
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeOverColumn, setActiveOverColumn] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(false);
+  const [filterResourceId, setFilterResourceId] = useState<number | null>(null);
+  const [groupBy, setGroupBy] = useState<GroupByField>('status');
+  
+  // Fetch all task assignments for the organization to enable filtering at parent level
+  const { data: allTaskAssignments } = useAllTaskResourceAssignments(organizationId);
+  
+  // Get all task IDs for this project
+  const projectTaskIds = useMemo(() => new Set(tasks.map(t => t.id)), [tasks]);
+  
+  // Map of taskId to list of assigned resourceIds - filtered to this project's tasks only
+  const taskAssignmentsMap = useMemo(() => {
+    const map = new Map<number, number[]>();
+    if (allTaskAssignments) {
+      for (const assignment of allTaskAssignments) {
+        // Only include assignments for tasks in this project
+        if (!projectTaskIds.has(assignment.taskId)) continue;
+        if (!map.has(assignment.taskId)) {
+          map.set(assignment.taskId, []);
+        }
+        map.get(assignment.taskId)!.push(assignment.resourceId);
+      }
+    }
+    return map;
+  }, [allTaskAssignments, projectTaskIds]);
   
   // Calculate which tasks are summary tasks (have children)
   const summaryTaskIds = useMemo(() => {
@@ -6055,23 +6110,80 @@ function ProjectKanbanView({
     return parentIds;
   }, [tasks]);
   
-  // Filter tasks: only show leaf tasks (no children) by default
-  const filteredTasks = useMemo(() => {
-    if (showSummary) {
-      return tasks;
+  // Build columns based on groupBy field
+  const columns = useMemo(() => {
+    if (groupBy === 'status') {
+      return STATUS_COLUMNS;
+    } else if (groupBy === 'priority') {
+      return PRIORITY_COLUMNS;
+    } else if (groupBy === 'assignee') {
+      // Dynamic columns based on assigned resources + Unassigned
+      const assigneeSet = new Set<string>();
+      tasks.forEach(t => {
+        if (t.assignee) assigneeSet.add(t.assignee);
+      });
+      const cols = [{ id: "Unassigned", label: "Unassigned", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" }];
+      Array.from(assigneeSet).sort().forEach(name => {
+        cols.push({ id: name, label: name, color: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200" });
+      });
+      return cols;
+    } else if (groupBy === 'phase') {
+      const phaseSet = new Set<string>();
+      tasks.forEach(t => {
+        if (t.phase) phaseSet.add(t.phase);
+      });
+      const cols = [{ id: "No Phase", label: "No Phase", color: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200" }];
+      Array.from(phaseSet).sort().forEach(phase => {
+        cols.push({ id: phase, label: phase, color: "bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-200" });
+      });
+      return cols;
     }
-    return tasks.filter(t => !summaryTaskIds.has(t.id));
-  }, [tasks, showSummary, summaryTaskIds]);
+    return STATUS_COLUMNS;
+  }, [groupBy, tasks]);
+  
+  // Filter tasks: only show leaf tasks (no children) by default, and filter by resource
+  const filteredTasks = useMemo(() => {
+    let result = tasks;
+    if (!showSummary) {
+      result = result.filter(t => !summaryTaskIds.has(t.id));
+    }
+    // Apply resource filter at parent level
+    if (filterResourceId !== null) {
+      result = result.filter(t => {
+        const assignedIds = taskAssignmentsMap.get(t.id);
+        return assignedIds && assignedIds.includes(filterResourceId);
+      });
+    }
+    return result;
+  }, [tasks, showSummary, summaryTaskIds, filterResourceId, taskAssignmentsMap]);
+  
+  // Get field value for grouping
+  const getGroupValue = (task: Task): string => {
+    if (groupBy === 'status') {
+      return task.status || "Not Started";
+    } else if (groupBy === 'priority') {
+      return task.priority || "Medium";
+    } else if (groupBy === 'assignee') {
+      return task.assignee || "Unassigned";
+    } else if (groupBy === 'phase') {
+      return task.phase || "No Phase";
+    }
+    return task.status || "Not Started";
+  };
+  
+  // Only enable drag and drop when grouping by status (the only field we update on drag)
+  const isDragEnabled = groupBy === 'status';
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: isDragEnabled ? 8 : 999999, // Effectively disable drag when not grouping by status
       },
     })
   );
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (!isDragEnabled) return;
     const taskId = Number(event.active.id);
     const task = tasks.find(t => t.id === taskId);
     if (task) setActiveTask(task);
@@ -6117,8 +6229,12 @@ function ProjectKanbanView({
       targetColumnId = String(over.id);
     }
     
-    if (targetColumnId && task.status !== targetColumnId) {
-      onStatusChange(taskId, targetColumnId);
+    // Only handle status changes when grouping by status
+    if (targetColumnId && groupBy === 'status') {
+      const currentValue = task.status || "Not Started";
+      if (currentValue !== targetColumnId) {
+        onStatusChange(taskId, targetColumnId);
+      }
     }
   };
   
@@ -6134,7 +6250,7 @@ function ProjectKanbanView({
         isFullscreen && "h-full"
       )}>
         {/* Filter bar */}
-        <div className="flex items-center gap-3 p-3 border-b bg-muted/30">
+        <div className="flex items-center gap-3 p-3 border-b bg-muted/30 flex-wrap">
           <div className="flex items-center gap-2">
             <Checkbox
               id="show-summary"
@@ -6146,32 +6262,83 @@ function ProjectKanbanView({
               Show Summary
             </label>
           </div>
-          <span className="text-xs text-muted-foreground">
+          
+          {/* Group By dropdown */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Group by:</span>
+            <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupByField)}>
+              <SelectTrigger className="h-8 w-[120px] text-xs" data-testid="kanban-group-by">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {GROUP_BY_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {/* Filter by Resource dropdown */}
+          {resources && resources.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Resource:</span>
+              <Select 
+                value={filterResourceId?.toString() || "all"} 
+                onValueChange={(v) => setFilterResourceId(v === "all" ? null : Number(v))}
+              >
+                <SelectTrigger className="h-8 w-[150px] text-xs" data-testid="kanban-filter-resource">
+                  <SelectValue placeholder="All Resources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Resources</SelectItem>
+                  {resources.map(r => (
+                    <SelectItem key={r.id} value={r.id.toString()}>{r.displayName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
+          <span className="text-xs text-muted-foreground ml-auto">
             {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
           </span>
         </div>
         <div className={cn("p-4", isFullscreen && "flex-1 overflow-auto")}>
+          {!isDragEnabled && (
+            <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded mb-3 inline-block">
+              Drag and drop is only available when grouping by Status
+            </div>
+          )}
           <DndContext 
-            sensors={sensors} 
+            sensors={isDragEnabled ? sensors : []} 
             collisionDetection={closestCorners}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
           >
-            <div className={cn("grid grid-cols-1 md:grid-cols-3 gap-6", isFullscreen && "h-full")}>
+            <div 
+              className={cn("grid gap-6 overflow-x-auto pb-2", isFullscreen && "h-full")}
+              style={{ 
+                gridTemplateColumns: `repeat(${columns.length}, minmax(280px, 1fr))` 
+              }}
+            >
               {columns.map(column => (
                 <ProjectKanbanColumn
                   key={column.id}
                   column={column}
-                  tasks={filteredTasks.filter(t => (t.status || "Not Started") === column.id)}
+                  tasks={filteredTasks.filter(t => getGroupValue(t) === column.id)}
                   onTaskClick={onTaskClick}
-                  isActiveOver={activeOverColumn === column.id}
+                  isActiveOver={activeOverColumn === column.id && isDragEnabled}
+                  resources={resources}
+                  onResourceAssign={onResourceAssign}
+                  isDragEnabled={isDragEnabled}
+                  taskAssignmentsMap={taskAssignmentsMap}
                 />
               ))}
             </div>
             <DragOverlay>
-              {activeTask && (
+              {activeTask && isDragEnabled && (
                 <div className="opacity-80">
                   <Card className="shadow-lg border-primary">
                     <CardContent className="p-4">
@@ -6192,12 +6359,20 @@ function ProjectKanbanColumn({
   column, 
   tasks, 
   onTaskClick,
-  isActiveOver 
+  isActiveOver,
+  resources,
+  onResourceAssign,
+  isDragEnabled,
+  taskAssignmentsMap,
 }: { 
   column: { id: string; label: string; color: string }; 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
   isActiveOver: boolean;
+  resources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
+  onResourceAssign?: (taskId: number, resourceIds: number[]) => void;
+  isDragEnabled?: boolean;
+  taskAssignmentsMap?: Map<number, number[]>;
 }) {
   const { setNodeRef } = useDroppable({
     id: column.id,
@@ -6205,6 +6380,7 @@ function ProjectKanbanColumn({
       type: 'column',
       columnId: column.id,
     },
+    disabled: !isDragEnabled,
   });
 
   return (
@@ -6226,11 +6402,20 @@ function ProjectKanbanColumn({
               task={task}
               onTaskClick={onTaskClick}
               columnId={column.id}
+              resources={resources}
+              onResourceAssign={onResourceAssign}
+              isDragEnabled={isDragEnabled}
+              assignedResourceIds={taskAssignmentsMap?.get(task.id) || []}
             />
           ))}
-          {tasks.length === 0 && (
+          {tasks.length === 0 && isDragEnabled && (
             <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
               Drop tasks here
+            </div>
+          )}
+          {tasks.length === 0 && !isDragEnabled && (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              No tasks
             </div>
           )}
         </div>
@@ -6242,13 +6427,21 @@ function ProjectKanbanColumn({
 function ProjectDraggableTaskCard({ 
   task, 
   onTaskClick,
-  columnId 
+  columnId,
+  resources,
+  onResourceAssign,
+  isDragEnabled,
+  assignedResourceIds,
 }: { 
   task: Task; 
   onTaskClick: (task: Task) => void;
   columnId: string;
+  resources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
+  onResourceAssign?: (taskId: number, resourceIds: number[]) => void;
+  isDragEnabled?: boolean;
+  assignedResourceIds: number[];
 }) {
-  const { data: taskAssignments } = useTaskResourceAssignments(task.id);
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
   const {
     attributes,
     listeners,
@@ -6263,17 +6456,20 @@ function ProjectDraggableTaskCard({
       task,
       columnId,
     },
+    disabled: !isDragEnabled,
   });
 
-  const style: React.CSSProperties = {
+  const style: React.CSSProperties = isDragEnabled ? {
     transform: CSS.Transform.toString(transform),
     transition,
     touchAction: 'none',
-  };
+  } : {};
 
-  const assignedNames = taskAssignments && taskAssignments.length > 0
-    ? taskAssignments.map(a => a.resource.displayName).join(", ")
-    : null;
+  // Get assigned resource names from the resources list
+  const assignedResources = useMemo(() => {
+    if (!resources) return [];
+    return resources.filter(r => assignedResourceIds.includes(r.id));
+  }, [resources, assignedResourceIds]);
 
   const handleClick = (e: React.MouseEvent) => {
     if (isDragging) {
@@ -6283,14 +6479,27 @@ function ProjectDraggableTaskCard({
     }
     onTaskClick(task);
   };
+  
+  const handleQuickAssign = (resourceId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onResourceAssign) {
+      const newIds = assignedResourceIds.includes(resourceId)
+        ? assignedResourceIds.filter(id => id !== resourceId)
+        : [...assignedResourceIds, resourceId];
+      onResourceAssign(task.id, newIds);
+    }
+    setIsAssignOpen(false);
+  };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
-      className={cn("cursor-grab active:cursor-grabbing", isDragging && "opacity-50")}
+      {...(isDragEnabled ? { ...attributes, ...listeners } : {})}
+      className={cn(
+        isDragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-default",
+        isDragging && "opacity-50"
+      )}
     >
       <Card 
         className="hover:shadow-md transition-shadow"
@@ -6302,9 +6511,44 @@ function ProjectDraggableTaskCard({
             {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
             {task.name}
           </div>
-          {assignedNames && (
-            <div className="text-xs text-muted-foreground mt-1">{assignedNames}</div>
-          )}
+          {/* Resource assignment row */}
+          <div className="flex items-center gap-1 mt-2 flex-wrap">
+            {assignedResources.length > 0 ? (
+              assignedResources.map(r => (
+                <Badge key={r.id} variant="secondary" className="text-[10px] py-0">
+                  {r.displayName}
+                </Badge>
+              ))
+            ) : (
+              <span className="text-[10px] text-muted-foreground">No resources</span>
+            )}
+            {resources && resources.length > 0 && onResourceAssign && (
+              <DropdownMenu open={isAssignOpen} onOpenChange={setIsAssignOpen}>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-5 w-5 ml-1"
+                    data-testid={`kanban-assign-${task.id}`}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48" onClick={(e) => e.stopPropagation()}>
+                  {resources.map(r => (
+                    <DropdownMenuItem
+                      key={r.id}
+                      onClick={(e) => handleQuickAssign(r.id, e)}
+                      className="text-xs"
+                    >
+                      <Check className={cn("h-3 w-3 mr-2", assignedResourceIds.includes(r.id) ? "opacity-100" : "opacity-0")} />
+                      {r.displayName}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
           <div className="flex items-center justify-between mt-3">
             <Badge variant="outline" className="text-xs">
               {task.progress || 0}%
