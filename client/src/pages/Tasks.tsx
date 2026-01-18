@@ -88,11 +88,17 @@ export default function Tasks() {
   };
 
   // Find current user's resource ID for "My Assignments" filter
+  // Try matching by userId first, then fall back to matching by email
   const myResourceId = useMemo(() => {
     if (!user?.id || !orgResources) return null;
-    const myResource = orgResources.find(r => r.userId === user.id);
+    // First try to find by userId (direct link)
+    let myResource = orgResources.find(r => r.userId === user.id);
+    // If not found, try matching by email address
+    if (!myResource && user.email) {
+      myResource = orgResources.find(r => r.email?.toLowerCase() === user.email?.toLowerCase());
+    }
     return myResource?.id ?? null;
-  }, [user?.id, orgResources]);
+  }, [user?.id, user?.email, orgResources]);
 
   // Build set of task IDs assigned to current user
   const myTaskIds = useMemo(() => {
