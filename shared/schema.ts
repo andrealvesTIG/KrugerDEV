@@ -153,6 +153,8 @@ export const projects = pgTable("projects", {
   technicalLeadId: varchar("technical_lead_id").references(() => users.id), // Technical Lead
   completionPercentage: integer("completion_percentage").default(0),
   health: text("health").default("Green"), // Green, Yellow, Red
+  healthReason: text("health_reason"), // Reason for health status change
+  healthReasonUpdatedAt: timestamp("health_reason_updated_at"), // When health reason was last updated
   scheduleVariance: integer("schedule_variance"), // Days ahead/behind schedule (negative = behind)
   costVariance: numeric("cost_variance"), // Budget variance (negative = over budget)
   scope: text("scope"), // Project scope statement

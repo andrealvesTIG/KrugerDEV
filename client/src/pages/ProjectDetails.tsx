@@ -784,6 +784,9 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
   const [showNewPortfolioDialog, setShowNewPortfolioDialog] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [showHealthReasonDialog, setShowHealthReasonDialog] = useState(false);
+  const [pendingHealth, setPendingHealth] = useState<string | null>(null);
+  const [healthReason, setHealthReason] = useState(project.healthReason || "");
   const [editValues, setEditValues] = useState({
     name: project.name || "",
     description: project.description || "",
@@ -836,6 +839,51 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
 
   const handleSelectChange = (field: string, value: string) => {
     autoSave(field, value);
+  };
+
+  const handleHealthChange = (newHealth: string) => {
+    if (newHealth !== project.health) {
+      setPendingHealth(newHealth);
+      setShowHealthReasonDialog(true);
+    }
+  };
+
+  const saveHealthWithReason = () => {
+    if (!pendingHealth) return;
+    onUpdate({ 
+      id: project.id, 
+      health: pendingHealth,
+      healthReason: healthReason.trim() || null,
+      healthReasonUpdatedAt: new Date().toISOString()
+    }, {
+      onSuccess: () => {
+        toast({ title: "Health status updated" });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+        setShowHealthReasonDialog(false);
+        setPendingHealth(null);
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to update health", variant: "destructive" });
+      }
+    });
+  };
+
+  const skipHealthReason = () => {
+    if (!pendingHealth) return;
+    onUpdate({ 
+      id: project.id, 
+      health: pendingHealth
+    }, {
+      onSuccess: () => {
+        toast({ title: "Health status updated" });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+        setShowHealthReasonDialog(false);
+        setPendingHealth(null);
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to update health", variant: "destructive" });
+      }
+    });
   };
 
   const handlePortfolioChange = (value: string) => {
@@ -993,7 +1041,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => handleSelectChange('health', option.value)}
+                      onClick={() => handleHealthChange(option.value)}
                       className={cn(
                         "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
                         isSelected
@@ -1011,6 +1059,11 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                   );
                 })}
               </div>
+              {project.healthReason && (
+                <p className="mt-1 text-xs text-muted-foreground italic">
+                  "{project.healthReason}"
+                </p>
+              )}
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Completion</Label>
@@ -1126,6 +1179,49 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
         </div>
       </CardContent>
     </Card>
+    
+    <Dialog open={showHealthReasonDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowHealthReasonDialog(false);
+          setPendingHealth(null);
+        }
+      }}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            Change Health Status
+            {pendingHealth && (
+              <Badge className={cn(
+                "text-xs",
+                pendingHealth === 'Green' ? "bg-emerald-100 text-emerald-800" :
+                pendingHealth === 'Yellow' ? "bg-amber-100 text-amber-800" :
+                "bg-rose-100 text-rose-800"
+              )}>{pendingHealth}</Badge>
+            )}
+          </DialogTitle>
+          <DialogDescription>
+            Optionally provide a reason for this health status change.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <Textarea
+            value={healthReason}
+            onChange={(e) => setHealthReason(e.target.value)}
+            placeholder="e.g., Budget overrun by 15%, Key milestone delayed..."
+            className="min-h-[80px]"
+            data-testid="input-health-reason"
+          />
+        </div>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="ghost" onClick={skipHealthReason} data-testid="button-skip-reason">
+            Skip
+          </Button>
+          <Button onClick={saveHealthWithReason} data-testid="button-save-reason">
+            Save with Reason
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     
     <Dialog open={showNewPortfolioDialog} onOpenChange={setShowNewPortfolioDialog}>
       <DialogContent className="sm:max-w-[400px]">
