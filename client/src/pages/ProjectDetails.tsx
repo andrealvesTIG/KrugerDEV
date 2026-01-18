@@ -982,21 +982,35 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Health</Label>
-              <Select value={project.health || "Green"} onValueChange={(v) => handleSelectChange('health', v)}>
-                <SelectTrigger className="mt-1" data-testid="select-project-health">
-                  <Badge className={cn(
-                    "w-full justify-center",
-                    project.health === 'Green' ? "bg-emerald-100 text-emerald-800" :
-                    project.health === 'Yellow' ? "bg-amber-100 text-amber-800" :
-                    "bg-rose-100 text-rose-800"
-                  )}>{project.health}</Badge>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Green">Green</SelectItem>
-                  <SelectItem value="Yellow">Yellow</SelectItem>
-                  <SelectItem value="Red">Red</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="mt-1 flex rounded-lg border border-border bg-muted/30 p-1" data-testid="toggle-project-health">
+                {[
+                  { value: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100', text: 'text-emerald-800', ring: 'ring-emerald-500/30' },
+                  { value: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100', text: 'text-amber-800', ring: 'ring-amber-500/30' },
+                  { value: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100', text: 'text-rose-800', ring: 'ring-rose-500/30' },
+                ].map((option) => {
+                  const isSelected = project.health === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleSelectChange('health', option.value)}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                        isSelected
+                          ? `${option.bgLight} ${option.text} ring-2 ${option.ring} shadow-sm`
+                          : "text-muted-foreground hover:bg-muted/80"
+                      )}
+                      data-testid={`health-option-${option.value.toLowerCase()}`}
+                    >
+                      <span className={cn(
+                        "w-2 h-2 rounded-full transition-all",
+                        isSelected ? option.bg : "bg-muted-foreground/30"
+                      )} />
+                      {option.value}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Completion</Label>
