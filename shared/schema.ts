@@ -167,7 +167,8 @@ export const projects = pgTable("projects", {
   category: text("category"), // Project category (IT, Marketing, Operations, etc.)
   businessValue: text("business_value"), // Expected business value/ROI
   riskLevel: text("risk_level"), // Low, Medium, High - overall risk assessment
-  source: text("source").default("manual"), // "manual" = created in app, "imported" = from MPP/external file
+  source: text("source").default("manual"), // "manual" = created in app, "imported" = from MPP/external file, "planner" = from Microsoft Planner
+  plannerPlanId: text("planner_plan_id"), // Microsoft Planner plan ID for syncing
   notes: text("notes"), // Additional notes
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),

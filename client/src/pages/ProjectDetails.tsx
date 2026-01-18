@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import plannerLogoPath from "@/assets/planner-logo.png";
 import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
@@ -422,7 +423,7 @@ export default function ProjectDetails() {
             <ProjectSummaryTab project={project} onUpdate={updateProject} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
-            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} />
+            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab projectId={project.id} projectName={project.name} />
@@ -2142,15 +2143,82 @@ function computeWbsValues(tasks: Task[]): Map<number, string> {
   return wbsMap;
 }
 
-function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: { projectId: number; projectName?: string; projectStartDate?: string | null; projectEndDate?: string | null }) {
+function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId }: { 
+  projectId: number; 
+  projectName?: string; 
+  projectStartDate?: string | null; 
+  projectEndDate?: string | null;
+  projectSource?: string | null;
+  plannerPlanId?: string | null;
+}) {
   const { currentOrganization } = useOrganization();
-  const { data: tasks, isLoading } = useTasks(projectId);
+  const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
   const { data: resources } = useResources(currentOrganization?.id ?? null);
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { toast } = useToast();
+  
+  const isPlannerProject = projectSource === "planner" && !!plannerPlanId;
+  const [isSyncing, setIsSyncing] = useState(false);
+  const hasSyncedRef = useRef(false);
+  
+  // Planner sync handler - not memoized, called manually
+  const handlePlannerSync = async (silent = false) => {
+    if (!isPlannerProject) return;
+    setIsSyncing(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/sync-planner`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        data = { message: "Failed to parse response" };
+      }
+      if (!response.ok) {
+        if (!silent) {
+          toast({ title: "Sync failed", description: data.message || "Unknown error", variant: "destructive" });
+        }
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+        refetchTasks();
+        if (!silent) {
+          toast({ title: "Synced", description: data.message });
+        }
+      }
+    } catch (err) {
+      if (!silent) {
+        toast({ title: "Sync failed", description: "Failed to sync from Planner", variant: "destructive" });
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+  
+  // Auto-sync on mount for Planner projects (once only)
+  useEffect(() => {
+    if (isPlannerProject && !hasSyncedRef.current) {
+      hasSyncedRef.current = true;
+      // Inline async to avoid callback dependencies
+      (async () => {
+        try {
+          const response = await fetch(`/api/projects/${projectId}/sync-planner`, {
+            method: 'POST',
+            credentials: 'include',
+          });
+          if (response.ok) {
+            queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+          }
+        } catch {
+          // Silent fail on auto-sync
+        }
+      })();
+    }
+  }, [projectId, isPlannerProject]);
   
   const [view, setView] = useState<"table" | "gantt" | "kanban">("gantt");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -2379,6 +2447,39 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
       )}
       style={isFullscreen ? { left: sidebarWidth } : undefined}
     >
+      {/* Planner project banner */}
+      {isPlannerProject && (
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+          <div className="flex items-center gap-3">
+            <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6" />
+            <div>
+              <span className="font-medium">Synced from Microsoft Planner</span>
+              <p className="text-sm text-muted-foreground">Tasks are read-only. Edit them in Microsoft Planner.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a 
+              href="https://tasks.office.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Open in Planner
+            </a>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handlePlannerSync(false)} 
+              disabled={isSyncing}
+              data-testid="button-sync-planner"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
+              {isSyncing ? "Syncing..." : "Sync Now"}
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as "table" | "gantt" | "kanban")}>
           <TabsList>
@@ -2407,7 +2508,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
               data-testid="input-task-search"
             />
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
+          {!isPlannerProject && <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
             <DialogTrigger asChild>
               <Button onClick={openCreateDialog} data-testid="button-add-task">
                 <Plus className="mr-2 h-4 w-4" /> Add Task
@@ -2701,7 +2802,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate }: 
               </DialogFooter>
             </form>
           </DialogContent>
-          </Dialog>
+          </Dialog>}
           
           <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
             <AlertDialogContent>

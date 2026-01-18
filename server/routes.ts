@@ -2738,6 +2738,7 @@ export async function registerRoutes(
         startDate: projectStartDate,
         endDate: projectEndDate,
         source: "planner",
+        plannerPlanId: planId, // Store for future syncing
       });
 
       // Record usage after successful creation
@@ -2813,6 +2814,147 @@ export async function registerRoutes(
       console.error("Planner import error stack:", err?.stack);
       res.status(500).json({ 
         message: "Failed to import from Planner", 
+        error: err?.message || String(err) 
+      });
+    }
+  });
+
+  // Sync tasks from Planner for a project
+  app.post('/api/projects/:id/sync-planner', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const project = await storage.getProject(projectId);
+      
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      if (project.source !== "planner" || !project.plannerPlanId) {
+        return res.status(400).json({ message: "Project is not linked to Microsoft Planner" });
+      }
+
+      const token = req.session.plannerAccessToken;
+      if (!token) {
+        return res.status(401).json({ message: "Not connected to Planner. Please reconnect." });
+      }
+
+      const planId = project.plannerPlanId;
+
+      // Fetch tasks and buckets from Planner
+      const [tasksResponse, bucketsResponse] = await Promise.all([
+        fetch(`https://graph.microsoft.com/v1.0/planner/plans/${planId}/tasks`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }),
+        fetch(`https://graph.microsoft.com/v1.0/planner/plans/${planId}/buckets`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }),
+      ]);
+
+      if (!tasksResponse.ok) {
+        if (tasksResponse.status === 401) {
+          delete req.session.plannerAccessToken;
+          return res.status(401).json({ message: "Session expired. Please reconnect to Planner." });
+        }
+        throw new Error(`Failed to fetch tasks: ${tasksResponse.status}`);
+      }
+
+      const tasksData = await tasksResponse.json();
+      const plannerTasks = tasksData.value || [];
+
+      let buckets: { id: string; name: string }[] = [];
+      if (bucketsResponse.ok) {
+        const bucketsData = await bucketsResponse.json();
+        buckets = bucketsData.value || [];
+      }
+      const bucketMap = new Map(buckets.map((b: any) => [b.id, b.name]));
+
+      // Get existing tasks for this project
+      const existingTasks = await storage.getTasksByProject(projectId);
+      
+      // Delete all existing tasks for this project (full sync)
+      for (const task of existingTasks) {
+        await storage.deleteTask(task.id);
+      }
+
+      // Calculate default dates
+      let projectStartDate: string | null = null;
+      let projectEndDate: string | null = null;
+      for (const task of plannerTasks) {
+        if (task.startDateTime) {
+          const startDate = task.startDateTime.split('T')[0];
+          if (!projectStartDate || startDate < projectStartDate) {
+            projectStartDate = startDate;
+          }
+        }
+        if (task.dueDateTime) {
+          const endDate = task.dueDateTime.split('T')[0];
+          if (!projectEndDate || endDate > projectEndDate) {
+            projectEndDate = endDate;
+          }
+        }
+      }
+
+      const defaultStartDate = projectStartDate || new Date().toISOString().split('T')[0];
+      const defaultEndDate = projectEndDate || defaultStartDate;
+
+      // Create new tasks from Planner
+      let taskIndex = 0;
+      const createdTasks: any[] = [];
+
+      for (const plannerTask of plannerTasks) {
+        taskIndex++;
+        const bucketName = plannerTask.bucketId ? bucketMap.get(plannerTask.bucketId) || null : null;
+
+        const taskStartDate = plannerTask.startDateTime 
+          ? plannerTask.startDateTime.split('T')[0] 
+          : defaultStartDate;
+        const taskEndDate = plannerTask.dueDateTime 
+          ? plannerTask.dueDateTime.split('T')[0] 
+          : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
+
+        const task = await storage.createTask({
+          projectId: project.id,
+          taskIndex,
+          name: plannerTask.title,
+          description: null,
+          priority: mapPlannerPriorityToProjectPriority(plannerTask.priority || 5),
+          startDate: taskStartDate,
+          endDate: taskEndDate,
+          progress: plannerTask.percentComplete || 0,
+          status: mapPlannerPercentToStatus(plannerTask.percentComplete || 0),
+          phase: bucketName,
+          outlineLevel: 1,
+          isMilestone: false,
+          isSummary: false,
+          isCritical: false,
+        });
+
+        createdTasks.push(task);
+      }
+
+      // Update project dates if changed
+      if (projectStartDate || projectEndDate) {
+        await storage.updateProject(projectId, {
+          startDate: projectStartDate || project.startDate,
+          endDate: projectEndDate || project.endDate,
+        });
+      }
+
+      res.json({ 
+        success: true,
+        tasksCount: createdTasks.length,
+        message: `Synced ${createdTasks.length} tasks from Planner`
+      });
+    } catch (err: any) {
+      console.error("Planner sync error:", err);
+      res.status(500).json({ 
+        message: "Failed to sync from Planner", 
         error: err?.message || String(err) 
       });
     }

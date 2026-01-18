@@ -1,264 +1,76 @@
 # FridayReport.AI - Project Portfolio Management Application
 
 ## Overview
-
-FridayReport.AI is a full-stack project portfolio management application designed for enterprise teams to track projects, portfolios, risks, milestones, and issues. The application follows a Linear + Asana hybrid design approach, emphasizing clean data tables, refined status badges, and professional enterprise-grade UI.
-
-The stack consists of a React frontend with TypeScript, an Express.js backend, PostgreSQL database with Drizzle ORM, and Replit Auth for authentication.
+FridayReport.AI is a full-stack project portfolio management application for enterprise teams. It facilitates tracking of projects, portfolios, risks, milestones, and issues, adopting a design philosophy inspired by Linear and Asana. The application focuses on providing clean data tables, refined status badges, and a professional, enterprise-grade user interface. It aims to offer comprehensive project and portfolio oversight with detailed tracking capabilities.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-- **Framework**: React 18 with TypeScript
-- **Routing**: Wouter (lightweight React router)
-- **State Management**: TanStack React Query for server state
-- **Styling**: Tailwind CSS with shadcn/ui component library
-- **Charts**: Recharts for data visualization
-- **Animations**: Framer Motion for smooth transitions
-- **Forms**: React Hook Form with Zod validation
+### Frontend
+- **Framework**: React 18 with TypeScript.
+- **Routing**: Wouter.
+- **State Management**: TanStack React Query.
+- **Styling**: Tailwind CSS with shadcn/ui.
+- **Data Visualization**: Recharts.
+- **Animations**: Framer Motion.
+- **Forms**: React Hook Form with Zod validation.
+- **Structure**: Page-based with reusable components for UI and layout.
 
-The frontend follows a page-based architecture with shared components:
-- `client/src/pages/` - Route components (Dashboard, Projects, Portfolios, Issues, Calendar)
-- `client/src/components/ui/` - Reusable shadcn/ui components
-- `client/src/components/layout/` - Layout components (Sidebar, AppLayout)
-- `client/src/hooks/` - Custom hooks for data fetching and authentication
-
-### Backend Architecture
-- **Framework**: Express.js with TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **API Design**: RESTful API with typed routes defined in `shared/routes.ts`
-- **Session Management**: Express sessions with PostgreSQL store
-- **Build Tool**: esbuild for server bundling, Vite for client
-
-Key backend files:
-- `server/routes.ts` - API route handlers with automatic seeding
-- `server/storage.ts` - Data access layer interface
-- `server/db.ts` - Database connection setup
-- `shared/schema.ts` - Drizzle schema definitions and Zod validators
+### Backend
+- **Framework**: Express.js with TypeScript.
+- **Database**: PostgreSQL with Drizzle ORM.
+- **API Design**: RESTful API with typed routes.
+- **Session Management**: Express sessions with PostgreSQL store.
+- **Build Tools**: esbuild for server, Vite for client.
+- **Shared Code**: `shared/` directory for common schemas, route definitions, and models.
 
 ### Data Model
-The application manages the following core entities with extensive industry-standard metadata fields:
+The application manages comprehensive data entities including:
+- **Portfolios**: Strategic project groupings with detailed metadata, budget tracking, and performance metrics.
+- **Projects**: Individual initiatives with extensive tracking for scope, budget, schedule, and risks.
+- **Tasks**: Work items with hierarchical roll-up logic for dates, progress, hours, and costs. Resource assignments are restricted to leaf tasks.
+- **Resources**: Team members and equipment with detailed profiles, rates, and availability.
+- **Risks, Issues, Milestones**: Dedicated entities for tracking project risks, issues, and key milestones with associated metadata and resolution strategies.
+- **Change Requests**: Formal requests with workflow status and impact assessment.
+- **Project Documents**: Categorized document management with versioning.
+- **Organizations**: Multi-tenant support with soft-delete capabilities and role-based access control.
 
-1. **Portfolios** - Strategic groupings of projects with:
-   - Business owner, strategic objectives, risk tolerance
-   - Budget tracking (allocated/spent), health score, status
-   - Target dates, department, performance metrics
+### Organization Roles and Access Control
+- **Roles**: Owner, Admin, Member, Team Member.
+- **Team Member Role**: Restricted visibility based on resource assignments to portfolios, projects, tasks, and issues. Visibility is determined by `createdBy`, `teamMemberResourceIds`, `invitedProjectIds`, `taskResourceAssignments`, `riskResourceAssignments`, and `issueResourceAssignments`.
 
-2. **Projects** - Individual initiatives with:
-   - Project code, type, methodology (Waterfall/Agile/etc.)
-   - Business sponsor, owner, technical lead references
-   - Baseline and actual dates for variance tracking
-   - Budget, actual cost, forecast, cost/schedule variance
-   - Scope, objectives, success criteria, constraints, assumptions
-   - Department, category, business value, risk level
-
-3. **Tasks** - Project tasks/work items with:
-   - Task number, WBS code, outline level (1-6), priority
-   - Task type (Work/Milestone/Summary), constraint type/date
-   - Baseline and actual start/end dates
-   - Estimated/actual/remaining hours, cost tracking
-   - Owner, phase, category, labels, critical path flag
-   - **Hierarchical Roll-up**: Parent tasks (those with children) automatically roll up values from leaf tasks:
-     - Start date = earliest start date of leaf children
-     - End date = latest end date of leaf children
-     - Progress = weighted average by duration
-     - Hours and costs = sum of leaf children values
-   - **Resource Assignment Restriction**: Only leaf tasks (no children) can have resource assignments; summary tasks display an explanatory message
-
-4. **Resources** - Team members and equipment with:
-   - Resource code, type (Employee/Contractor/Vendor/Equipment)
-   - Contact info, manager, department, cost center, location
-   - Hourly/overtime/cost rates, weekly capacity, availability %
-   - Skills, certifications, experience level
-   - Start/end dates, billable flag
-
-5. **Risks** - Project risks with:
-   - Risk number, category, score (probability x impact)
-   - Response strategy, contingency plan, trigger events
-   - Owner, reviewer, identified/target/actual resolution dates
-   - Impact (cost/schedule), proximity, residual risk
-
-6. **Issues** - Bug/task/enhancement tracking with:
-   - Issue number, category, severity, escalation level
-   - Reporter, assignee, reported/target/actual resolution dates
-   - Resolution, root cause, impact (cost/schedule)
-   - Steps to reproduce, environment, labels
-
-7. **Milestones** - Key project milestones with:
-   - Milestone number, type, phase
-   - Baseline and actual dates
-   - Owner, deliverables, acceptance criteria
-   - Dependencies, success metrics, stakeholders
-
-8. **Change Requests** - Formal change requests with type (scope/schedule/budget/resource), priority, impact assessment, justification, and workflow status (pending/under_review/approved/rejected/implemented)
-
-9. **Project Documents** - Document management with categories (general/contract/requirement/design/test/report), versioning, and URL references
-
-10. **Organizations** - Multi-tenant organizations with soft-delete (deactivate/reactivate) capability
-
-### Organization Roles
-Organizations support multiple membership roles with different permissions:
-
-1. **Owner** - Full administrative access, can manage organization settings and members
-2. **Admin** - Can manage organization settings and members (except removing owner)
-3. **Member** - Standard access to all projects, tasks, risks, and issues in the organization
-4. **Team Member** - Restricted visibility role:
-   - Can only see portfolios they created or are assigned as team member to (via `teamMemberResourceIds`)
-   - Can only see projects where they are assigned to at least one task or explicitly invited (via `invitedProjectIds`)
-   - Can only see tasks they are directly assigned to via resource assignments
-   - Can only see issues they are directly assigned to via resource assignments
-   - Cannot see unassigned items or items assigned to others
-
-The team_member role uses resource assignment relationships to determine visibility:
-- User must have an associated Resource record in the organization
-- **Portfolio visibility**: Portfolios have `createdBy` (user ID) and `teamMemberResourceIds` (array of resource IDs) fields for access control
-- **Project visibility**: Resources have `invitedProjectIds` for explicit project invitations; assignment-based visibility via tasks
-- Visibility is determined by `taskResourceAssignments`, `riskResourceAssignments`, and `issueResourceAssignments` tables
-- Helper functions in `server/routes.ts`: `getTeamMemberAccessData`, `getTeamMemberProjectIds`, `getTeamMemberTaskIds`, `getTeamMemberRiskIds`, `getTeamMemberIssueIds`, `getTeamMemberPortfolioIds`
-
-### Organization Soft-Delete
-Organizations use soft-delete (deactivation) rather than permanent deletion:
-- When deleted, organizations are marked with `deactivatedAt` and `deactivatedBy` timestamps
-- Deactivated organizations are hidden from normal queries but data is preserved
-- Organization members remain intact during deactivation for seamless restore
-- Only Super Admins can restore (reactivate) deactivated organizations via the Super Admin console
-- Restore endpoint: `POST /api/admin/organizations/:id/reactivate`
-- View deactivated: `GET /api/admin/organizations/deactivated`
-
-### Email Verification Requirement
-All create operations require the user's email to be verified before allowing creation. This applies to:
-- Organizations, Portfolios, Projects
-- Tasks, Risks, Issues, Milestones
-- Resources, Resource Invites
-- Project Intakes, Change Requests, Documents, Comments
-- Organization Invites, Task Dependencies
-- AI Project Generation, MPP Imports
-
-**Exception**: The demo data generation endpoint (`/api/demo-data/generate`) is exempt to allow new users to generate sample data during onboarding before email verification.
-
-When a create request is blocked due to email verification:
-- Response status: 403 Forbidden
-- Response includes: `{ message: "Email verification required...", emailVerificationRequired: true }`
-
-### Bot Protection (Honeypot + Time-based)
-All public authentication forms are protected against automated bots using a two-layer approach:
-
-1. **Honeypot Fields**: Hidden form fields that real users cannot see. Bots typically fill all fields, so if these hidden fields have values, the submission is rejected.
-   - Component: `client/src/components/HoneypotField.tsx`
-   - Hidden fields: `website_url`, `phone_number` (positioned off-screen)
-
-2. **Time-based Validation**: Tracks when the form loads. If submitted in under 2 seconds, it's likely a bot since humans take longer to read and fill forms.
-   - Minimum submission time: 2000ms
-   - Server-side validation in: `server/auth/emailAuth.ts` (`verifyHoneypot` function)
-
-**Protected Endpoints**:
-- `/api/auth/register` - User registration
-- `/api/auth/login` - User login
-- `/api/auth/forgot-password` - Password reset requests
-- `/api/auth/magic-link/request` - Magic link sign-up
-- `/api/auth/passwordless/request` - Passwordless authentication
-
-**Cloudflare Turnstile**: Remains available as an optional additional protection layer. If `TURNSTILE_SECRET_KEY` and `VITE_TURNSTILE_SITE_KEY` are configured, Turnstile verification is also performed. Without these keys, honeypot protection alone guards against bots.
-
-### Shared Code Pattern
-The `shared/` directory contains code used by both frontend and backend:
-- `shared/schema.ts` - Database schema, TypeScript types, Zod validators
-- `shared/routes.ts` - API contract definitions with request/response schemas
-- `shared/models/auth.ts` - User and session models for Replit Auth
+### Security and Data Integrity
+- **Organization Soft-Delete**: Organizations are deactivated rather than permanently deleted, preserving data for potential reactivation by Super Admins.
+- **Email Verification**: Mandatory email verification for all creation operations across the application, with a 403 Forbidden response if not verified.
+- **Bot Protection**: Implemented via honeypot fields and time-based validation for public authentication forms, with optional Cloudflare Turnstile integration.
 
 ## External Dependencies
 
-### Database
-- **PostgreSQL** - Primary data store
-- **Drizzle ORM** - Type-safe database queries and migrations
-- **connect-pg-simple** - PostgreSQL session store
+### Database & ORM
+- **PostgreSQL**: Primary database.
+- **Drizzle ORM**: Type-safe database interactions.
 
 ### Authentication
-- **Replit Auth** - OpenID Connect authentication via Replit
-- **Passport.js** - Authentication middleware
-- **express-session** - Session management
+- **Replit Auth**: OpenID Connect for user authentication.
+- **Passport.js**: Authentication middleware.
+- **express-session**: Session management.
 
-### UI Components
-- **shadcn/ui** - Component library built on Radix UI primitives
-- **Radix UI** - Accessible, unstyled UI primitives
-- **Lucide React** - Icon library
+### UI/UX Libraries
+- **shadcn/ui**: Component library based on Radix UI.
+- **Radix UI**: Accessible, unstyled UI primitives.
+- **Lucide React**: Icon library.
 
-### Build & Development
-- **Vite** - Frontend dev server and bundler
-- **esbuild** - Server bundling for production
-- **tsx** - TypeScript execution for development
+### Development & Utilities
+- **Vite**: Frontend development and bundling.
+- **esbuild**: Server bundling.
+- **tsx**: TypeScript execution for development.
+- **date-fns**: Date manipulation.
+- **Zod**: Schema validation.
+- **drizzle-zod**: Zod schema generation from Drizzle.
 
-### Data & Utilities
-- **date-fns** - Date formatting and manipulation
-- **Zod** - Schema validation
-- **drizzle-zod** - Generate Zod schemas from Drizzle tables
-
-### Microsoft Project Integration
-- **MPXJ** - Open-source Java library for parsing native .mpp files
-- Located in `lib/` directory with compiled Java parser
-- Supports MPP (native), XML (MSPDI), and CSV formats
-- Parsed fields: Task Name, WBS, Start/Finish Date, Duration, % Complete, Outline Level, Summary/Milestone flags
-
-### Microsoft Planner Integration
-Allows importing projects from Microsoft Planner using Microsoft Graph API.
-
-**Service Files**:
-- `server/services/microsoftPlanner.ts` - Microsoft Graph API client for Planner operations
-- Shares OAuth infrastructure with Project Online integration (`server/auth/microsoftAuth.ts`)
-
-**API Endpoints**:
-- `GET /api/planner/status` - Check if Microsoft 365 is configured and user is connected
-- `POST /api/planner/connect` - Initiate OAuth flow to connect to Planner
-- `GET /api/planner/plans` - List all Planner plans accessible to the user
-- `POST /api/planner/import` - Import a Planner plan as a new project with all tasks
-
-**OAuth Scopes Required**:
-- `Tasks.Read` - Read Planner tasks
-- `Group.Read.All` - List groups/plans the user has access to
-- `User.Read` - Get user profile info
-- `offline_access` - Refresh tokens for persistent access
-
-**Import Mapping**:
-- Planner plan title → Project name
-- Planner tasks → Project tasks (WBS auto-generated)
-- Planner priority (0-9) → Project priority (Critical/High/Medium/Low)
-- Planner percent complete → Task progress and status
-- Planner buckets → Task phases
-- Planner due dates → Task dates
-
-**Session Storage**:
-- `plannerAccessToken` - Stored in session after OAuth callback
-- `plannerTokenExpiry` - Token expiration timestamp for refresh logic
-
-### Analytics API (Power BI Integration)
-The application exposes REST API endpoints for external analytics tools like Power BI:
-
-**Endpoints** (all require authentication):
-- `GET /api/analytics/projects` - Flat project data with aggregated metrics
-- `GET /api/analytics/portfolios` - Portfolio summaries with project counts
-- `GET /api/analytics/risks` - All risks with project/org context
-- `GET /api/analytics/issues` - All issues with project/org context
-- `GET /api/analytics/milestones` - All milestones with project/org context
-- `GET /api/analytics/intakes` - Project intake pipeline data
-- `GET /api/analytics/summary` - Organization-level KPI summaries
-
-**Query Parameters**:
-- `organizationId` (optional) - Filter to specific organization
-
-**Power BI Connection with API Key Authentication**:
-1. **Generate API Key**: In the app, go to Settings and generate an API key (or call POST `/api/user/api-key/generate`)
-2. **Configure Power BI Desktop**: 
-   - Use Web connector and set URL to `https://your-app.replit.app/api/analytics/projects`
-   - Select "Basic" authentication
-   - **Username**: Your email address (e.g., `alex.rodov@trusteditgroup.com`)
-   - **Password**: Your generated API key (64-character hex string)
-3. Click Connect and schedule refresh as needed
-
-**API Key Management Endpoints**:
-- `GET /api/user/api-key` - Check if API key exists
-- `POST /api/user/api-key/generate` - Generate new API key
-- `DELETE /api/user/api-key` - Revoke API key
+### Integrations
+- **Microsoft Project (MPXJ)**: Java-based library for parsing `.mpp`, XML (MSPDI), and CSV project files.
+- **Microsoft Planner**: Integration via Microsoft Graph API for importing and syncing projects and tasks. Supports OAuth for secure access and task synchronization, with tasks from Planner being read-only within the application.
+- **Analytics API**: REST endpoints for integrating with external analytics tools like Power BI, providing project, portfolio, risk, issue, milestone, intake, and KPI data. Secured with API key authentication.
