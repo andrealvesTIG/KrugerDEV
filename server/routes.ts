@@ -2766,10 +2766,22 @@ export async function registerRoutes(
       let taskIndex = 0;
       const createdTasks: any[] = [];
 
+      // Default dates for tasks without dates (use project dates or today)
+      const defaultStartDate = projectStartDate || new Date().toISOString().split('T')[0];
+      const defaultEndDate = projectEndDate || defaultStartDate;
+
       for (const plannerTask of plannerTasks) {
         taskIndex++;
         const bucketName = plannerTask.bucketId ? bucketMap.get(plannerTask.bucketId) || null : null;
         const bucketOrder = plannerTask.bucketId ? bucketIndexMap.get(plannerTask.bucketId) || 1 : 1;
+
+        // Use Planner dates if available, otherwise use project dates or today
+        const taskStartDate = plannerTask.startDateTime 
+          ? plannerTask.startDateTime.split('T')[0] 
+          : defaultStartDate;
+        const taskEndDate = plannerTask.dueDateTime 
+          ? plannerTask.dueDateTime.split('T')[0] 
+          : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
         const task = await storage.createTask({
           projectId: project.id,
@@ -2777,8 +2789,8 @@ export async function registerRoutes(
           name: plannerTask.title,
           description: null,
           priority: mapPlannerPriorityToProjectPriority(plannerTask.priority || 5),
-          startDate: plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : null,
-          endDate: plannerTask.dueDateTime ? plannerTask.dueDateTime.split('T')[0] : null,
+          startDate: taskStartDate,
+          endDate: taskEndDate,
           progress: plannerTask.percentComplete || 0,
           status: mapPlannerPercentToStatus(plannerTask.percentComplete || 0),
           phase: bucketName,
