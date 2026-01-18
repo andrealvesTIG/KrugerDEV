@@ -28,7 +28,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus } from "lucide-react";
+import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -76,9 +76,8 @@ function BusinessProcessFlow({
   const currentIndex = PROJECT_STAGES.findIndex(s => s.value === currentStatus);
   
   return (
-    <div className="bg-muted/50 border border-border rounded-lg p-4">
-      <div className="flex items-center justify-between">
-        {PROJECT_STAGES.map((stage, index) => {
+    <div className="flex items-center justify-between">
+      {PROJECT_STAGES.map((stage, index) => {
           const isCompleted = index < currentIndex;
           const isCurrent = index === currentIndex;
           const isUpcoming = index > currentIndex;
@@ -133,7 +132,6 @@ function BusinessProcessFlow({
             </div>
           );
         })}
-      </div>
     </div>
   );
 }
@@ -333,10 +331,30 @@ export default function ProjectDetails() {
       </div>
 
       {/* Business Process Flow */}
-      <BusinessProcessFlow 
-        currentStatus={project.status} 
-        onStatusChange={handleStatusChange} 
-      />
+      <Collapsible open={!sectionsCollapsed.workflow} onOpenChange={() => toggleSection('workflow')}>
+        <div className="bg-muted/50 border border-border rounded-lg">
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover-elevate rounded-lg">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                {sectionsCollapsed.workflow ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <GitBranch className="h-4 w-4" />
+                Project Workflow
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {project.status}
+              </Badge>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-4 pb-4">
+              <BusinessProcessFlow 
+                currentStatus={project.status} 
+                onStatusChange={handleStatusChange} 
+              />
+            </div>
+          </CollapsibleContent>
+        </div>
+      </Collapsible>
 
       <div className="grid gap-3 md:grid-cols-4">
         <Card className="py-2">
