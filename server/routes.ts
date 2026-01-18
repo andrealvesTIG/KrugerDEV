@@ -2796,9 +2796,13 @@ export async function registerRoutes(
         tasksCreated: createdTasks.length,
         message: `Successfully imported "${plan.title}" with ${createdTasks.length} tasks`
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Planner import error:", err);
-      res.status(500).json({ message: "Failed to import from Planner" });
+      console.error("Planner import error stack:", err?.stack);
+      res.status(500).json({ 
+        message: "Failed to import from Planner", 
+        error: err?.message || String(err) 
+      });
     }
   });
 
