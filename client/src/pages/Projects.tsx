@@ -573,15 +573,16 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   
-  // Check Planner connection status
+  // Check Planner connection status - only when dialog is open and Planner source selected
   const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
     queryKey: ["/api/planner/status"],
+    enabled: open && projectSource === "planner",
   });
 
-  // Fetch Planner plans when connected
+  // Fetch Planner plans when connected - only when dialog is open and connected
   const { data: plannerPlans, isLoading: isLoadingPlans, refetch: refetchPlans } = useQuery<{ plans: PlannerPlan[] }>({
     queryKey: ["/api/planner/plans"],
-    enabled: plannerStatus?.connected === true,
+    enabled: open && projectSource === "planner" && plannerStatus?.connected === true,
   });
 
   // Connect to Planner mutation
@@ -726,7 +727,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="name">Project Name</Label>
-                <Input id="name" {...form.register("name")} placeholder="Project Alpha" />
+                <Input id="name" {...form.register("name")} placeholder="Project Alpha" data-testid="input-project-name" />
                 {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
               </div>
               
@@ -740,7 +741,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                       onValueChange={(val) => field.onChange(val === "none" ? null : parseInt(val))} 
                       value={field.value?.toString() || "none"}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger data-testid="select-portfolio">
                         <SelectValue placeholder="Select Portfolio" />
                       </SelectTrigger>
                       <SelectContent>
@@ -761,7 +762,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                   name="priority"
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger>
+                      <SelectTrigger data-testid="select-priority">
                         <SelectValue placeholder="Select Priority" />
                       </SelectTrigger>
                       <SelectContent>
@@ -777,27 +778,27 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
 
               <div className="space-y-2">
                 <Label htmlFor="budget">Budget ($)</Label>
-                <Input id="budget" type="number" {...form.register("budget")} />
+                <Input id="budget" type="number" {...form.register("budget")} data-testid="input-budget" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="startDate">Start Date</Label>
-                <Input id="startDate" type="date" {...form.register("startDate")} />
+                <Input id="startDate" type="date" {...form.register("startDate")} data-testid="input-start-date" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="endDate">End Date</Label>
-                <Input id="endDate" type="date" {...form.register("endDate")} />
+                <Input id="endDate" type="date" {...form.register("endDate")} data-testid="input-end-date" />
               </div>
 
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea id="description" {...form.register("description")} />
+                <Textarea id="description" {...form.register("description")} data-testid="input-description" />
               </div>
             </div>
 
             <DialogFooter>
-              <Button type="submit" disabled={createMutation.isPending}>
+              <Button type="submit" disabled={createMutation.isPending} data-testid="button-create-project">
                 {createMutation.isPending ? "Creating..." : "Create Project"}
               </Button>
             </DialogFooter>
