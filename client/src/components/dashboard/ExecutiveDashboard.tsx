@@ -88,9 +88,9 @@ export function ExecutiveDashboard() {
     enabled: !!projectsData && projectsData.length > 0,
   });
 
-  const generateProjectMutation = useMutation({
+  const smartCreateMutation = useMutation({
     mutationFn: async (prompt: string) => {
-      const response = await apiRequest('POST', '/api/ai/generate-project', {
+      const response = await apiRequest('POST', '/api/ai/smart-create', {
         prompt,
         organizationId: currentOrganization?.id,
       });
@@ -98,18 +98,32 @@ export function ExecutiveDashboard() {
     },
     onSuccess: (data: any) => {
       toast({
-        title: "Project Created",
-        description: `Created "${data.project.name}" with ${data.summary.tasksCreated} tasks.`,
+        title: "Created Successfully",
+        description: data.message || "Items created",
       });
+      // Invalidate all relevant caches
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/risks'] });
+      // If a project was created, invalidate its specific caches
+      if (data.created?.project) {
+        const pid = data.created.project.id;
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'risks'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'issues'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'milestones'] });
+      }
       setAiDialogOpen(false);
       setAiPrompt("");
-      setLocation(`/projects/${data.project.id}`);
+      if (data.redirectTo) {
+        setLocation(data.redirectTo);
+      }
     },
     onError: (error: any) => {
       toast({
-        title: "Generation Failed",
-        description: error.message || "Failed to generate project",
+        title: "Creation Failed",
+        description: error.message || "Failed to create with AI",
         variant: "destructive",
       });
     },
@@ -247,10 +261,10 @@ export function ExecutiveDashboard() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-primary" />
-                  Create Project with AI
+                  AI Create
                 </DialogTitle>
                 <DialogDescription>
-                  Describe your project and AI will generate a complete project plan.
+                  Describe what you want to create. AI will understand and generate the appropriate items (projects, tasks, risks, issues, milestones, or resources).
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -268,28 +282,32 @@ export function ExecutiveDashboard() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="ai-prompt">Project Description</Label>
+                  <Label htmlFor="ai-prompt">What would you like to create?</Label>
                   <Textarea
                     id="ai-prompt"
                     data-testid="textarea-ai-prompt"
-                    placeholder="E.g., Build a mobile app for tracking fitness goals..."
+                    placeholder="Examples:
+• Create a mobile app project with tasks for design, development, and testing
+• Add 5 team members for a software development team
+• Generate risks for a cloud migration initiative
+• Create milestones for a product launch..."
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
-                    className="min-h-[120px]"
+                    className="min-h-[140px]"
                   />
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setAiDialogOpen(false)} disabled={generateProjectMutation.isPending} data-testid="button-cancel-ai">
+                <Button variant="outline" onClick={() => setAiDialogOpen(false)} disabled={smartCreateMutation.isPending} data-testid="button-cancel-ai">
                   Cancel
                 </Button>
                 <Button
                   data-testid="button-generate-project"
-                  onClick={() => generateProjectMutation.mutate(aiPrompt)}
-                  disabled={!aiPrompt.trim() || generateProjectMutation.isPending || (aiCosts && !aiCosts.aiProjectGeneration.canAfford)}
+                  onClick={() => smartCreateMutation.mutate(aiPrompt)}
+                  disabled={!aiPrompt.trim() || smartCreateMutation.isPending || (aiCosts && !aiCosts.aiProjectGeneration.canAfford)}
                 >
-                  {generateProjectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                  Generate
+                  {smartCreateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  Create
                 </Button>
               </DialogFooter>
             </DialogContent>

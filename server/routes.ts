@@ -7238,6 +7238,340 @@ Return ONLY valid JSON, no markdown or explanations.`;
     }
   });
 
+  // Smart AI Create - can create projects, tasks, risks, issues, milestones, or resources
+  app.post('/api/ai/smart-create', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
+      const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
+      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS);
+      if (!limitCheck.allowed) {
+        return res.status(403).json({ 
+          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
+          limitExceeded: true,
+          resourceType: "ai_runs"
+        });
+      }
+      
+      const { prompt, organizationId, projectId, portfolioId } = req.body;
+      
+      if (!prompt || !organizationId) {
+        return res.status(400).json({ message: "Prompt and organizationId are required" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(Number(organizationId))) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+
+      const systemPrompt = `You are an AI assistant for a project portfolio management system. Based on the user's request, determine what they want to create and generate the appropriate data.
+
+Analyze the request and decide which type(s) of items to create:
+- "project" - For creating new projects with tasks, risks, and issues
+- "task" - For creating one or more tasks (requires projectId context)
+- "risk" - For creating one or more project risks (requires projectId context)
+- "issue" - For creating one or more project issues (requires projectId context)
+- "milestone" - For creating one or more milestones (requires projectId context)
+- "resource" - For creating team members/resources
+
+Return a JSON response with this structure:
+{
+  "intent": "project" | "task" | "risk" | "issue" | "milestone" | "resource" | "multiple",
+  "requiresProject": boolean,
+  "items": {
+    "project": { ... } | null,
+    "tasks": [...] | [],
+    "risks": [...] | [],
+    "issues": [...] | [],
+    "milestones": [...] | [],
+    "resources": [...] | []
+  }
+}
+
+For a PROJECT:
+{
+  "name": "Project name",
+  "description": "Description",
+  "status": "Initiation",
+  "priority": "Medium",
+  "health": "Green",
+  "budget": 0
+}
+
+For TASKS (array):
+{
+  "name": "Task name",
+  "description": "Description",
+  "durationDays": 5,
+  "status": "Not Started",
+  "priority": "Medium"
+}
+
+For RISKS (array):
+{
+  "title": "Risk title",
+  "description": "Description",
+  "probability": "Medium",
+  "impact": "Medium",
+  "status": "Open",
+  "mitigationPlan": "How to mitigate"
+}
+
+For ISSUES (array):
+{
+  "title": "Issue title",
+  "description": "Description",
+  "priority": "Medium",
+  "status": "Open",
+  "type": "Task"
+}
+
+For MILESTONES (array):
+{
+  "name": "Milestone name",
+  "description": "Description",
+  "daysFromStart": 30
+}
+
+For RESOURCES (array):
+{
+  "displayName": "Full Name",
+  "email": "email@example.com",
+  "title": "Job Title",
+  "department": "Department",
+  "skills": "Skill1, Skill2"
+}
+
+Guidelines:
+- If user mentions "project", "initiative", "program" → create a project with related tasks/risks
+- If user mentions "task", "todo", "work item", "action item" → create tasks only
+- If user mentions "risk", "concern", "threat" → create risks only
+- If user mentions "issue", "problem", "bug", "blocker" → create issues only
+- If user mentions "milestone", "deadline", "deliverable", "phase" → create milestones only
+- If user mentions "resource", "team member", "person", "staff" → create resources only
+- Be specific and realistic based on the domain context
+- Generate 3-8 items when creating multiple of the same type
+
+Return ONLY valid JSON.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}` }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 4000,
+      });
+      
+      const { recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
+      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_smart_create_${Date.now()}`);
+      
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI did not return a response" });
+      }
+      
+      let aiResult;
+      try {
+        aiResult = JSON.parse(content);
+      } catch (parseError) {
+        console.error("Failed to parse AI response:", content);
+        return res.status(500).json({ message: "Failed to parse AI response" });
+      }
+      
+      // Validate that there's something to create
+      const hasItems = aiResult.items?.project || 
+        (aiResult.items?.tasks?.length > 0) || 
+        (aiResult.items?.risks?.length > 0) || 
+        (aiResult.items?.issues?.length > 0) || 
+        (aiResult.items?.milestones?.length > 0) || 
+        (aiResult.items?.resources?.length > 0);
+      
+      if (!hasItems) {
+        return res.status(400).json({ 
+          message: "Could not understand what to create. Please be more specific in your request.",
+          intent: aiResult.intent
+        });
+      }
+      
+      // Check if project context is required but missing
+      const needsProjectContext = (aiResult.items?.tasks?.length > 0) || 
+        (aiResult.items?.risks?.length > 0) || 
+        (aiResult.items?.issues?.length > 0) || 
+        (aiResult.items?.milestones?.length > 0);
+      
+      const hasProjectContext = projectId || aiResult.items?.project;
+      
+      if (needsProjectContext && !hasProjectContext) {
+        return res.status(400).json({ 
+          message: "Creating tasks, risks, issues, or milestones requires a project. Please specify a project or ask to create a new project.",
+          requiresProject: true,
+          intent: aiResult.intent
+        });
+      }
+      
+      const results: any = {
+        intent: aiResult.intent,
+        created: {},
+        summary: []
+      };
+      
+      const today = new Date();
+      let currentProjectId = projectId ? Number(projectId) : null;
+      
+      // Create project if needed
+      if (aiResult.items?.project) {
+        const projectData = {
+          organizationId: Number(organizationId),
+          portfolioId: portfolioId ? Number(portfolioId) : null,
+          name: aiResult.items.project.name,
+          description: aiResult.items.project.description,
+          status: aiResult.items.project.status || "Initiation",
+          priority: aiResult.items.project.priority || "Medium",
+          health: aiResult.items.project.health || "Green",
+          budget: String(aiResult.items.project.budget || 0),
+          startDate: today.toISOString().split('T')[0],
+          source: "ai_generated",
+        };
+        
+        const project = await storage.createProject(projectData);
+        currentProjectId = project.id;
+        results.created.project = project;
+        results.summary.push(`Created project "${project.name}"`);
+      }
+      
+      // Create tasks
+      if (aiResult.items?.tasks?.length > 0 && currentProjectId) {
+        let currentDate = new Date(today);
+        const createdTasks = [];
+        
+        for (const taskData of aiResult.items.tasks) {
+          const startDate = new Date(currentDate);
+          const durationDays = taskData.durationDays || 5;
+          const endDate = new Date(currentDate);
+          endDate.setDate(endDate.getDate() + durationDays);
+          
+          const task = await storage.createTask({
+            projectId: currentProjectId,
+            name: taskData.name,
+            description: taskData.description,
+            startDate: startDate.toISOString().split('T')[0],
+            endDate: endDate.toISOString().split('T')[0],
+            durationDays,
+            status: taskData.status || "Not Started",
+            priority: taskData.priority || "Medium",
+            progress: 0,
+          });
+          createdTasks.push(task);
+          currentDate.setDate(currentDate.getDate() + durationDays);
+        }
+        results.created.tasks = createdTasks;
+        results.summary.push(`Created ${createdTasks.length} task(s)`);
+      }
+      
+      // Create risks
+      if (aiResult.items?.risks?.length > 0 && currentProjectId) {
+        const createdRisks = [];
+        for (const riskData of aiResult.items.risks) {
+          const risk = await storage.createRisk({
+            projectId: currentProjectId,
+            title: riskData.title,
+            description: riskData.description,
+            probability: riskData.probability || "Medium",
+            impact: riskData.impact || "Medium",
+            status: riskData.status || "Open",
+            mitigationPlan: riskData.mitigationPlan,
+          });
+          createdRisks.push(risk);
+        }
+        results.created.risks = createdRisks;
+        results.summary.push(`Created ${createdRisks.length} risk(s)`);
+      }
+      
+      // Create issues
+      if (aiResult.items?.issues?.length > 0 && currentProjectId) {
+        const createdIssues = [];
+        for (const issueData of aiResult.items.issues) {
+          const issue = await storage.createIssue({
+            projectId: currentProjectId,
+            title: issueData.title,
+            description: issueData.description,
+            priority: issueData.priority || "Medium",
+            status: issueData.status || "Open",
+            type: issueData.type || "Task",
+          });
+          createdIssues.push(issue);
+        }
+        results.created.issues = createdIssues;
+        results.summary.push(`Created ${createdIssues.length} issue(s)`);
+      }
+      
+      // Create milestones
+      if (aiResult.items?.milestones?.length > 0 && currentProjectId) {
+        const createdMilestones = [];
+        for (const milestoneData of aiResult.items.milestones) {
+          const milestoneDate = new Date(today);
+          milestoneDate.setDate(milestoneDate.getDate() + (milestoneData.daysFromStart || 30));
+          
+          const milestone = await storage.createMilestone({
+            projectId: currentProjectId,
+            name: milestoneData.name,
+            description: milestoneData.description,
+            dueDate: milestoneDate.toISOString().split('T')[0],
+            status: "Not Started",
+          });
+          createdMilestones.push(milestone);
+        }
+        results.created.milestones = createdMilestones;
+        results.summary.push(`Created ${createdMilestones.length} milestone(s)`);
+      }
+      
+      // Create resources
+      if (aiResult.items?.resources?.length > 0) {
+        const createdResources = [];
+        for (const resourceData of aiResult.items.resources) {
+          const resource = await storage.createResource({
+            organizationId: Number(organizationId),
+            displayName: resourceData.displayName,
+            email: resourceData.email,
+            title: resourceData.title,
+            department: resourceData.department,
+            skills: resourceData.skills,
+          });
+          createdResources.push(resource);
+        }
+        results.created.resources = createdResources;
+        results.summary.push(`Created ${createdResources.length} resource(s)`);
+      }
+      
+      // Determine redirect path
+      if (results.created.project) {
+        results.redirectTo = `/projects/${results.created.project.id}`;
+      } else if (currentProjectId) {
+        results.redirectTo = `/projects/${currentProjectId}`;
+      }
+      
+      res.json({
+        success: true,
+        ...results,
+        message: results.summary.join(", ")
+      });
+    } catch (err) {
+      console.error("Error with AI smart create:", err);
+      res.status(500).json({ message: "Failed to create with AI" });
+    }
+  });
+
   // ==================== ANALYTICS API (Power BI Integration) ====================
 
   // Helper: Get user ID from either session or API key (Basic auth)
