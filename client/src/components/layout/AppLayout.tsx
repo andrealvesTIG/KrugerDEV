@@ -7,6 +7,7 @@ import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSi
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
+import { QuickAddMenu } from "./QuickAddMenu";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,8 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           <div className="flex-1 flex justify-center">
             <SearchCommand />
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <QuickAddMenu />
             <NotificationBell />
             <ThemeToggle />
           </div>
