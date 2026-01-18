@@ -15,9 +15,9 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format, differenceInDays, parseISO, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isWithinInterval } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -555,11 +555,79 @@ export default function Projects() {
   );
 }
 
+type ProjectSource = "manual" | "planner";
+
+interface PlannerPlan {
+  id: string;
+  title: string;
+  createdDateTime: string;
+  owner: string;
+}
+
 function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }: { open: boolean, onOpenChange: (o: boolean) => void, portfolios: any[], organizationId?: number }) {
   const { toast } = useToast();
   const createMutation = useCreateProject();
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
   const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
+  const [projectSource, setProjectSource] = useState<ProjectSource>("manual");
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
+  
+  // Check Planner connection status
+  const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
+    queryKey: ["/api/planner/status"],
+  });
+
+  // Fetch Planner plans when connected
+  const { data: plannerPlans, isLoading: isLoadingPlans, refetch: refetchPlans } = useQuery<{ plans: PlannerPlan[] }>({
+    queryKey: ["/api/planner/plans"],
+    enabled: plannerStatus?.connected === true,
+  });
+
+  // Connect to Planner mutation
+  const connectPlanner = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/planner/connect");
+      return response.json();
+    },
+    onSuccess: (data: { authUrl: string }) => {
+      window.location.href = data.authUrl;
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to connect to Planner", variant: "destructive" });
+    },
+  });
+
+  // Import from Planner mutation
+  const importFromPlanner = useMutation({
+    mutationFn: async ({ planId, portfolioId }: { planId: string; portfolioId: number | null }) => {
+      const response = await apiRequest("POST", "/api/planner/import", {
+        planId,
+        organizationId,
+        portfolioId,
+      });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Success", description: data.message || "Project imported successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      onOpenChange(false);
+      setSelectedPlanId(null);
+      setProjectSource("manual");
+    },
+    onError: (err: any) => {
+      if (err.limitExceeded) {
+        setLimitError({ message: err.message, resourceType: err.resourceType });
+        setLimitDialogOpen(true);
+        onOpenChange(false);
+      } else if (err.status === 401) {
+        toast({ title: "Session Expired", description: "Please reconnect to Planner", variant: "destructive" });
+        refetchPlannerStatus();
+      } else {
+        toast({ title: "Error", description: err.message || "Failed to import from Planner", variant: "destructive" });
+      }
+    },
+  });
   
   const form = useForm<InsertProject>({
     resolver: zodResolver(insertProjectSchema.extend({
@@ -594,6 +662,16 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
     });
   };
 
+  const handlePlannerImport = () => {
+    if (!selectedPlanId) {
+      toast({ title: "Select a Plan", description: "Please select a Planner plan to import", variant: "destructive" });
+      return;
+    }
+    importFromPlanner.mutate({ planId: selectedPlanId, portfolioId: selectedPortfolioId });
+  };
+
+  const selectedPlan = plannerPlans?.plans?.find(p => p.id === selectedPlanId);
+
   return (
     <>
     <LimitExceededDialog
@@ -602,7 +680,13 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
       resourceType={limitError?.resourceType}
       message={limitError?.message}
     />
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => {
+      onOpenChange(o);
+      if (!o) {
+        setProjectSource("manual");
+        setSelectedPlanId(null);
+      }
+    }}>
       <DialogTrigger asChild>
         <Button className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all">
           <Plus className="mr-2 h-4 w-4" /> New Project
@@ -612,23 +696,206 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="name">Project Name</Label>
-              <Input id="name" {...form.register("name")} placeholder="Project Alpha" />
-              {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
+        
+        {/* Source Selector */}
+        <div className="flex gap-2 pt-2">
+          <Button
+            type="button"
+            variant={projectSource === "manual" ? "default" : "outline"}
+            className="flex-1"
+            onClick={() => setProjectSource("manual")}
+            data-testid="button-source-manual"
+          >
+            <PenTool className="mr-2 h-4 w-4" />
+            Manual Entry
+          </Button>
+          <Button
+            type="button"
+            variant={projectSource === "planner" ? "default" : "outline"}
+            className="flex-1"
+            onClick={() => setProjectSource("planner")}
+            data-testid="button-source-planner"
+          >
+            <ClipboardList className="mr-2 h-4 w-4" />
+            Import from Planner
+          </Button>
+        </div>
+
+        {projectSource === "manual" ? (
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="name">Project Name</Label>
+                <Input id="name" {...form.register("name")} placeholder="Project Alpha" />
+                {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
+              </div>
+              
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="portfolioId">Portfolio</Label>
+                <Controller
+                  control={form.control}
+                  name="portfolioId"
+                  render={({ field }) => (
+                    <Select 
+                      onValueChange={(val) => field.onChange(val === "none" ? null : parseInt(val))} 
+                      value={field.value?.toString() || "none"}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Portfolio" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Portfolio</SelectItem>
+                        {portfolios.map(p => (
+                          <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="priority">Priority</Label>
+                <Controller
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Priority" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="budget">Budget ($)</Label>
+                <Input id="budget" type="number" {...form.register("budget")} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Start Date</Label>
+                <Input id="startDate" type="date" {...form.register("startDate")} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="endDate">End Date</Label>
+                <Input id="endDate" type="date" {...form.register("endDate")} />
+              </div>
+
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea id="description" {...form.register("description")} />
+              </div>
             </div>
-            
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="portfolioId">Portfolio</Label>
-              <Controller
-                control={form.control}
-                name="portfolioId"
-                render={({ field }) => (
+
+            <DialogFooter>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? "Creating..." : "Create Project"}
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : (
+          <div className="space-y-4 pt-2">
+            {/* Planner Import View */}
+            {!plannerStatus?.configured ? (
+              <div className="text-center py-8">
+                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">Microsoft 365 is not configured.</p>
+                <p className="text-sm text-muted-foreground mt-1">Contact your administrator to set up the integration.</p>
+              </div>
+            ) : !plannerStatus?.connected ? (
+              <div className="text-center py-8">
+                <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground mb-4">Connect to Microsoft Planner to import plans</p>
+                <Button 
+                  onClick={() => connectPlanner.mutate()}
+                  disabled={connectPlanner.isPending}
+                  data-testid="button-connect-planner"
+                >
+                  {connectPlanner.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardList className="mr-2 h-4 w-4" />
+                      Connect to Planner
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>Connected to Microsoft Planner</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => refetchPlans()}
+                    disabled={isLoadingPlans}
+                    data-testid="button-refresh-plans"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", isLoadingPlans && "animate-spin")} />
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Select Plan to Import</Label>
+                  {isLoadingPlans ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : !plannerPlans?.plans?.length ? (
+                    <div className="text-center py-8 border rounded-md bg-muted/20">
+                      <p className="text-muted-foreground">No plans found in your Planner account.</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2 max-h-[200px] overflow-y-auto">
+                      {plannerPlans.plans.map((plan) => (
+                        <div
+                          key={plan.id}
+                          className={cn(
+                            "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors hover-elevate",
+                            selectedPlanId === plan.id 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          )}
+                          onClick={() => setSelectedPlanId(plan.id)}
+                          data-testid={`plan-option-${plan.id}`}
+                        >
+                          <ClipboardList className="h-5 w-5 text-primary shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{plan.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Created {format(new Date(plan.createdDateTime), 'MMM d, yyyy')}
+                            </p>
+                          </div>
+                          {selectedPlanId === plan.id && (
+                            <CheckCircle className="h-5 w-5 text-primary shrink-0" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Target Portfolio (Optional)</Label>
                   <Select 
-                    onValueChange={(val) => field.onChange(val === "none" ? null : parseInt(val))} 
-                    value={field.value?.toString() || "none"}
+                    onValueChange={(val) => setSelectedPortfolioId(val === "none" ? null : parseInt(val))} 
+                    value={selectedPortfolioId?.toString() || "none"}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select Portfolio" />
@@ -640,58 +907,39 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {selectedPlan && (
+                  <div className="p-3 bg-muted/30 rounded-md">
+                    <p className="text-sm">
+                      Importing <strong>{selectedPlan.title}</strong> will create a new project with all tasks from this Planner plan.
+                    </p>
+                  </div>
                 )}
-              />
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
-              <Controller
-                control={form.control}
-                name="priority"
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Critical">Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="budget">Budget ($)</Label>
-              <Input id="budget" type="number" {...form.register("budget")} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input id="startDate" type="date" {...form.register("startDate")} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="endDate">End Date</Label>
-              <Input id="endDate" type="date" {...form.register("endDate")} />
-            </div>
-
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea id="description" {...form.register("description")} />
-            </div>
+                <DialogFooter>
+                  <Button 
+                    onClick={handlePlannerImport}
+                    disabled={!selectedPlanId || importFromPlanner.isPending}
+                    data-testid="button-import-planner"
+                  >
+                    {importFromPlanner.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-4 w-4" />
+                        Import Project
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </div>
-
-          <DialogFooter>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Creating..." : "Create Project"}
-            </Button>
-          </DialogFooter>
-        </form>
+        )}
       </DialogContent>
     </Dialog>
     </>

@@ -203,6 +203,37 @@ The `shared/` directory contains code used by both frontend and backend:
 - Supports MPP (native), XML (MSPDI), and CSV formats
 - Parsed fields: Task Name, WBS, Start/Finish Date, Duration, % Complete, Outline Level, Summary/Milestone flags
 
+### Microsoft Planner Integration
+Allows importing projects from Microsoft Planner using Microsoft Graph API.
+
+**Service Files**:
+- `server/services/microsoftPlanner.ts` - Microsoft Graph API client for Planner operations
+- Shares OAuth infrastructure with Project Online integration (`server/auth/microsoftAuth.ts`)
+
+**API Endpoints**:
+- `GET /api/planner/status` - Check if Microsoft 365 is configured and user is connected
+- `POST /api/planner/connect` - Initiate OAuth flow to connect to Planner
+- `GET /api/planner/plans` - List all Planner plans accessible to the user
+- `POST /api/planner/import` - Import a Planner plan as a new project with all tasks
+
+**OAuth Scopes Required**:
+- `Tasks.Read` - Read Planner tasks
+- `Group.Read.All` - List groups/plans the user has access to
+- `User.Read` - Get user profile info
+- `offline_access` - Refresh tokens for persistent access
+
+**Import Mapping**:
+- Planner plan title → Project name
+- Planner tasks → Project tasks (WBS auto-generated)
+- Planner priority (0-9) → Project priority (Critical/High/Medium/Low)
+- Planner percent complete → Task progress and status
+- Planner buckets → Task phases
+- Planner due dates → Task dates
+
+**Session Storage**:
+- `plannerAccessToken` - Stored in session after OAuth callback
+- `plannerTokenExpiry` - Token expiration timestamp for refresh logic
+
 ### Analytics API (Power BI Integration)
 The application exposes REST API endpoints for external analytics tools like Power BI:
 

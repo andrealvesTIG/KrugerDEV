@@ -7,6 +7,7 @@ import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integ
 import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { setupMicrosoftAuth } from "./auth/microsoftAuth";
 import { setupProjectOnlineRoutes } from "./services/projectOnline";
+import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus } from "./services/microsoftPlanner";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
 import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects } from "@shared/schema";
@@ -1129,6 +1130,7 @@ export async function registerRoutes(
   await setupEmailAuth(app);
   await setupMicrosoftAuth(app);
   await setupProjectOnlineRoutes(app);
+  await setupPlannerRoutes(app);
   registerAuthRoutes(app);
 
   // Seed DB on startup
@@ -2618,6 +2620,185 @@ export async function registerRoutes(
         return res.status(400).json({ message: err.errors[0].message });
       }
       throw err;
+    }
+  });
+
+  // Import project from Microsoft Planner
+  app.post('/api/planner/import', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
+      const token = req.session.plannerAccessToken;
+      if (!token) {
+        return res.status(401).json({ message: "Not connected to Planner. Please connect first." });
+      }
+
+      const { planId, organizationId, portfolioId } = req.body;
+      if (!planId || !organizationId) {
+        return res.status(400).json({ message: "Plan ID and Organization ID are required" });
+      }
+
+      // Check project limit before creation
+      if (userId) {
+        const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
+        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.PROJECTS);
+        if (!limitCheck.allowed) {
+          return res.status(403).json({ 
+            message: limitCheck.error || "Project limit reached. Please upgrade your plan.",
+            limitExceeded: true,
+            resourceType: "projects"
+          });
+        }
+      }
+
+      // Fetch plan details
+      const planResponse = await fetch(`https://graph.microsoft.com/v1.0/planner/plans/${planId}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!planResponse.ok) {
+        if (planResponse.status === 401) {
+          delete req.session.plannerAccessToken;
+          return res.status(401).json({ message: "Session expired. Please reconnect to Planner." });
+        }
+        throw new Error(`Failed to fetch plan: ${planResponse.status}`);
+      }
+
+      const plan = await planResponse.json();
+
+      // Fetch tasks and buckets
+      const [tasksResponse, bucketsResponse] = await Promise.all([
+        fetch(`https://graph.microsoft.com/v1.0/planner/plans/${planId}/tasks`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }),
+        fetch(`https://graph.microsoft.com/v1.0/planner/plans/${planId}/buckets`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }),
+      ]);
+
+      if (!tasksResponse.ok) {
+        throw new Error(`Failed to fetch tasks: ${tasksResponse.status}`);
+      }
+
+      const tasksData = await tasksResponse.json();
+      const plannerTasks = tasksData.value || [];
+
+      let buckets: { id: string; name: string; orderHint: string }[] = [];
+      if (bucketsResponse.ok) {
+        const bucketsData = await bucketsResponse.json();
+        buckets = bucketsData.value || [];
+      }
+
+      const bucketMap = new Map(buckets.map((b: any) => [b.id, b.name]));
+
+      // Calculate project dates from tasks
+      let projectStartDate: string | null = null;
+      let projectEndDate: string | null = null;
+
+      for (const task of plannerTasks) {
+        if (task.startDateTime) {
+          const startDate = task.startDateTime.split('T')[0];
+          if (!projectStartDate || startDate < projectStartDate) {
+            projectStartDate = startDate;
+          }
+        }
+        if (task.dueDateTime) {
+          const endDate = task.dueDateTime.split('T')[0];
+          if (!projectEndDate || endDate > projectEndDate) {
+            projectEndDate = endDate;
+          }
+        }
+      }
+
+      // Create the project
+      const project = await storage.createProject({
+        organizationId: Number(organizationId),
+        portfolioId: portfolioId ? Number(portfolioId) : null,
+        name: plan.title,
+        description: `Imported from Microsoft Planner on ${new Date().toLocaleDateString()}`,
+        status: "Initiation",
+        priority: "Medium",
+        budget: "0",
+        health: "Green",
+        startDate: projectStartDate,
+        endDate: projectEndDate,
+        source: "planner",
+      });
+
+      // Record usage after successful creation
+      if (userId) {
+        const { recordResourceUsage, METER_CODES } = await import("./services/billing");
+        await recordResourceUsage(userId, METER_CODES.PROJECTS, project.id);
+      }
+
+      // Log change
+      const user = userId ? await storage.getUser(userId) : null;
+      await storage.createProjectChangeLog({
+        projectId: project.id,
+        changedBy: userId || null,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'created',
+        changeSummary: `Project "${project.name}" imported from Microsoft Planner`,
+        previousValues: null,
+        newValues: JSON.stringify(project),
+      });
+
+      // Sort buckets by orderHint for consistent ordering
+      const sortedBuckets = [...buckets].sort((a, b) => (a.orderHint || '').localeCompare(b.orderHint || ''));
+      const bucketIndexMap = new Map(sortedBuckets.map((b, i) => [b.id, i + 1]));
+
+      // Create tasks from Planner tasks
+      let taskIndex = 0;
+      const createdTasks: any[] = [];
+
+      for (const plannerTask of plannerTasks) {
+        taskIndex++;
+        const bucketName = plannerTask.bucketId ? bucketMap.get(plannerTask.bucketId) || null : null;
+        const bucketOrder = plannerTask.bucketId ? bucketIndexMap.get(plannerTask.bucketId) || 1 : 1;
+
+        const task = await storage.createTask({
+          projectId: project.id,
+          taskIndex,
+          name: plannerTask.title,
+          description: null,
+          priority: mapPlannerPriorityToProjectPriority(plannerTask.priority || 5),
+          startDate: plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : null,
+          endDate: plannerTask.dueDateTime ? plannerTask.dueDateTime.split('T')[0] : null,
+          progress: plannerTask.percentComplete || 0,
+          status: mapPlannerPercentToStatus(plannerTask.percentComplete || 0),
+          phase: bucketName,
+          outlineLevel: 1,
+          isMilestone: false,
+          isSummary: false,
+          isCritical: false,
+        });
+
+        createdTasks.push(task);
+      }
+
+      res.status(201).json({ 
+        project,
+        tasksCreated: createdTasks.length,
+        message: `Successfully imported "${plan.title}" with ${createdTasks.length} tasks`
+      });
+    } catch (err) {
+      console.error("Planner import error:", err);
+      res.status(500).json({ message: "Failed to import from Planner" });
     }
   });
 
