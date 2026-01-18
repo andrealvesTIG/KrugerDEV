@@ -39,6 +39,7 @@ export default function Projects() {
   const { currentOrganization } = useOrganization();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("createdAt");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const { data: allTasks } = useAllTasks();
@@ -244,13 +245,37 @@ export default function Projects() {
     }
   });
 
-  const filteredProjects = projects?.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    const matchesSource = sourceFilter === "all" || 
-      (sourceFilter === "manual" && (p.source === "manual" || !p.source)) ||
-      (sourceFilter === "imported" && p.source === "imported");
-    return matchesSearch && matchesSource;
-  });
+  const filteredProjects = useMemo(() => {
+    if (!projects) return [];
+    
+    // Filter first
+    const filtered = projects.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+      const matchesSource = sourceFilter === "all" || 
+        (sourceFilter === "manual" && (p.source === "manual" || !p.source)) ||
+        (sourceFilter === "imported" && p.source === "imported");
+      return matchesSearch && matchesSource;
+    });
+    
+    // Then sort (most recent first for all date-based sorts)
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "createdAt") {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA; // Most recent first
+      } else if (sortBy === "startDate") {
+        const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+        return dateB - dateA; // Most recent first
+      } else if (sortBy === "updatedAt") {
+        // Use createdAt as fallback if updatedAt is not available
+        const dateA = (a as any).updatedAt ? new Date((a as any).updatedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const dateB = (b as any).updatedAt ? new Date((b as any).updatedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return dateB - dateA; // Most recent first
+      }
+      return 0;
+    });
+  }, [projects, search, sourceFilter, sortBy]);
 
   const handleStatusChange = (projectId: number, newStatus: string) => {
     updateProject.mutate(
@@ -351,6 +376,34 @@ export default function Projects() {
                 <span className="flex items-center gap-2">
                   <Upload className="h-3 w-3" />
                   Imported
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Sort Dropdown */}
+        <div className="w-full sm:w-[180px]">
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "createdAt" | "startDate" | "updatedAt")}>
+            <SelectTrigger data-testid="select-sort-by">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="createdAt">
+                <span className="flex items-center gap-2">
+                  <Calendar className="h-3 w-3" />
+                  Date Created
+                </span>
+              </SelectItem>
+              <SelectItem value="startDate">
+                <span className="flex items-center gap-2">
+                  <Calendar className="h-3 w-3" />
+                  Start Date
+                </span>
+              </SelectItem>
+              <SelectItem value="updatedAt">
+                <span className="flex items-center gap-2">
+                  <Calendar className="h-3 w-3" />
+                  Date Updated
                 </span>
               </SelectItem>
             </SelectContent>
