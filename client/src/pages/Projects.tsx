@@ -708,7 +708,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
             data-testid="button-source-manual"
           >
             <PenTool className="mr-2 h-4 w-4" />
-            Manual Entry
+            Enter project info manually
           </Button>
           <Button
             type="button"
