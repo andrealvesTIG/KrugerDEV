@@ -21,7 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -431,101 +431,103 @@ export default function Tasks() {
         resourceType={limitError?.resourceType}
         message={limitError?.message}
       />
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Tasks</h1>
-          <p className="text-muted-foreground">Manage tasks with Gantt Chart and Kanban views</p>
-        </div>
-        <div className="flex flex-wrap gap-3 items-center">
-          <Button
-            variant={myAssignmentsOnly ? "default" : "outline"}
-            size="sm"
-            onClick={() => setMyAssignmentsOnly(!myAssignmentsOnly)}
-            className="gap-2"
-            disabled={!myResourceId}
-            title={!myResourceId ? "You need a resource profile linked to your account to filter by your assignments" : ""}
-            data-testid="button-my-assignments"
-          >
-            <UserIcon className="h-4 w-4" />
-            My Assignments
-            {myAssignmentsOnly && myResourceId && (
-              <Badge variant="secondary" className="ml-1">
-                {myTaskIds.size}
-              </Badge>
-            )}
-          </Button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-2xl font-display font-bold text-foreground">Tasks</h1>
+        <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search tasks..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-[200px]"
+              className="pl-9 w-[140px] h-9"
               data-testid="input-search-tasks"
             />
           </div>
           <Tabs value={view} onValueChange={(v) => setView(v as "gantt" | "kanban")}>
-            <TabsList>
-              <TabsTrigger value="gantt" className="gap-2">
+            <TabsList className="h-9">
+              <TabsTrigger value="gantt" className="gap-1.5 px-2.5">
                 <GanttChart className="h-4 w-4" />
-                Gantt
+                <span className="hidden sm:inline">Gantt</span>
               </TabsTrigger>
-              <TabsTrigger value="kanban" className="gap-2">
+              <TabsTrigger value="kanban" className="gap-1.5 px-2.5">
                 <Columns3 className="h-4 w-4" />
-                Kanban
+                <span className="hidden sm:inline">Kanban</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          <Select 
-            value={filterProjectId ? String(filterProjectId) : "all"} 
-            onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}
-          >
-            <SelectTrigger className="w-[180px]" data-testid="select-filter-project">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filter by project" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              {projects?.map(p => (
-                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select 
-            value={groupBy} 
-            onValueChange={(v) => setGroupBy(v as GroupBy)}
-          >
-            <SelectTrigger className="w-[180px]" data-testid="select-group-by">
-              <Layers className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Group by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="project">
-                <span className="flex items-center gap-2">
-                  <FolderKanban className="h-4 w-4" />
-                  By Project
-                </span>
-              </SelectItem>
-              <SelectItem value="portfolio">
-                <span className="flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" />
-                  By Portfolio
-                </span>
-              </SelectItem>
-              <SelectItem value="resource">
-                <span className="flex items-center gap-2">
-                  <UserIcon className="h-4 w-4" />
-                  By Resources Assigned
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-9 w-9" data-testid="button-task-options">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuCheckboxItem
+                checked={myAssignmentsOnly}
+                onCheckedChange={setMyAssignmentsOnly}
+                disabled={!myResourceId}
+                data-testid="menu-my-assignments"
+              >
+                <UserIcon className="h-4 w-4 mr-2" />
+                My Assignments
+                {myAssignmentsOnly && myResourceId && (
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    {myTaskIds.size}
+                  </Badge>
+                )}
+              </DropdownMenuCheckboxItem>
+              
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter: {filterProjectId ? projects?.find(p => p.id === filterProjectId)?.name?.slice(0, 15) || "Project" : "All Projects"}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={filterProjectId ? String(filterProjectId) : "all"} onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}>
+                    <DropdownMenuRadioItem value="all">All Projects</DropdownMenuRadioItem>
+                    {projects?.map(p => (
+                      <DropdownMenuRadioItem key={p.id} value={String(p.id)}>{p.name}</DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Layers className="h-4 w-4 mr-2" />
+                  Group: {groupBy === "project" ? "By Project" : groupBy === "portfolio" ? "By Portfolio" : "By Resource"}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+                    <DropdownMenuRadioItem value="project">
+                      <FolderKanban className="h-4 w-4 mr-2" />
+                      By Project
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="portfolio">
+                      <Briefcase className="h-4 w-4 mr-2" />
+                      By Portfolio
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="resource">
+                      <UserIcon className="h-4 w-4 mr-2" />
+                      By Resource
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
             <DialogTrigger asChild>
-              <Button onClick={openCreateDialog} data-testid="button-add-task">
-                <Plus className="mr-2 h-4 w-4" /> Add Task
+              <Button onClick={openCreateDialog} size="sm" data-testid="button-add-task">
+                <Plus className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Add Task</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
