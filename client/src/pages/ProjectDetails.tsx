@@ -152,6 +152,27 @@ export default function ProjectDetails() {
   const { toast } = useToast();
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
   const [isStatusReportOpen, setIsStatusReportOpen] = useState(false);
+  const [sectionsCollapsed, setSectionsCollapsed] = useState({
+    workflow: false,
+    stats: false,
+    timeline: false,
+    tabs: false,
+  });
+
+  const toggleSection = (section: keyof typeof sectionsCollapsed) => {
+    setSectionsCollapsed(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const collapseAll = () => {
+    setSectionsCollapsed({ workflow: true, stats: true, timeline: true, tabs: true });
+  };
+
+  const expandAll = () => {
+    setSectionsCollapsed({ workflow: false, stats: false, timeline: false, tabs: false });
+  };
+
+  const allCollapsed = Object.values(sectionsCollapsed).every(v => v);
+  const allExpanded = Object.values(sectionsCollapsed).every(v => !v);
   const { currentOrganization } = useOrganization();
   const [, setLocation] = useLocation();
 

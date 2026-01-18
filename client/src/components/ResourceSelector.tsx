@@ -100,8 +100,6 @@ export function ResourceSelector({
 
   return (
     <div className={cn("space-y-2", className)}>
-      {label && <label className="text-sm font-medium">{label}</label>}
-      
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
