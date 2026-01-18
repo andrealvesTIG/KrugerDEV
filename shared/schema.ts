@@ -169,6 +169,8 @@ export const projects = pgTable("projects", {
   riskLevel: text("risk_level"), // Low, Medium, High - overall risk assessment
   source: text("source").default("manual"), // "manual" = created in app, "imported" = from MPP/external file, "planner" = from Microsoft Planner
   plannerPlanId: text("planner_plan_id"), // Microsoft Planner plan ID for syncing
+  sourceFileName: text("source_file_name"), // Original filename of imported file (e.g., "project.mpp")
+  sourceFileUrl: text("source_file_url"), // URL to the original imported file (in object storage)
   notes: text("notes"), // Additional notes
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
@@ -709,6 +711,7 @@ export const mppImports = pgTable("mpp_imports", {
   projectId: integer("project_id").references(() => projects.id), // Optional link to existing project
   fileName: text("file_name").notNull(),
   fileType: text("file_type").notNull().default("xml"), // "xml", "csv", "mpp"
+  fileUrl: text("file_url"), // URL to the original uploaded file (in object storage)
   importedBy: varchar("imported_by").references(() => users.id),
   lastSyncedAt: timestamp("last_synced_at").defaultNow(),
   taskCount: integer("task_count").default(0),

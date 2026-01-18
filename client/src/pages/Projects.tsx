@@ -15,7 +15,9 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink } from "lucide-react";
+import plannerLogoPath from "@/assets/planner-logo.png";
+import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -415,6 +417,45 @@ export default function Projects() {
                       <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
                         {project.name}
                       </h3>
+                      {/* Planner Logo for synced projects */}
+                      {project.source === "planner" && project.plannerPlanId && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(`https://tasks.office.com/Home/PlanViews/${project.plannerPlanId}`, '_blank');
+                          }}
+                          className="flex items-center gap-1.5 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/50 transition-colors"
+                          title="Synced from Microsoft Planner - Click to open in Planner"
+                          data-testid={`planner-badge-${project.id}`}
+                        >
+                          <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                          <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Planner</span>
+                          <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                        </button>
+                      )}
+                      {/* MS Project Logo for imported projects */}
+                      {project.source === "imported" && project.sourceFileUrl && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const link = document.createElement('a');
+                            link.href = project.sourceFileUrl!;
+                            link.download = project.sourceFileName || 'project.mpp';
+                            link.click();
+                          }}
+                          className="flex items-center gap-1.5 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/50 rounded-md hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors"
+                          title={`Imported from MS Project - Click to download ${project.sourceFileName || "source file"}`}
+                          data-testid={`msproject-badge-${project.id}`}
+                        >
+                          <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">MS Project</span>
+                          <Download className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                        </button>
+                      )}
                       {/* Inline Status Dropdown */}
                       <Select 
                         value={project.status} 
@@ -1090,7 +1131,40 @@ function DraggableProjectCard({ project }: { project: Project }) {
           data-testid={`kanban-project-${project.id}`}
         >
           <CardContent className="p-4">
-            <div className="font-medium text-sm line-clamp-2">{project.name}</div>
+            <div className="flex items-center gap-2">
+              <div className="font-medium text-sm line-clamp-2 flex-1">{project.name}</div>
+              {project.source === "planner" && project.plannerPlanId && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(`https://tasks.office.com/Home/PlanViews/${project.plannerPlanId}`, '_blank');
+                  }}
+                  className="flex-shrink-0"
+                  title="Open in Planner"
+                >
+                  <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                </button>
+              )}
+              {project.source === "imported" && project.sourceFileUrl && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const link = document.createElement('a');
+                    link.href = project.sourceFileUrl!;
+                    link.download = project.sourceFileName || 'project.mpp';
+                    link.click();
+                  }}
+                  className="flex-shrink-0"
+                  title={`Download ${project.sourceFileName || "source file"}`}
+                >
+                  <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             
             <div className="flex items-center gap-2 mt-2">
               <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
@@ -1355,7 +1429,40 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
                     <div className="w-64 flex-shrink-0 p-2">
                       <Link href={`/projects/${project.id}`}>
                         <div className="hover:text-primary cursor-pointer">
-                          <div className="font-medium text-sm truncate">{project.name}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-sm truncate flex-1">{project.name}</div>
+                            {project.source === "planner" && project.plannerPlanId && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  window.open(`https://tasks.office.com/Home/PlanViews/${project.plannerPlanId}`, '_blank');
+                                }}
+                                className="flex-shrink-0"
+                                title="Open in Planner"
+                              >
+                                <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                              </button>
+                            )}
+                            {project.source === "imported" && project.sourceFileUrl && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const link = document.createElement('a');
+                                  link.href = project.sourceFileUrl!;
+                                  link.download = project.sourceFileName || 'project.mpp';
+                                  link.click();
+                                }}
+                                className="flex-shrink-0"
+                                title={`Download ${project.sourceFileName || "source file"}`}
+                              >
+                                <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 mt-1">
                             <Badge variant="outline" className="text-xs">{project.status}</Badge>
                             <span className="text-xs text-muted-foreground">{project.completionPercentage}%</span>

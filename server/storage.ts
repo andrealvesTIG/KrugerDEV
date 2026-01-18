@@ -2047,6 +2047,8 @@ export class DatabaseStorage implements IStorage {
       budget: "0",
       completionPercentage: 0,
       source: "imported", // Mark as imported from MPP file
+      sourceFileName: mppImport.fileName, // Store the original filename
+      sourceFileUrl: mppImport.fileUrl, // Store the file URL for download
     }).returning();
 
     // Create a mapping from old taskId to new task id

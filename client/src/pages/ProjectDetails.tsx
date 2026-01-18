@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import plannerLogoPath from "@/assets/planner-logo.png";
+import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { useRoute } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
@@ -441,7 +442,7 @@ export default function ProjectDetails() {
             <ProjectSummaryTab project={project} onUpdate={updateProject} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
-            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} />
+            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab projectId={project.id} projectName={project.name} />
@@ -2161,13 +2162,15 @@ function computeWbsValues(tasks: Task[]): Map<number, string> {
   return wbsMap;
 }
 
-function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId }: { 
+function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl }: { 
   projectId: number; 
   projectName?: string; 
   projectStartDate?: string | null; 
   projectEndDate?: string | null;
   projectSource?: string | null;
   plannerPlanId?: string | null;
+  sourceFileName?: string | null;
+  sourceFileUrl?: string | null;
 }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
@@ -2243,6 +2246,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPlannerEditDialog, setShowPlannerEditDialog] = useState(false);
   const [durationInput, setDurationInput] = useState<string>("7");
   const [isMilestone, setIsMilestone] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
@@ -2363,6 +2367,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   };
 
   const openEditDialog = (task: Task) => {
+    // For Planner projects, show a message dialog instead of allowing edits
+    if (isPlannerProject) {
+      setEditingTask(task);
+      setShowPlannerEditDialog(true);
+      return;
+    }
+    
     setEditingTask(task);
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
       ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
@@ -2496,6 +2507,29 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               {isSyncing ? "Syncing..." : "Sync Now"}
             </Button>
           </div>
+        </div>
+      )}
+      {/* MS Project imported project banner */}
+      {projectSource === "imported" && sourceFileUrl && (
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20">
+          <div className="flex items-center gap-3">
+            <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6" />
+            <div>
+              <span className="font-medium text-emerald-800 dark:text-emerald-200">Imported from Microsoft Project</span>
+              <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                Original file: {sourceFileName || "project.mpp"}
+              </p>
+            </div>
+          </div>
+          <a 
+            href={sourceFileUrl}
+            download={sourceFileName || "project.mpp"}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-100 dark:bg-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-700 text-emerald-700 dark:text-emerald-200 text-sm font-medium transition-colors"
+            data-testid="button-download-source-file"
+          >
+            <Download className="h-4 w-4" />
+            Download MPP
+          </a>
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">

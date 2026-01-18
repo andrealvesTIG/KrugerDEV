@@ -6309,6 +6309,49 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       const fileContent = req.file.buffer.toString('utf-8');
       const fileExt = fileName.split('.').pop()?.toLowerCase();
       
+      // Save the original file to object storage for future download
+      let fileUrl: string | undefined;
+      const uniqueFilename = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      
+      try {
+        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+        
+        if (privateObjectDir) {
+          const objectPath = `${privateObjectDir}/mpp-imports/${uniqueFilename}`;
+          const pathParts = objectPath.split('/');
+          const bucketName = pathParts[1];
+          const objectName = pathParts.slice(2).join('/');
+
+          const bucket = objectStorageClient.bucket(bucketName);
+          const file = bucket.file(objectName);
+          
+          await file.save(req.file.buffer, {
+            contentType: 'application/octet-stream',
+            metadata: {
+              originalName: fileName,
+              uploadedBy: userId,
+            },
+          });
+
+          fileUrl = `/objects/mpp-imports/${uniqueFilename}`;
+        } else {
+          throw new Error('Object storage not configured');
+        }
+      } catch (objectStorageError) {
+        console.log("Object storage unavailable, using local storage:", (objectStorageError as Error).message);
+        // Fallback to local file storage
+        const mppDir = path.join(process.cwd(), 'public', 'mpp-imports');
+        if (!fs.existsSync(mppDir)) {
+          fs.mkdirSync(mppDir, { recursive: true });
+        }
+        
+        const filePath = path.join(mppDir, uniqueFilename);
+        fs.writeFileSync(filePath, req.file.buffer);
+        
+        fileUrl = `/mpp-imports/${uniqueFilename}`;
+      }
+      
       let parsedTasks: Array<{
         taskId?: number;
         wbs?: string;
@@ -6340,6 +6383,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         organizationId,
         fileName,
         fileType: fileExt || 'unknown',
+        fileUrl, // Store the object storage URL for download
         importedBy: userId,
         taskCount: parsedTasks.length,
         status: 'active',
