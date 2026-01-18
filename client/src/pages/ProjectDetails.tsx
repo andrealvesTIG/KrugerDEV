@@ -29,7 +29,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -2182,8 +2182,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { toast } = useToast();
   
   const isPlannerProject = projectSource === "planner" && !!plannerPlanId;
+  const isMsProjectImported = projectSource === "imported" && !!sourceFileUrl;
   const [isSyncing, setIsSyncing] = useState(false);
   const hasSyncedRef = useRef(false);
+  
+  // MS Project re-import state
+  const [isReimportDialogOpen, setIsReimportDialogOpen] = useState(false);
+  const [isReimporting, setIsReimporting] = useState(false);
+  const [selectedReimportFile, setSelectedReimportFile] = useState<File | null>(null);
+  const reimportFileInputRef = useRef<HTMLInputElement>(null);
   
   // Planner sync handler - not memoized, called manually
   const handlePlannerSync = async (silent = false) => {
@@ -2240,6 +2247,67 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       })();
     }
   }, [projectId, isPlannerProject]);
+
+  // MS Project re-import handler
+  const handleMsProjectReimport = async () => {
+    if (!selectedReimportFile) {
+      toast({ title: "Select a File", description: "Please select an MS Project file to re-import", variant: "destructive" });
+      return;
+    }
+
+    setIsReimporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedReimportFile);
+      formData.append("projectId", projectId.toString());
+      if (currentOrganization?.id) {
+        formData.append("organizationId", currentOrganization.id.toString());
+      }
+
+      // First upload the file to create an import record
+      const uploadResponse = await fetch("/api/mpp-imports/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.json();
+        throw new Error(error.message || "Upload failed");
+      }
+
+      const importRecord = await uploadResponse.json();
+      
+      // Now sync the import to the existing project (replace mode)
+      const syncResponse = await fetch(`/api/mpp-imports/${importRecord.id}/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: projectId,
+          syncMode: "replace",
+        }),
+        credentials: "include",
+      });
+
+      if (!syncResponse.ok) {
+        const error = await syncResponse.json();
+        throw new Error(error.message || "Sync failed");
+      }
+
+      const result = await syncResponse.json();
+      toast({ title: "Success", description: result.message || "Tasks updated successfully" });
+      refetchTasks();
+      setIsReimportDialogOpen(false);
+      setSelectedReimportFile(null);
+    } catch (err: any) {
+      toast({ title: "Re-import Failed", description: err.message || "Could not re-import MS Project file", variant: "destructive" });
+    } finally {
+      setIsReimporting(false);
+      if (reimportFileInputRef.current) reimportFileInputRef.current.value = "";
+    }
+  };
+
+  const [showMsProjectEditDialog, setShowMsProjectEditDialog] = useState(false);
   
   const [view, setView] = useState<"table" | "gantt" | "kanban">("gantt");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -2371,6 +2439,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     if (isPlannerProject) {
       setEditingTask(task);
       setShowPlannerEditDialog(true);
+      return;
+    }
+    
+    // For MS Project imported projects, show a message dialog instead of allowing edits
+    if (isMsProjectImported) {
+      setEditingTask(task);
+      setShowMsProjectEditDialog(true);
       return;
     }
     
@@ -2510,28 +2585,176 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
         </div>
       )}
       {/* MS Project imported project banner */}
-      {projectSource === "imported" && sourceFileUrl && (
-        <div className="flex items-center justify-between p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20">
+      {isMsProjectImported && (
+        <div className="flex items-center justify-between p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
           <div className="flex items-center gap-3">
             <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6" />
             <div>
               <span className="font-medium text-emerald-800 dark:text-emerald-200">Imported from Microsoft Project</span>
               <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                Original file: {sourceFileName || "project.mpp"}
+                Tasks are read-only. Re-import to update task data.
               </p>
             </div>
           </div>
-          <a 
-            href={sourceFileUrl}
-            download={sourceFileName || "project.mpp"}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-100 dark:bg-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-700 text-emerald-700 dark:text-emerald-200 text-sm font-medium transition-colors"
-            data-testid="button-download-source-file"
-          >
-            <Download className="h-4 w-4" />
-            Download MPP
-          </a>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReimportDialogOpen(true)}
+              className="bg-emerald-100 dark:bg-emerald-800 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-700 text-emerald-700 dark:text-emerald-200"
+              data-testid="button-reimport-msproject"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Re-Import
+            </Button>
+            {sourceFileUrl && (
+              <a 
+                href={sourceFileUrl}
+                download={sourceFileName || "project.mpp"}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-100 dark:bg-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-700 text-emerald-700 dark:text-emerald-200 text-sm font-medium transition-colors border border-emerald-300 dark:border-emerald-700"
+                data-testid="button-download-source-file"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </a>
+            )}
+          </div>
         </div>
       )}
+
+      {/* MS Project Re-Import Dialog */}
+      <Dialog open={isReimportDialogOpen} onOpenChange={setIsReimportDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+              Re-Import MS Project File
+            </DialogTitle>
+            <DialogDescription>
+              Upload an updated MS Project file to replace all task data for this project.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <input
+            type="file"
+            ref={reimportFileInputRef}
+            onChange={(e) => setSelectedReimportFile(e.target.files?.[0] || null)}
+            accept=".mpp,.xml,.csv"
+            className="hidden"
+            data-testid="input-reimport-file"
+          />
+
+          <div className="space-y-4 py-4">
+            <div 
+              className={cn(
+                "flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed cursor-pointer transition-all hover-elevate",
+                selectedReimportFile 
+                  ? "border-emerald-500 bg-emerald-500/5" 
+                  : "border-border hover:border-emerald-500/50"
+              )}
+              onClick={() => reimportFileInputRef.current?.click()}
+              data-testid="dropzone-reimport"
+            >
+              {selectedReimportFile ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+                    <span className="font-medium">{selectedReimportFile.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {(selectedReimportFile.size / 1024).toFixed(1)} KB
+                  </p>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedReimportFile(null);
+                      if (reimportFileInputRef.current) reimportFileInputRef.current.value = "";
+                    }}
+                  >
+                    Choose Different File
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Click to select a file</p>
+                  <p className="text-xs text-muted-foreground">Supports .mpp, .xml, .csv</p>
+                </>
+              )}
+            </div>
+
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md">
+              <p className="text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>This will replace all existing task data. Project settings will remain unchanged.</span>
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsReimportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleMsProjectReimport}
+              disabled={!selectedReimportFile || isReimporting}
+              data-testid="button-confirm-reimport"
+            >
+              {isReimporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Re-Importing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Re-Import Tasks
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MS Project Read-Only Task Dialog */}
+      <Dialog open={showMsProjectEditDialog} onOpenChange={setShowMsProjectEditDialog}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+              Read-Only Task
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-muted-foreground mb-4">
+              This task was imported from MS Project and is read-only. To update task data, use the <strong>Re-Import</strong> button to upload an updated MS Project file.
+            </p>
+            {editingTask && (
+              <div className="p-3 bg-muted/50 rounded-md space-y-2">
+                <p className="font-medium">{editingTask.name}</p>
+                <div className="text-sm text-muted-foreground grid grid-cols-2 gap-2">
+                  <span>Status: {editingTask.status}</span>
+                  <span>Progress: {editingTask.progress || 0}%</span>
+                  {editingTask.startDate && <span>Start: {editingTask.startDate}</span>}
+                  {editingTask.endDate && <span>End: {editingTask.endDate}</span>}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMsProjectEditDialog(false)}>
+              Close
+            </Button>
+            <Button onClick={() => { setShowMsProjectEditDialog(false); setIsReimportDialogOpen(true); }}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Re-Import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as "table" | "gantt" | "kanban")}>
           <TabsList>
@@ -2560,7 +2783,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               data-testid="input-task-search"
             />
           </div>
-          {!isPlannerProject && <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
+          {!isPlannerProject && !isMsProjectImported && <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
             <DialogTrigger asChild>
               <Button onClick={openCreateDialog} data-testid="button-add-task">
                 <Plus className="mr-2 h-4 w-4" /> Add Task

@@ -791,9 +791,27 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
       if (organizationId) formData.append("organizationId", organizationId.toString());
       if (msProjectPortfolioId) formData.append("portfolioId", msProjectPortfolioId.toString());
 
-      const response = await fetch("/api/mpp/upload", {
+      const uploadResponse = await fetch("/api/mpp-imports/upload", {
         method: "POST",
         body: formData,
+        credentials: "include",
+      });
+
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.json();
+        throw new Error(error.message || "Upload failed");
+      }
+
+      const importRecord = await uploadResponse.json();
+      
+      // Now convert the import to a project
+      const response = await fetch(`/api/mpp-imports/${importRecord.id}/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: importRecord.fileName.replace(/\.[^/.]+$/, ""),
+          portfolioId: msProjectPortfolioId,
+        }),
         credentials: "include",
       });
 

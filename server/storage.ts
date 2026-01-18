@@ -863,6 +863,24 @@ export class DatabaseStorage implements IStorage {
     await db.delete(tasks).where(eq(tasks.id, id));
   }
 
+  async deleteAllTasksForProject(projectId: number): Promise<void> {
+    // Get all task IDs for this project
+    const projectTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.projectId, projectId));
+    const taskIds = projectTasks.map(t => t.id);
+    
+    if (taskIds.length > 0) {
+      // Delete task dependencies
+      await db.delete(taskDependencies).where(inArray(taskDependencies.taskId, taskIds));
+      await db.delete(taskDependencies).where(inArray(taskDependencies.dependsOnTaskId, taskIds));
+      // Delete task change logs
+      await db.delete(taskChangeLogs).where(inArray(taskChangeLogs.taskId, taskIds));
+      // Delete resource assignments for tasks
+      await db.delete(taskResourceAssignments).where(inArray(taskResourceAssignments.taskId, taskIds));
+      // Delete all tasks
+      await db.delete(tasks).where(eq(tasks.projectId, projectId));
+    }
+  }
+
   // Task Change Logs
   async getTaskChangeLogs(taskId: number): Promise<TaskChangeLog[]> {
     return await db.select().from(taskChangeLogs)
