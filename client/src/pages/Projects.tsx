@@ -477,7 +477,7 @@ export default function Projects() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            window.open(`https://tasks.office.com/Home/PlanViews/${project.plannerPlanId}`, '_blank');
+                            window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
                           }}
                           className="flex items-center gap-1.5 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/50 transition-colors"
                           title="Synced from Microsoft Planner - Click to open in Planner"
@@ -1386,7 +1386,7 @@ function DraggableProjectCard({ project }: { project: Project }) {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    window.open(`https://tasks.office.com/Home/PlanViews/${project.plannerPlanId}`, '_blank');
+                    window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
                   }}
                   className="flex-shrink-0"
                   title="Open in Planner"
@@ -1684,7 +1684,7 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  window.open(`https://tasks.office.com/Home/PlanViews/${project.plannerPlanId}`, '_blank');
+                                  window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
                                 }}
                                 className="flex-shrink-0"
                                 title="Open in Planner"

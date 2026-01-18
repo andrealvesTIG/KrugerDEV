@@ -2488,7 +2488,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </div>
           <div className="flex items-center gap-2">
             <a 
-              href={plannerPlanId ? `https://tasks.office.com/Home/PlanViews/${plannerPlanId}` : "https://tasks.office.com"}
+              href={plannerPlanId ? `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board` : "https://planner.cloud.microsoft"}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline flex items-center gap-1"
