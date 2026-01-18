@@ -130,6 +130,26 @@ export default function Integrations() {
   
   // Microsoft Planner integration states
   const [showPlannerWizard, setShowPlannerWizard] = useState(false);
+  
+  // Planner connection status
+  const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
+    queryKey: ["/api/planner/status"],
+  });
+  
+  const disconnectPlannerMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/planner/disconnect", {});
+      const text = await response.text();
+      return text ? JSON.parse(text) : {};
+    },
+    onSuccess: () => {
+      refetchPlannerStatus();
+      toast({ title: "Disconnected", description: "Disconnected from Microsoft Planner" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   const { data: imports, isLoading, refetch } = useQuery<MppImportWithTasks[]>({
     queryKey: ['/api/mpp-imports', currentOrganization?.id],
@@ -945,42 +965,78 @@ export default function Integrations() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredIntegrations.map((integration) => (
-            <Card 
-              key={integration.id} 
-              className="hover-elevate cursor-pointer"
-              onClick={() => handleIntegrationClick(integration)}
-              data-testid={`card-integration-${integration.id}`}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${integration.bgColor}`}>
-                    {integration.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-foreground">{integration.name}</h3>
-                      {integration.status === "active" && (
-                        <Badge variant="default" className="text-xs bg-green-600">Active</Badge>
-                      )}
+          {filteredIntegrations.map((integration) => {
+            const isPlannerConnected = integration.id === "planner" && plannerStatus?.connected;
+            
+            return (
+              <Card 
+                key={integration.id} 
+                className="hover-elevate cursor-pointer"
+                onClick={() => handleIntegrationClick(integration)}
+                data-testid={`card-integration-${integration.id}`}
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${integration.bgColor}`}>
+                      {integration.icon}
                     </div>
-                    <p className="text-sm text-muted-foreground">{integration.description}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-foreground">{integration.name}</h3>
+                        {isPlannerConnected ? (
+                          <Badge variant="default" className="text-xs bg-green-600">Connected</Badge>
+                        ) : integration.status === "active" && (
+                          <Badge variant="default" className="text-xs bg-green-600">Active</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">{integration.description}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-4">
-                  <Button 
-                    variant={integration.status === "active" ? "default" : "outline"} 
-                    size="sm" 
-                    className="w-full"
-                    data-testid={`button-configure-${integration.id}`}
-                  >
-                    <Settings className="mr-2 h-4 w-4" />
-                    {integration.status === "active" ? "Configure" : "Learn More"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="mt-4 flex gap-2">
+                    {isPlannerConnected ? (
+                      <>
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          className="flex-1"
+                          data-testid={`button-configure-${integration.id}`}
+                        >
+                          <Settings className="mr-2 h-4 w-4" />
+                          Import Plans
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            disconnectPlannerMutation.mutate();
+                          }}
+                          disabled={disconnectPlannerMutation.isPending}
+                          data-testid="button-disconnect-planner-card"
+                        >
+                          {disconnectPlannerMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <X className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button 
+                        variant={integration.status === "active" ? "default" : "outline"} 
+                        size="sm" 
+                        className="w-full"
+                        data-testid={`button-configure-${integration.id}`}
+                      >
+                        <Settings className="mr-2 h-4 w-4" />
+                        {integration.status === "active" ? "Configure" : "Learn More"}
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
 
