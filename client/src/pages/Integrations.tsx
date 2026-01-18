@@ -17,6 +17,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
 import type { MppImport, MppImportTask, Portfolio, Project } from "@shared/schema";
 import { ProjectOnlineImportWizard } from "@/components/ProjectOnlineImportWizard";
+import { PlannerImportWizard } from "@/components/PlannerImportWizard";
 import { Cloud } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -49,6 +50,7 @@ const integrations: Integration[] = [
   { id: "monday", name: "Monday.com", description: "Connect boards and items from Monday", icon: <LayoutGrid className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-red-100 dark:bg-red-900" },
   { id: "trello", name: "Trello", description: "Sync cards and boards from Trello", icon: <SiTrello className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-sky-100 dark:bg-sky-900" },
   { id: "ms-project", name: "MS Project", description: "Import MPP, XML, and CSV files", icon: <FileSpreadsheet className="h-6 w-6" />, category: "project", status: "active", bgColor: "bg-blue-100 dark:bg-blue-900" },
+  { id: "planner", name: "Microsoft Planner", description: "Import tasks and plans from Microsoft Planner", icon: <Calendar className="h-6 w-6" />, category: "project", status: "active", bgColor: "bg-indigo-100 dark:bg-indigo-900" },
   { id: "project-online", name: "Project Online", description: "Import projects from Microsoft Project Online", icon: <Cloud className="h-6 w-6" />, category: "project", status: "active", bgColor: "bg-blue-100 dark:bg-blue-900" },
   { id: "notion", name: "Notion", description: "Connect databases from Notion", icon: <SiNotion className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-stone-100 dark:bg-stone-900" },
   { id: "clickup", name: "ClickUp", description: "Sync tasks and spaces from ClickUp", icon: <SiClickup className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-violet-100 dark:bg-violet-900" },
@@ -125,6 +127,9 @@ export default function Integrations() {
   
   // Project Online integration states
   const [showProjectOnlineWizard, setShowProjectOnlineWizard] = useState(false);
+  
+  // Microsoft Planner integration states
+  const [showPlannerWizard, setShowPlannerWizard] = useState(false);
 
   const { data: imports, isLoading, refetch } = useQuery<MppImportWithTasks[]>({
     queryKey: ['/api/mpp-imports', currentOrganization?.id],
@@ -443,6 +448,8 @@ export default function Integrations() {
       setPowerBiDetailOpen(true);
     } else if (integration.id === "project-online") {
       setShowProjectOnlineWizard(true);
+    } else if (integration.id === "planner") {
+      setShowPlannerWizard(true);
     }
   };
 
@@ -1302,6 +1309,14 @@ export default function Integrations() {
       <ProjectOnlineImportWizard
         open={showProjectOnlineWizard}
         onOpenChange={setShowProjectOnlineWizard}
+        organizationId={currentOrganization?.id || 0}
+        portfolios={portfolios || []}
+      />
+      
+      {/* Microsoft Planner Import Wizard */}
+      <PlannerImportWizard
+        open={showPlannerWizard}
+        onOpenChange={setShowPlannerWizard}
         organizationId={currentOrganization?.id || 0}
         portfolios={portfolios || []}
       />
