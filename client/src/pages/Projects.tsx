@@ -649,7 +649,7 @@ export default function Projects() {
   );
 }
 
-type ProjectSource = "manual" | "planner";
+type ProjectSource = "manual" | "planner" | "msproject";
 
 interface PlannerPlan {
   id: string;
@@ -666,6 +666,10 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const [projectSource, setProjectSource] = useState<ProjectSource>("manual");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
+  const [msProjectPortfolioId, setMsProjectPortfolioId] = useState<number | null>(null);
+  const [isImportingMsProject, setIsImportingMsProject] = useState(false);
+  const [selectedMsProjectFile, setSelectedMsProjectFile] = useState<File | null>(null);
+  const msProjectFileInputRef = useRef<HTMLInputElement>(null);
   
   // Check Planner connection status - only when dialog is open and Planner source selected
   const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
@@ -767,6 +771,52 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
 
   const selectedPlan = plannerPlans?.plans?.find(p => p.id === selectedPlanId);
 
+  const handleMsProjectFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedMsProjectFile(file);
+    }
+  };
+
+  const handleMsProjectImport = async () => {
+    if (!selectedMsProjectFile) {
+      toast({ title: "Select a File", description: "Please select an MS Project file to import", variant: "destructive" });
+      return;
+    }
+
+    setIsImportingMsProject(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedMsProjectFile);
+      if (organizationId) formData.append("organizationId", organizationId.toString());
+      if (msProjectPortfolioId) formData.append("portfolioId", msProjectPortfolioId.toString());
+
+      const response = await fetch("/api/mpp/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Import failed");
+      }
+
+      const result = await response.json();
+      toast({ title: "Success", description: result.message || "Project imported successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      onOpenChange(false);
+      setSelectedMsProjectFile(null);
+      setMsProjectPortfolioId(null);
+      setProjectSource("manual");
+    } catch (err: any) {
+      toast({ title: "Import Failed", description: err.message || "Could not import MS Project file", variant: "destructive" });
+    } finally {
+      setIsImportingMsProject(false);
+      if (msProjectFileInputRef.current) msProjectFileInputRef.current.value = "";
+    }
+  };
+
   return (
     <>
     <LimitExceededDialog
@@ -787,36 +837,66 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
           <Plus className="mr-2 h-4 w-4" /> New Project
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[650px]">
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
         </DialogHeader>
         
-        {/* Source Selector */}
-        <div className="flex gap-2 pt-2">
-          <Button
+        {/* Source Selector - Card-based design with logos */}
+        <div className="grid grid-cols-3 gap-3 pt-2">
+          <button
             type="button"
-            variant={projectSource === "manual" ? "default" : "outline"}
-            className="flex-1"
             onClick={() => setProjectSource("manual")}
+            className={cn(
+              "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover-elevate",
+              projectSource === "manual" 
+                ? "border-primary bg-primary/5" 
+                : "border-border hover:border-primary/50"
+            )}
             data-testid="button-source-manual"
           >
-            <PenTool className="mr-2 h-4 w-4" />
-            Enter project info manually
-          </Button>
-          <Button
+            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+              <PenTool className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <span className="text-sm font-medium text-center">Create Manually</span>
+          </button>
+          
+          <button
             type="button"
-            variant={projectSource === "planner" ? "default" : "outline"}
-            className="flex-1"
             onClick={() => setProjectSource("planner")}
+            className={cn(
+              "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover-elevate",
+              projectSource === "planner" 
+                ? "border-indigo-500 bg-indigo-500/5" 
+                : "border-border hover:border-indigo-500/50"
+            )}
             data-testid="button-source-planner"
           >
-            <ClipboardList className="mr-2 h-4 w-4" />
-            Import from Planner
-          </Button>
+            <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center">
+              <img src={plannerLogoPath} alt="Planner" className="h-6 w-6" />
+            </div>
+            <span className="text-sm font-medium text-center">Microsoft Planner</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setProjectSource("msproject")}
+            className={cn(
+              "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover-elevate",
+              projectSource === "msproject" 
+                ? "border-emerald-500 bg-emerald-500/5" 
+                : "border-border hover:border-emerald-500/50"
+            )}
+            data-testid="button-source-msproject"
+          >
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center">
+              <img src={msprojectLogoPath} alt="MS Project" className="h-6 w-6" />
+            </div>
+            <span className="text-sm font-medium text-center">MS Project File</span>
+          </button>
         </div>
 
-        {projectSource === "manual" ? (
+        {projectSource === "manual" && (
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
@@ -897,7 +977,9 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
               </Button>
             </DialogFooter>
           </form>
-        ) : (
+        )}
+
+        {projectSource === "planner" && (
           <div className="space-y-4 pt-2">
             {/* Planner Import View */}
             {!plannerStatus?.configured ? (
@@ -1033,6 +1115,118 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                 </DialogFooter>
               </>
             )}
+          </div>
+        )}
+
+        {projectSource === "msproject" && (
+          <div className="space-y-4 pt-2">
+            {/* MS Project File Import */}
+            <div className="flex items-center gap-3 p-4 rounded-lg border bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
+              <img src={msprojectLogoPath} alt="MS Project" className="h-8 w-8" />
+              <div>
+                <p className="font-medium">Import from MS Project</p>
+                <p className="text-sm text-muted-foreground">Upload .mpp, .xml (MSPDI), or .csv project files</p>
+              </div>
+            </div>
+
+            <input
+              type="file"
+              ref={msProjectFileInputRef}
+              onChange={handleMsProjectFileSelect}
+              accept=".mpp,.xml,.csv"
+              className="hidden"
+              data-testid="input-msproject-file"
+            />
+
+            <div className="space-y-2">
+              <Label>Select Project File</Label>
+              <div 
+                className={cn(
+                  "flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed cursor-pointer transition-all hover-elevate",
+                  selectedMsProjectFile 
+                    ? "border-emerald-500 bg-emerald-500/5" 
+                    : "border-border hover:border-emerald-500/50"
+                )}
+                onClick={() => msProjectFileInputRef.current?.click()}
+                data-testid="dropzone-msproject"
+              >
+                {selectedMsProjectFile ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+                      <span className="font-medium">{selectedMsProjectFile.name}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {(selectedMsProjectFile.size / 1024).toFixed(1)} KB
+                    </p>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedMsProjectFile(null);
+                        if (msProjectFileInputRef.current) msProjectFileInputRef.current.value = "";
+                      }}
+                    >
+                      Choose Different File
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Click to select a file</p>
+                    <p className="text-xs text-muted-foreground">Supports .mpp, .xml, .csv</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Target Portfolio (Optional)</Label>
+              <Select 
+                onValueChange={(val) => setMsProjectPortfolioId(val === "none" ? null : parseInt(val))} 
+                value={msProjectPortfolioId?.toString() || "none"}
+              >
+                <SelectTrigger data-testid="select-msproject-portfolio">
+                  <SelectValue placeholder="Select Portfolio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Portfolio</SelectItem>
+                  {portfolios.map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedMsProjectFile && (
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="text-sm">
+                  Importing <strong>{selectedMsProjectFile.name}</strong> will create a new project with all tasks from this file.
+                </p>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button 
+                onClick={handleMsProjectImport}
+                disabled={!selectedMsProjectFile || isImportingMsProject}
+                data-testid="button-import-msproject"
+              >
+                {isImportingMsProject ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Import Project
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
           </div>
         )}
       </DialogContent>
