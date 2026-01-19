@@ -2216,6 +2216,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   useEffect(() => {
     if (isPlannerProject && !hasSyncedRef.current) {
       hasSyncedRef.current = true;
+      setIsSyncing(true);
       // Inline async to avoid callback dependencies
       (async () => {
         try {
@@ -2224,14 +2225,21 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             credentials: 'include',
           });
           if (response.ok) {
+            const data = await response.json();
             queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+            toast({ 
+              title: "Synced with Planner", 
+              description: `${data.synced || 0} tasks synced successfully` 
+            });
           }
         } catch {
           // Silent fail on auto-sync
+        } finally {
+          setIsSyncing(false);
         }
       })();
     }
-  }, [projectId, isPlannerProject]);
+  }, [projectId, isPlannerProject, toast]);
 
   // MS Project re-import handler
   const handleMsProjectReimport = async () => {
