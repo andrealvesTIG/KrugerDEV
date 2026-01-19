@@ -14,7 +14,7 @@ declare module "express-session" {
 
 interface DataversePlannerPlan {
   msdyn_projectid: string;
-  msdyn_name: string;
+  msdyn_subject: string;
   createdon: string;
   modifiedon: string;
   statecode: number;
@@ -272,7 +272,7 @@ export async function setupDataverseRoutes(app: Express) {
     }
 
     try {
-      const apiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects?$select=msdyn_projectid,msdyn_name,createdon,modifiedon,statecode,statuscode,_ownerid_value,msdyn_scheduledstart,msdyn_scheduledend,msdyn_description&$filter=statecode eq 0&$orderby=createdon desc`;
+      const apiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects?$select=msdyn_projectid,msdyn_subject,createdon,modifiedon,statecode,statuscode,_ownerid_value,msdyn_scheduledstart,msdyn_scheduledend,msdyn_description&$filter=statecode eq 0&$orderby=createdon desc`;
       
       const response = await fetchDataverse(apiUrl, token);
 
@@ -297,7 +297,7 @@ export async function setupDataverseRoutes(app: Express) {
       res.json({ 
         plans: plans.map((p) => ({
           id: p.msdyn_projectid,
-          title: p.msdyn_name,
+          title: p.msdyn_subject,
           createdDateTime: p.createdon,
           modifiedDateTime: p.modifiedon,
           scheduledStart: p.msdyn_scheduledstart || null,
@@ -383,7 +383,7 @@ export async function setupDataverseRoutes(app: Express) {
     }
 
     try {
-      const apiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects(${planId})?$select=msdyn_projectid,msdyn_name,createdon,modifiedon,statecode,statuscode,_ownerid_value,msdyn_scheduledstart,msdyn_scheduledend,msdyn_description`;
+      const apiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects(${planId})?$select=msdyn_projectid,msdyn_subject,createdon,modifiedon,statecode,statuscode,_ownerid_value,msdyn_scheduledstart,msdyn_scheduledend,msdyn_description`;
       
       const response = await fetchDataverse(apiUrl, token);
 
@@ -400,7 +400,7 @@ export async function setupDataverseRoutes(app: Express) {
       res.json({ 
         plan: {
           id: plan.msdyn_projectid,
-          title: plan.msdyn_name,
+          title: plan.msdyn_subject,
           createdDateTime: plan.createdon,
           scheduledStart: plan.msdyn_scheduledstart || null,
           scheduledEnd: plan.msdyn_scheduledend || null,
