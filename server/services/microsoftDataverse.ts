@@ -20,9 +20,6 @@ interface DataversePlannerPlan {
   statecode: number;
   statuscode: number;
   _ownerid_value: string;
-  msdyn_scheduledstart?: string;
-  msdyn_scheduledend?: string;
-  msdyn_description?: string;
 }
 
 interface DataversePlannerTask {
@@ -272,7 +269,7 @@ export async function setupDataverseRoutes(app: Express) {
     }
 
     try {
-      const apiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects?$select=msdyn_projectid,msdyn_subject,createdon,modifiedon,statecode,statuscode,_ownerid_value,msdyn_scheduledstart,msdyn_scheduledend,msdyn_description&$filter=statecode eq 0&$orderby=createdon desc`;
+      const apiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects?$select=msdyn_projectid,msdyn_subject,createdon,modifiedon,statecode,statuscode,_ownerid_value&$filter=statecode eq 0&$orderby=createdon desc`;
       
       const response = await fetchDataverse(apiUrl, token);
 
@@ -300,9 +297,6 @@ export async function setupDataverseRoutes(app: Express) {
           title: p.msdyn_subject,
           createdDateTime: p.createdon,
           modifiedDateTime: p.modifiedon,
-          scheduledStart: p.msdyn_scheduledstart || null,
-          scheduledEnd: p.msdyn_scheduledend || null,
-          description: p.msdyn_description || null,
           owner: p._ownerid_value,
           isPremium: true,
         }))
@@ -383,7 +377,7 @@ export async function setupDataverseRoutes(app: Express) {
     }
 
     try {
-      const apiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects(${planId})?$select=msdyn_projectid,msdyn_subject,createdon,modifiedon,statecode,statuscode,_ownerid_value,msdyn_scheduledstart,msdyn_scheduledend,msdyn_description`;
+      const apiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects(${planId})?$select=msdyn_projectid,msdyn_subject,createdon,modifiedon,statecode,statuscode,_ownerid_value`;
       
       const response = await fetchDataverse(apiUrl, token);
 
@@ -402,9 +396,6 @@ export async function setupDataverseRoutes(app: Express) {
           id: plan.msdyn_projectid,
           title: plan.msdyn_subject,
           createdDateTime: plan.createdon,
-          scheduledStart: plan.msdyn_scheduledstart || null,
-          scheduledEnd: plan.msdyn_scheduledend || null,
-          description: plan.msdyn_description || null,
           owner: plan._ownerid_value,
           isPremium: true,
         }
