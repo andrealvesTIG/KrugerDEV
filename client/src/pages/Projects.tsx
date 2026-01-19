@@ -15,7 +15,7 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -30,16 +30,18 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable } from "@dnd-kit/core";
-import { useSortable } from "@dnd-kit/sortable";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable, closestCenter } from "@dnd-kit/core";
+import { useSortable, SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useAuth } from "@/hooks/use-auth";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import ExcelJS from "exceljs";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
 
 export default function Projects() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, memberships } = useOrganization();
+  const { user } = useAuth();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("createdAt");
@@ -48,6 +50,12 @@ export default function Projects() {
   const { data: allTasks } = useAllTasks();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
+  
+  // Check if user is admin for current organization
+  const currentMembership = memberships.find(m => m.organizationId === currentOrganization?.id);
+  const isOrgAdmin = user?.role === 'super_admin' || 
+    currentMembership?.role === 'org_admin' || 
+    currentOrganization?.ownerId === user?.id;
   const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt">(() => {
     const saved = localStorage.getItem("projects-view-preference");
     if (saved && ["list", "grid", "kanban", "gantt"].includes(saved)) {
@@ -645,7 +653,9 @@ export default function Projects() {
           projects={filteredProjects || []} 
           portfolios={portfolios || []}
           onStatusChange={handleStatusChange}
-          onDeleteProject={setDeleteProjectId}
+          onDeleteProject={(id) => deleteProject.mutate(id)}
+          onUpdateProject={(id, data) => updateProject.mutate({ id, data })}
+          isAdmin={isOrgAdmin}
         />
       ) : view === "kanban" ? (
         <ProjectsKanbanView 
@@ -1672,12 +1682,26 @@ const ALL_GRID_COLUMNS: GridColumn[] = [
   { id: "description", label: "Description", defaultVisible: false },
 ];
 
+const GRID_COLUMN_ORDER_KEY = "projects-grid-column-order";
+
 function getStoredColumns(): string[] {
   try {
     const stored = localStorage.getItem(GRID_COLUMN_STORAGE_KEY);
     if (stored) return JSON.parse(stored);
   } catch {}
   return ALL_GRID_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
+}
+
+function getStoredColumnOrder(): string[] {
+  try {
+    const stored = localStorage.getItem(GRID_COLUMN_ORDER_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return ALL_GRID_COLUMNS.map(c => c.id);
+}
+
+function saveColumnOrder(order: string[]) {
+  localStorage.setItem(GRID_COLUMN_ORDER_KEY, JSON.stringify(order));
 }
 
 function saveColumns(columns: string[]) {
@@ -1689,18 +1713,58 @@ interface Portfolio {
   name: string;
 }
 
+function SortableColumnHeader({ column, children }: { column: GridColumn; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  
+  return (
+    <TableHead 
+      ref={setNodeRef} 
+      style={style} 
+      className="whitespace-nowrap cursor-grab active:cursor-grabbing"
+      {...attributes}
+      {...listeners}
+    >
+      <div className="flex items-center gap-1">
+        <GripVertical className="h-3 w-3 text-muted-foreground" />
+        {children}
+      </div>
+    </TableHead>
+  );
+}
+
 function ProjectsGridView({ 
   projects, 
   portfolios,
   onStatusChange,
   onDeleteProject,
+  onUpdateProject,
+  isAdmin,
 }: { 
   projects: Project[];
   portfolios: Portfolio[];
   onStatusChange: (projectId: number, newStatus: string) => void;
   onDeleteProject: (projectId: number) => void;
+  onUpdateProject: (projectId: number, data: Partial<Project>) => void;
+  isAdmin: boolean;
 }) {
+  const { toast } = useToast();
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
+  const [columnOrder, setColumnOrder] = useState<string[]>(getStoredColumnOrder);
+  const [selectedProjects, setSelectedProjects] = useState<Set<number>>(new Set());
+  const [editingCell, setEditingCell] = useState<{ projectId: number; columnId: string } | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    })
+  );
   
   const toggleColumn = (columnId: string) => {
     setVisibleColumns(prev => {
@@ -1712,19 +1776,140 @@ function ProjectsGridView({
     });
   };
 
+  const handleColumnDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    
+    setColumnOrder(prev => {
+      const oldIndex = prev.indexOf(String(active.id));
+      const newIndex = prev.indexOf(String(over.id));
+      const newOrder = arrayMove(prev, oldIndex, newIndex);
+      saveColumnOrder(newOrder);
+      return newOrder;
+    });
+  };
+
   const getPortfolioName = (portfolioId: number | null | undefined) => {
     if (!portfolioId) return "-";
     const portfolio = portfolios.find(p => p.id === portfolioId);
     return portfolio?.name || "-";
   };
 
+  const toggleSelectProject = (projectId: number) => {
+    setSelectedProjects(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(projectId)) {
+        newSet.delete(projectId);
+      } else {
+        newSet.add(projectId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedProjects.size === projects.length) {
+      setSelectedProjects(new Set());
+    } else {
+      setSelectedProjects(new Set(projects.map(p => p.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const projectIds = Array.from(selectedProjects);
+    for (const projectId of projectIds) {
+      onDeleteProject(projectId);
+    }
+    setSelectedProjects(new Set());
+    setBulkDeleteOpen(false);
+    toast({ title: "Projects deleted", description: `${projectIds.length} project(s) moved to recycle bin` });
+  };
+
+  const startEditing = (projectId: number, columnId: string, currentValue: string) => {
+    setEditingCell({ projectId, columnId });
+    setEditValue(currentValue);
+  };
+
+  const saveEdit = () => {
+    if (!editingCell) return;
+    const { projectId, columnId } = editingCell;
+    
+    const updateData: Partial<Project> = {};
+    switch (columnId) {
+      case "name":
+        if (editValue.trim()) updateData.name = editValue;
+        break;
+      case "budget":
+        updateData.budget = editValue;
+        break;
+      case "description":
+        updateData.description = editValue;
+        break;
+    }
+    
+    if (Object.keys(updateData).length > 0) {
+      onUpdateProject(projectId, updateData);
+    }
+    setEditingCell(null);
+    setEditValue("");
+  };
+
+  const cancelEdit = () => {
+    setEditingCell(null);
+    setEditValue("");
+  };
+
+  const getOrderedVisibleColumns = () => {
+    return columnOrder
+      .filter(id => visibleColumns.includes(id))
+      .map(id => ALL_GRID_COLUMNS.find(c => c.id === id)!)
+      .filter(Boolean);
+  };
+
   const renderCellContent = (project: Project, columnId: string) => {
+    const isEditing = editingCell?.projectId === project.id && editingCell?.columnId === columnId;
+    
+    if (isEditing) {
+      return (
+        <div className="flex items-center gap-1">
+          <Input
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveEdit();
+              if (e.key === "Escape") cancelEdit();
+            }}
+            className="h-7 text-sm"
+            autoFocus
+            data-testid={`edit-input-${columnId}-${project.id}`}
+          />
+          <Button size="icon" variant="ghost" onClick={saveEdit} className="h-6 w-6">
+            <Check className="h-3 w-3" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={cancelEdit} className="h-6 w-6">
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      );
+    }
+    
     switch (columnId) {
       case "name":
         return (
-          <Link href={`/projects/${project.id}`} className="font-medium text-primary hover:underline">
-            {project.name}
-          </Link>
+          <div className="flex items-center gap-2 group">
+            <Link href={`/projects/${project.id}`} className="font-medium text-primary hover:underline">
+              {project.name}
+            </Link>
+            <Button 
+              size="icon" 
+              variant="ghost" 
+              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => { e.preventDefault(); startEditing(project.id, "name", project.name); }}
+              data-testid={`edit-name-${project.id}`}
+            >
+              <PenTool className="h-3 w-3" />
+            </Button>
+          </div>
         );
       case "status":
         return (
@@ -1744,27 +1929,51 @@ function ProjectsGridView({
         );
       case "priority":
         return (
-          <Badge className={cn(
-            "text-xs",
-            project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
-            project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
-            project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
-            project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
-          )}>
-            {project.priority}
-          </Badge>
+          <Select 
+            value={project.priority || "Medium"} 
+            onValueChange={(newPriority) => onUpdateProject(project.id, { priority: newPriority })}
+          >
+            <SelectTrigger className="h-7 w-auto min-w-[80px] text-xs border-0 p-0" data-testid={`grid-priority-${project.id}`}>
+              <Badge className={cn(
+                "text-xs",
+                project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
+                project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
+                project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
+                project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
+              )}>
+                {project.priority}
+              </Badge>
+            </SelectTrigger>
+            <SelectContent>
+              {["Critical", "High", "Medium", "Low"].map(priority => (
+                <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         );
       case "health":
         return (
-          <div className="flex items-center gap-2">
-            <div className={cn(
-              "w-3 h-3 rounded-full",
-              project.health === 'Green' && "bg-emerald-500",
-              project.health === 'Yellow' && "bg-amber-500",
-              project.health === 'Red' && "bg-rose-500",
-            )} />
-            <span className="text-sm">{project.health || "-"}</span>
-          </div>
+          <Select 
+            value={project.health || "Green"} 
+            onValueChange={(newHealth) => onUpdateProject(project.id, { health: newHealth })}
+          >
+            <SelectTrigger className="h-7 w-auto min-w-[80px] text-xs border-0 p-0" data-testid={`grid-health-${project.id}`}>
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-3 h-3 rounded-full",
+                  project.health === 'Green' && "bg-emerald-500",
+                  project.health === 'Yellow' && "bg-amber-500",
+                  project.health === 'Red' && "bg-rose-500",
+                )} />
+                <span className="text-sm">{project.health || "-"}</span>
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              {["Green", "Yellow", "Red"].map(health => (
+                <SelectItem key={health} value={health}>{health}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         );
       case "portfolio":
         return <span className="text-sm">{getPortfolioName(project.portfolioId)}</span>;
@@ -1773,7 +1982,20 @@ function ProjectsGridView({
       case "endDate":
         return <span className="text-sm">{project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : "-"}</span>;
       case "budget":
-        return <span className="text-sm font-medium">${Number(project.budget || 0).toLocaleString()}</span>;
+        return (
+          <div className="flex items-center gap-2 group">
+            <span className="text-sm font-medium">${Number(project.budget || 0).toLocaleString()}</span>
+            <Button 
+              size="icon" 
+              variant="ghost" 
+              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => startEditing(project.id, "budget", String(project.budget || "0"))}
+              data-testid={`edit-budget-${project.id}`}
+            >
+              <PenTool className="h-3 w-3" />
+            </Button>
+          </div>
+        );
       case "completion":
         return (
           <div className="flex items-center gap-2">
@@ -1798,14 +2020,50 @@ function ProjectsGridView({
       case "owner":
         return <span className="text-sm">{project.managerId || "-"}</span>;
       case "description":
-        return <span className="text-sm text-muted-foreground line-clamp-1">{project.description || "-"}</span>;
+        return (
+          <div className="flex items-center gap-2 group">
+            <span className="text-sm text-muted-foreground line-clamp-1">{project.description || "-"}</span>
+            <Button 
+              size="icon" 
+              variant="ghost" 
+              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+              onClick={() => startEditing(project.id, "description", project.description || "")}
+              data-testid={`edit-description-${project.id}`}
+            >
+              <PenTool className="h-3 w-3" />
+            </Button>
+          </div>
+        );
       default:
         return "-";
     }
   };
 
+  const orderedVisibleColumns = getOrderedVisibleColumns();
+
   return (
     <div className="space-y-4">
+      {/* Bulk Actions Toolbar */}
+      {selectedProjects.size > 0 && (
+        <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
+          <span className="text-sm font-medium">{selectedProjects.size} project(s) selected</span>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedProjects(new Set())}>
+            Clear selection
+          </Button>
+          {isAdmin && (
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={() => setBulkDeleteOpen(true)}
+              data-testid="button-bulk-delete"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Selected
+            </Button>
+          )}
+        </div>
+      )}
+      
       <div className="flex justify-end">
         <Popover>
           <PopoverTrigger asChild>
@@ -1817,6 +2075,7 @@ function ProjectsGridView({
           <PopoverContent align="end" className="w-56">
             <div className="space-y-2">
               <p className="text-sm font-medium">Show Columns</p>
+              <p className="text-xs text-muted-foreground">Drag column headers to reorder</p>
               <div className="space-y-1">
                 {ALL_GRID_COLUMNS.map(column => (
                   <div
@@ -1839,64 +2098,112 @@ function ProjectsGridView({
         </Popover>
       </div>
 
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {ALL_GRID_COLUMNS.filter(c => visibleColumns.includes(c.id)).map(column => (
-                <TableHead key={column.id} className="whitespace-nowrap">
-                  {column.label}
-                </TableHead>
-              ))}
-              <TableHead className="w-10"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {projects.length === 0 ? (
+      <div className="rounded-lg border bg-card overflow-x-auto">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleColumnDragEnd}>
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={visibleColumns.length + 1} className="text-center py-8 text-muted-foreground">
-                  No projects found
-                </TableCell>
-              </TableRow>
-            ) : (
-              projects.map(project => (
-                <TableRow key={project.id} data-testid={`grid-row-${project.id}`}>
-                  {ALL_GRID_COLUMNS.filter(c => visibleColumns.includes(c.id)).map(column => (
-                    <TableCell key={column.id}>
-                      {renderCellContent(project, column.id)}
-                    </TableCell>
+                <TableHead className="w-10">
+                  <Checkbox 
+                    checked={projects.length > 0 && selectedProjects.size === projects.length}
+                    onCheckedChange={toggleSelectAll}
+                    data-testid="checkbox-select-all"
+                  />
+                </TableHead>
+                <SortableContext items={orderedVisibleColumns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
+                  {orderedVisibleColumns.map(column => (
+                    <SortableColumnHeader key={column.id} column={column}>
+                      {column.label}
+                    </SortableColumnHeader>
                   ))}
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" data-testid={`grid-menu-${project.id}`}>
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/projects/${project.id}`}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => onDeleteProject(project.id)} 
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                </SortableContext>
+                <TableHead className="w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projects.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={orderedVisibleColumns.length + 2} className="text-center py-8 text-muted-foreground">
+                    No projects found
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                projects.map(project => (
+                  <TableRow 
+                    key={project.id} 
+                    data-testid={`grid-row-${project.id}`}
+                    className={cn(selectedProjects.has(project.id) && "bg-muted/50")}
+                  >
+                    <TableCell>
+                      <Checkbox 
+                        checked={selectedProjects.has(project.id)}
+                        onCheckedChange={() => toggleSelectProject(project.id)}
+                        data-testid={`checkbox-project-${project.id}`}
+                      />
+                    </TableCell>
+                    {orderedVisibleColumns.map(column => (
+                      <TableCell key={column.id}>
+                        {renderCellContent(project, column.id)}
+                      </TableCell>
+                    ))}
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" data-testid={`grid-menu-${project.id}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/projects/${project.id}`}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </Link>
+                          </DropdownMenuItem>
+                          {isAdmin && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => onDeleteProject(project.id)} 
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </DndContext>
       </div>
+      
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedProjects.size} Project(s)</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">
+            Are you sure you want to delete {selectedProjects.size} project(s)? They will be moved to the recycle bin.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleBulkDelete}
+              data-testid="button-confirm-bulk-delete"
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
