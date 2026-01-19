@@ -2188,7 +2188,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { toast } = useToast();
   
   const isPlannerProject = (projectSource === "planner" || projectSource === "planner_premium") && !!plannerPlanId;
-  const isPremiumPlan = projectSource === "planner_premium";
+  // Detect Premium plans by source OR by GUID-style plannerPlanId (Dataverse uses GUIDs)
+  const isGuidPlanId = plannerPlanId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(plannerPlanId);
+  const isPremiumPlan = projectSource === "planner_premium" || (projectSource === "planner" && isGuidPlanId);
   const isMsProjectImported = projectSource === "imported" && !!sourceFileUrl;
   const [isSyncing, setIsSyncing] = useState(false);
   const hasSyncedRef = useRef(false);

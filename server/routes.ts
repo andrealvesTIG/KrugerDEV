@@ -3111,7 +3111,9 @@ export async function registerRoutes(
       }
 
       const planId = project.plannerPlanId;
-      const isPremium = project.source === "planner_premium";
+      // Detect Premium plans by source OR by GUID-style plannerPlanId (Dataverse uses GUIDs)
+      const isGuidPlanId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(planId);
+      const isPremium = project.source === "planner_premium" || (project.source === "planner" && isGuidPlanId);
 
       // For Premium plans, use Dataverse sync instead of regular Planner
       if (isPremium) {
