@@ -415,27 +415,6 @@ export default function ProjectDetails() {
           <TabsTrigger value="financials" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-financials">Financials</TabsTrigger>
           <TabsTrigger value="change-requests" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-change-requests">Change Requests</TabsTrigger>
           <TabsTrigger value="documents" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-documents">Documents</TabsTrigger>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-lg h-9 w-9" data-testid="button-import-tasks-menu">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem data-testid="menu-item-add-planner-tasks">
-                Add Planner Tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem data-testid="menu-item-add-ms-project-tasks">
-                Add Microsoft Project Tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem data-testid="menu-item-add-monday-tasks">
-                Add Monday.com Tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem data-testid="menu-item-add-jira">
-                Add JIRA
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
