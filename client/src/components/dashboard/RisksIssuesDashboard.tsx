@@ -81,6 +81,8 @@ export function RisksIssuesDashboard() {
 
   const filteredIssues = useMemo(() => {
     return allIssues.filter(i => {
+      // Only include actual issues (not risks) - itemType is null or 'issue' for regular issues
+      if (i.itemType === 'risk') return false;
       if (filters.projectId && i.projectId !== filters.projectId) return false;
       if (filters.portfolioId && !filteredProjectIds.has(i.projectId)) return false;
       if (filters.priority && i.priority !== filters.priority) return false;
@@ -257,7 +259,7 @@ export function RisksIssuesDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Total Issues</span>
           </div>
-          <div className="text-2xl font-bold">{allIssues.length}</div>
+          <div className="text-2xl font-bold">{filteredIssues.length}</div>
           <div className="text-xs text-muted-foreground">{highIssues} high priority</div>
         </Card>
       </div>

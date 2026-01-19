@@ -201,8 +201,10 @@ export function ExecutiveDashboard() {
   
   const openRisks = allRisks.filter(r => r.status === "Open" || r.status === "Identified").length;
   const highRisks = allRisks.filter(r => r.probability === "High" || r.impact === "High").length;
-  const openIssues = allIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
-  const criticalIssues = allIssues.filter(i => i.priority === "Critical" || i.priority === "High").length;
+  // Filter out risks (itemType='risk') from issues count - only count actual issues
+  const actualIssues = allIssues.filter(i => i.itemType !== 'risk');
+  const openIssues = actualIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
+  const criticalIssues = actualIssues.filter(i => i.priority === "Critical" || i.priority === "High").length;
   
   const totalIntakes = intakes?.length || 0;
   const intakesInReview = intakes?.filter(i => i.status === "draft" || i.status === "in_progress").length || 0;
@@ -486,7 +488,7 @@ export function ExecutiveDashboard() {
                 <Progress value={openIssues > 0 ? Math.min((criticalIssues / openIssues) * 100, 100) : 0} className="h-1.5" />
                 <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
                   <span>{criticalIssues} critical/high</span>
-                  <span>{allIssues.length} total</span>
+                  <span>{actualIssues.length} total</span>
                 </div>
               </div>
               <div className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/20">

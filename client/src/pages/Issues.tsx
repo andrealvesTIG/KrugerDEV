@@ -239,7 +239,10 @@ export default function Issues() {
       issue.description?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || issue.status === statusFilter;
     const matchesPriority = priorityFilter === "all" || issue.priority === priorityFilter;
-    const matchesType = typeFilter === "all" || issue.itemType === typeFilter;
+    // Handle both null and "issue" as regular issues (null is legacy, "issue" is new format)
+    const matchesType = typeFilter === "all" || 
+      (typeFilter === "issue" && (issue.itemType === null || issue.itemType === "issue")) ||
+      (typeFilter === "risk" && issue.itemType === "risk");
     return matchesSearch && matchesStatus && matchesPriority && matchesType;
   });
 
