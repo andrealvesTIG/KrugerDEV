@@ -2882,8 +2882,8 @@ export async function registerRoutes(
 
       const plan = await planResponse.json();
 
-      // Fetch tasks from Dataverse
-      const tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=msdyn_projecttaskid,msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend,msdyn_progress,msdyn_priority,msdyn_description,msdyn_wbsid,_msdyn_parenttask_value&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
+      // Fetch tasks from Dataverse - use only core columns that exist in all environments
+      const tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=msdyn_projecttaskid,msdyn_subject,msdyn_wbsid,_msdyn_parenttask_value,statecode,createdon,modifiedon&$filter=_msdyn_project_value eq ${planId}&$orderby=createdon asc`;
       
       const tasksResponse = await fetch(tasksApiUrl, {
         headers: {
@@ -2902,23 +2902,10 @@ export async function registerRoutes(
       const dataverseTasks = tasksData.value || [];
 
       // Calculate project dates from tasks (plan-level dates may not exist in all environments)
-      let projectStartDate: string | null = null;
-      let projectEndDate: string | null = null;
-
-      for (const task of dataverseTasks) {
-        if (task.msdyn_scheduledstart) {
-          const startDate = task.msdyn_scheduledstart.split('T')[0];
-          if (!projectStartDate || startDate < projectStartDate) {
-            projectStartDate = startDate;
-          }
-        }
-        if (task.msdyn_scheduledend) {
-          const endDate = task.msdyn_scheduledend.split('T')[0];
-          if (!projectEndDate || endDate > projectEndDate) {
-            projectEndDate = endDate;
-          }
-        }
-      }
+      // Use today as default project dates since schedule fields may not be available
+      const today = new Date().toISOString().split('T')[0];
+      let projectStartDate: string | null = today;
+      let projectEndDate: string | null = today;
 
       // Create the project - use msdyn_subject for project name (msdyn_name doesn't exist)
       const project = await storage.createProject({
@@ -2959,23 +2946,21 @@ export async function registerRoutes(
       const createdTasks: any[] = [];
       const taskIdMap = new Map<string, number>();
 
-      // Default dates for tasks without dates
+      // Default dates for tasks (schedule fields may not be available in all environments)
       const defaultStartDate = projectStartDate || new Date().toISOString().split('T')[0];
       const defaultEndDate = projectEndDate || defaultStartDate;
 
       for (const dvTask of dataverseTasks) {
         taskIndex++;
         
-        const taskStartDate = dvTask.msdyn_scheduledstart 
-          ? dvTask.msdyn_scheduledstart.split('T')[0] 
-          : defaultStartDate;
-        const taskEndDate = dvTask.msdyn_scheduledend 
-          ? dvTask.msdyn_scheduledend.split('T')[0] 
-          : (dvTask.msdyn_scheduledstart ? dvTask.msdyn_scheduledstart.split('T')[0] : defaultEndDate);
+        // Use default dates since schedule fields may not exist
+        const taskStartDate = defaultStartDate;
+        const taskEndDate = defaultEndDate;
 
-        const progress = dvTask.msdyn_progress || 0;
-        const priority = mapDataversePriorityToProjectPriority(dvTask.msdyn_priority || 5);
-        const status = mapDataverseProgressToStatus(progress);
+        // Use defaults since progress/priority fields may not exist
+        const progress = 0;
+        const priority = "Medium";
+        const status = "Not Started";
 
         // Parse WBS ID to determine outline level
         const wbsId = dvTask.msdyn_wbsid || '';
