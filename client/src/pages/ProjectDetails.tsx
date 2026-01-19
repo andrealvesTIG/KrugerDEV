@@ -2176,12 +2176,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
   const { data: resources } = useResources(currentOrganization?.id ?? null);
   
-  // Fetch Dataverse status for Premium plan URL construction
-  const { data: dataverseStatus } = useQuery<{ environmentUrl?: string }>({
-    queryKey: ["/api/dataverse/status"],
-    enabled: projectSource === "planner_premium",
-  });
-  const createTask = useCreateTask();
+    const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -2574,10 +2569,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             <a 
               href={(() => {
                 if (!plannerPlanId) return "https://planner.cloud.microsoft";
-                if (isPremiumPlan && dataverseStatus?.environmentUrl) {
-                  // Extract environment name from URL like "https://ppm365prod.crm.dynamics.com" -> "ppm365prod.crm.dynamics.com"
-                  const envUrl = dataverseStatus.environmentUrl.replace(/^https?:\/\//, '');
-                  return `https://project.microsoft.com/${envUrl}/project/${plannerPlanId}`;
+                if (isPremiumPlan) {
+                  // Planner Premium uses premiumplan path - Microsoft handles auth/redirect
+                  return `https://planner.cloud.microsoft/webui/premiumplan/${plannerPlanId}`;
                 }
                 // Regular Planner URL
                 return `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board`;
