@@ -221,7 +221,7 @@ export async function setupAuth(app: Express) {
       const appUrl = process.env.APP_URL 
         || (process.env.REPLIT_DOMAINS?.split(',')[0] 
           ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://app.fridayreport.ai');
+          : 'https://fridayreport.ai');
       const verifyEmailUrl = `${appUrl}/verify-email?token=${emailVerificationToken}`;
       
       const emailSent = await sendEmailVerificationEmail(email, verifyEmailUrl);
@@ -650,7 +650,7 @@ export async function setupAuth(app: Express) {
       const appUrl = process.env.APP_URL 
         || process.env.REPLIT_DOMAINS?.split(',')[0] 
           ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`
-          : 'https://app.fridayreport.ai';
+          : 'https://fridayreport.ai';
       const verifyUrl = `${appUrl}/auth/verify?token=${token}`;
 
       // Send email
@@ -836,7 +836,7 @@ export async function setupAuth(app: Express) {
       const appUrl = process.env.APP_URL 
         || process.env.REPLIT_DOMAINS?.split(',')[0] 
           ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`
-          : 'https://app.fridayreport.ai';
+          : 'https://fridayreport.ai';
 
       if (existingUser) {
         // Existing user - send sign-in email
@@ -1033,7 +1033,7 @@ export async function setupAuth(app: Express) {
       const appUrl = process.env.APP_URL 
         || (process.env.REPLIT_DOMAINS?.split(',')[0] 
           ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://app.fridayreport.ai');
+          : 'https://fridayreport.ai');
       const verifyEmailUrl = `${appUrl}/verify-email?token=${emailVerificationToken}`;
       
       const emailSent = await sendEmailVerificationEmail(user.email, verifyEmailUrl);

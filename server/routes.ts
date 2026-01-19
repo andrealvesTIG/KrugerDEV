@@ -1802,7 +1802,7 @@ export async function registerRoutes(
             ? `https://${process.env.REPLIT_DEV_DOMAIN}`
             : process.env.REPLIT_DOMAINS?.split(',')[0] 
               ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-              : 'https://app.fridayreport.ai';
+              : 'https://fridayreport.ai';
           
           if (org) {
             await sendOrganizationInviteEmail(
@@ -1875,7 +1875,7 @@ export async function registerRoutes(
         ? `https://${process.env.REPLIT_DEV_DOMAIN}`
         : process.env.REPLIT_DOMAINS?.split(',')[0] 
           ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://app.fridayreport.ai';
+          : 'https://fridayreport.ai';
       
       if (org) {
         await sendOrganizationInviteEmail(
@@ -6033,7 +6033,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const appUrl = process.env.APP_URL 
         || (process.env.REPLIT_DOMAINS?.split(',')[0] 
           ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://app.fridayreport.ai');
+          : 'https://fridayreport.ai');
       const magicLinkUrl = `${appUrl}/resource-invite?token=${token}`;
       
       // Send the resource invitation email
