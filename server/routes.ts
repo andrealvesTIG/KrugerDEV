@@ -8,6 +8,7 @@ import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { setupMicrosoftAuth } from "./auth/microsoftAuth";
 import { setupProjectOnlineRoutes } from "./services/projectOnline";
 import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus } from "./services/microsoftPlanner";
+import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
 import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects } from "@shared/schema";
@@ -1131,6 +1132,7 @@ export async function registerRoutes(
   await setupMicrosoftAuth(app);
   await setupProjectOnlineRoutes(app);
   await setupPlannerRoutes(app);
+  await setupDataverseRoutes(app);
   registerAuthRoutes(app);
 
   // Seed DB on startup
@@ -2814,6 +2816,213 @@ export async function registerRoutes(
       console.error("Planner import error stack:", err?.stack);
       res.status(500).json({ 
         message: "Failed to import from Planner", 
+        error: err?.message || String(err) 
+      });
+    }
+  });
+
+  // Import project from Dataverse (Planner Premium)
+  app.post('/api/dataverse/import', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
+      const token = req.session.dataverseAccessToken;
+      const environmentUrl = req.session.dataverseEnvironmentUrl;
+      
+      if (!token) {
+        return res.status(401).json({ message: "Not connected to Dataverse. Please connect first." });
+      }
+      
+      if (!environmentUrl) {
+        return res.status(400).json({ message: "Dataverse environment not configured." });
+      }
+
+      const { planId, organizationId, portfolioId } = req.body;
+      if (!planId || !organizationId) {
+        return res.status(400).json({ message: "Plan ID and Organization ID are required" });
+      }
+
+      // Check project limit before creation
+      if (userId) {
+        const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
+        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.PROJECTS);
+        if (!limitCheck.allowed) {
+          return res.status(403).json({ 
+            message: limitCheck.error || "Project limit reached. Please upgrade your plan.",
+            limitExceeded: true,
+            resourceType: "projects"
+          });
+        }
+      }
+
+      // Fetch plan details from Dataverse
+      const planApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects(${planId})?$select=msdyn_projectid,msdyn_name,createdon,msdyn_scheduledstart,msdyn_scheduledend,msdyn_description`;
+      const planResponse = await fetch(planApiUrl, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "OData-MaxVersion": "4.0",
+          "OData-Version": "4.0",
+        },
+      });
+
+      if (!planResponse.ok) {
+        if (planResponse.status === 401) {
+          delete req.session.dataverseAccessToken;
+          return res.status(401).json({ message: "Session expired. Please reconnect to Dataverse." });
+        }
+        throw new Error(`Failed to fetch plan: ${planResponse.status}`);
+      }
+
+      const plan = await planResponse.json();
+
+      // Fetch tasks from Dataverse
+      const tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=msdyn_projecttaskid,msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend,msdyn_progress,msdyn_priority,msdyn_description,msdyn_wbsid,_msdyn_parenttask_value&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
+      
+      const tasksResponse = await fetch(tasksApiUrl, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "OData-MaxVersion": "4.0",
+          "OData-Version": "4.0",
+        },
+      });
+
+      if (!tasksResponse.ok) {
+        throw new Error(`Failed to fetch tasks: ${tasksResponse.status}`);
+      }
+
+      const tasksData = await tasksResponse.json();
+      const dataverseTasks = tasksData.value || [];
+
+      // Calculate project dates from tasks or use plan dates
+      let projectStartDate = plan.msdyn_scheduledstart ? plan.msdyn_scheduledstart.split('T')[0] : null;
+      let projectEndDate = plan.msdyn_scheduledend ? plan.msdyn_scheduledend.split('T')[0] : null;
+
+      for (const task of dataverseTasks) {
+        if (task.msdyn_scheduledstart) {
+          const startDate = task.msdyn_scheduledstart.split('T')[0];
+          if (!projectStartDate || startDate < projectStartDate) {
+            projectStartDate = startDate;
+          }
+        }
+        if (task.msdyn_scheduledend) {
+          const endDate = task.msdyn_scheduledend.split('T')[0];
+          if (!projectEndDate || endDate > projectEndDate) {
+            projectEndDate = endDate;
+          }
+        }
+      }
+
+      // Create the project
+      const project = await storage.createProject({
+        organizationId: Number(organizationId),
+        portfolioId: portfolioId ? Number(portfolioId) : null,
+        name: plan.msdyn_name,
+        description: plan.msdyn_description || `Imported from Planner Premium on ${new Date().toLocaleDateString()}`,
+        status: "Initiation",
+        priority: "Medium",
+        budget: "0",
+        health: "Green",
+        startDate: projectStartDate,
+        endDate: projectEndDate,
+        source: "planner",
+        plannerPlanId: planId,
+      });
+
+      // Record usage after successful creation
+      if (userId) {
+        const { recordResourceUsage, METER_CODES } = await import("./services/billing");
+        await recordResourceUsage(userId, METER_CODES.PROJECTS, project.id);
+      }
+
+      // Log change
+      const user = userId ? await storage.getUser(userId) : null;
+      await storage.createProjectChangeLog({
+        projectId: project.id,
+        changedBy: userId || null,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'created',
+        changeSummary: `Project "${project.name}" imported from Planner Premium (Dataverse)`,
+        previousValues: null,
+        newValues: JSON.stringify(project),
+      });
+
+      // Create tasks from Dataverse tasks
+      let taskIndex = 0;
+      const createdTasks: any[] = [];
+      const taskIdMap = new Map<string, number>();
+
+      // Default dates for tasks without dates
+      const defaultStartDate = projectStartDate || new Date().toISOString().split('T')[0];
+      const defaultEndDate = projectEndDate || defaultStartDate;
+
+      for (const dvTask of dataverseTasks) {
+        taskIndex++;
+        
+        const taskStartDate = dvTask.msdyn_scheduledstart 
+          ? dvTask.msdyn_scheduledstart.split('T')[0] 
+          : defaultStartDate;
+        const taskEndDate = dvTask.msdyn_scheduledend 
+          ? dvTask.msdyn_scheduledend.split('T')[0] 
+          : (dvTask.msdyn_scheduledstart ? dvTask.msdyn_scheduledstart.split('T')[0] : defaultEndDate);
+
+        const progress = dvTask.msdyn_progress || 0;
+        const priority = mapDataversePriorityToProjectPriority(dvTask.msdyn_priority || 5);
+        const status = mapDataverseProgressToStatus(progress);
+
+        // Parse WBS ID to determine outline level
+        const wbsId = dvTask.msdyn_wbsid || '';
+        const outlineLevel = wbsId ? wbsId.split('.').length : 1;
+
+        const task = await storage.createTask({
+          projectId: project.id,
+          taskIndex,
+          name: dvTask.msdyn_subject,
+          description: dvTask.msdyn_description || null,
+          priority,
+          startDate: taskStartDate,
+          endDate: taskEndDate,
+          progress,
+          status,
+          outlineLevel,
+          isMilestone: false,
+          isSummary: false,
+          isCritical: false,
+          wbs: wbsId || null,
+        });
+
+        taskIdMap.set(dvTask.msdyn_projecttaskid, task.id);
+        createdTasks.push(task);
+      }
+
+      // Update parent task references
+      for (const dvTask of dataverseTasks) {
+        if (dvTask._msdyn_parenttask_value) {
+          const childTaskId = taskIdMap.get(dvTask.msdyn_projecttaskid);
+          const parentTaskId = taskIdMap.get(dvTask._msdyn_parenttask_value);
+          if (childTaskId && parentTaskId) {
+            await storage.updateTask(childTaskId, { parentId: parentTaskId });
+          }
+        }
+      }
+
+      res.status(201).json({ 
+        project,
+        tasksCreated: createdTasks.length,
+        message: `Successfully imported "${plan.msdyn_name}" with ${createdTasks.length} tasks from Planner Premium`
+      });
+    } catch (err: any) {
+      console.error("Dataverse import error:", err);
+      console.error("Dataverse import error stack:", err?.stack);
+      res.status(500).json({ 
+        message: "Failed to import from Planner Premium", 
         error: err?.message || String(err) 
       });
     }

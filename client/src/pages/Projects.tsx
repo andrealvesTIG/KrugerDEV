@@ -15,7 +15,7 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -669,13 +669,23 @@ export default function Projects() {
   );
 }
 
-type ProjectSource = "manual" | "planner" | "msproject";
+type ProjectSource = "manual" | "planner" | "planner-premium" | "msproject";
 
 interface PlannerPlan {
   id: string;
   title: string;
   createdDateTime: string;
   owner: string;
+}
+
+interface DataversePlan {
+  id: string;
+  title: string;
+  createdDateTime: string;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
+  description?: string | null;
+  isPremium: boolean;
 }
 
 function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }: { open: boolean, onOpenChange: (o: boolean) => void, portfolios: any[], organizationId?: number }) {
@@ -748,6 +758,97 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
       }
     },
   });
+
+  // Dataverse (Planner Premium) state
+  const [dataverseEnvUrl, setDataverseEnvUrl] = useState("");
+  const [dataverseSearchTerm, setDataverseSearchTerm] = useState("");
+  const [selectedDataversePlanId, setSelectedDataversePlanId] = useState<string | null>(null);
+
+  // Check Dataverse connection status
+  const { data: dataverseStatus, refetch: refetchDataverseStatus } = useQuery<{ 
+    configured: boolean; 
+    connected: boolean;
+    environmentUrl: string | null;
+  }>({
+    queryKey: ["/api/dataverse/status"],
+    enabled: open && projectSource === "planner-premium",
+  });
+
+  // Fetch Dataverse Premium plans when connected
+  const { data: dataversePlans, isLoading: isLoadingDataversePlans, refetch: refetchDataversePlans } = useQuery<{ plans: DataversePlan[] }>({
+    queryKey: ["/api/dataverse/plans"],
+    enabled: open && projectSource === "planner-premium" && dataverseStatus?.connected === true,
+  });
+
+  // Set Dataverse environment URL mutation
+  const setDataverseEnvironment = useMutation({
+    mutationFn: async (environmentUrl: string) => {
+      const response = await apiRequest("POST", "/api/dataverse/set-environment", { environmentUrl });
+      return response.json();
+    },
+    onSuccess: () => {
+      refetchDataverseStatus();
+      toast({ title: "Success", description: "Dataverse environment configured" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to set environment URL", variant: "destructive" });
+    },
+  });
+
+  // Connect to Dataverse mutation
+  const connectDataverse = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/dataverse/connect");
+      return response.json();
+    },
+    onSuccess: (data: { authUrl: string }) => {
+      window.location.href = data.authUrl;
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to connect to Dataverse", variant: "destructive" });
+    },
+  });
+
+  // Import from Dataverse mutation
+  const importFromDataverse = useMutation({
+    mutationFn: async ({ planId, portfolioId }: { planId: string; portfolioId: number | null }) => {
+      const response = await apiRequest("POST", "/api/dataverse/import", {
+        planId,
+        organizationId,
+        portfolioId,
+      });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Success", description: data.message || "Premium plan imported successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      onOpenChange(false);
+      setSelectedDataversePlanId(null);
+      setProjectSource("manual");
+    },
+    onError: (err: any) => {
+      if (err.limitExceeded) {
+        setLimitError({ message: err.message, resourceType: err.resourceType });
+        setLimitDialogOpen(true);
+        onOpenChange(false);
+      } else if (err.status === 401) {
+        toast({ title: "Session Expired", description: "Please reconnect to Dataverse", variant: "destructive" });
+        refetchDataverseStatus();
+      } else {
+        toast({ title: "Error", description: err.message || "Failed to import Premium plan", variant: "destructive" });
+      }
+    },
+  });
+
+  // Filter Dataverse plans by search term
+  const filteredDataversePlans = useMemo(() => {
+    if (!dataversePlans?.plans) return [];
+    if (!dataverseSearchTerm.trim()) return dataversePlans.plans;
+    const term = dataverseSearchTerm.toLowerCase();
+    return dataversePlans.plans.filter(plan => 
+      plan.title.toLowerCase().includes(term)
+    );
+  }, [dataversePlans?.plans, dataverseSearchTerm]);
   
   const form = useForm<InsertProject>({
     resolver: zodResolver(insertProjectSchema.extend({
@@ -892,56 +993,74 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
         </DialogHeader>
         
         {/* Source Selector - Card-based design with logos */}
-        <div className="grid grid-cols-3 gap-3 pt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
           <button
             type="button"
             onClick={() => setProjectSource("manual")}
             className={cn(
-              "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover-elevate",
+              "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate",
               projectSource === "manual" 
                 ? "border-primary bg-primary/5" 
                 : "border-border hover:border-primary/50"
             )}
             data-testid="button-source-manual"
           >
-            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-              <PenTool className="h-5 w-5 text-muted-foreground" />
+            <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+              <PenTool className="h-4 w-4 text-muted-foreground" />
             </div>
-            <span className="text-sm font-medium text-center">Create Manually</span>
+            <span className="text-xs font-medium text-center">Create Manually</span>
           </button>
           
           <button
             type="button"
             onClick={() => setProjectSource("planner")}
             className={cn(
-              "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover-elevate",
+              "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate",
               projectSource === "planner" 
                 ? "border-indigo-500 bg-indigo-500/5" 
                 : "border-border hover:border-indigo-500/50"
             )}
             data-testid="button-source-planner"
           >
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center">
-              <img src={plannerLogoPath} alt="Planner" className="h-6 w-6" />
+            <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center">
+              <img src={plannerLogoPath} alt="Planner" className="h-5 w-5" />
             </div>
-            <span className="text-sm font-medium text-center">Microsoft Planner</span>
+            <span className="text-xs font-medium text-center">Planner</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setProjectSource("planner-premium")}
+            className={cn(
+              "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate",
+              projectSource === "planner-premium" 
+                ? "border-purple-500 bg-purple-500/5" 
+                : "border-border hover:border-purple-500/50"
+            )}
+            data-testid="button-source-planner-premium"
+          >
+            <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center relative">
+              <img src={plannerLogoPath} alt="Planner Premium" className="h-5 w-5" />
+              <Crown className="h-3 w-3 text-purple-600 absolute -top-1 -right-1" />
+            </div>
+            <span className="text-xs font-medium text-center">Premium</span>
           </button>
           
           <button
             type="button"
             onClick={() => setProjectSource("msproject")}
             className={cn(
-              "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all hover-elevate",
+              "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate",
               projectSource === "msproject" 
                 ? "border-emerald-500 bg-emerald-500/5" 
                 : "border-border hover:border-emerald-500/50"
             )}
             data-testid="button-source-msproject"
           >
-            <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center">
-              <img src={msprojectLogoPath} alt="MS Project" className="h-6 w-6" />
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center">
+              <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
             </div>
-            <span className="text-sm font-medium text-center">MS Project File</span>
+            <span className="text-xs font-medium text-center">MS Project</span>
           </button>
         </div>
 
@@ -1176,6 +1295,222 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                       <>
                         <Download className="mr-2 h-4 w-4" />
                         Import Project
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </div>
+        )}
+
+        {projectSource === "planner-premium" && (
+          <div className="space-y-4 pt-2">
+            {/* Planner Premium (Dataverse) Import View */}
+            <div className="flex items-center gap-3 p-4 rounded-lg border bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800">
+              <div className="relative">
+                <img src={plannerLogoPath} alt="Planner Premium" className="h-8 w-8" />
+                <Crown className="h-4 w-4 text-purple-600 absolute -top-1 -right-1" />
+              </div>
+              <div>
+                <p className="font-medium">Planner Premium</p>
+                <p className="text-sm text-muted-foreground">Import from Project for the Web via Dataverse</p>
+              </div>
+            </div>
+
+            {!dataverseStatus?.configured ? (
+              <div className="text-center py-8">
+                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">Microsoft 365 is not configured.</p>
+                <p className="text-sm text-muted-foreground mt-1">Contact your administrator to set up the integration.</p>
+              </div>
+            ) : !dataverseStatus?.environmentUrl ? (
+              <div className="space-y-4">
+                <div className="text-center py-4">
+                  <Database className="h-12 w-12 mx-auto text-purple-500 mb-3" />
+                  <p className="text-muted-foreground mb-2">Configure your Dataverse environment</p>
+                  <p className="text-xs text-muted-foreground">Required for accessing Premium Planner plans</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Dataverse Environment URL</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="https://yourorg.crm.dynamics.com"
+                      value={dataverseEnvUrl}
+                      onChange={(e) => setDataverseEnvUrl(e.target.value)}
+                      data-testid="input-dataverse-url"
+                    />
+                    <Button 
+                      onClick={() => setDataverseEnvironment.mutate(dataverseEnvUrl)}
+                      disabled={!dataverseEnvUrl || setDataverseEnvironment.isPending}
+                      data-testid="button-set-dataverse-env"
+                    >
+                      {setDataverseEnvironment.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Set"
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Find your URL in Power Platform Admin Center
+                  </p>
+                </div>
+              </div>
+            ) : !dataverseStatus?.connected ? (
+              <div className="text-center py-8">
+                <Database className="h-12 w-12 mx-auto text-purple-500 mb-3" />
+                <p className="text-sm text-muted-foreground mb-2">
+                  Environment: {dataverseStatus.environmentUrl}
+                </p>
+                <p className="text-muted-foreground mb-4">Connect to Dataverse to import Premium plans</p>
+                <Button 
+                  onClick={() => connectDataverse.mutate()}
+                  disabled={connectDataverse.isPending}
+                  className="bg-purple-600 hover:bg-purple-700"
+                  data-testid="button-connect-dataverse"
+                >
+                  {connectDataverse.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Database className="mr-2 h-4 w-4" />
+                      Connect to Dataverse
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>Connected to Dataverse</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => refetchDataversePlans()}
+                    disabled={isLoadingDataversePlans}
+                    data-testid="button-refresh-dataverse-plans"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", isLoadingDataversePlans && "animate-spin")} />
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Select Premium Plan to Import</Label>
+                  {isLoadingDataversePlans ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : !dataversePlans?.plans?.length ? (
+                    <div className="text-center py-8 border rounded-md bg-muted/20">
+                      <p className="text-muted-foreground">No Premium plans found in your Dataverse environment.</p>
+                      <p className="text-xs text-muted-foreground mt-1">Make sure you have access to Project for the Web.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search Premium plans..."
+                          value={dataverseSearchTerm}
+                          onChange={(e) => setDataverseSearchTerm(e.target.value)}
+                          className="pl-9"
+                          data-testid="input-dataverse-search"
+                        />
+                      </div>
+                      {filteredDataversePlans.length === 0 ? (
+                        <div className="text-center py-4 text-sm text-muted-foreground">
+                          No plans match "{dataverseSearchTerm}"
+                        </div>
+                      ) : (
+                        <div className="grid gap-2 max-h-[200px] overflow-y-auto">
+                          {filteredDataversePlans.map((plan) => (
+                            <div
+                              key={plan.id}
+                              className={cn(
+                                "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors hover-elevate",
+                                selectedDataversePlanId === plan.id 
+                                  ? "border-purple-500 bg-purple-500/5" 
+                                  : "border-border hover:border-purple-500/50"
+                              )}
+                              onClick={() => setSelectedDataversePlanId(plan.id)}
+                              data-testid={`dataverse-plan-option-${plan.id}`}
+                            >
+                              <div className="relative shrink-0">
+                                <ClipboardList className="h-5 w-5 text-purple-600" />
+                                <Crown className="h-3 w-3 text-purple-500 absolute -top-1 -right-1" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{plan.title}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Created {format(new Date(plan.createdDateTime), 'MMM d, yyyy')}
+                                </p>
+                              </div>
+                              {selectedDataversePlanId === plan.id && (
+                                <CheckCircle className="h-5 w-5 text-purple-600 shrink-0" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Target Portfolio (Optional)</Label>
+                  <Select 
+                    onValueChange={(val) => setSelectedPortfolioId(val === "none" ? null : parseInt(val))} 
+                    value={selectedPortfolioId?.toString() || "none"}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Portfolio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Portfolio</SelectItem>
+                      {portfolios.map(p => (
+                        <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedDataversePlanId && filteredDataversePlans.find(p => p.id === selectedDataversePlanId) && (
+                  <div className="p-3 bg-purple-50/50 dark:bg-purple-950/20 rounded-md">
+                    <p className="text-sm">
+                      Importing <strong>{filteredDataversePlans.find(p => p.id === selectedDataversePlanId)?.title}</strong> will create a new project with all tasks from this Premium plan.
+                    </p>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button 
+                    onClick={() => {
+                      if (!selectedDataversePlanId) {
+                        toast({ title: "Select a Plan", description: "Please select a Premium plan to import", variant: "destructive" });
+                        return;
+                      }
+                      importFromDataverse.mutate({ planId: selectedDataversePlanId, portfolioId: selectedPortfolioId });
+                    }}
+                    disabled={!selectedDataversePlanId || importFromDataverse.isPending}
+                    className="bg-purple-600 hover:bg-purple-700"
+                    data-testid="button-import-dataverse"
+                  >
+                    {importFromDataverse.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-4 w-4" />
+                        Import Premium Plan
                       </>
                     )}
                   </Button>
