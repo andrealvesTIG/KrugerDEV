@@ -2911,8 +2911,8 @@ export async function registerRoutes(
       // Fetch tasks from Dataverse - try with extended fields first, fall back to minimal
       let dataverseTasks: any[] = [];
       
-      // Extended fields for richer import
-      const extendedFields = "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode";
+      // Extended fields for richer import (includes both msdyn_progress and msdyn_percentcomplete for compatibility)
+      const extendedFields = "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode";
       const minimalFields = "msdyn_projecttaskid,msdyn_subject";
       
       // Try extended fields first
@@ -3055,13 +3055,16 @@ export async function registerRoutes(
           ? dvTask.msdyn_scheduledend.split('T')[0] 
           : (dvTask.msdyn_scheduledstart ? dvTask.msdyn_scheduledstart.split('T')[0] : defaultEndDate);
 
-        // Map progress (% complete) - Dataverse stores as decimal (0-1) or percentage (0-100)
+        // Map progress (% complete) - check both msdyn_progress (decimal 0-1) and msdyn_percentcomplete (0-100)
         let progress = 0;
         if (dvTask.msdyn_progress !== null && dvTask.msdyn_progress !== undefined) {
-          // msdyn_progress is typically stored as decimal (0.5 = 50%)
+          // msdyn_progress is stored as decimal (0.5 = 50%)
           progress = dvTask.msdyn_progress <= 1 
             ? Math.round(dvTask.msdyn_progress * 100) 
             : Math.round(dvTask.msdyn_progress);
+        } else if (dvTask.msdyn_percentcomplete !== null && dvTask.msdyn_percentcomplete !== undefined) {
+          // msdyn_percentcomplete is stored as percentage (0-100)
+          progress = Math.round(dvTask.msdyn_percentcomplete);
         }
         
         const priority = mapDataversePriority(dvTask.msdyn_priority);
@@ -3212,9 +3215,16 @@ export async function registerRoutes(
 
         // Fetch tasks from Dataverse with extended fields
         // Try different field combinations as Dataverse environments may have different schemas
+        // Note: msdyn_progress stores decimal (0-1), msdyn_percentcomplete stores percentage (0-100)
         const fieldSets = [
-          // Full Project for the Web schema
+          // Full Project for the Web schema with msdyn_progress
           "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
+          // Try with msdyn_percentcomplete instead (some environments use this)
+          "msdyn_projecttaskid,msdyn_subject,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
+          // Simpler set with msdyn_progress
+          "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,_msdyn_parenttask_value,statecode",
+          // Simpler set with msdyn_percentcomplete
+          "msdyn_projecttaskid,msdyn_subject,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,_msdyn_parenttask_value,statecode",
           // Basic fields without progress/outline
           "msdyn_projecttaskid,msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,_msdyn_parenttask_value,statecode",
           // Minimal fallback with parent task for hierarchy
@@ -3338,11 +3348,16 @@ export async function registerRoutes(
             ? dvTask.msdyn_scheduledend.split('T')[0] 
             : (dvTask.msdyn_scheduledstart ? dvTask.msdyn_scheduledstart.split('T')[0] : defaultEndDate);
 
+          // Handle progress - check both msdyn_progress (decimal 0-1) and msdyn_percentcomplete (0-100)
           let progress = 0;
           if (dvTask.msdyn_progress !== null && dvTask.msdyn_progress !== undefined) {
+            // msdyn_progress is stored as decimal (0.5 = 50%)
             progress = dvTask.msdyn_progress <= 1 
               ? Math.round(dvTask.msdyn_progress * 100) 
               : Math.round(dvTask.msdyn_progress);
+          } else if (dvTask.msdyn_percentcomplete !== null && dvTask.msdyn_percentcomplete !== undefined) {
+            // msdyn_percentcomplete is stored as percentage (0-100)
+            progress = Math.round(dvTask.msdyn_percentcomplete);
           }
           
           const priority = mapDataversePriority(dvTask.msdyn_priority);
