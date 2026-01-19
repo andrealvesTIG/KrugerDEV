@@ -3110,12 +3110,192 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Project is not linked to Microsoft Planner" });
       }
 
+      const planId = project.plannerPlanId;
+      const isPremium = project.source === "planner_premium";
+
+      // For Premium plans, use Dataverse sync instead of regular Planner
+      if (isPremium) {
+        const dataverseToken = req.session.dataverseAccessToken;
+        const environmentUrl = req.session.dataverseEnvironmentUrl;
+        
+        if (!dataverseToken || !environmentUrl) {
+          return res.status(401).json({ message: "Not connected to Dataverse. Please reconnect." });
+        }
+
+        // Fetch tasks from Dataverse with extended fields
+        const extendedFields = "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode";
+        const minimalFields = "msdyn_projecttaskid,msdyn_subject";
+        
+        let tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${extendedFields}&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
+        
+        let tasksResponse = await fetch(tasksApiUrl, {
+          headers: {
+            "Authorization": `Bearer ${dataverseToken}`,
+            "Content-Type": "application/json",
+            "OData-MaxVersion": "4.0",
+            "OData-Version": "4.0",
+          },
+        });
+
+        if (!tasksResponse.ok) {
+          // Try minimal fields as fallback
+          tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${minimalFields}&$filter=_msdyn_project_value eq ${planId}`;
+          tasksResponse = await fetch(tasksApiUrl, {
+            headers: {
+              "Authorization": `Bearer ${dataverseToken}`,
+              "Content-Type": "application/json",
+              "OData-MaxVersion": "4.0",
+              "OData-Version": "4.0",
+            },
+          });
+          
+          if (!tasksResponse.ok) {
+            if (tasksResponse.status === 401) {
+              delete req.session.dataverseAccessToken;
+              return res.status(401).json({ message: "Session expired. Please reconnect to Dataverse." });
+            }
+            throw new Error(`Failed to fetch tasks: ${tasksResponse.status}`);
+          }
+        }
+
+        const tasksData = await tasksResponse.json();
+        const dataverseTasks = tasksData.value || [];
+
+        // Get existing tasks for this project
+        const existingTasks = await storage.getTasksByProject(projectId);
+        
+        // Delete all existing tasks for this project (full sync)
+        for (const task of existingTasks) {
+          await storage.deleteTask(task.id);
+        }
+
+        // Calculate project dates from tasks
+        const today = new Date().toISOString().split('T')[0];
+        let projectStartDate: string | null = null;
+        let projectEndDate: string | null = null;
+        
+        for (const task of dataverseTasks) {
+          if (task.msdyn_scheduledstart) {
+            const startDate = task.msdyn_scheduledstart.split('T')[0];
+            if (!projectStartDate || startDate < projectStartDate) {
+              projectStartDate = startDate;
+            }
+          }
+          if (task.msdyn_scheduledend) {
+            const endDate = task.msdyn_scheduledend.split('T')[0];
+            if (!projectEndDate || endDate > projectEndDate) {
+              projectEndDate = endDate;
+            }
+          }
+        }
+        
+        const defaultStartDate = projectStartDate || today;
+        const defaultEndDate = projectEndDate || today;
+
+        // Helper functions
+        const mapDataversePriority = (dvPriority: number | null | undefined): string => {
+          if (dvPriority === null || dvPriority === undefined) return "Medium";
+          if (dvPriority <= 3) return "High";
+          if (dvPriority <= 6) return "Medium";
+          return "Low";
+        };
+        
+        const mapProgressToStatus = (progress: number): string => {
+          if (progress >= 100) return "Completed";
+          if (progress > 0) return "In Progress";
+          return "Not Started";
+        };
+        
+        const calculateDuration = (start: string | null, end: string | null): number => {
+          if (!start || !end) return 0;
+          const startDate = new Date(start);
+          const endDate = new Date(end);
+          const diffTime = endDate.getTime() - startDate.getTime();
+          return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        };
+
+        // Create tasks from Dataverse
+        let taskIndex = 0;
+        const createdTasks: any[] = [];
+        const taskIdMap = new Map<string, number>();
+
+        for (const dvTask of dataverseTasks) {
+          taskIndex++;
+          
+          const taskStartDate = dvTask.msdyn_scheduledstart 
+            ? dvTask.msdyn_scheduledstart.split('T')[0] 
+            : defaultStartDate;
+          const taskEndDate = dvTask.msdyn_scheduledend 
+            ? dvTask.msdyn_scheduledend.split('T')[0] 
+            : (dvTask.msdyn_scheduledstart ? dvTask.msdyn_scheduledstart.split('T')[0] : defaultEndDate);
+
+          let progress = 0;
+          if (dvTask.msdyn_progress !== null && dvTask.msdyn_progress !== undefined) {
+            progress = dvTask.msdyn_progress <= 1 
+              ? Math.round(dvTask.msdyn_progress * 100) 
+              : Math.round(dvTask.msdyn_progress);
+          }
+          
+          const priority = mapDataversePriority(dvTask.msdyn_priority);
+          const status = mapProgressToStatus(progress);
+          const wbsId = dvTask.msdyn_wbsid || '';
+          const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
+          const durationDays = dvTask.msdyn_duration 
+            ? Math.round(dvTask.msdyn_duration / (60 * 24))
+            : calculateDuration(taskStartDate, taskEndDate);
+
+          const task = await storage.createTask({
+            projectId: project.id,
+            taskIndex,
+            name: dvTask.msdyn_subject,
+            description: dvTask.msdyn_description || (wbsId ? `WBS: ${wbsId}` : null),
+            priority,
+            startDate: taskStartDate,
+            endDate: taskEndDate,
+            durationDays,
+            progress,
+            status,
+            outlineLevel,
+            isMilestone: durationDays === 0 && !dvTask.msdyn_duration,
+            isSummary: false,
+            isCritical: false,
+            wbs: wbsId || null,
+          });
+
+          taskIdMap.set(dvTask.msdyn_projecttaskid, task.id);
+          createdTasks.push(task);
+        }
+
+        // Update parent task references
+        for (const dvTask of dataverseTasks) {
+          if (dvTask._msdyn_parenttask_value) {
+            const childTaskId = taskIdMap.get(dvTask.msdyn_projecttaskid);
+            const parentTaskId = taskIdMap.get(dvTask._msdyn_parenttask_value);
+            if (childTaskId && parentTaskId) {
+              await storage.updateTask(childTaskId, { parentId: parentTaskId });
+            }
+          }
+        }
+
+        // Update project dates
+        if (projectStartDate || projectEndDate) {
+          await storage.updateProject(projectId, {
+            startDate: projectStartDate || project.startDate,
+            endDate: projectEndDate || project.endDate,
+          });
+        }
+
+        return res.json({ 
+          synced: createdTasks.length,
+          message: `Successfully synced ${createdTasks.length} tasks from Planner Premium`
+        });
+      }
+
+      // Regular Planner sync (non-Premium)
       const token = req.session.plannerAccessToken;
       if (!token) {
         return res.status(401).json({ message: "Not connected to Planner. Please reconnect." });
       }
-
-      const planId = project.plannerPlanId;
 
       // Fetch tasks and buckets from Planner
       const [tasksResponse, bucketsResponse] = await Promise.all([
