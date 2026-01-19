@@ -44,12 +44,12 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
   });
 
   const { data: projects } = useQuery<any[]>({
-    queryKey: ['/api/projects', { organizationId: currentOrganization?.id }],
+    queryKey: [`/api/projects?organizationId=${currentOrganization?.id}`],
     enabled: !!currentOrganization?.id,
   });
 
   const { data: tasks } = useQuery<any[]>({
-    queryKey: ['/api/tasks/all', { organizationId: currentOrganization?.id }],
+    queryKey: [`/api/tasks/all?organizationId=${currentOrganization?.id}`],
     enabled: !!currentOrganization?.id,
   });
 
@@ -88,16 +88,42 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
     const data = dataSourceMap[widget.dataSource] || [];
 
     if (widget.groupBy) {
-      const grouped: Record<string, number> = {};
+      const grouped: Record<string, { count: number; sum: number; values: number[] }> = {};
+      const metricField = widget.metrics?.[0] || 'progress';
+      
       data.forEach((item) => {
         const key = item[widget.groupBy as string] || 'Unknown';
-        grouped[key] = (grouped[key] || 0) + 1;
+        if (!grouped[key]) {
+          grouped[key] = { count: 0, sum: 0, values: [] };
+        }
+        grouped[key].count++;
+        const numValue = parseFloat(item[metricField]) || 0;
+        grouped[key].sum += numValue;
+        grouped[key].values.push(numValue);
       });
-      return Object.entries(grouped).map(([name, value]) => ({ name, value }));
+      
+      return Object.entries(grouped).map(([name, agg]) => {
+        let value = agg.count;
+        if (widget.aggregation === 'sum') {
+          value = agg.sum;
+        } else if (widget.aggregation === 'average' && agg.values.length > 0) {
+          value = Math.round(agg.sum / agg.values.length);
+        }
+        return { name, value };
+      });
     }
 
     if (widget.aggregation === 'count') {
       return data.length;
+    }
+    
+    if (widget.aggregation === 'sum' && widget.metrics?.[0]) {
+      return data.reduce((sum, item) => sum + (parseFloat(item[widget.metrics![0]]) || 0), 0);
+    }
+    
+    if (widget.aggregation === 'average' && widget.metrics?.[0] && data.length > 0) {
+      const total = data.reduce((sum, item) => sum + (parseFloat(item[widget.metrics![0]]) || 0), 0);
+      return Math.round(total / data.length);
     }
 
     return data;

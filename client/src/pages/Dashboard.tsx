@@ -63,7 +63,7 @@ export default function Dashboard() {
   const [selectedCustomDashboard, setSelectedCustomDashboard] = useState<number | null>(null);
 
   const { data: customDashboards } = useQuery<CustomDashboardType[]>({
-    queryKey: ['/api/custom-dashboards', { organizationId: currentOrganization?.id }],
+    queryKey: [`/api/custom-dashboards?organizationId=${currentOrganization?.id}`],
     enabled: !!currentOrganization?.id,
   });
 
