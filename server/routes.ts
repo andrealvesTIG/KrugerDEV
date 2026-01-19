@@ -3152,6 +3152,33 @@ export async function registerRoutes(
           return res.status(401).json({ message: "Not connected to Dataverse. Please reconnect." });
         }
 
+        // Fetch WhoAmI to get org ID if project doesn't have it
+        if (!project.dataverseOrgId || !project.dataverseTenantId) {
+          try {
+            const whoAmIResponse = await fetch(`${environmentUrl}/api/data/v9.2/WhoAmI`, {
+              headers: {
+                "Authorization": `Bearer ${dataverseToken}`,
+                "Content-Type": "application/json",
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0",
+              },
+            });
+            if (whoAmIResponse.ok) {
+              const whoAmI = await whoAmIResponse.json();
+              const userId = getUserIdFromRequest(req);
+              const user = userId ? await storage.getUser(userId) : null;
+              
+              // Update project with org and tenant IDs
+              await storage.updateProject(projectId, {
+                dataverseOrgId: whoAmI.OrganizationId || null,
+                dataverseTenantId: user?.microsoftTenantId || null,
+              });
+            }
+          } catch (err) {
+            console.log("Failed to fetch WhoAmI for org ID during sync:", err);
+          }
+        }
+
         // Fetch tasks from Dataverse with extended fields
         const extendedFields = "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode";
         const minimalFields = "msdyn_projecttaskid,msdyn_subject";
