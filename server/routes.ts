@@ -2861,8 +2861,8 @@ export async function registerRoutes(
         }
       }
 
-      // Fetch plan details from Dataverse
-      const planApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects(${planId})?$select=msdyn_projectid,msdyn_name,createdon,msdyn_scheduledstart,msdyn_scheduledend,msdyn_description`;
+      // Fetch plan details from Dataverse - use only core columns that exist in all environments
+      const planApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projects(${planId})?$select=msdyn_projectid,msdyn_subject,createdon,modifiedon,statecode,statuscode`;
       const planResponse = await fetch(planApiUrl, {
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -2901,9 +2901,9 @@ export async function registerRoutes(
       const tasksData = await tasksResponse.json();
       const dataverseTasks = tasksData.value || [];
 
-      // Calculate project dates from tasks or use plan dates
-      let projectStartDate = plan.msdyn_scheduledstart ? plan.msdyn_scheduledstart.split('T')[0] : null;
-      let projectEndDate = plan.msdyn_scheduledend ? plan.msdyn_scheduledend.split('T')[0] : null;
+      // Calculate project dates from tasks (plan-level dates may not exist in all environments)
+      let projectStartDate: string | null = null;
+      let projectEndDate: string | null = null;
 
       for (const task of dataverseTasks) {
         if (task.msdyn_scheduledstart) {
@@ -2920,12 +2920,12 @@ export async function registerRoutes(
         }
       }
 
-      // Create the project
+      // Create the project - use msdyn_subject for project name (msdyn_name doesn't exist)
       const project = await storage.createProject({
         organizationId: Number(organizationId),
         portfolioId: portfolioId ? Number(portfolioId) : null,
-        name: plan.msdyn_name,
-        description: plan.msdyn_description || `Imported from Planner Premium on ${new Date().toLocaleDateString()}`,
+        name: plan.msdyn_subject || "Imported Project",
+        description: `Imported from Planner Premium on ${new Date().toLocaleDateString()}`,
         status: "Initiation",
         priority: "Medium",
         budget: "0",
