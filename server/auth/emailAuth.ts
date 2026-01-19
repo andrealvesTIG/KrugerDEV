@@ -648,9 +648,9 @@ export async function setupAuth(app: Express) {
 
       // Build verification URL
       const appUrl = process.env.APP_URL 
-        || process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`
-          : 'https://fridayreport.ai';
+        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'https://fridayreport.ai');
       const verifyUrl = `${appUrl}/auth/verify?token=${token}`;
 
       // Send email
@@ -834,9 +834,9 @@ export async function setupAuth(app: Express) {
 
       // Build app URL
       const appUrl = process.env.APP_URL 
-        || process.env.REPLIT_DOMAINS?.split(',')[0] 
-          ? `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`
-          : 'https://fridayreport.ai';
+        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
+          ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+          : 'https://fridayreport.ai');
 
       if (existingUser) {
         // Existing user - send sign-in email
