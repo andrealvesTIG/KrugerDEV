@@ -3036,11 +3036,12 @@ export async function registerRoutes(
       
       // Helper to calculate duration in days
       const calculateDuration = (start: string | null, end: string | null): number => {
-        if (!start || !end) return 0;
+        if (!start || !end) return 1; // Default to 1 day for Gantt chart visibility
         const startDate = new Date(start);
         const endDate = new Date(end);
         const diffTime = endDate.getTime() - startDate.getTime();
-        return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return Math.max(1, days); // Minimum 1 day for Gantt chart bars
       };
 
       for (const dvTask of dataverseTasks) {
@@ -3314,11 +3315,12 @@ export async function registerRoutes(
         };
         
         const calculateDuration = (start: string | null, end: string | null): number => {
-          if (!start || !end) return 0;
+          if (!start || !end) return 1; // Default to 1 day for Gantt chart visibility
           const startDate = new Date(start);
           const endDate = new Date(end);
           const diffTime = endDate.getTime() - startDate.getTime();
-          return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+          const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return Math.max(1, days); // Minimum 1 day for Gantt chart bars
         };
 
         // Create tasks from Dataverse
