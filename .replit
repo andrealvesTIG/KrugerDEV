@@ -46,3 +46,6 @@ integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_object_storag
 
 [userenv.shared]
 RESEND_FROM_EMAIL = "FridayReport.AI <info@fridayreport.ai>"
+
+[userenv.production]
+APP_URL = "https://fridayreport.ai"
