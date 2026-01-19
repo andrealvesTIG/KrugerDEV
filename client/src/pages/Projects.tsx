@@ -666,6 +666,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const [projectSource, setProjectSource] = useState<ProjectSource>("manual");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
+  const [plannerSearchTerm, setPlannerSearchTerm] = useState("");
   const [msProjectPortfolioId, setMsProjectPortfolioId] = useState<number | null>(null);
   const [isImportingMsProject, setIsImportingMsProject] = useState(false);
   const [selectedMsProjectFile, setSelectedMsProjectFile] = useState<File | null>(null);
@@ -771,6 +772,15 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
 
   const selectedPlan = plannerPlans?.plans?.find(p => p.id === selectedPlanId);
 
+  const filteredPlannerPlans = useMemo(() => {
+    if (!plannerPlans?.plans) return [];
+    if (!plannerSearchTerm.trim()) return plannerPlans.plans;
+    const searchLower = plannerSearchTerm.toLowerCase().trim();
+    return plannerPlans.plans.filter(plan => 
+      plan.title.toLowerCase().includes(searchLower)
+    );
+  }, [plannerPlans?.plans, plannerSearchTerm]);
+
   const handleMsProjectFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -848,6 +858,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
       if (!o) {
         setProjectSource("manual");
         setSelectedPlanId(null);
+        setPlannerSearchTerm("");
       }
     }}>
       <DialogTrigger asChild>
@@ -1057,31 +1068,49 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                       <p className="text-muted-foreground">No plans found in your Planner account.</p>
                     </div>
                   ) : (
-                    <div className="grid gap-2 max-h-[200px] overflow-y-auto">
-                      {plannerPlans.plans.map((plan) => (
-                        <div
-                          key={plan.id}
-                          className={cn(
-                            "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors hover-elevate",
-                            selectedPlanId === plan.id 
-                              ? "border-primary bg-primary/5" 
-                              : "border-border hover:border-primary/50"
-                          )}
-                          onClick={() => setSelectedPlanId(plan.id)}
-                          data-testid={`plan-option-${plan.id}`}
-                        >
-                          <ClipboardList className="h-5 w-5 text-primary shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{plan.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Created {format(new Date(plan.createdDateTime), 'MMM d, yyyy')}
-                            </p>
-                          </div>
-                          {selectedPlanId === plan.id && (
-                            <CheckCircle className="h-5 w-5 text-primary shrink-0" />
-                          )}
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search plans..."
+                          value={plannerSearchTerm}
+                          onChange={(e) => setPlannerSearchTerm(e.target.value)}
+                          className="pl-9"
+                          data-testid="input-planner-search"
+                        />
+                      </div>
+                      {filteredPlannerPlans.length === 0 ? (
+                        <div className="text-center py-4 text-sm text-muted-foreground">
+                          No plans match "{plannerSearchTerm}"
                         </div>
-                      ))}
+                      ) : (
+                        <div className="grid gap-2 max-h-[200px] overflow-y-auto">
+                          {filteredPlannerPlans.map((plan) => (
+                            <div
+                              key={plan.id}
+                              className={cn(
+                                "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors hover-elevate",
+                                selectedPlanId === plan.id 
+                                  ? "border-primary bg-primary/5" 
+                                  : "border-border hover:border-primary/50"
+                              )}
+                              onClick={() => setSelectedPlanId(plan.id)}
+                              data-testid={`plan-option-${plan.id}`}
+                            >
+                              <ClipboardList className="h-5 w-5 text-primary shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{plan.title}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Created {format(new Date(plan.createdDateTime), 'MMM d, yyyy')}
+                                </p>
+                              </div>
+                              {selectedPlanId === plan.id && (
+                                <CheckCircle className="h-5 w-5 text-primary shrink-0" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
