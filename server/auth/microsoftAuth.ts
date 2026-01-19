@@ -237,11 +237,15 @@ export async function setupMicrosoftAuth(app: Express) {
           .limit(1);
 
         if (existingUser) {
+          // When linking Microsoft account, also mark email as verified since Microsoft verified it
           await db
             .update(users)
             .set({ 
               microsoftId, 
               microsoftTenantId: tenantId,
+              emailVerified: true,
+              emailVerificationToken: null,
+              emailVerificationExpiry: null,
               ...(firstName && !existingUser.firstName ? { firstName } : {}),
               ...(lastName && !existingUser.lastName ? { lastName } : {}),
             })
@@ -275,9 +279,15 @@ export async function setupMicrosoftAuth(app: Express) {
           }).returning();
         }
       } else {
+        // Ensure email is verified for returning Microsoft users
         await db
           .update(users)
-          .set({ microsoftTenantId: tenantId })
+          .set({ 
+            microsoftTenantId: tenantId,
+            emailVerified: true,
+            emailVerificationToken: null,
+            emailVerificationExpiry: null,
+          })
           .where(eq(users.id, existingUser.id));
       }
 
