@@ -2882,8 +2882,8 @@ export async function registerRoutes(
 
       const plan = await planResponse.json();
 
-      // Fetch tasks from Dataverse - use only core columns that exist in all environments
-      const tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=msdyn_projecttaskid,msdyn_subject,msdyn_wbsid,_msdyn_parenttask_value,statecode,createdon,modifiedon&$filter=_msdyn_project_value eq ${planId}&$orderby=createdon asc`;
+      // Fetch tasks from Dataverse - minimal fields only
+      const tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=msdyn_projecttaskid,msdyn_subject&$filter=_msdyn_project_value eq ${planId}`;
       
       const tasksResponse = await fetch(tasksApiUrl, {
         headers: {
