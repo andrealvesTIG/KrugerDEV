@@ -86,7 +86,7 @@ export function validateHoneypotClient(data: HoneypotData): { valid: boolean; er
   
   const submissionTime = Date.now();
   const timeElapsed = submissionTime - data.formLoadTime;
-  const minimumTimeMs = 2000;
+  const minimumTimeMs = 500; // Reduced to 500ms to allow autofill users
   
   if (timeElapsed < minimumTimeMs) {
     return { valid: false, error: "Please take your time filling out the form" };

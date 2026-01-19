@@ -74,7 +74,7 @@ function verifyHoneypot(data: HoneypotData): { valid: boolean; error?: string } 
   if (data.formLoadTime) {
     const submissionTime = Date.now();
     const timeElapsed = submissionTime - data.formLoadTime;
-    const minimumTimeMs = 2000;
+    const minimumTimeMs = 500; // Reduced to 500ms to allow autofill users
     
     if (timeElapsed < minimumTimeMs) {
       console.log(`Form submitted too quickly: ${timeElapsed}ms (minimum: ${minimumTimeMs}ms)`);
