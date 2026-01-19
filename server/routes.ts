@@ -2882,10 +2882,17 @@ export async function registerRoutes(
 
       const plan = await planResponse.json();
 
-      // Fetch tasks from Dataverse - minimal fields only
-      const tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=msdyn_projecttaskid,msdyn_subject&$filter=_msdyn_project_value eq ${planId}`;
+      // Fetch tasks from Dataverse - try with extended fields first, fall back to minimal
+      let dataverseTasks: any[] = [];
       
-      const tasksResponse = await fetch(tasksApiUrl, {
+      // Extended fields for richer import
+      const extendedFields = "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode";
+      const minimalFields = "msdyn_projecttaskid,msdyn_subject";
+      
+      // Try extended fields first
+      let tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${extendedFields}&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
+      
+      let tasksResponse = await fetch(tasksApiUrl, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -2895,17 +2902,50 @@ export async function registerRoutes(
       });
 
       if (!tasksResponse.ok) {
-        throw new Error(`Failed to fetch tasks: ${tasksResponse.status}`);
+        // Fall back to minimal fields if extended fails
+        console.log("Extended task fields failed, falling back to minimal fields");
+        tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${minimalFields}&$filter=_msdyn_project_value eq ${planId}`;
+        tasksResponse = await fetch(tasksApiUrl, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "OData-MaxVersion": "4.0",
+            "OData-Version": "4.0",
+          },
+        });
+        
+        if (!tasksResponse.ok) {
+          throw new Error(`Failed to fetch tasks: ${tasksResponse.status}`);
+        }
       }
 
       const tasksData = await tasksResponse.json();
-      const dataverseTasks = tasksData.value || [];
+      dataverseTasks = tasksData.value || [];
 
-      // Calculate project dates from tasks (plan-level dates may not exist in all environments)
-      // Use today as default project dates since schedule fields may not be available
+      // Calculate project dates from tasks using available schedule data
       const today = new Date().toISOString().split('T')[0];
-      let projectStartDate: string | null = today;
-      let projectEndDate: string | null = today;
+      let projectStartDate: string | null = null;
+      let projectEndDate: string | null = null;
+      
+      // Try to extract project dates from tasks if schedule fields are available
+      for (const task of dataverseTasks) {
+        if (task.msdyn_scheduledstart) {
+          const startDate = task.msdyn_scheduledstart.split('T')[0];
+          if (!projectStartDate || startDate < projectStartDate) {
+            projectStartDate = startDate;
+          }
+        }
+        if (task.msdyn_scheduledend) {
+          const endDate = task.msdyn_scheduledend.split('T')[0];
+          if (!projectEndDate || endDate > projectEndDate) {
+            projectEndDate = endDate;
+          }
+        }
+      }
+      
+      // Default to today if no dates found
+      projectStartDate = projectStartDate || today;
+      projectEndDate = projectEndDate || today;
 
       // Create the project - use msdyn_subject for project name (msdyn_name doesn't exist)
       const project = await storage.createProject({
@@ -2950,34 +2990,77 @@ export async function registerRoutes(
       const defaultStartDate = projectStartDate || new Date().toISOString().split('T')[0];
       const defaultEndDate = projectEndDate || defaultStartDate;
 
+      // Helper function to map Dataverse priority to project priority
+      const mapDataversePriority = (dvPriority: number | null | undefined): string => {
+        if (dvPriority === null || dvPriority === undefined) return "Medium";
+        // Dataverse priority: lower number = higher priority (1-10 scale typically)
+        if (dvPriority <= 3) return "High";
+        if (dvPriority <= 6) return "Medium";
+        return "Low";
+      };
+      
+      // Helper to map progress to status
+      const mapProgressToStatus = (progress: number): string => {
+        if (progress >= 100) return "Completed";
+        if (progress > 0) return "In Progress";
+        return "Not Started";
+      };
+      
+      // Helper to calculate duration in days
+      const calculateDuration = (start: string | null, end: string | null): number => {
+        if (!start || !end) return 0;
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        const diffTime = endDate.getTime() - startDate.getTime();
+        return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      };
+
       for (const dvTask of dataverseTasks) {
         taskIndex++;
         
-        // Use default dates since schedule fields may not exist
-        const taskStartDate = defaultStartDate;
-        const taskEndDate = defaultEndDate;
+        // Use schedule fields if available, otherwise defaults
+        const taskStartDate = dvTask.msdyn_scheduledstart 
+          ? dvTask.msdyn_scheduledstart.split('T')[0] 
+          : defaultStartDate;
+        const taskEndDate = dvTask.msdyn_scheduledend 
+          ? dvTask.msdyn_scheduledend.split('T')[0] 
+          : (dvTask.msdyn_scheduledstart ? dvTask.msdyn_scheduledstart.split('T')[0] : defaultEndDate);
 
-        // Use defaults since progress/priority fields may not exist
-        const progress = 0;
-        const priority = "Medium";
-        const status = "Not Started";
+        // Map progress (% complete) - Dataverse stores as decimal (0-1) or percentage (0-100)
+        let progress = 0;
+        if (dvTask.msdyn_progress !== null && dvTask.msdyn_progress !== undefined) {
+          // msdyn_progress is typically stored as decimal (0.5 = 50%)
+          progress = dvTask.msdyn_progress <= 1 
+            ? Math.round(dvTask.msdyn_progress * 100) 
+            : Math.round(dvTask.msdyn_progress);
+        }
+        
+        const priority = mapDataversePriority(dvTask.msdyn_priority);
+        const status = mapProgressToStatus(progress);
 
         // Parse WBS ID to determine outline level
         const wbsId = dvTask.msdyn_wbsid || '';
-        const outlineLevel = wbsId ? wbsId.split('.').length : 1;
+        // Use msdyn_outlinelevel if available, otherwise calculate from WBS
+        const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
+        
+        // Calculate duration
+        const durationDays = dvTask.msdyn_duration 
+          ? Math.round(dvTask.msdyn_duration / (60 * 24)) // Duration is in minutes
+          : calculateDuration(taskStartDate, taskEndDate);
 
         const task = await storage.createTask({
           projectId: project.id,
           taskIndex,
           name: dvTask.msdyn_subject,
-          description: dvTask.msdyn_description || null,
+          description: dvTask.msdyn_description || (wbsId ? `WBS: ${wbsId}` : null),
           priority,
           startDate: taskStartDate,
           endDate: taskEndDate,
+          durationDays,
           progress,
           status,
           outlineLevel,
-          isMilestone: false,
+          isMilestone: durationDays === 0 && !dvTask.msdyn_duration,
           isSummary: false,
           isCritical: false,
           wbs: wbsId || null,
@@ -3001,7 +3084,7 @@ export async function registerRoutes(
       res.status(201).json({ 
         project,
         tasksCreated: createdTasks.length,
-        message: `Successfully imported "${plan.msdyn_name}" with ${createdTasks.length} tasks from Planner Premium`
+        message: `Successfully imported "${plan.msdyn_subject || project.name}" with ${createdTasks.length} tasks from Planner Premium`
       });
     } catch (err: any) {
       console.error("Dataverse import error:", err);
@@ -3023,7 +3106,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Project not found" });
       }
       
-      if (project.source !== "planner" || !project.plannerPlanId) {
+      if ((project.source !== "planner" && project.source !== "planner_premium") || !project.plannerPlanId) {
         return res.status(400).json({ message: "Project is not linked to Microsoft Planner" });
       }
 
