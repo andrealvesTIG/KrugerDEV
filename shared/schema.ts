@@ -1122,6 +1122,46 @@ export type UpdateProjectDocumentRequest = Partial<InsertProjectDocument>;
 export type CreateTimesheetEntryRequest = InsertTimesheetEntry;
 export type UpdateTimesheetEntryRequest = Partial<InsertTimesheetEntry>;
 
+// Custom Dashboards - AI-generated dashboards saved by users
+export const customDashboards = pgTable("custom_dashboards", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"), // User's original request
+  config: jsonb("config").$type<CustomDashboardConfig>().notNull(), // AI-generated configuration
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Custom Dashboard Configuration Types
+export interface DashboardWidget {
+  id: string;
+  type: 'kpi' | 'bar-chart' | 'line-chart' | 'pie-chart' | 'area-chart' | 'table' | 'progress';
+  title: string;
+  dataSource: 'projects' | 'portfolios' | 'tasks' | 'risks' | 'issues' | 'milestones' | 'resources' | 'timesheets';
+  metrics?: string[];
+  filters?: Record<string, any>;
+  aggregation?: 'count' | 'sum' | 'average' | 'percentage';
+  groupBy?: string;
+  size: 'small' | 'medium' | 'large' | 'full';
+}
+
+export interface CustomDashboardConfig {
+  widgets: DashboardWidget[];
+  layout?: 'grid' | 'masonry';
+  refreshInterval?: number;
+}
+
+export const insertCustomDashboardSchema = createInsertSchema(customDashboards).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCustomDashboard = z.infer<typeof insertCustomDashboardSchema>;
+export type CustomDashboard = typeof customDashboards.$inferSelect;
+
 // Recycle Bin Types
 export type RecycleBinItemType = 'portfolio' | 'project' | 'task' | 'risk' | 'milestone' | 'issue';
 

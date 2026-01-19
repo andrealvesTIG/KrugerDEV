@@ -11,7 +11,7 @@ import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPerc
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -10888,6 +10888,147 @@ Return ONLY valid JSON.`;
     } catch (error) {
       console.error('Error sharing dashboard:', error);
       res.status(500).json({ message: 'Failed to share dashboard' });
+    }
+  });
+
+  // === Custom Dashboards API ===
+
+  // Get all custom dashboards for an organization
+  app.get('/api/custom-dashboards', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { organizationId } = req.query;
+      if (!organizationId) {
+        return res.status(400).json({ message: 'Organization ID required' });
+      }
+
+      const dashboards = await db
+        .select()
+        .from(customDashboards)
+        .where(eq(customDashboards.organizationId, Number(organizationId)))
+        .orderBy(desc(customDashboards.createdAt));
+
+      res.json(dashboards);
+    } catch (error) {
+      console.error('Error fetching custom dashboards:', error);
+      res.status(500).json({ message: 'Failed to fetch custom dashboards' });
+    }
+  });
+
+  // Get a specific custom dashboard
+  app.get('/api/custom-dashboards/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const dashboardId = Number(req.params.id);
+      const [dashboard] = await db
+        .select()
+        .from(customDashboards)
+        .where(eq(customDashboards.id, dashboardId));
+
+      if (!dashboard) {
+        return res.status(404).json({ message: 'Dashboard not found' });
+      }
+
+      res.json(dashboard);
+    } catch (error) {
+      console.error('Error fetching custom dashboard:', error);
+      res.status(500).json({ message: 'Failed to fetch custom dashboard' });
+    }
+  });
+
+  // Generate a new custom dashboard using AI
+  app.post('/api/custom-dashboards/generate', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { description, organizationId } = req.body;
+      if (!description || !organizationId) {
+        return res.status(400).json({ message: 'Description and organization ID required' });
+      }
+
+      const { generateDashboardConfig } = await import('./services/dashboardAI');
+      const { name, config } = await generateDashboardConfig(description);
+
+      // Save the generated dashboard
+      const [newDashboard] = await db
+        .insert(customDashboards)
+        .values({
+          organizationId: Number(organizationId),
+          userId,
+          name,
+          description,
+          config,
+        })
+        .returning();
+
+      res.status(201).json(newDashboard);
+    } catch (error) {
+      console.error('Error generating custom dashboard:', error);
+      res.status(500).json({ message: 'Failed to generate custom dashboard' });
+    }
+  });
+
+  // Update a custom dashboard
+  app.patch('/api/custom-dashboards/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const dashboardId = Number(req.params.id);
+      const { name, config } = req.body;
+
+      const [updated] = await db
+        .update(customDashboards)
+        .set({
+          name,
+          config,
+          updatedAt: new Date(),
+        })
+        .where(eq(customDashboards.id, dashboardId))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: 'Dashboard not found' });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating custom dashboard:', error);
+      res.status(500).json({ message: 'Failed to update custom dashboard' });
+    }
+  });
+
+  // Delete a custom dashboard
+  app.delete('/api/custom-dashboards/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const dashboardId = Number(req.params.id);
+      
+      await db
+        .delete(customDashboards)
+        .where(eq(customDashboards.id, dashboardId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting custom dashboard:', error);
+      res.status(500).json({ message: 'Failed to delete custom dashboard' });
     }
   });
 

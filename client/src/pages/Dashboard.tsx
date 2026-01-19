@@ -1,6 +1,15 @@
 import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
   PortfoliosDashboard, 
   ExecutiveDashboard, 
@@ -8,7 +17,9 @@ import {
   ResourceDashboard,
   ResourceManagementDashboard,
   TimesheetReportDashboard,
-  IntakeDashboard
+  IntakeDashboard,
+  CustomDashboard,
+  CreateCustomDashboardDialog,
 } from "@/components/dashboard";
 import { 
   LayoutDashboard, 
@@ -17,8 +28,14 @@ import {
   Users, 
   UserCog, 
   Clock,
-  FileInput
+  FileInput,
+  MoreVertical,
+  Plus,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
+import { useOrganization } from "@/hooks/use-organization";
+import type { CustomDashboard as CustomDashboardType } from "@shared/schema";
 
 const DASHBOARD_TABS = [
   { id: "executive", label: "Executive", icon: LayoutDashboard },
@@ -30,7 +47,7 @@ const DASHBOARD_TABS = [
   { id: "timesheet", label: "Timesheet Report", icon: Clock },
 ] as const;
 
-type TabId = typeof DASHBOARD_TABS[number]["id"];
+type TabId = typeof DASHBOARD_TABS[number]["id"] | `custom-${number}`;
 
 const STORAGE_KEY = "dashboard-active-tab";
 
@@ -39,25 +56,40 @@ export default function Dashboard() {
   const searchString = useSearch();
   const searchParams = new URLSearchParams(searchString);
   const viewParam = searchParams.get("view") as TabId | null;
+  const { currentOrganization } = useOrganization();
   
+  const [activeTab, setActiveTab] = useState<TabId>("executive");
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [selectedCustomDashboard, setSelectedCustomDashboard] = useState<number | null>(null);
+
+  const { data: customDashboards } = useQuery<CustomDashboardType[]>({
+    queryKey: ['/api/custom-dashboards', { organizationId: currentOrganization?.id }],
+    enabled: !!currentOrganization?.id,
+  });
+
   const getInitialTab = (): TabId => {
-    if (viewParam && DASHBOARD_TABS.some(t => t.id === viewParam)) {
-      return viewParam;
+    if (viewParam) {
+      if (DASHBOARD_TABS.some(t => t.id === viewParam)) {
+        return viewParam as TabId;
+      }
+      if (viewParam.startsWith('custom-')) {
+        return viewParam as TabId;
+      }
     }
     const stored = localStorage.getItem(STORAGE_KEY) as TabId | null;
-    if (stored && DASHBOARD_TABS.some(t => t.id === stored)) {
-      return stored;
+    if (stored) {
+      if (DASHBOARD_TABS.some(t => t.id === stored)) {
+        return stored;
+      }
+      if (stored.startsWith('custom-')) {
+        return stored;
+      }
     }
     return "executive";
   };
 
-  const [activeTab, setActiveTab] = useState<TabId>(getInitialTab);
-
   useEffect(() => {
-    if (viewParam && DASHBOARD_TABS.some(t => t.id === viewParam)) {
-      setActiveTab(viewParam);
-      localStorage.setItem(STORAGE_KEY, viewParam);
-    }
+    setActiveTab(getInitialTab());
   }, [viewParam]);
 
   const handleTabChange = (value: string) => {
@@ -65,12 +97,32 @@ export default function Dashboard() {
     setActiveTab(tabId);
     localStorage.setItem(STORAGE_KEY, tabId);
     setLocation(`/?view=${tabId}`, { replace: true });
+    
+    if (tabId.startsWith('custom-')) {
+      const dashboardId = Number(tabId.replace('custom-', ''));
+      setSelectedCustomDashboard(dashboardId);
+    } else {
+      setSelectedCustomDashboard(null);
+    }
   };
 
-  const getTabLabel = (id: TabId): string => {
-    const tab = DASHBOARD_TABS.find(t => t.id === id);
-    return tab?.label || "Dashboard";
+  const handleCustomDashboardCreated = (dashboardId: number) => {
+    const tabId = `custom-${dashboardId}` as TabId;
+    setActiveTab(tabId);
+    setSelectedCustomDashboard(dashboardId);
+    localStorage.setItem(STORAGE_KEY, tabId);
+    setLocation(`/?view=${tabId}`, { replace: true });
   };
+
+  const handleSelectCustomDashboard = (dashboardId: number) => {
+    const tabId = `custom-${dashboardId}` as TabId;
+    setActiveTab(tabId);
+    setSelectedCustomDashboard(dashboardId);
+    localStorage.setItem(STORAGE_KEY, tabId);
+    setLocation(`/?view=${tabId}`, { replace: true });
+  };
+
+  const isCustomTab = activeTab.startsWith('custom-');
 
   return (
     <div className="space-y-6">
@@ -90,6 +142,60 @@ export default function Dashboard() {
               </TabsTrigger>
             );
           })}
+          
+          {selectedCustomDashboard && (
+            <TabsTrigger
+              value={`custom-${selectedCustomDashboard}`}
+              className="flex items-center gap-2 data-[state=active]:bg-background"
+              data-testid={`tab-custom-${selectedCustomDashboard}`}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {customDashboards?.find(d => d.id === selectedCustomDashboard)?.name || 'Custom'}
+              </span>
+            </TabsTrigger>
+          )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-9 w-9 rounded-lg"
+                data-testid="button-custom-dashboards-menu"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem 
+                onClick={() => setShowCreateDialog(true)}
+                data-testid="menu-item-create-dashboard"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Custom Dashboard
+              </DropdownMenuItem>
+              
+              {customDashboards && customDashboards.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    Saved Dashboards
+                  </div>
+                  {customDashboards.map((dashboard) => (
+                    <DropdownMenuItem
+                      key={dashboard.id}
+                      onClick={() => handleSelectCustomDashboard(dashboard.id)}
+                      data-testid={`menu-item-dashboard-${dashboard.id}`}
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      <span className="flex-1 truncate">{dashboard.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </TabsList>
 
         <TabsContent value="executive" className="mt-6" data-testid="content-executive">
@@ -119,7 +225,26 @@ export default function Dashboard() {
         <TabsContent value="timesheet" className="mt-6" data-testid="content-timesheet">
           <TimesheetReportDashboard />
         </TabsContent>
+
+        {isCustomTab && selectedCustomDashboard && (
+          <TabsContent value={`custom-${selectedCustomDashboard}`} className="mt-6" data-testid={`content-custom-${selectedCustomDashboard}`}>
+            <CustomDashboard 
+              dashboardId={selectedCustomDashboard} 
+              onDelete={() => {
+                setActiveTab("executive");
+                setSelectedCustomDashboard(null);
+                setLocation('/?view=executive', { replace: true });
+              }}
+            />
+          </TabsContent>
+        )}
       </Tabs>
+
+      <CreateCustomDashboardDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onCreated={handleCustomDashboardCreated}
+      />
     </div>
   );
 }

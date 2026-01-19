@@ -10,3 +10,5 @@ export { ResourceDashboard } from "./ResourceDashboard";
 export { ResourceManagementDashboard } from "./ResourceManagementDashboard";
 export { TimesheetReportDashboard } from "./TimesheetReportDashboard";
 export { IntakeDashboard } from "./IntakeDashboard";
+export { CustomDashboard } from "./CustomDashboard";
+export { CreateCustomDashboardDialog } from "./CreateCustomDashboardDialog";
