@@ -242,10 +242,10 @@ export async function setupDataverseRoutes(app: Express) {
         });
       });
 
-      res.redirect("/projects?dataverseConnected=true");
+      res.redirect("/org-settings?tab=integrations&dataverseConnected=true");
     } catch (error) {
       console.error("Dataverse token error:", error);
-      res.redirect("/projects?error=Failed to complete Dataverse authentication");
+      res.redirect("/org-settings?tab=integrations&error=Failed to complete Dataverse authentication");
     }
   });
 
