@@ -3156,6 +3156,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           projectStartDate={projectStartDate}
           projectEndDate={projectEndDate}
           hideTimeline={true}
+          isReadOnly={isPlannerProject || isMsProjectImported}
           onCreateTask={(name) => {
             createTask.mutate({
               projectId,
@@ -3177,6 +3178,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           isFullscreen={isFullscreen}
           projectStartDate={projectStartDate}
           projectEndDate={projectEndDate}
+          isReadOnly={isPlannerProject || isMsProjectImported}
           onCreateTask={(name) => {
             createTask.mutate({
               projectId,
@@ -3196,6 +3198,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           organizationId={currentOrganization?.id ?? null}
           projectId={projectId}
           resources={resources}
+          isReadOnly={isPlannerProject || isMsProjectImported}
           onResourceAssign={(taskId, resourceIds) => {
             updateTaskResources.mutate({ taskId, resourceIds });
           }}
@@ -3552,6 +3555,7 @@ function TaskNameCell({
   onEditDependencies,
   onUpdateName,
   onEdit,
+  isReadOnly,
 }: {
   task: Task;
   colWidth: number;
@@ -3568,6 +3572,7 @@ function TaskNameCell({
   onEditDependencies: (task: Task) => void;
   onUpdateName: (taskId: number, name: string) => void;
   onEdit: (task: Task) => void;
+  isReadOnly?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
@@ -3581,6 +3586,7 @@ function TaskNameCell({
   }, [isEditing]);
 
   const handleStartEdit = (e: React.MouseEvent) => {
+    if (isReadOnly) return;
     e.stopPropagation();
     setEditValue(task.name);
     setIsEditing(true);
@@ -3775,6 +3781,7 @@ function ProjectGanttTaskRowMeta({
   onToggleSelection,
   hasDependencies,
   computedWbs,
+  isReadOnly,
 }: { 
   task: Task;
   rowIndex: number;
@@ -3804,6 +3811,7 @@ function ProjectGanttTaskRowMeta({
   onToggleSelection: (taskId: number) => void;
   hasDependencies?: boolean;
   computedWbs?: string;
+  isReadOnly?: boolean;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -3815,6 +3823,9 @@ function ProjectGanttTaskRowMeta({
   const inviteAssignedRef = useRef(false);
   
   const handleInlineUpdate = (field: string, value: string | number | boolean | null, oldValue?: unknown) => {
+    // Prevent updates for read-only projects (Planner and MS Project imports)
+    if (isReadOnly) return;
+    
     // Track the change for undo/redo if callback provided (track even if oldValue is undefined/null)
     if (onTrackChange) {
       onTrackChange(task.id, task.projectId, field, oldValue ?? null, value);
@@ -3953,6 +3964,7 @@ function ProjectGanttTaskRowMeta({
               onEditDependencies={onEditDependencies}
               onUpdateName={(taskId, name) => handleInlineUpdate('name', name, task.name)}
               onEdit={onEdit}
+              isReadOnly={isReadOnly}
             />
           );
         }
@@ -3964,9 +3976,9 @@ function ProjectGanttTaskRowMeta({
                 style={{ width: `${colWidth}px` }}
                 className={cn(
                   "flex-shrink-0 border-r px-1 text-muted-foreground flex items-center h-[28px] overflow-hidden min-w-0",
-                  !hasChildren && "cursor-pointer hover:bg-muted/50"
+                  !hasChildren && !isReadOnly && "cursor-pointer hover:bg-muted/50"
                 )}
-                onClick={(e) => { e.stopPropagation(); if (!hasChildren) setIsEditingResources(true); }}
+                onClick={(e) => { e.stopPropagation(); if (!hasChildren && !isReadOnly) setIsEditingResources(true); }}
               >
                 {hasChildren ? (
                   <span className="text-muted-foreground/70 italic truncate w-full">Summary</span>
@@ -4051,7 +4063,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={<span className="truncate">{task.taskNumber || '—'}</span>}
                   editType="text"
                   onSave={(val) => handleInlineUpdate('taskNumber', val as string | null, task.taskNumber)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'wbs':
@@ -4071,6 +4083,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={<span className="truncate">{task.description || '—'}</span>}
                   editType="text"
                   onSave={(val) => handleInlineUpdate('description', val as string | null, task.description)}
+                  disabled={isReadOnly}
                 />
               );
             case 'startDate':
@@ -4080,7 +4093,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.startDate ? format(parseISO(task.startDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('startDate', val as string | null, task.startDate)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'endDate':
@@ -4090,7 +4103,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.endDate ? format(parseISO(task.endDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('endDate', val as string | null, task.endDate)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'baselineStartDate':
@@ -4100,7 +4113,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.baselineStartDate ? format(parseISO(task.baselineStartDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('baselineStartDate', val as string | null, task.baselineStartDate)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'baselineEndDate':
@@ -4110,7 +4123,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.baselineEndDate ? format(parseISO(task.baselineEndDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('baselineEndDate', val as string | null, task.baselineEndDate)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'actualStartDate':
@@ -4120,7 +4133,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.actualStartDate ? format(parseISO(task.actualStartDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualStartDate', val as string | null, task.actualStartDate)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'actualEndDate':
@@ -4130,7 +4143,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.actualEndDate ? format(parseISO(task.actualEndDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualEndDate', val as string | null, task.actualEndDate)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'durationDays':
@@ -4141,7 +4154,7 @@ function ProjectGanttTaskRowMeta({
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('durationDays', val as number | null, task.durationDays)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'progress':
@@ -4153,7 +4166,7 @@ function ProjectGanttTaskRowMeta({
                   min={0}
                   max={100}
                   onSave={(val) => handleInlineUpdate('progress', val as number | null, task.progress)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'status':
@@ -4173,7 +4186,7 @@ function ProjectGanttTaskRowMeta({
                   editType="select"
                   options={statusOptions}
                   onSave={(val) => handleInlineUpdate('status', val as string | null, task.status)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'priority':
@@ -4194,6 +4207,7 @@ function ProjectGanttTaskRowMeta({
                   editType="select"
                   options={priorityOptions}
                   onSave={(val) => handleInlineUpdate('priority', val as string | null, task.priority)}
+                  disabled={isReadOnly}
                 />
               );
             case 'taskType':
@@ -4204,6 +4218,7 @@ function ProjectGanttTaskRowMeta({
                   editType="select"
                   options={taskTypeOptions}
                   onSave={(val) => handleInlineUpdate('taskType', val as string | null, task.taskType)}
+                  disabled={isReadOnly}
                 />
               );
             case 'estimatedHours':
@@ -4214,7 +4229,7 @@ function ProjectGanttTaskRowMeta({
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('estimatedHours', val as number | null, task.estimatedHours)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'actualHours':
@@ -4225,7 +4240,7 @@ function ProjectGanttTaskRowMeta({
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('actualHours', val as number | null, task.actualHours)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'remainingHours':
@@ -4236,7 +4251,7 @@ function ProjectGanttTaskRowMeta({
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('remainingHours', val as number | null, task.remainingHours)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'cost':
@@ -4247,7 +4262,7 @@ function ProjectGanttTaskRowMeta({
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('cost', val != null ? String(val) : null, task.cost)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'actualCost':
@@ -4258,7 +4273,7 @@ function ProjectGanttTaskRowMeta({
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('actualCost', val != null ? String(val) : null, task.actualCost)}
-                  disabled={isSummaryTask}
+                  disabled={isSummaryTask || isReadOnly}
                 />
               );
             case 'assignee':
@@ -4268,6 +4283,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={<span className="truncate">{task.assignee || '—'}</span>}
                   editType="text"
                   onSave={(val) => handleInlineUpdate('assignee', val as string | null, task.assignee)}
+                  disabled={isReadOnly}
                 />
               );
             case 'constraintType':
@@ -4278,6 +4294,7 @@ function ProjectGanttTaskRowMeta({
                   editType="select"
                   options={constraintTypeOptions}
                   onSave={(val) => handleInlineUpdate('constraintType', val as string | null, task.constraintType)}
+                  disabled={isReadOnly}
                 />
               );
             case 'constraintDate':
@@ -4287,6 +4304,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.constraintDate ? format(parseISO(task.constraintDate), 'MM/dd/yyyy') : '—'}
                   editType="date"
                   onSave={(val) => handleInlineUpdate('constraintDate', val as string | null, task.constraintDate)}
+                  disabled={isReadOnly}
                 />
               );
             case 'isMilestone':
@@ -4296,6 +4314,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.isMilestone ? <Check className="h-3 w-3 text-primary mx-auto" /> : <span className="text-muted-foreground/50">—</span>}
                   editType="boolean"
                   onSave={(val) => handleInlineUpdate('isMilestone', val as boolean, task.isMilestone)}
+                  disabled={isReadOnly}
                 />
               );
             case 'isCritical':
@@ -4305,6 +4324,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={task.isCritical ? <Check className="h-3 w-3 text-red-500 mx-auto" /> : <span className="text-muted-foreground/50">—</span>}
                   editType="boolean"
                   onSave={(val) => handleInlineUpdate('isCritical', val as boolean, task.isCritical)}
+                  disabled={isReadOnly}
                 />
               );
             case 'isSummary':
@@ -4316,6 +4336,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={<span className="truncate">{task.phase || '—'}</span>}
                   editType="text"
                   onSave={(val) => handleInlineUpdate('phase', val as string | null, task.phase)}
+                  disabled={isReadOnly}
                 />
               );
             case 'category':
@@ -4325,6 +4346,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={<span className="truncate">{task.category || '—'}</span>}
                   editType="text"
                   onSave={(val) => handleInlineUpdate('category', val as string | null, task.category)}
+                  disabled={isReadOnly}
                 />
               );
             case 'labels':
@@ -4334,6 +4356,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={<span className="truncate">{task.labels || '—'}</span>}
                   editType="text"
                   onSave={(val) => handleInlineUpdate('labels', val as string | null, task.labels)}
+                  disabled={isReadOnly}
                 />
               );
             case 'notes':
@@ -4343,6 +4366,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={<span className="truncate">{task.notes || '—'}</span>}
                   editType="text"
                   onSave={(val) => handleInlineUpdate('notes', val as string | null, task.notes)}
+                  disabled={isReadOnly}
                 />
               );
             default:
@@ -4768,6 +4792,7 @@ function ProjectGanttView({
   projectStartDate,
   projectEndDate,
   hideTimeline = false,
+  isReadOnly = false,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
@@ -4779,6 +4804,7 @@ function ProjectGanttView({
   projectStartDate?: string | null;
   projectEndDate?: string | null;
   hideTimeline?: boolean;
+  isReadOnly?: boolean;
 }) {
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
@@ -6079,7 +6105,7 @@ function ProjectGanttView({
                     variant="destructive"
                     size="sm"
                     onClick={handleBulkDelete}
-                    disabled={bulkDeletePending}
+                    disabled={bulkDeletePending || isReadOnly}
                     data-testid="button-bulk-delete"
                   >
                     {bulkDeletePending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
@@ -6348,6 +6374,7 @@ function ProjectGanttView({
                               onToggleSelection={toggleTaskSelection}
                               hasDependencies={tasksWithDependencies.has(task.id)}
                               computedWbs={wbsMap.get(task.id)}
+                              isReadOnly={isReadOnly}
                             />
                           )}
                         </SortableTaskRow>
@@ -6355,7 +6382,8 @@ function ProjectGanttView({
                     </SortableContext>
                   )}
                 </DndContext>
-                {/* Add task row */}
+                {/* Add task row - hidden for read-only projects */}
+                {!isReadOnly && (
                 <div className="flex border-t bg-muted/20">
                   <div className="w-8 flex-shrink-0 border-r p-1" />
                   {baselineSelectionMode && <div className="w-8 flex-shrink-0 border-r p-1" />}
@@ -6382,6 +6410,7 @@ function ProjectGanttView({
                   {/* Spacer for add column button */}
                   <div className="flex-shrink-0 p-1 w-8" />
                 </div>
+                )}
               </div>
             </div>
           </ResizablePanel>
@@ -6728,6 +6757,7 @@ function ProjectKanbanView({
   projectId,
   resources,
   onResourceAssign,
+  isReadOnly = false,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
@@ -6737,6 +6767,7 @@ function ProjectKanbanView({
   projectId: number;
   resources?: Array<{ id: number; displayName: string; resourceCode?: string | null }>;
   onResourceAssign?: (taskId: number, resourceIds: number[]) => void;
+  isReadOnly?: boolean;
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeOverColumn, setActiveOverColumn] = useState<string | null>(null);
@@ -6876,6 +6907,8 @@ function ProjectKanbanView({
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveTask(null);
     setActiveOverColumn(null);
+    // Prevent drag-drop changes for read-only projects
+    if (isReadOnly) return;
     const { active, over } = event;
     if (!over) return;
     
