@@ -556,28 +556,41 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
   }
 
   const domain = extractDomain(email);
-  if (!domain || isPersonalEmailDomain(domain)) {
-    return { organization: null, created: false, role: '' };
-  }
-
-  const domainSlug = domainToSlug(domain);
+  const isPersonal = !domain || isPersonalEmailDomain(domain);
   
-  // Each new user gets their own organization - no automatic domain matching
-  // Users can be invited to existing organizations via the invite system
-  
-  // Use the domain name as the organization name (formatted nicely)
-  // e.g., "saltyfreedomusa.com" -> "Saltyfreedomusa"
-  let companyName = domain.split('.')[0];
-  companyName = companyName.charAt(0).toUpperCase() + companyName.slice(1);
-  
-  // Check if user has a detected company name already set (from registration)
+  // Get user info for naming the organization
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (user?.detectedCompany) {
-    companyName = user.detectedCompany;
+  
+  let companyName: string;
+  let slugBase: string;
+  
+  if (isPersonal) {
+    // For personal emails, use user's name or fallback to "Personal Workspace"
+    if (user?.firstName) {
+      companyName = `${user.firstName}'s Workspace`;
+      // Sanitize the slug: lowercase, replace non-alphanumeric with hyphens, remove consecutive hyphens
+      slugBase = `${user.firstName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}-workspace`;
+    } else {
+      companyName = 'Personal Workspace';
+      slugBase = 'personal-workspace';
+    }
+  } else {
+    const domainSlug = domainToSlug(domain);
+    slugBase = domainSlug;
+    
+    // Use the domain name as the organization name (formatted nicely)
+    // e.g., "saltyfreedomusa.com" -> "Saltyfreedomusa"
+    companyName = domain.split('.')[0];
+    companyName = companyName.charAt(0).toUpperCase() + companyName.slice(1);
+    
+    // Check if user has a detected company name already set (from registration)
+    if (user?.detectedCompany) {
+      companyName = user.detectedCompany;
+    }
   }
 
   // Always generate a unique slug for new organizations
-  let finalSlug = `${domainSlug}-${Math.random().toString(36).substring(2, 8)}`;
+  let finalSlug = `${slugBase}-${Math.random().toString(36).substring(2, 8)}`;
 
   const [newOrg] = await db.insert(organizations).values({
     name: companyName,
