@@ -3187,10 +3187,19 @@ export async function registerRoutes(
         }
 
         // Fetch tasks from Dataverse with extended fields
-        const extendedFields = "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode";
-        const minimalFields = "msdyn_projecttaskid,msdyn_subject";
+        // Try different field combinations as Dataverse environments may have different schemas
+        const fieldSets = [
+          // Full Project for the Web schema
+          "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
+          // Basic fields without progress/outline
+          "msdyn_projecttaskid,msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,_msdyn_parenttask_value,statecode",
+          // Minimal fallback with parent task for hierarchy
+          "msdyn_projecttaskid,msdyn_subject,_msdyn_parenttask_value",
+          // Absolute minimal
+          "msdyn_projecttaskid,msdyn_subject"
+        ];
         
-        let tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${extendedFields}&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
+        let tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${fieldSets[0]}&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
         
         let tasksResponse = await fetch(tasksApiUrl, {
           headers: {
@@ -3201,10 +3210,12 @@ export async function registerRoutes(
           },
         });
 
-        if (!tasksResponse.ok) {
-          // Try minimal fields as fallback
-          console.log("Extended fields failed, falling back to minimal fields. Status:", tasksResponse.status);
-          tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${minimalFields}&$filter=_msdyn_project_value eq ${planId}`;
+        // Try progressively simpler field sets if the full set fails
+        let fieldSetIndex = 0;
+        while (!tasksResponse.ok && fieldSetIndex < fieldSets.length - 1) {
+          fieldSetIndex++;
+          console.log(`Field set ${fieldSetIndex - 1} failed (status ${tasksResponse.status}), trying field set ${fieldSetIndex}`);
+          tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${fieldSets[fieldSetIndex]}&$filter=_msdyn_project_value eq ${planId}`;
           tasksResponse = await fetch(tasksApiUrl, {
             headers: {
               "Authorization": `Bearer ${dataverseToken}`,
@@ -3213,15 +3224,17 @@ export async function registerRoutes(
               "OData-Version": "4.0",
             },
           });
-          
-          if (!tasksResponse.ok) {
-            if (tasksResponse.status === 401) {
-              delete req.session.dataverseAccessToken;
-              return res.status(401).json({ message: "Session expired. Please reconnect to Dataverse." });
-            }
-            throw new Error(`Failed to fetch tasks: ${tasksResponse.status}`);
-          }
         }
+        
+        if (!tasksResponse.ok) {
+          if (tasksResponse.status === 401) {
+            delete req.session.dataverseAccessToken;
+            return res.status(401).json({ message: "Session expired. Please reconnect to Dataverse." });
+          }
+          throw new Error(`Failed to fetch tasks after trying all field sets: ${tasksResponse.status}`);
+        }
+        
+        console.log(`Successfully fetched tasks using field set ${fieldSetIndex}: ${fieldSets[fieldSetIndex]}`);
 
         const tasksData = await tasksResponse.json();
         const dataverseTasks = tasksData.value || [];
