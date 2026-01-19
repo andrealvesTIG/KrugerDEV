@@ -442,7 +442,7 @@ export default function ProjectDetails() {
             <ProjectSummaryTab project={project} onUpdate={updateProject} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
-            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} />
+            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab projectId={project.id} projectName={project.name} />
@@ -2162,7 +2162,7 @@ function computeWbsValues(tasks: Task[]): Map<number, string> {
   return wbsMap;
 }
 
-function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl }: { 
+function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId }: { 
   projectId: number; 
   projectName?: string; 
   projectStartDate?: string | null; 
@@ -2171,6 +2171,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   plannerPlanId?: string | null;
   sourceFileName?: string | null;
   sourceFileUrl?: string | null;
+  dataverseOrgId?: string | null;
+  dataverseTenantId?: string | null;
 }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
@@ -2570,8 +2572,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               href={(() => {
                 if (!plannerPlanId) return "https://planner.cloud.microsoft";
                 if (isPremiumPlan) {
-                  // Planner Premium uses premiumplan path - Microsoft handles auth/redirect
-                  return `https://planner.cloud.microsoft/webui/premiumplan/${plannerPlanId}`;
+                  // Planner Premium uses full URL with org ID and tenant ID
+                  let url = `https://planner.cloud.microsoft/webui/premiumplan/${plannerPlanId}`;
+                  if (dataverseOrgId) {
+                    url += `/org/${dataverseOrgId}`;
+                  }
+                  if (dataverseTenantId) {
+                    url += `?tid=${dataverseTenantId}`;
+                  }
+                  return url;
                 }
                 // Regular Planner URL
                 return `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board`;

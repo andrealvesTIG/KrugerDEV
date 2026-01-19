@@ -2848,6 +2848,32 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Plan ID and Organization ID are required" });
       }
 
+      // Fetch WhoAmI to get the Dataverse organization ID for URL construction
+      let dataverseOrgId: string | null = null;
+      try {
+        const whoAmIResponse = await fetch(`${environmentUrl}/api/data/v9.2/WhoAmI`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "OData-MaxVersion": "4.0",
+            "OData-Version": "4.0",
+          },
+        });
+        if (whoAmIResponse.ok) {
+          const whoAmI = await whoAmIResponse.json();
+          dataverseOrgId = whoAmI.OrganizationId || null;
+        }
+      } catch (err) {
+        console.log("Failed to fetch WhoAmI for org ID:", err);
+      }
+
+      // Get tenant ID from user profile
+      let dataverseTenantId: string | null = null;
+      if (userId) {
+        const user = await storage.getUser(userId);
+        dataverseTenantId = user?.microsoftTenantId || null;
+      }
+
       // Check project limit before creation
       if (userId) {
         const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
@@ -2961,6 +2987,8 @@ export async function registerRoutes(
         endDate: projectEndDate,
         source: "planner_premium",
         plannerPlanId: planId,
+        dataverseOrgId: dataverseOrgId,
+        dataverseTenantId: dataverseTenantId,
       });
 
       // Record usage after successful creation

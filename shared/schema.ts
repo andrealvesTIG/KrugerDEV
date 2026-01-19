@@ -169,6 +169,8 @@ export const projects = pgTable("projects", {
   riskLevel: text("risk_level"), // Low, Medium, High - overall risk assessment
   source: text("source").default("manual"), // "manual" = created in app, "imported" = from MPP/external file, "planner" = from Microsoft Planner
   plannerPlanId: text("planner_plan_id"), // Microsoft Planner plan ID for syncing
+  dataverseOrgId: text("dataverse_org_id"), // Dataverse organization ID for Planner Premium URL construction
+  dataverseTenantId: text("dataverse_tenant_id"), // Microsoft tenant ID for Planner Premium URL construction
   sourceFileName: text("source_file_name"), // Original filename of imported file (e.g., "project.mpp")
   sourceFileUrl: text("source_file_url"), // URL to the original imported file (in object storage)
   notes: text("notes"), // Additional notes
