@@ -3203,6 +3203,7 @@ export async function registerRoutes(
 
         if (!tasksResponse.ok) {
           // Try minimal fields as fallback
+          console.log("Extended fields failed, falling back to minimal fields. Status:", tasksResponse.status);
           tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${minimalFields}&$filter=_msdyn_project_value eq ${planId}`;
           tasksResponse = await fetch(tasksApiUrl, {
             headers: {
@@ -3224,6 +3225,12 @@ export async function registerRoutes(
 
         const tasksData = await tasksResponse.json();
         const dataverseTasks = tasksData.value || [];
+        
+        // Log first task to debug field availability
+        if (dataverseTasks.length > 0) {
+          console.log("Dataverse sync - First task fields available:", Object.keys(dataverseTasks[0]));
+          console.log("Dataverse sync - First task sample:", JSON.stringify(dataverseTasks[0], null, 2));
+        }
 
         // Get existing tasks for this project
         const existingTasks = await storage.getTasksByProject(projectId);
