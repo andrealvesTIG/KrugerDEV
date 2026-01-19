@@ -2919,7 +2919,7 @@ export async function registerRoutes(
         health: "Green",
         startDate: projectStartDate,
         endDate: projectEndDate,
-        source: "planner",
+        source: "planner_premium",
         plannerPlanId: planId,
       });
 

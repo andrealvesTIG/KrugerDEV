@@ -2175,13 +2175,20 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
   const { data: resources } = useResources(currentOrganization?.id ?? null);
+  
+  // Fetch Dataverse status for Premium plan URL construction
+  const { data: dataverseStatus } = useQuery<{ environmentUrl?: string }>({
+    queryKey: ["/api/dataverse/status"],
+    enabled: projectSource === "planner_premium",
+  });
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { toast } = useToast();
   
-  const isPlannerProject = projectSource === "planner" && !!plannerPlanId;
+  const isPlannerProject = (projectSource === "planner" || projectSource === "planner_premium") && !!plannerPlanId;
+  const isPremiumPlan = projectSource === "planner_premium";
   const isMsProjectImported = projectSource === "imported" && !!sourceFileUrl;
   const [isSyncing, setIsSyncing] = useState(false);
   const hasSyncedRef = useRef(false);
@@ -2557,19 +2564,28 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           <div className="flex items-center gap-3">
             <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6" />
             <div>
-              <span className="font-medium">Synced from Microsoft Planner</span>
-              <p className="text-sm text-muted-foreground">Tasks are read-only. Edit them in Microsoft Planner.</p>
+              <span className="font-medium">Synced from {isPremiumPlan ? "Planner Premium" : "Microsoft Planner"}</span>
+              <p className="text-sm text-muted-foreground">Tasks are read-only. Edit them in {isPremiumPlan ? "Project for the Web" : "Microsoft Planner"}.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <a 
-              href={plannerPlanId ? `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board` : "https://planner.cloud.microsoft"}
+              href={(() => {
+                if (!plannerPlanId) return "https://planner.cloud.microsoft";
+                if (isPremiumPlan && dataverseStatus?.environmentUrl) {
+                  // Extract environment name from URL like "https://ppm365prod.crm.dynamics.com" -> "ppm365prod.crm.dynamics.com"
+                  const envUrl = dataverseStatus.environmentUrl.replace(/^https?:\/\//, '');
+                  return `https://project.microsoft.com/${envUrl}/project/${plannerPlanId}`;
+                }
+                // Regular Planner URL
+                return `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board`;
+              })()}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline flex items-center gap-1"
             >
               <ExternalLink className="h-3 w-3" />
-              Open in Planner
+              {isPremiumPlan ? "Open in Project" : "Open in Planner"}
             </a>
             <Button 
               variant="outline" 
