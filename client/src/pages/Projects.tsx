@@ -48,7 +48,18 @@ export default function Projects() {
   const { data: allTasks } = useAllTasks();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt">("list");
+  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt">(() => {
+    const saved = localStorage.getItem("projects-view-preference");
+    if (saved && ["list", "grid", "kanban", "gantt"].includes(saved)) {
+      return saved as "list" | "grid" | "kanban" | "gantt";
+    }
+    return "grid";
+  });
+
+  const handleViewChange = (newView: "list" | "grid" | "kanban" | "gantt") => {
+    setView(newView);
+    localStorage.setItem("projects-view-preference", newView);
+  };
   const updateProject = useUpdateProject();
   const createProject = useCreateProject();
   const { toast } = useToast();
@@ -415,19 +426,9 @@ export default function Projects() {
         {/* View Toggle */}
         <div className="flex rounded-lg border border-border overflow-hidden">
           <Button
-            variant={view === "list" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setView("list")}
-            className="rounded-none"
-            data-testid="button-view-list"
-          >
-            <List className="h-4 w-4 mr-2" />
-            List
-          </Button>
-          <Button
             variant={view === "grid" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setView("grid")}
+            onClick={() => handleViewChange("grid")}
             className="rounded-none"
             data-testid="button-view-grid"
           >
@@ -435,9 +436,19 @@ export default function Projects() {
             Grid
           </Button>
           <Button
+            variant={view === "list" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => handleViewChange("list")}
+            className="rounded-none"
+            data-testid="button-view-list"
+          >
+            <List className="h-4 w-4 mr-2" />
+            List
+          </Button>
+          <Button
             variant={view === "kanban" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setView("kanban")}
+            onClick={() => handleViewChange("kanban")}
             className="rounded-none"
             data-testid="button-view-kanban"
           >
@@ -447,7 +458,7 @@ export default function Projects() {
           <Button
             variant={view === "gantt" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setView("gantt")}
+            onClick={() => handleViewChange("gantt")}
             className="rounded-none"
             data-testid="button-view-gantt"
           >
