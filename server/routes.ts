@@ -3098,15 +3098,22 @@ export async function registerRoutes(
         createdTasks.push(task);
       }
 
-      // Update parent task references
+      // Update parent task references and collect parent task IDs
+      const parentTaskIds = new Set<number>();
       for (const dvTask of dataverseTasks) {
         if (dvTask._msdyn_parenttask_value) {
           const childTaskId = taskIdMap.get(dvTask.msdyn_projecttaskid);
           const parentTaskId = taskIdMap.get(dvTask._msdyn_parenttask_value);
           if (childTaskId && parentTaskId) {
             await storage.updateTask(childTaskId, { parentId: parentTaskId });
+            parentTaskIds.add(parentTaskId);
           }
         }
+      }
+
+      // Mark all parent tasks as summary tasks
+      for (const parentId of parentTaskIds) {
+        await storage.updateTask(parentId, { isSummary: true });
       }
 
       res.status(201).json({ 
@@ -3323,15 +3330,22 @@ export async function registerRoutes(
           createdTasks.push(task);
         }
 
-        // Update parent task references
+        // Update parent task references and collect parent task IDs
+        const parentTaskIds = new Set<number>();
         for (const dvTask of dataverseTasks) {
           if (dvTask._msdyn_parenttask_value) {
             const childTaskId = taskIdMap.get(dvTask.msdyn_projecttaskid);
             const parentTaskId = taskIdMap.get(dvTask._msdyn_parenttask_value);
             if (childTaskId && parentTaskId) {
               await storage.updateTask(childTaskId, { parentId: parentTaskId });
+              parentTaskIds.add(parentTaskId);
             }
           }
+        }
+
+        // Mark all parent tasks as summary tasks
+        for (const parentId of parentTaskIds) {
+          await storage.updateTask(parentId, { isSummary: true });
         }
 
         // Update project dates
