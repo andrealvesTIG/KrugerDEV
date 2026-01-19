@@ -1450,12 +1450,12 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                           No plans match "{dataverseSearchTerm}"
                         </div>
                       ) : (
-                        <div className="grid gap-2 max-h-[200px] overflow-y-auto">
+                        <div className="grid gap-2 max-h-[200px] overflow-y-auto overflow-x-hidden">
                           {filteredDataversePlans.map((plan) => (
                             <div
                               key={plan.id}
                               className={cn(
-                                "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors hover-elevate",
+                                "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors hover-elevate overflow-hidden",
                                 selectedDataversePlanId === plan.id 
                                   ? "border-purple-500 bg-purple-500/5" 
                                   : "border-border hover:border-purple-500/50"
@@ -1467,7 +1467,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                                 <ClipboardList className="h-5 w-5 text-purple-600" />
                                 <Crown className="h-3 w-3 text-purple-500 absolute -top-1 -right-1" />
                               </div>
-                              <div className="flex-1 min-w-0">
+                              <div className="flex-1 min-w-0 overflow-hidden">
                                 <p className="font-medium truncate">{plan.title}</p>
                                 <p className="text-xs text-muted-foreground">
                                   Created {format(new Date(plan.createdDateTime), 'MMM d, yyyy')}
