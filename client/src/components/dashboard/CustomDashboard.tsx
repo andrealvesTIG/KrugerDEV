@@ -54,12 +54,22 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
   });
 
   const { data: risks } = useQuery<any[]>({
-    queryKey: ['/api/risks/organization', currentOrganization?.id],
+    queryKey: ['/api/risks', currentOrganization?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/risks?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: !!currentOrganization?.id,
   });
 
   const { data: issues } = useQuery<any[]>({
-    queryKey: ['/api/issues/organization', currentOrganization?.id],
+    queryKey: ['/api/issues', currentOrganization?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/issues?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: !!currentOrganization?.id,
   });
 

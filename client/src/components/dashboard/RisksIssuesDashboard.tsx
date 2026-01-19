@@ -50,12 +50,13 @@ export function RisksIssuesDashboard() {
   });
 
   const { data: allIssues = [], isLoading: issuesLoading } = useQuery<Issue[]>({
-    queryKey: ['/api/issues/all'],
+    queryKey: ['/api/issues/all', currentOrganization?.id],
     queryFn: async () => {
-      const res = await fetch('/api/issues');
+      const res = await fetch(`/api/issues?organizationId=${currentOrganization?.id}`);
       if (!res.ok) return [];
       return res.json();
     },
+    enabled: !!currentOrganization?.id,
   });
 
   const projects = useMemo(() => {

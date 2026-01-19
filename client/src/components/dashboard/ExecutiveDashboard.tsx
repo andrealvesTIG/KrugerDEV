@@ -72,20 +72,11 @@ export function ExecutiveDashboard() {
   const { data: allIssues = [] } = useQuery<Issue[]>({
     queryKey: ['/api/issues-all', currentOrganization?.id],
     queryFn: async () => {
-      const projects = projectsData || [];
-      const allIssues: Issue[] = [];
-      for (const p of projects.slice(0, 10)) {
-        try {
-          const res = await fetch(`/api/projects/${p.id}/issues`);
-          if (res.ok) {
-            const issues = await res.json();
-            allIssues.push(...issues);
-          }
-        } catch {}
-      }
-      return allIssues;
+      const res = await fetch(`/api/issues?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) return [];
+      return res.json();
     },
-    enabled: !!projectsData && projectsData.length > 0,
+    enabled: !!currentOrganization?.id,
   });
 
   const smartCreateMutation = useMutation({
