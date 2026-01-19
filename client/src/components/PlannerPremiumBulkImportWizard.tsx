@@ -295,7 +295,7 @@ export function PlannerPremiumBulkImportWizard({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden py-4">
+        <div className="flex-1 overflow-y-auto py-4">
           {step === "connect" && (
             <div className="space-y-4">
               {sessionExpired ? (
