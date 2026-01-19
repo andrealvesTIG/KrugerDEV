@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -11,15 +11,20 @@ import {
   type PortfolioRisk,
   type PortfolioIssue
 } from "@/hooks/use-portfolio-details";
+import { useProjects, useUpdateProject } from "@/hooks/use-projects";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { 
   Loader2, DollarSign, Target, AlertTriangle, Bug, 
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
-  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, List, GanttChart
+  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, List, GanttChart, Plus, Search, X
 } from "lucide-react";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -28,6 +33,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend
 } from "recharts";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function PortfolioDetails() {
   const [, params] = useRoute("/portfolios/:id");
@@ -107,7 +113,7 @@ export default function PortfolioDetails() {
             <SummaryTab metrics={metrics} portfolio={portfolio} onNavigate={setActiveTab} />
           </TabsContent>
           <TabsContent value="projects">
-            <ProjectsTab portfolioId={id} />
+            <ProjectsTab portfolioId={id} organizationId={currentOrganization?.id || 0} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab portfolioId={id} />
@@ -277,9 +283,88 @@ const portfolioZoomLabels: Record<PortfolioZoomLevel, string> = {
   1825: '5 Years'
 };
 
-function ProjectsTab({ portfolioId }: { portfolioId: number }) {
+function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; organizationId: number }) {
   const { data: projects, isLoading } = usePortfolioProjects(portfolioId);
+  const { data: allProjects } = useProjects(organizationId);
   const [view, setView] = useState<"list" | "gantt">("list");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const updateProject = useUpdateProject();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const availableProjects = useMemo(() => {
+    if (!allProjects) return [];
+    const portfolioProjectIds = new Set(projects?.map(p => p.id) || []);
+    return allProjects.filter(p => 
+      !portfolioProjectIds.has(p.id) && 
+      (p.portfolioId === null || p.portfolioId === undefined)
+    );
+  }, [allProjects, projects]);
+
+  const filteredAvailableProjects = useMemo(() => {
+    if (!searchQuery.trim()) return availableProjects;
+    const query = searchQuery.toLowerCase();
+    return availableProjects.filter(p => 
+      p.name.toLowerCase().includes(query) || 
+      p.description?.toLowerCase().includes(query)
+    );
+  }, [availableProjects, searchQuery]);
+
+  const handleToggleProject = (projectId: number) => {
+    setSelectedProjectIds(prev => 
+      prev.includes(projectId) 
+        ? prev.filter(id => id !== projectId)
+        : [...prev, projectId]
+    );
+  };
+
+  const handleAddProjects = async () => {
+    if (selectedProjectIds.length === 0) return;
+    setIsAdding(true);
+    try {
+      await Promise.all(
+        selectedProjectIds.map(projectId => 
+          updateProject.mutateAsync({ id: projectId, portfolioId })
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'projects'] });
+      toast({
+        title: "Projects Added",
+        description: `Successfully added ${selectedProjectIds.length} project(s) to the portfolio.`,
+      });
+      setIsAddDialogOpen(false);
+      setSelectedProjectIds([]);
+      setSearchQuery("");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add some projects to the portfolio.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleRemoveProject = async (projectId: number) => {
+    try {
+      await updateProject.mutateAsync({ id: projectId, portfolioId: null });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'projects'] });
+      toast({
+        title: "Project Removed",
+        description: "Project has been removed from the portfolio.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to remove project from portfolio.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
@@ -298,33 +383,44 @@ function ProjectsTab({ portfolioId }: { portfolioId: number }) {
   };
 
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div>
           <CardTitle>Included Projects</CardTitle>
           <CardDescription>All projects within this portfolio</CardDescription>
         </div>
-        <div className="flex rounded-lg border border-border overflow-hidden">
+        <div className="flex items-center gap-3">
           <Button
-            variant={view === "list" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setView("list")}
-            className="rounded-none"
-            data-testid="button-portfolio-view-list"
+            onClick={() => setIsAddDialogOpen(true)}
+            data-testid="button-add-project-to-portfolio"
           >
-            <List className="h-4 w-4 mr-2" />
-            List
+            <Plus className="h-4 w-4 mr-2" />
+            Add Project
           </Button>
-          <Button
-            variant={view === "gantt" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setView("gantt")}
-            className="rounded-none"
-            data-testid="button-portfolio-view-gantt"
-          >
-            <GanttChart className="h-4 w-4 mr-2" />
-            Gantt
-          </Button>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <Button
+              variant={view === "list" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setView("list")}
+              className="rounded-none"
+              data-testid="button-portfolio-view-list"
+            >
+              <List className="h-4 w-4 mr-2" />
+              List
+            </Button>
+            <Button
+              variant={view === "gantt" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setView("gantt")}
+              className="rounded-none"
+              data-testid="button-portfolio-view-gantt"
+            >
+              <GanttChart className="h-4 w-4 mr-2" />
+              Gantt
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -364,11 +460,22 @@ function ProjectsTab({ portfolioId }: { portfolioId: number }) {
                     </td>
                     <td className="p-3 text-sm">${Number(project.budget).toLocaleString()}</td>
                     <td className="p-3">
-                      <Link href={`/projects/${project.id}`}>
-                        <Button variant="ghost" size="sm" data-testid={`button-view-project-${project.id}`}>
-                          <ArrowRight className="h-4 w-4" />
+                      <div className="flex items-center gap-1">
+                        <Link href={`/projects/${project.id}`}>
+                          <Button variant="ghost" size="sm" data-testid={`button-view-project-${project.id}`}>
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveProject(project.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                          data-testid={`button-remove-project-${project.id}`}
+                        >
+                          <X className="h-4 w-4" />
                         </Button>
-                      </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -376,7 +483,7 @@ function ProjectsTab({ portfolioId }: { portfolioId: number }) {
             </table>
             {projects?.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No projects in this portfolio.
+                No projects in this portfolio. Click "Add Project" to add existing projects.
               </div>
             )}
           </div>
@@ -385,6 +492,108 @@ function ProjectsTab({ portfolioId }: { portfolioId: number }) {
         )}
       </CardContent>
     </Card>
+
+    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>Add Projects to Portfolio</DialogTitle>
+          <DialogDescription>
+            Select projects to add to this portfolio. Only unassigned projects are shown.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search projects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-projects"
+            />
+          </div>
+
+          <ScrollArea className="h-[300px] border rounded-md">
+            {filteredAvailableProjects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
+                <FolderOpen className="h-8 w-8 mb-2" />
+                <p className="text-sm text-center">
+                  {availableProjects.length === 0 
+                    ? "No unassigned projects available. All projects are already in portfolios."
+                    : "No projects match your search."}
+                </p>
+              </div>
+            ) : (
+              <div className="p-2 space-y-1">
+                {filteredAvailableProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                      selectedProjectIds.includes(project.id)
+                        ? "bg-primary/5 border-primary"
+                        : "hover:bg-muted/50"
+                    )}
+                    onClick={() => handleToggleProject(project.id)}
+                    data-testid={`project-option-${project.id}`}
+                  >
+                    <Checkbox
+                      checked={selectedProjectIds.includes(project.id)}
+                      onCheckedChange={() => handleToggleProject(project.id)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{project.name}</p>
+                      <p className="text-sm text-muted-foreground truncate">{project.description || "No description"}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge variant="outline" className="text-xs">{project.status}</Badge>
+                      {project.health && (
+                        <Badge className={cn("text-xs", healthColors[project.health])}>{project.health}</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          {selectedProjectIds.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {selectedProjectIds.length} project(s) selected
+            </p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => {
+            setIsAddDialogOpen(false);
+            setSelectedProjectIds([]);
+            setSearchQuery("");
+          }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleAddProjects}
+            disabled={selectedProjectIds.length === 0 || isAdding}
+            data-testid="button-confirm-add-projects"
+          >
+            {isAdding ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Adding...
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4 mr-2" />
+                Add {selectedProjectIds.length > 0 ? `${selectedProjectIds.length} Project(s)` : "Projects"}
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
