@@ -10,8 +10,9 @@ import { setupProjectOnlineRoutes } from "./services/projectOnline";
 import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus } from "./services/microsoftPlanner";
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
+import { getUserOnboardingStatus, completeOnboarding } from "./services/onboarding";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards, organizations, organizationMembers } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -1390,6 +1391,83 @@ export async function registerRoutes(
     } catch (err) {
       console.error('Error deleting user:', err);
       res.status(500).json({ message: 'Failed to delete user' });
+    }
+  });
+
+  // --- Onboarding ---
+  app.get('/api/onboarding/status', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.json({ needsOnboarding: false, detectedCompany: null, detectedIndustry: null, hasOrganization: false });
+      }
+      const status = await getUserOnboardingStatus(userId);
+      res.json(status);
+    } catch (err) {
+      console.error('Error getting onboarding status:', err);
+      res.json({ needsOnboarding: false, detectedCompany: null, detectedIndustry: null, hasOrganization: false });
+    }
+  });
+
+  app.post('/api/onboarding/complete', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+      
+      const { companyName, industry, createDemoData } = req.body;
+      
+      // Get user's existing organization if any
+      const userOrgs = await db.select().from(users)
+        .innerJoin(require("@shared/schema").organizationMembers, eq(require("@shared/schema").organizationMembers.userId, users.id))
+        .where(eq(users.id, userId))
+        .limit(1);
+      
+      let result;
+      
+      if (userOrgs.length > 0) {
+        // User already has an org (auto-created), just add demo data if requested
+        const orgMember = userOrgs[0];
+        const [org] = await db.select().from(require("@shared/schema").organizations).where(eq(require("@shared/schema").organizations.id, orgMember.organization_members.organizationId)).limit(1);
+        
+        if (createDemoData && org) {
+          // Generate demo data for existing org
+          const { generateDemoData } = await import("./demo-data-templates");
+          await generateDemoData(org.id, userId, industry || "General");
+        }
+        
+        // Mark onboarding as complete
+        await db.update(users).set({ onboardingCompleted: true }).where(eq(users.id, userId));
+        
+        result = { success: true, demoDataCreated: createDemoData };
+      } else {
+        // No org exists, create one with onboarding flow
+        result = await completeOnboarding(userId, { companyName, industry: industry || "General", createDemoData });
+        result = { success: true, demoDataCreated: createDemoData };
+      }
+      
+      res.json(result);
+    } catch (err) {
+      console.error('Error completing onboarding:', err);
+      res.status(500).json({ message: 'Failed to complete onboarding' });
+    }
+  });
+
+  app.post('/api/onboarding/skip', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+      
+      // Mark onboarding as complete without creating demo data
+      await db.update(users).set({ onboardingCompleted: true }).where(eq(users.id, userId));
+      
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Error skipping onboarding:', err);
+      res.status(500).json({ message: 'Failed to skip onboarding' });
     }
   });
 

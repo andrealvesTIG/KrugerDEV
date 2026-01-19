@@ -529,7 +529,7 @@ export async function getUserOnboardingStatus(userId: string): Promise<{
   const hasOrganization = userOrgs.length > 0;
   
   return {
-    needsOnboarding: !user.onboardingCompleted && !hasOrganization,
+    needsOnboarding: !user.onboardingCompleted,
     detectedCompany: user.detectedCompany || null,
     detectedIndustry: user.detectedIndustry || null,
     hasOrganization,
@@ -594,7 +594,6 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
 
   await db.update(users)
     .set({ 
-      onboardingCompleted: true,
       detectedCompany: companyName,
     })
     .where(eq(users.id, userId));
