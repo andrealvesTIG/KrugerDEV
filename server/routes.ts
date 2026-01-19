@@ -3088,7 +3088,7 @@ export async function registerRoutes(
           progress,
           status,
           outlineLevel,
-          isMilestone: durationDays === 0 && !dvTask.msdyn_duration,
+          isMilestone: false,  // Don't auto-detect milestones - let users set this
           isSummary: false,
           isCritical: false,
           wbs: wbsId || null,
@@ -3114,6 +3114,29 @@ export async function registerRoutes(
       // Mark all parent tasks as summary tasks
       for (const parentId of parentTaskIds) {
         await storage.updateTask(parentId, { isSummary: true });
+      }
+
+      // Recalculate outline levels based on hierarchy
+      const taskParentMapImport = new Map<number, number | null>();
+      for (const dvTask of dataverseTasks) {
+        const taskId = taskIdMap.get(dvTask.msdyn_projecttaskid);
+        const parentId = dvTask._msdyn_parenttask_value ? taskIdMap.get(dvTask._msdyn_parenttask_value) : null;
+        if (taskId) {
+          taskParentMapImport.set(taskId, parentId || null);
+        }
+      }
+
+      const calculateLevelImport = (taskId: number, visited = new Set<number>()): number => {
+        if (visited.has(taskId)) return 1;
+        visited.add(taskId);
+        const parentId = taskParentMapImport.get(taskId);
+        if (!parentId) return 1;
+        return 1 + calculateLevelImport(parentId, visited);
+      };
+
+      for (const [taskId] of taskParentMapImport) {
+        const level = calculateLevelImport(taskId);
+        await storage.updateTask(taskId, { outlineLevel: level });
       }
 
       res.status(201).json({ 
@@ -3323,6 +3346,7 @@ export async function registerRoutes(
           const priority = mapDataversePriority(dvTask.msdyn_priority);
           const status = mapProgressToStatus(progress);
           const wbsId = dvTask.msdyn_wbsid || '';
+          // Initially set outlineLevel to 1, will recalculate from hierarchy later
           const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
           const durationDays = dvTask.msdyn_duration 
             ? Math.round(dvTask.msdyn_duration / (60 * 24))
@@ -3340,7 +3364,7 @@ export async function registerRoutes(
             progress,
             status,
             outlineLevel,
-            isMilestone: durationDays === 0 && !dvTask.msdyn_duration,
+            isMilestone: false,  // Don't auto-detect milestones - let users set this
             isSummary: false,
             isCritical: false,
             wbs: wbsId || null,
@@ -3366,6 +3390,32 @@ export async function registerRoutes(
         // Mark all parent tasks as summary tasks
         for (const parentId of parentTaskIds) {
           await storage.updateTask(parentId, { isSummary: true });
+        }
+
+        // Recalculate outline levels based on hierarchy
+        // Build a map of task ID to parent ID for level calculation
+        const taskParentMap = new Map<number, number | null>();
+        for (const dvTask of dataverseTasks) {
+          const taskId = taskIdMap.get(dvTask.msdyn_projecttaskid);
+          const parentId = dvTask._msdyn_parenttask_value ? taskIdMap.get(dvTask._msdyn_parenttask_value) : null;
+          if (taskId) {
+            taskParentMap.set(taskId, parentId || null);
+          }
+        }
+
+        // Calculate level for each task by walking up the parent chain
+        const calculateLevel = (taskId: number, visited = new Set<number>()): number => {
+          if (visited.has(taskId)) return 1; // Prevent infinite loops
+          visited.add(taskId);
+          const parentId = taskParentMap.get(taskId);
+          if (!parentId) return 1; // Root level
+          return 1 + calculateLevel(parentId, visited);
+        };
+
+        // Update outline levels for all tasks
+        for (const [taskId] of taskParentMap) {
+          const level = calculateLevel(taskId);
+          await storage.updateTask(taskId, { outlineLevel: level });
         }
 
         // Update project dates
