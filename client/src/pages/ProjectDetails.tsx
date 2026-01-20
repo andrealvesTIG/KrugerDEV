@@ -1106,10 +1106,16 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
           </div>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
-          <span data-testid="text-created-by">Created by {(project as any).createdByName || '-'}</span>
-          <span data-testid="text-created-on">{project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : '-'}</span>
-          <span data-testid="text-modified-by">Modified by {(project as any).updatedByName || '-'}</span>
-          <span data-testid="text-modified-on">{(project as any).updatedAt ? format(new Date((project as any).updatedAt), 'MMM d, yyyy') : '-'}</span>
+          {((project as any).createdByName || project.createdAt) && (
+            <span data-testid="text-created-by">
+              Created{(project as any).createdByName ? ` by ${(project as any).createdByName}` : ''}{project.createdAt ? ` on ${format(new Date(project.createdAt), 'MMM d, yyyy')}` : ''}
+            </span>
+          )}
+          {((project as any).updatedByName || (project as any).updatedAt) && (
+            <span data-testid="text-modified-by">
+              Modified{(project as any).updatedByName ? ` by ${(project as any).updatedByName}` : ''}{(project as any).updatedAt ? ` on ${format(new Date((project as any).updatedAt), 'MMM d, yyyy')}` : ''}
+            </span>
+          )}
         </div>
       </CardContent>
     </Card>
