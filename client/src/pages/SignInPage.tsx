@@ -108,6 +108,7 @@ export default function SignInPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
+    if (!termsAccepted) return;
 
     const honeypotPayload = honeypotData ? {
       honeypot1: honeypotData.honeypot1,

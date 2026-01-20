@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
 import { ThemeProvider } from "@/components/theme-provider";
 import { OnboardingDialog } from "@/components/OnboardingDialog";
+import { TermsConsentModal } from "@/components/TermsConsentModal";
 import NotFound from "@/pages/not-found";
 import { ReactNode, useEffect } from "react";
 import { Loader2 } from "lucide-react";
@@ -126,6 +127,7 @@ function HomePage() {
   
   return (
     <AppLayout>
+      <TermsConsentModal />
       <OnboardingDialog />
       <ModuleGuard moduleKey="dashboard">
         <Dashboard />
@@ -137,6 +139,7 @@ function HomePage() {
 function Router() {
   return (
     <AppLayout>
+      <TermsConsentModal />
       <OnboardingDialog />
       <Switch>
         <Route path="/dashboard"><DashboardRedirect /></Route>
