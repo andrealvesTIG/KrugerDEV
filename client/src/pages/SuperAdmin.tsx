@@ -100,6 +100,27 @@ export default function SuperAdmin() {
   );
 }
 
+interface Plan {
+  id: number;
+  code: string;
+  name: string;
+  maxSeats: number | null;
+  monthlyPriceCents: number;
+}
+
+interface OrgBillingInfo {
+  subscription: {
+    id: number;
+    planId: number;
+    status: string;
+    bonusSeats: number;
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+  } | null;
+  currentPlan: Plan | null;
+  availablePlans: Plan[];
+}
+
 function OrganizationsTab() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -112,6 +133,9 @@ function OrganizationsTab() {
   const [selectedIndustry, setSelectedIndustry] = useState<string>("");
   const [deactivatedOpen, setDeactivatedOpen] = useState(false);
   const [restoreOrgId, setRestoreOrgId] = useState<number | null>(null);
+  const [billingOrg, setBillingOrg] = useState<Organization | null>(null);
+  const [selectedPlanCode, setSelectedPlanCode] = useState<string | null>(null);
+  const [bonusSeats, setBonusSeats] = useState<string | null>(null);
 
   const { data: organizations, isLoading } = useQuery<Organization[]>({
     queryKey: ['/api/organizations']
@@ -231,6 +255,31 @@ function OrganizationsTab() {
     }
   });
 
+  const { data: billingInfo, isLoading: billingLoading } = useQuery<OrgBillingInfo>({
+    queryKey: ['/api/admin/organizations', billingOrg?.id, 'billing'],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/organizations/${billingOrg?.id}/billing`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch billing');
+      return res.json();
+    },
+    enabled: !!billingOrg,
+  });
+
+  const updateBilling = useMutation({
+    mutationFn: async ({ planCode, bonusSeats }: { planCode?: string; bonusSeats?: number }) => {
+      return apiRequest('PUT', `/api/admin/organizations/${billingOrg?.id}/billing`, { planCode, bonusSeats });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/organizations', billingOrg?.id, 'billing'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${billingOrg?.id}/seats`] });
+      toast({ title: "Success", description: "Organization billing updated" });
+      setBillingOrg(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update billing", variant: "destructive" });
+    }
+  });
+
   if (isLoading) return <Loader2 className="animate-spin" />;
 
   return (
@@ -286,6 +335,19 @@ function OrganizationsTab() {
                       title="Remove all demo data"
                     >
                       <Eraser className="h-4 w-4 text-red-400" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => {
+                        setBillingOrg(org);
+                        setSelectedPlanCode(null);
+                        setBonusSeats(null);
+                      }}
+                      data-testid={`button-billing-${org.id}`}
+                      title="Manage billing & seats"
+                    >
+                      <CreditCard className="h-4 w-4 text-emerald-500" />
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -608,6 +670,110 @@ function OrganizationsTab() {
                   <Eraser className="h-4 w-4 mr-2" />
                   Remove Demo Data
                 </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={billingOrg !== null} onOpenChange={() => setBillingOrg(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-emerald-500" />
+              Manage Billing - {billingOrg?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Override plan and set bonus seats for this organization. Changes bypass normal billing.
+            </DialogDescription>
+          </DialogHeader>
+          {billingLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted border p-4 space-y-2">
+                <p className="text-sm font-medium">Current Status</p>
+                <div className="flex items-center gap-2">
+                  <Badge variant={billingInfo?.subscription ? "default" : "secondary"}>
+                    {billingInfo?.currentPlan?.name || "No Plan"}
+                  </Badge>
+                  {billingInfo?.subscription && (
+                    <Badge variant="outline">
+                      {billingInfo.subscription.status}
+                    </Badge>
+                  )}
+                </div>
+                {billingInfo?.currentPlan && (
+                  <p className="text-sm text-muted-foreground">
+                    Plan seats: {billingInfo.currentPlan.maxSeats === null ? 'Unlimited' : billingInfo.currentPlan.maxSeats}
+                    {(billingInfo?.subscription?.bonusSeats ?? 0) > 0 && ` + ${billingInfo.subscription?.bonusSeats} bonus`}
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Change Plan</Label>
+                <Select 
+                  value={selectedPlanCode ?? billingInfo?.currentPlan?.code ?? ""} 
+                  onValueChange={setSelectedPlanCode}
+                >
+                  <SelectTrigger data-testid="select-plan">
+                    <SelectValue placeholder="Select a plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {billingInfo?.availablePlans?.map(plan => (
+                      <SelectItem key={plan.code} value={plan.code}>
+                        {plan.name} ({plan.maxSeats === null ? 'Unlimited' : `${plan.maxSeats} seats`})
+                        {plan.monthlyPriceCents > 0 ? ` - $${(plan.monthlyPriceCents / 100).toFixed(2)}/mo` : ' - Free'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Bonus Seats</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={bonusSeats ?? billingInfo?.subscription?.bonusSeats?.toString() ?? "0"}
+                  onChange={(e) => setBonusSeats(e.target.value)}
+                  placeholder="0"
+                  data-testid="input-bonus-seats"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Additional seats granted as a bonus. These are added to the plan's seat limit.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBillingOrg(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const finalPlanCode = selectedPlanCode ?? billingInfo?.currentPlan?.code;
+                const finalBonusSeats = bonusSeats !== null 
+                  ? parseInt(bonusSeats) 
+                  : (billingInfo?.subscription?.bonusSeats ?? 0);
+                updateBilling.mutate({
+                  planCode: finalPlanCode,
+                  bonusSeats: isNaN(finalBonusSeats) ? 0 : finalBonusSeats
+                });
+              }}
+              disabled={updateBilling.isPending || billingLoading}
+              data-testid="button-save-billing"
+            >
+              {updateBilling.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
               )}
             </Button>
           </DialogFooter>
