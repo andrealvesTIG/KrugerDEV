@@ -9217,19 +9217,20 @@ Return ONLY valid JSON.`;
       
       let subscription = null;
       
-      // First try to get org subscription if orgId is provided
+      // If orgId is explicitly provided, only show that org's subscription (no fallback)
       if (orgId) {
         subscription = await billingProvider.getSubscriptionForOrg(orgId);
-      }
-      
-      // Fall back to user subscription
-      if (!subscription) {
+        if (!subscription) {
+          // Organization has no subscription - return null to indicate this
+          return res.json(null);
+        }
+      } else {
+        // No orgId provided - show user's personal subscription
         subscription = await billingProvider.getSubscriptionForUser(userId);
-      }
-      
-      if (!subscription) {
-        // Auto-create a free subscription for new users
-        subscription = await billingProvider.createSubscription({ planCode: "FREE", userId });
+        if (!subscription) {
+          // Auto-create a free subscription for new users
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", userId });
+        }
       }
       
       // Get the plan details
@@ -9257,21 +9258,25 @@ Return ONLY valid JSON.`;
       
       let subscription;
       
-      // Try org subscription first if orgId is provided
+      // If orgId is explicitly provided, only show that org's data (no fallback)
       if (orgId) {
         subscription = await billingProvider.getSubscriptionForOrg(orgId);
-      }
-      
-      // Fall back to user subscription
-      if (!subscription) {
+        if (!subscription) {
+          // Organization has no subscription - return empty usage
+          return res.json({
+            credits: { used: 0, included: 0, remaining: 0, limit: 0 },
+            creditCosts: await getAllCreditCosts()
+          });
+        }
+      } else {
+        // No orgId provided - show user's personal subscription
         subscription = await billingProvider.getSubscriptionForUser(userId);
-      }
-      
-      if (!subscription) {
-        return res.json({
-          credits: { used: 0, included: 0, remaining: 0 },
-          creditCosts: []
-        });
+        if (!subscription) {
+          return res.json({
+            credits: { used: 0, included: 0, remaining: 0, limit: 0 },
+            creditCosts: []
+          });
+        }
       }
       
       // Get credits meter
@@ -9500,21 +9505,22 @@ Return ONLY valid JSON.`;
       const offset = parseInt(req.query.offset as string) || 0;
       const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
       
-      // Get subscription - try org subscription first if orgId is provided
+      // Get subscription - if orgId is explicitly provided, only show that org's data (no fallback)
       const { billingProvider } = await import("./services/billing");
       let subscription = null;
       
       if (orgId) {
         subscription = await billingProvider.getSubscriptionForOrg(orgId);
-      }
-      
-      // Fall back to user subscription
-      if (!subscription) {
+        if (!subscription) {
+          // Organization has no subscription - return empty ledger
+          return res.json({ entries: [], total: 0 });
+        }
+      } else {
+        // No orgId provided - show user's personal subscription
         subscription = await billingProvider.getSubscriptionForUser(userId);
-      }
-      
-      if (!subscription) {
-        return res.json({ entries: [], total: 0 });
+        if (!subscription) {
+          return res.json({ entries: [], total: 0 });
+        }
       }
 
       // Query usage events for credits meter with user details
