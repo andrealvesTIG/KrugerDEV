@@ -108,11 +108,37 @@ export default function VerifyMagicLinkPage() {
           return;
         }
 
-        // Ensure auth query is refreshed
-        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        // Ensure all relevant queries are invalidated and refetched before proceeding
+        // This is critical for new users who just had their organization created
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] }),
+          queryClient.invalidateQueries({ queryKey: ["/api/organizations"] }),
+          // Also invalidate user-specific organization queries (used by Profile page)
+          queryClient.invalidateQueries({ predicate: (query) => 
+            Array.isArray(query.queryKey) && 
+            query.queryKey[0] === '/api/users' && 
+            query.queryKey[2] === 'organizations'
+          }),
+        ]);
+        
+        // Wait for all queries to refetch with fresh data before redirecting
+        await Promise.all([
+          queryClient.refetchQueries({ queryKey: ["/api/auth/user"] }),
+          queryClient.refetchQueries({ queryKey: ["/api/organizations"] }),
+        ]);
 
         // Check if a new organization was created - use org details from response
+        // This applies to both regular signups and resource invite signups
         if (result.organizationCreated && result.organizationId && result.organizationName) {
+          // For external share invites, skip demo dialog and go directly to success
+          // since the user is joining as a collaborator, not setting up their own workspace
+          if (result.isExternalShare) {
+            setState("success");
+            // Redirect immediately - data is already loaded
+            setLocation("/");
+            return;
+          }
+          
           setUserOrg({ id: result.organizationId, name: result.organizationName });
           setState("show_demo_dialog");
           return;
@@ -120,10 +146,7 @@ export default function VerifyMagicLinkPage() {
 
         // Default: show success and redirect
         setState("success");
-        await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
-        setTimeout(() => {
-          setLocation("/");
-        }, 1000);
+        setLocation("/");
       } catch (error) {
         setState("error");
         setErrorMessage("An error occurred while verifying your link");

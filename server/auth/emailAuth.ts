@@ -1301,7 +1301,11 @@ export async function setupAuth(app: Express) {
         organizationName: userOrgName,
         sourceOrganizationName: sourceOrgName,
         isNewUser,
-        isExternalShare: true
+        isExternalShare: true,
+        // Include organization details so frontend can show demo dialog for new users
+        organizationCreated: userOrgResult.created,
+        organizationId: userOrgResult.organization?.id,
+        organizationSetupComplete: true
       });
     } catch (error) {
       console.error("Resource invite verification error:", error);
