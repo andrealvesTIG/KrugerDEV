@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List, Users, X } from "lucide-react";
+import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List, Users, X, Calendar, DollarSign, Building2, Target } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -168,28 +169,93 @@ export default function Portfolios() {
                       <CardDescription className="line-clamp-2 mt-2">{portfolio.description}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                      {/* Status and Department Row */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {portfolio.status && (
+                          <Badge 
+                            variant="secondary" 
+                            className={
+                              portfolio.status === "Active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                              portfolio.status === "On Hold" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                              portfolio.status === "Closed" ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" :
+                              "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                            }
+                            data-testid={`badge-status-${portfolio.id}`}
+                          >
+                            {portfolio.status}
+                          </Badge>
+                        )}
+                        {portfolio.department && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground" data-testid={`text-department-${portfolio.id}`}>
+                            <Building2 className="h-3 w-3" />
+                            <span>{portfolio.department}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Projects Count */}
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Briefcase className="h-4 w-4" />
                         <span>{healthSummary.total} Project{healthSummary.total !== 1 ? 's' : ''}</span>
                       </div>
                       
+                      {/* Health Summary Badges */}
                       {healthSummary.total > 0 && (
                         <div className="flex items-center gap-2 flex-wrap">
                           {healthSummary.green > 0 && (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-xs">
+                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs">
                               {healthSummary.green} Healthy
                             </Badge>
                           )}
                           {healthSummary.yellow > 0 && (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-xs">
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
                               {healthSummary.yellow} At Risk
                             </Badge>
                           )}
                           {healthSummary.red > 0 && (
-                            <Badge variant="secondary" className="bg-rose-100 text-rose-700 text-xs">
+                            <Badge variant="secondary" className="bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 text-xs">
                               {healthSummary.red} Critical
                             </Badge>
                           )}
+                        </div>
+                      )}
+
+                      {/* Budget Progress */}
+                      {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 && (
+                        <div className="space-y-1.5" data-testid={`budget-info-${portfolio.id}`}>
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <DollarSign className="h-3 w-3" />
+                              <span>Budget</span>
+                            </div>
+                            <span className="font-medium">
+                              ${Number(portfolio.budgetSpent || 0).toLocaleString()} / ${Number(portfolio.budgetAllocated).toLocaleString()}
+                            </span>
+                          </div>
+                          <Progress 
+                            value={Math.min((Number(portfolio.budgetSpent || 0) / Number(portfolio.budgetAllocated)) * 100, 100)} 
+                            className="h-1.5"
+                          />
+                        </div>
+                      )}
+
+                      {/* Timeline */}
+                      {(portfolio.targetStartDate || portfolio.targetEndDate) && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid={`timeline-info-${portfolio.id}`}>
+                          <Calendar className="h-3 w-3" />
+                          <span>
+                            {portfolio.targetStartDate ? new Date(portfolio.targetStartDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'TBD'}
+                            {' — '}
+                            {portfolio.targetEndDate ? new Date(portfolio.targetEndDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'TBD'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Strategic Objective Preview */}
+                      {portfolio.strategicObjective && (
+                        <div className="flex items-start gap-2 text-xs text-muted-foreground" data-testid={`objective-info-${portfolio.id}`}>
+                          <Target className="h-3 w-3 mt-0.5 shrink-0" />
+                          <span className="line-clamp-1">{portfolio.strategicObjective}</span>
                         </div>
                       )}
 
