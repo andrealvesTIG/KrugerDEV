@@ -209,46 +209,35 @@ export default function SignInPage() {
         </div>
       </nav>
       {/* Hero Section with Video */}
-      <section className="relative pt-24 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <section className="relative pt-20 pb-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
         </div>
         
         <div className="max-w-7xl mx-auto relative">
-          <div className="text-center max-w-4xl mx-auto mb-10">
-            <Badge variant="secondary" className="mb-4 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
-              <Zap className="h-3 w-3 mr-1" />
-              Enterprise-Grade Project Portfolio Management
-            </Badge>
-            
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight">
+          <div className="text-center max-w-3xl mx-auto mb-6">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 leading-tight">
               Deliver Projects with
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400"> Confidence</span>
             </h1>
             
-            <p className="text-base sm:text-lg text-slate-300 mb-6 max-w-2xl mx-auto leading-relaxed">Industrial-proof PPM platform trusted by enterprise teams to manage portfolios, track progress, and deliver strategic initiatives on time and within budget.</p>
+            <p className="text-sm sm:text-base text-slate-300 mb-4 max-w-xl mx-auto">Enterprise PPM platform to manage portfolios, track progress, and deliver on time.</p>
             
-            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-              <Button 
-                size="lg" 
-                onClick={scrollToSignIn}
-                className="bg-primary hover:bg-primary/90 text-white px-8 py-6 text-lg shadow-lg shadow-primary/25"
-                data-testid="button-hero-start-trial"
-              >
-                Get Started Free
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </div>
-            
-            <p className="mt-4 text-sm text-slate-400">
-              Free forever for small teams. No credit card required.
-            </p>
+            <Button 
+              size="default" 
+              onClick={scrollToSignIn}
+              className="bg-primary hover:bg-primary/90 text-white px-6 shadow-lg shadow-primary/25"
+              data-testid="button-hero-start-trial"
+            >
+              Get Started Free
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </div>
           
-          <div className="relative max-w-5xl mx-auto">
-            <div className="absolute -inset-4 bg-gradient-to-r from-primary/30 via-orange-500/20 to-primary/30 rounded-2xl blur-xl opacity-60" />
-            <div className="relative rounded-xl overflow-hidden border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900">
+          <div className="relative max-w-4xl mx-auto">
+            <div className="absolute -inset-2 bg-gradient-to-r from-primary/30 via-orange-500/20 to-primary/30 rounded-xl blur-lg opacity-50" />
+            <div className="relative rounded-lg overflow-hidden border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900">
               <video
                 autoPlay
                 muted
@@ -260,12 +249,6 @@ export default function SignInPage() {
                 <source src={demoVideo} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
-            </div>
-            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2">
-              <Badge className="bg-slate-800/90 text-slate-300 border border-slate-600 backdrop-blur-sm">
-                <Play className="h-3 w-3 mr-1.5 text-primary" />
-                See FridayReport.AI in action
-              </Badge>
             </div>
           </div>
         </div>
