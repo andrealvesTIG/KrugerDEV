@@ -135,6 +135,9 @@ export class MockBillingProvider implements BillingProvider {
 
     // Get current member count
     const currentSeats = await this.getOrgMemberCount(orgId);
+    
+    // Get bonus seats from subscription
+    const bonusSeats = subscription.bonusSeats || 0;
 
     // If maxSeats is null, unlimited seats
     if (plan.maxSeats === null) {
@@ -146,15 +149,17 @@ export class MockBillingProvider implements BillingProvider {
       };
     }
 
-    const remaining = Math.max(0, plan.maxSeats - currentSeats);
-    const allowed = currentSeats + seatsToAdd <= plan.maxSeats;
+    // Total available seats = plan seats + bonus seats
+    const totalMaxSeats = plan.maxSeats + bonusSeats;
+    const remaining = Math.max(0, totalMaxSeats - currentSeats);
+    const allowed = currentSeats + seatsToAdd <= totalMaxSeats;
 
     return {
       allowed,
       currentSeats,
-      maxSeats: plan.maxSeats,
+      maxSeats: totalMaxSeats,
       remaining,
-      reason: !allowed ? `Your ${plan.name} plan allows ${plan.maxSeats} seat${plan.maxSeats === 1 ? '' : 's'}. You currently have ${currentSeats}. Please upgrade to add more team members.` : undefined
+      reason: !allowed ? `Your ${plan.name} plan allows ${plan.maxSeats} seat${plan.maxSeats === 1 ? '' : 's'}${bonusSeats > 0 ? ` plus ${bonusSeats} bonus seat${bonusSeats === 1 ? '' : 's'}` : ''}. You currently have ${currentSeats}. Please upgrade to add more team members.` : undefined
     };
   }
 

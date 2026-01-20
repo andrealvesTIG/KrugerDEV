@@ -1716,7 +1716,8 @@ export async function registerRoutes(
         pendingInvites,
         planName,
         planCode,
-        subscriptionId: subscription?.id || null
+        subscriptionId: subscription?.id || null,
+        bonusSeats: subscription?.bonusSeats || 0
       });
     } catch (err) {
       console.error("Error fetching seat info:", err);
