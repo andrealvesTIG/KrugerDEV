@@ -1189,6 +1189,32 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               </p>
             )}
           </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border">
+            <div>
+              <Label className="text-xs text-muted-foreground">Created By</Label>
+              <p className="text-sm text-foreground" data-testid="text-created-by">
+                {(project as any).createdByName || (project as any).createdBy || '-'}
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Created On</Label>
+              <p className="text-sm text-foreground" data-testid="text-created-on">
+                {project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : '-'}
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Modified By</Label>
+              <p className="text-sm text-foreground" data-testid="text-modified-by">
+                {(project as any).updatedByName || (project as any).updatedBy || '-'}
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Modified On</Label>
+              <p className="text-sm text-foreground" data-testid="text-modified-on">
+                {(project as any).updatedAt ? format(new Date((project as any).updatedAt), 'MMM d, yyyy') : '-'}
+              </p>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

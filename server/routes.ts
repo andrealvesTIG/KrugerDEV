@@ -2951,7 +2951,30 @@ export async function registerRoutes(
   app.get(api.projects.get.path, async (req, res) => {
     const project = await storage.getProject(Number(req.params.id));
     if (!project) return res.status(404).json({ message: "Project not found" });
-    res.json(project);
+    
+    // Fetch user names for createdBy and updatedBy
+    let createdByName = null;
+    let updatedByName = null;
+    
+    if ((project as any).createdBy) {
+      const [createdByUser] = await db.select().from(users).where(eq(users.id, (project as any).createdBy));
+      createdByName = createdByUser ? (createdByUser.firstName && createdByUser.lastName 
+        ? `${createdByUser.firstName} ${createdByUser.lastName}` 
+        : createdByUser.username || createdByUser.email) : null;
+    }
+    
+    if ((project as any).updatedBy) {
+      const [updatedByUser] = await db.select().from(users).where(eq(users.id, (project as any).updatedBy));
+      updatedByName = updatedByUser ? (updatedByUser.firstName && updatedByUser.lastName 
+        ? `${updatedByUser.firstName} ${updatedByUser.lastName}` 
+        : updatedByUser.username || updatedByUser.email) : null;
+    }
+    
+    res.json({
+      ...project,
+      createdByName,
+      updatedByName
+    });
   });
 
   app.post(api.projects.create.path, async (req, res) => {
@@ -2982,6 +3005,9 @@ export async function registerRoutes(
         ...input,
         startDate: input.startDate || null,
         endDate: input.endDate || null,
+        createdBy: userId || null,
+        updatedAt: new Date(),
+        updatedBy: userId || null,
       };
       const project = await storage.createProject(sanitizedInput);
       
@@ -3994,6 +4020,7 @@ export async function registerRoutes(
   app.put(api.projects.update.path, async (req, res) => {
     try {
       const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
       const existing = await storage.getProject(projectId);
       if (!existing) return res.status(404).json({ message: "Project not found" });
       
@@ -4002,6 +4029,8 @@ export async function registerRoutes(
         ...input,
         startDate: input.startDate || null,
         endDate: input.endDate || null,
+        updatedAt: new Date(),
+        updatedBy: userId || null,
       };
       const updated = await storage.updateProject(projectId, sanitizedInput);
       

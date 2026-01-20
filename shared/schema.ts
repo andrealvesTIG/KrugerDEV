@@ -190,6 +190,9 @@ export const projects = pgTable("projects", {
   sourceFileUrl: text("source_file_url"), // URL to the original imported file (in object storage)
   notes: text("notes"), // Additional notes
   createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id), // Who created the project
+  updatedAt: timestamp("updated_at").defaultNow(), // Last modification date
+  updatedBy: varchar("updated_by").references(() => users.id), // Who last modified the project
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
