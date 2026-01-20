@@ -1008,19 +1008,6 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
             </Select>
           </div>
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Status</Label>
-            <Select value={project.status || "Initiation"} onValueChange={(v) => handleSelectChange('status', v)}>
-              <SelectTrigger className="h-8 text-sm" data-testid="select-project-status"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Initiation">Initiation</SelectItem>
-                <SelectItem value="Planning">Planning</SelectItem>
-                <SelectItem value="Execution">Execution</SelectItem>
-                <SelectItem value="Monitoring">Monitoring</SelectItem>
-                <SelectItem value="Closing">Closing</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Priority</Label>
             <Select value={project.priority || "Medium"} onValueChange={(v) => handleSelectChange('priority', v)}>
               <SelectTrigger className="h-8 text-sm" data-testid="select-project-priority"><SelectValue /></SelectTrigger>
