@@ -444,7 +444,7 @@ export class DatabaseStorage implements IStorage {
     }
     // 35. Delete external shares where this user is either the recipient or the sharer
     await db.delete(externalShares).where(eq(externalShares.sharedWithUserId, id));
-    await db.delete(externalShares).where(eq(externalShares.sharedByUserId, id));
+    await db.delete(externalShares).where(eq(externalShares.sharedBy, id));
     // 36. Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
