@@ -18,6 +18,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { ResourceSelector } from "@/components/ResourceSelector";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
+import { ProjectStatusReport } from "@/components/ProjectStatusReport";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -415,6 +416,7 @@ export default function ProjectDetails() {
           <TabsTrigger value="financials" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-financials">Financials</TabsTrigger>
           <TabsTrigger value="change-requests" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-change-requests">Change Requests</TabsTrigger>
           <TabsTrigger value="documents" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-documents">Documents</TabsTrigger>
+          <TabsTrigger value="status-report" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-status-report">Status Report</TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
@@ -437,6 +439,18 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="documents">
             <DocumentsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="status-report">
+            <StatusReportTab 
+              project={project}
+              risks={projectRisks || []}
+              issues={projectIssues || []}
+              milestones={projectMilestones || []}
+              financials={financials || []}
+              tasks={projectTasks || []}
+              changeRequests={projectChangeRequests || []}
+              documents={projectDocuments || []}
+            />
           </TabsContent>
         </div>
       </Tabs>
@@ -8999,6 +9013,55 @@ function DocumentsTab({ projectId }: { projectId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </Card>
+  );
+}
+
+interface StatusReportTabProps {
+  project: any;
+  risks: Risk[];
+  issues: Issue[];
+  milestones: any[];
+  financials: ProjectFinancial[];
+  tasks: Task[];
+  changeRequests: ChangeRequest[];
+  documents: ProjectDocument[];
+}
+
+function StatusReportTab({
+  project,
+  risks,
+  issues,
+  milestones,
+  financials,
+  tasks,
+  changeRequests,
+  documents
+}: StatusReportTabProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-5 w-5" />
+          Comprehensive Project Status Report
+        </CardTitle>
+        <CardDescription>
+          Complete overview of project status, progress, risks, issues, and financials
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ProjectStatusReport
+          project={project}
+          risks={risks}
+          issues={issues}
+          milestones={milestones}
+          financials={financials}
+          tasks={tasks}
+          changeRequests={changeRequests}
+          documents={documents}
+          executiveSummary={project.description || ""}
+        />
+      </CardContent>
     </Card>
   );
 }
