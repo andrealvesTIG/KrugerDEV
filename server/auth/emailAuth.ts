@@ -728,6 +728,19 @@ export async function setupAuth(app: Express) {
         detectedCompany = name.charAt(0).toUpperCase() + name.slice(1);
       }
 
+      // Parse metadata to check for terms acceptance
+      let termsAcceptedAt: Date | null = null;
+      if (magicToken.metadata) {
+        try {
+          const metadata = JSON.parse(magicToken.metadata);
+          if (metadata.termsAccepted) {
+            termsAcceptedAt = new Date();
+          }
+        } catch (e) {
+          console.error("Error parsing magic link metadata:", e);
+        }
+      }
+
       // Create the user (passwordless - no password hash)
       // emailVerified is true for passwordless signups since they verified via the magic link
       const [newUser] = await db.insert(users).values({
@@ -737,6 +750,7 @@ export async function setupAuth(app: Express) {
         detectedIndustry: null,
         onboardingCompleted: false,
         emailVerified: true,
+        termsAcceptedAt,
       }).returning();
 
       console.log("User created via magic link:", newUser.id);
@@ -787,7 +801,7 @@ export async function setupAuth(app: Express) {
   // Passwordless authentication - request (handles both new and existing users)
   app.post("/api/auth/passwordless/request", async (req, res) => {
     try {
-      const { email, turnstileToken, honeypot1, honeypot2, formLoadTime } = req.body;
+      const { email, turnstileToken, honeypot1, honeypot2, formLoadTime, termsAccepted } = req.body;
       console.log("Passwordless auth request for:", email);
 
       // Verify honeypot (bot protection without external service)
@@ -864,6 +878,7 @@ export async function setupAuth(app: Express) {
           token,
           type: "signup",
           expiresAt,
+          metadata: termsAccepted ? JSON.stringify({ termsAccepted: true }) : null,
         });
 
         const verifyUrl = `${appUrl}/auth/verify?token=${token}`;
