@@ -465,6 +465,23 @@ export default function Tasks() {
             </TabsList>
           </Tabs>
           
+          <Button
+            variant={myAssignmentsOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setMyAssignmentsOnly(!myAssignmentsOnly)}
+            disabled={!myResourceId}
+            className="gap-2"
+            data-testid="button-my-assignments"
+          >
+            <UserIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">My Assignments</span>
+            {myAssignmentsOnly && myResourceId && (
+              <Badge variant="secondary" className="text-xs">
+                {myTaskIds.size}
+              </Badge>
+            )}
+          </Button>
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-9 w-9" data-testid="button-task-options">
@@ -472,23 +489,6 @@ export default function Tasks() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuCheckboxItem
-                checked={myAssignmentsOnly}
-                onCheckedChange={setMyAssignmentsOnly}
-                disabled={!myResourceId}
-                data-testid="menu-my-assignments"
-              >
-                <UserIcon className="h-4 w-4 mr-2" />
-                My Assignments
-                {myAssignmentsOnly && myResourceId && (
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {myTaskIds.size}
-                  </Badge>
-                )}
-              </DropdownMenuCheckboxItem>
-              
-              <DropdownMenuSeparator />
-              
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <Filter className="h-4 w-4 mr-2" />
