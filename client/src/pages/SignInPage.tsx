@@ -30,6 +30,7 @@ import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/Turnstile
 import { HoneypotField } from "@/components/HoneypotField";
 import { Footer } from "@/components/layout/Footer";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import demoVideo from "@assets/riverside_managing_risks_&_issues_in_projects_trusted_it_group_1768939954684.mp4";
 
 const features = [
   {
@@ -207,28 +208,28 @@ export default function SignInPage() {
           </div>
         </div>
       </nav>
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      {/* Hero Section with Video */}
+      <section className="relative pt-24 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
         </div>
         
         <div className="max-w-7xl mx-auto relative">
-          <div className="text-center max-w-4xl mx-auto">
-            <Badge variant="secondary" className="mb-6 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
+          <div className="text-center max-w-4xl mx-auto mb-10">
+            <Badge variant="secondary" className="mb-4 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
               <Zap className="h-3 w-3 mr-1" />
               Enterprise-Grade Project Portfolio Management
             </Badge>
             
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight">
               Deliver Projects with
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400"> Confidence</span>
             </h1>
             
-            <p className="text-lg sm:text-xl text-slate-300 mb-8 max-w-2xl mx-auto leading-relaxed">Industrial-proof PPM platform trusted by enterprise teams to manage portfolios, track progress, and deliver strategic initiatives on time and within budget.</p>
+            <p className="text-base sm:text-lg text-slate-300 mb-6 max-w-2xl mx-auto leading-relaxed">Industrial-proof PPM platform trusted by enterprise teams to manage portfolios, track progress, and deliver strategic initiatives on time and within budget.</p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
               <Button 
                 size="lg" 
                 onClick={scrollToSignIn}
@@ -238,20 +239,34 @@ export default function SignInPage() {
                 Get Started Free
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
-              <Button 
-                variant="outline" 
-                size="lg"
-                className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white px-8 py-6 text-lg"
-                data-testid="button-hero-watch-demo"
-              >
-                <Play className="mr-2 h-5 w-5" />
-                Watch Demo
-              </Button>
             </div>
             
-            <p className="mt-6 text-sm text-slate-400">
+            <p className="mt-4 text-sm text-slate-400">
               Free forever for small teams. No credit card required.
             </p>
+          </div>
+          
+          <div className="relative max-w-5xl mx-auto">
+            <div className="absolute -inset-4 bg-gradient-to-r from-primary/30 via-orange-500/20 to-primary/30 rounded-2xl blur-xl opacity-60" />
+            <div className="relative rounded-xl overflow-hidden border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900">
+              <video
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="w-full h-auto"
+                data-testid="video-demo"
+              >
+                <source src={demoVideo} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2">
+              <Badge className="bg-slate-800/90 text-slate-300 border border-slate-600 backdrop-blur-sm">
+                <Play className="h-3 w-3 mr-1.5 text-primary" />
+                See FridayReport.AI in action
+              </Badge>
+            </div>
           </div>
         </div>
       </section>
