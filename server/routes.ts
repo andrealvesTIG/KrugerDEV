@@ -1566,6 +1566,7 @@ export async function registerRoutes(
       }
       
       const { billingProvider } = await import("./services/billing");
+      const { plans } = await import("@shared/schema");
       const subscription = await billingProvider.getSubscriptionForOrg(orgId);
       
       // Get all available plans
@@ -1612,6 +1613,7 @@ export async function registerRoutes(
       }
       
       const { billingProvider } = await import("./services/billing");
+      const { plans, subscriptions, billingAuditLogs } = await import("@shared/schema");
       let subscription = await billingProvider.getSubscriptionForOrg(orgId);
       
       // If no subscription exists, create one
@@ -9174,7 +9176,7 @@ Return ONLY valid JSON.`;
     }
   });
 
-  // Get current user's subscription
+  // Get subscription - supports both user and org-based subscriptions
   app.get('/api/billing/subscription', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
@@ -9186,7 +9188,20 @@ Return ONLY valid JSON.`;
       const { plans } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
       
-      let subscription = await billingProvider.getSubscriptionForUser(userId);
+      const orgIdParam = req.query.orgId;
+      const orgId = orgIdParam ? parseInt(orgIdParam as string) : null;
+      
+      let subscription = null;
+      
+      // First try to get org subscription if orgId is provided
+      if (orgId) {
+        subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      }
+      
+      // Fall back to user subscription
+      if (!subscription) {
+        subscription = await billingProvider.getSubscriptionForUser(userId);
+      }
       
       if (!subscription) {
         // Auto-create a free subscription for new users
