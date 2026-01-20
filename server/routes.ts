@@ -10941,6 +10941,12 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'Missing required fields' });
       }
 
+      // Validate hours value
+      const hoursNum = parseFloat(hours);
+      if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
+        return res.status(400).json({ message: 'Hours must be between 0 and 24' });
+      }
+
       // Verify user is assigned to this task
       const resources = await storage.getResources(organizationId);
       const userResource = resources.find(r => r.userId === userId);
@@ -11014,6 +11020,12 @@ Return ONLY valid JSON.`;
 
       const results = [];
       for (const entry of entries) {
+        // Validate hours for all entries
+        const hoursNum = parseFloat(entry.hours);
+        if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
+          continue; // Skip entries with invalid hours
+        }
+
         if (entry.id) {
           // Update existing - verify ownership and draft status
           const existing = await storage.getTimesheetEntry(entry.id);
@@ -11028,11 +11040,11 @@ Return ONLY valid JSON.`;
           }
           
           const updated = await storage.updateTimesheetEntry(entry.id, {
-            hours: String(entry.hours),
+            hours: String(hoursNum),
             notes: entry.notes,
           });
           results.push(updated);
-        } else if (entry.hours > 0) {
+        } else if (hoursNum > 0) {
           // Create new - verify task assignment
           const isAssigned = await validateTaskAssignment(entry.taskId);
           if (!isAssigned) {
@@ -11085,8 +11097,17 @@ Return ONLY valid JSON.`;
       }
 
       const { hours, notes } = req.body;
+      
+      // Validate hours if provided
+      if (hours !== undefined) {
+        const hoursNum = parseFloat(hours);
+        if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
+          return res.status(400).json({ message: 'Hours must be between 0 and 24' });
+        }
+      }
+
       const updated = await storage.updateTimesheetEntry(id, {
-        hours: hours !== undefined ? String(hours) : undefined,
+        hours: hours !== undefined ? String(parseFloat(hours)) : undefined,
         notes,
       });
 

@@ -222,7 +222,29 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   }, [entries, assignedTasks, dates]);
 
   const handleHoursChange = (taskId: number, dateKey: string, value: string) => {
-    const numValue = value.replace(/[^0-9.]/g, "");
+    // Allow only numbers and one decimal point
+    let numValue = value.replace(/[^0-9.]/g, "");
+    
+    // Prevent multiple decimal points
+    const parts = numValue.split(".");
+    if (parts.length > 2) {
+      numValue = parts[0] + "." + parts.slice(1).join("");
+    }
+    
+    // Limit to 2 decimal places
+    if (parts.length === 2 && parts[1].length > 2) {
+      numValue = parts[0] + "." + parts[1].slice(0, 2);
+    }
+    
+    // Validate the value is within reasonable limits (0-24 hours per day per task)
+    const parsedValue = parseFloat(numValue);
+    if (!isNaN(parsedValue) && parsedValue > 24) {
+      numValue = "24";
+    }
+    if (!isNaN(parsedValue) && parsedValue < 0) {
+      numValue = "0";
+    }
+    
     setGridData(prev => ({
       ...prev,
       [taskId]: {
