@@ -1528,6 +1528,30 @@ export async function registerRoutes(
     }
   });
 
+  // Get all organization members (super_admin only)
+  app.get('/api/admin/organization-members', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
+      const allMembers = await db.select({
+        organizationId: organizationMembers.organizationId,
+        userId: organizationMembers.userId,
+      }).from(organizationMembers);
+      
+      res.json(allMembers);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to get organization members' });
+    }
+  });
+
   // Reactivate (restore) organization (super_admin only)
   app.post('/api/admin/organizations/:id/reactivate', async (req, res) => {
     try {
