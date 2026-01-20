@@ -1,13 +1,69 @@
 import { ConfidentialClientApplication, AuthorizationCodeRequest, Configuration } from "@azure/msal-node";
 import { Express, Request, Response } from "express";
 import crypto from "crypto";
+import { db } from "../db";
+import { organizationIntegrations } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 
 declare module "express-session" {
   interface SessionData {
     plannerOAuthState?: string;
+    plannerOAuthOrgId?: number; // Organization ID for the OAuth flow
     plannerAccessToken?: string;
     plannerRefreshToken?: string;
     plannerTokenExpiry?: number;
+  }
+}
+
+// Helper functions for org-scoped integration storage
+async function getOrgIntegration(organizationId: number, integrationType: string) {
+  const [integration] = await db
+    .select()
+    .from(organizationIntegrations)
+    .where(
+      and(
+        eq(organizationIntegrations.organizationId, organizationId),
+        eq(organizationIntegrations.integrationType, integrationType)
+      )
+    );
+  return integration;
+}
+
+async function upsertOrgIntegration(
+  organizationId: number,
+  integrationType: string,
+  data: {
+    accessToken?: string | null;
+    refreshToken?: string | null;
+    tokenExpiry?: Date | null;
+    connectionStatus?: string;
+    connectedBy?: string;
+    connectedAt?: Date;
+    additionalData?: string;
+  }
+) {
+  const existing = await getOrgIntegration(organizationId, integrationType);
+  
+  if (existing) {
+    await db
+      .update(organizationIntegrations)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(organizationIntegrations.id, existing.id));
+  } else {
+    await db.insert(organizationIntegrations).values({
+      organizationId,
+      integrationType,
+      accessToken: data.accessToken || null,
+      refreshToken: data.refreshToken || null,
+      tokenExpiry: data.tokenExpiry || null,
+      connectionStatus: data.connectionStatus || "disconnected",
+      connectedBy: data.connectedBy || null,
+      connectedAt: data.connectedAt || null,
+      additionalData: data.additionalData || null,
+    });
   }
 }
 
@@ -123,14 +179,31 @@ async function fetchWithToken(url: string, token: string): Promise<Response> {
 }
 
 export async function setupPlannerRoutes(app: Express) {
-  app.get("/api/planner/status", (req, res) => {
+  // Organization-scoped status endpoint
+  app.get("/api/planner/status", async (req, res) => {
     const isConfigured = !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET);
-    const hasToken = !!req.session.plannerAccessToken;
-    const isExpired = req.session.plannerTokenExpiry ? Date.now() > req.session.plannerTokenExpiry : true;
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+    
+    if (!organizationId) {
+      // Fallback to session-based check for backward compatibility
+      const hasToken = !!req.session.plannerAccessToken;
+      const isExpired = req.session.plannerTokenExpiry ? Date.now() > req.session.plannerTokenExpiry : true;
+      return res.json({ 
+        configured: isConfigured, 
+        connected: hasToken && !isExpired,
+        needsRefresh: hasToken && isExpired && !!req.session.plannerRefreshToken
+      });
+    }
+    
+    // Check organization-scoped integration
+    const integration = await getOrgIntegration(organizationId, "planner");
+    const hasToken = !!integration?.accessToken;
+    const isExpired = integration?.tokenExpiry ? Date.now() > new Date(integration.tokenExpiry).getTime() : true;
+    
     res.json({ 
       configured: isConfigured, 
       connected: hasToken && !isExpired,
-      needsRefresh: hasToken && isExpired && !!req.session.plannerRefreshToken
+      needsRefresh: hasToken && isExpired && !!integration?.refreshToken
     });
   });
 
@@ -142,8 +215,14 @@ export async function setupPlannerRoutes(app: Express) {
       });
     }
 
+    const organizationId = req.body.organizationId ? Number(req.body.organizationId) : null;
+    if (!organizationId) {
+      return res.status(400).json({ message: "Organization ID is required" });
+    }
+
     const state = generateSecureToken();
     req.session.plannerOAuthState = state;
+    req.session.plannerOAuthOrgId = organizationId;
     
     await new Promise<void>((resolve, reject) => {
       req.session.save((err) => {
@@ -175,24 +254,30 @@ export async function setupPlannerRoutes(app: Express) {
 
     if (error) {
       console.error("Planner OAuth error:", error, error_description);
-      return res.redirect(`/projects?error=${encodeURIComponent(String(error_description || error))}`);
+      return res.redirect(`/integrations?error=${encodeURIComponent(String(error_description || error))}`);
     }
 
     const savedState = req.session.plannerOAuthState;
+    const organizationId = req.session.plannerOAuthOrgId;
     delete req.session.plannerOAuthState;
+    delete req.session.plannerOAuthOrgId;
 
     if (!state || state !== savedState) {
       console.error("CSRF state mismatch");
-      return res.redirect("/projects?error=Security validation failed");
+      return res.redirect("/integrations?error=Security validation failed");
     }
 
     if (!code || typeof code !== "string") {
-      return res.redirect("/projects?error=No authorization code received");
+      return res.redirect("/integrations?error=No authorization code received");
+    }
+
+    if (!organizationId) {
+      return res.redirect("/integrations?error=Organization context lost");
     }
 
     const client = getPlannerMsalClient();
     if (!client) {
-      return res.redirect("/projects?error=Configuration error");
+      return res.redirect("/integrations?error=Configuration error");
     }
 
     try {
@@ -210,6 +295,18 @@ export async function setupPlannerRoutes(app: Express) {
         throw new Error("No access token received");
       }
 
+      // Store tokens in organization-scoped integration
+      const userId = (req.session as any)?.passport?.user?.id || req.session.userId;
+      await upsertOrgIntegration(organizationId, "planner", {
+        accessToken: response.accessToken,
+        refreshToken: null, // MSAL doesn't always return refresh token
+        tokenExpiry: response.expiresOn || null,
+        connectionStatus: "connected",
+        connectedBy: userId,
+        connectedAt: new Date(),
+      });
+
+      // Also store in session for backward compatibility
       req.session.plannerAccessToken = response.accessToken;
       if (response.expiresOn) {
         req.session.plannerTokenExpiry = response.expiresOn.getTime();
@@ -222,14 +319,27 @@ export async function setupPlannerRoutes(app: Express) {
         });
       });
 
-      res.redirect("/projects?plannerConnected=true");
+      res.redirect("/integrations?plannerConnected=true");
     } catch (error) {
       console.error("Planner token error:", error);
-      res.redirect("/projects?error=Failed to complete authentication");
+      res.redirect("/integrations?error=Failed to complete authentication");
     }
   });
 
-  app.post("/api/planner/disconnect", (req, res) => {
+  app.post("/api/planner/disconnect", async (req, res) => {
+    const organizationId = req.body.organizationId ? Number(req.body.organizationId) : null;
+    
+    if (organizationId) {
+      // Clear organization-scoped integration
+      await upsertOrgIntegration(organizationId, "planner", {
+        accessToken: null,
+        refreshToken: null,
+        tokenExpiry: null,
+        connectionStatus: "disconnected",
+      });
+    }
+    
+    // Also clear session for backward compatibility
     delete req.session.plannerAccessToken;
     delete req.session.plannerRefreshToken;
     delete req.session.plannerTokenExpiry;

@@ -45,8 +45,13 @@ export function PlannerImportWizard({
   const { toast } = useToast();
 
   const { data: status, refetch: refetchStatus } = useQuery<PlannerStatus>({
-    queryKey: ["/api/planner/status"],
-    enabled: open,
+    queryKey: ["/api/planner/status", organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/planner/status?organizationId=${organizationId}`);
+      if (!res.ok) throw new Error('Failed to fetch planner status');
+      return res.json();
+    },
+    enabled: open && !!organizationId,
   });
 
   const { data: plansData, isLoading: loadingPlans, refetch: refetchPlans } = useQuery<{ plans: PlannerPlan[] }>({
@@ -72,7 +77,7 @@ export function PlannerImportWizard({
 
   const connectMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/planner/connect", {});
+      const response = await apiRequest("POST", "/api/planner/connect", { organizationId });
       return response.json();
     },
     onSuccess: (data: any) => {
@@ -87,7 +92,7 @@ export function PlannerImportWizard({
 
   const disconnectMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/planner/disconnect", {});
+      const response = await apiRequest("POST", "/api/planner/disconnect", { organizationId });
       const text = await response.text();
       return text ? JSON.parse(text) : {};
     },

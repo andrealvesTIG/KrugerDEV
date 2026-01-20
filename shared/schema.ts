@@ -756,6 +756,21 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Organization-specific integration settings
+export const organizationIntegrations = pgTable("organization_integrations", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  integrationType: text("integration_type").notNull(), // "planner", "planner_premium", "project_online", etc.
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiry: timestamp("token_expiry"),
+  connectionStatus: text("connection_status").default("disconnected"), // "connected", "disconnected", "expired"
+  additionalData: text("additional_data"), // JSON string for integration-specific config
+  connectedBy: text("connected_by"), // User ID who connected
+  connectedAt: timestamp("connected_at"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // === RELATIONS ===
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
@@ -1140,6 +1155,14 @@ export type UpdateProjectDocumentRequest = Partial<InsertProjectDocument>;
 
 export type CreateTimesheetEntryRequest = InsertTimesheetEntry;
 export type UpdateTimesheetEntryRequest = Partial<InsertTimesheetEntry>;
+
+// Organization Integrations
+export const insertOrganizationIntegrationSchema = createInsertSchema(organizationIntegrations).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertOrganizationIntegration = z.infer<typeof insertOrganizationIntegrationSchema>;
+export type OrganizationIntegration = typeof organizationIntegrations.$inferSelect;
 
 // Custom Dashboards - AI-generated dashboards saved by users
 export const customDashboards = pgTable("custom_dashboards", {

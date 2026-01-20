@@ -749,10 +749,15 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const [selectedMsProjectFile, setSelectedMsProjectFile] = useState<File | null>(null);
   const msProjectFileInputRef = useRef<HTMLInputElement>(null);
   
-  // Check Planner connection status - only when dialog is open and Planner source selected
+  // Check Planner connection status - only when dialog is open and Planner source selected (org-scoped)
   const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
-    queryKey: ["/api/planner/status"],
-    enabled: open && projectSource === "planner",
+    queryKey: ["/api/planner/status", organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/planner/status?organizationId=${organizationId}`);
+      if (!res.ok) throw new Error('Failed to fetch planner status');
+      return res.json();
+    },
+    enabled: open && projectSource === "planner" && !!organizationId,
   });
 
   // Fetch Planner plans when connected - only when dialog is open and connected
@@ -761,10 +766,10 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
     enabled: open && projectSource === "planner" && plannerStatus?.connected === true,
   });
 
-  // Connect to Planner mutation
+  // Connect to Planner mutation (org-scoped)
   const connectPlanner = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/planner/connect");
+      const response = await apiRequest("POST", "/api/planner/connect", { organizationId });
       return response.json();
     },
     onSuccess: (data: { authUrl: string }) => {
