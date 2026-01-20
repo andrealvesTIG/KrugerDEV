@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle } from "lucide-react";
 import { SiPaypal } from "react-icons/si";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
@@ -398,9 +398,7 @@ export default function Billing() {
     );
   }
 
-  // Determine if we're viewing an org without a subscription
-  const hasNoOrgSubscription = currentOrganization?.id && !subscription;
-  const currentPlan = subscription?.plan || (hasNoOrgSubscription ? null : plans?.find(p => p.code === "FREE"));
+  const currentPlan = subscription?.plan || plans?.find(p => p.code === "FREE");
   const sortedPlans = plans ? [...plans].sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)) : [];
 
   const copyReferralLink = () => {
@@ -579,26 +577,6 @@ export default function Billing() {
             </CardContent>
           </Card>
         </div>
-      )}
-
-      {/* Show message when viewing organization without a subscription */}
-      {hasNoOrgSubscription && (
-        <Card data-testid="card-no-subscription">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertCircle className="h-4 w-4 text-muted-foreground" />
-              No Subscription
-            </CardTitle>
-            <CardDescription className="text-sm">
-              This organization does not have an active subscription.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground">
-              Select a plan below to set up billing for <strong>{currentOrganization?.name}</strong>.
-            </p>
-          </CardContent>
-        </Card>
       )}
 
       <div className="space-y-4">

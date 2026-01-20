@@ -11,7 +11,7 @@ import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPerc
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards, organizationMembers } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -9221,8 +9221,8 @@ Return ONLY valid JSON.`;
       if (orgId) {
         subscription = await billingProvider.getSubscriptionForOrg(orgId);
         if (!subscription) {
-          // Organization has no subscription - return null to indicate this
-          return res.json(null);
+          // Auto-create a free subscription for organizations without one
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", orgId });
         }
       } else {
         // No orgId provided - show user's personal subscription
@@ -9262,20 +9262,15 @@ Return ONLY valid JSON.`;
       if (orgId) {
         subscription = await billingProvider.getSubscriptionForOrg(orgId);
         if (!subscription) {
-          // Organization has no subscription - return empty usage
-          return res.json({
-            credits: { used: 0, included: 0, remaining: 0, limit: 0 },
-            creditCosts: await getAllCreditCosts()
-          });
+          // Auto-create a free subscription for organizations without one
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", orgId });
         }
       } else {
         // No orgId provided - show user's personal subscription
         subscription = await billingProvider.getSubscriptionForUser(userId);
         if (!subscription) {
-          return res.json({
-            credits: { used: 0, included: 0, remaining: 0, limit: 0 },
-            creditCosts: []
-          });
+          // Auto-create a free subscription for new users
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", userId });
         }
       }
       
@@ -9512,14 +9507,15 @@ Return ONLY valid JSON.`;
       if (orgId) {
         subscription = await billingProvider.getSubscriptionForOrg(orgId);
         if (!subscription) {
-          // Organization has no subscription - return empty ledger
-          return res.json({ entries: [], total: 0 });
+          // Auto-create a free subscription for organizations without one
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", orgId });
         }
       } else {
         // No orgId provided - show user's personal subscription
         subscription = await billingProvider.getSubscriptionForUser(userId);
         if (!subscription) {
-          return res.json({ entries: [], total: 0 });
+          // Auto-create a free subscription for new users
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", userId });
         }
       }
 
