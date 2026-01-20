@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, portfolios, projects, milestones, issues, tasks,
-  organizations, organizationMembers, organizationInvites, organizationAccessRequests, taskChangeLogs, taskDependencies, projectFinancials,
+  organizations, organizationMembers, organizationInvites, organizationAccessRequests, externalShares, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
@@ -14,6 +14,7 @@ import {
   type OrganizationMember, type InsertOrganizationMember,
   type OrganizationInvite, type InsertOrganizationInvite,
   type OrganizationAccessRequest, type InsertOrganizationAccessRequest,
+  type ExternalShare, type InsertExternalShare,
   type Portfolio, type InsertPortfolio, type UpdatePortfolioRequest,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
@@ -95,6 +96,13 @@ export interface IStorage {
   getPendingAccessRequestByUser(organizationId: number, userId: string): Promise<OrganizationAccessRequest | undefined>;
   createOrganizationAccessRequest(request: InsertOrganizationAccessRequest): Promise<OrganizationAccessRequest>;
   updateAccessRequestStatus(id: number, status: string, reviewedBy: string): Promise<OrganizationAccessRequest>;
+
+  // External Shares - Cross-organization object sharing
+  getExternalSharesForUser(userId: string): Promise<ExternalShare[]>;
+  getExternalSharesForObject(objectType: string, objectId: number): Promise<ExternalShare[]>;
+  createExternalShare(share: InsertExternalShare): Promise<ExternalShare>;
+  revokeExternalShare(id: number): Promise<void>;
+  getExternalShare(objectType: string, objectId: number, userId: string): Promise<ExternalShare | undefined>;
 
   // Portfolios
   getPortfolios(organizationId?: number): Promise<Portfolio[]>;
@@ -613,6 +621,65 @@ export class DatabaseStorage implements IStorage {
       .where(eq(organizationAccessRequests.id, id))
       .returning();
     return updated;
+  }
+
+  // External Shares - Cross-organization object sharing
+  async getExternalSharesForUser(userId: string): Promise<ExternalShare[]> {
+    return await db.select().from(externalShares).where(
+      and(
+        eq(externalShares.sharedWithUserId, userId),
+        isNull(externalShares.revokedAt)
+      )
+    );
+  }
+
+  async getExternalSharesForObject(objectType: string, objectId: number): Promise<ExternalShare[]> {
+    return await db.select().from(externalShares).where(
+      and(
+        eq(externalShares.objectType, objectType),
+        eq(externalShares.objectId, objectId),
+        isNull(externalShares.revokedAt)
+      )
+    );
+  }
+
+  async createExternalShare(share: InsertExternalShare): Promise<ExternalShare> {
+    // Check if share already exists
+    const existing = await this.getExternalShare(
+      share.objectType,
+      share.objectId,
+      share.sharedWithUserId
+    );
+    if (existing) {
+      // Update the existing share if revoked
+      if (existing.revokedAt) {
+        const [updated] = await db.update(externalShares)
+          .set({ revokedAt: null, accessRole: share.accessRole, sharedBy: share.sharedBy })
+          .where(eq(externalShares.id, existing.id))
+          .returning();
+        return updated;
+      }
+      return existing;
+    }
+    const [created] = await db.insert(externalShares).values(share).returning();
+    return created;
+  }
+
+  async revokeExternalShare(id: number): Promise<void> {
+    await db.update(externalShares)
+      .set({ revokedAt: new Date() })
+      .where(eq(externalShares.id, id));
+  }
+
+  async getExternalShare(objectType: string, objectId: number, userId: string): Promise<ExternalShare | undefined> {
+    const [share] = await db.select().from(externalShares).where(
+      and(
+        eq(externalShares.objectType, objectType),
+        eq(externalShares.objectId, objectId),
+        eq(externalShares.sharedWithUserId, userId)
+      )
+    );
+    return share;
   }
 
   // Portfolios

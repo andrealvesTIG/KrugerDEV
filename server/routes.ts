@@ -2201,6 +2201,193 @@ export async function registerRoutes(
     }
   });
 
+  // --- External Shares (Cross-organization sharing) ---
+  
+  // Get all external shares for the current user
+  app.get('/api/external-shares', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const shares = await storage.getExternalSharesForUser(userId);
+      res.json(shares);
+    } catch (err) {
+      console.error('Failed to get external shares:', err);
+      res.status(500).json({ message: 'Failed to get external shares' });
+    }
+  });
+  
+  // Get external projects for the current user (with full project details)
+  app.get('/api/external-projects', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const shares = await storage.getExternalSharesForUser(userId);
+      const projectShares = shares.filter(s => s.objectType === 'project');
+      
+      // Fetch full project details for each share
+      const projects = await Promise.all(
+        projectShares.map(async (share) => {
+          const project = await storage.getProject(share.objectId);
+          if (project) {
+            const org = await storage.getOrganization(share.sourceOrganizationId);
+            return {
+              ...project,
+              isExternal: true,
+              sourceOrganizationId: share.sourceOrganizationId,
+              sourceOrganizationName: org?.name || 'External Organization',
+              externalShareId: share.id,
+              accessRole: share.accessRole
+            };
+          }
+          return null;
+        })
+      );
+      
+      res.json(projects.filter(Boolean));
+    } catch (err) {
+      console.error('Failed to get external projects:', err);
+      res.status(500).json({ message: 'Failed to get external projects' });
+    }
+  });
+  
+  // Get external tasks for the current user (with full task details)
+  app.get('/api/external-tasks', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const shares = await storage.getExternalSharesForUser(userId);
+      const taskShares = shares.filter(s => s.objectType === 'task');
+      
+      // Fetch full task details for each share
+      const tasks = await Promise.all(
+        taskShares.map(async (share) => {
+          const task = await storage.getTask(share.objectId);
+          if (task) {
+            const org = await storage.getOrganization(share.sourceOrganizationId);
+            // Get project info for context
+            let projectName = null;
+            if (task.projectId) {
+              const project = await storage.getProject(task.projectId);
+              projectName = project?.name || null;
+            }
+            return {
+              ...task,
+              isExternal: true,
+              sourceOrganizationId: share.sourceOrganizationId,
+              sourceOrganizationName: org?.name || 'External Organization',
+              projectName,
+              externalShareId: share.id,
+              accessRole: share.accessRole
+            };
+          }
+          return null;
+        })
+      );
+      
+      res.json(tasks.filter(Boolean));
+    } catch (err) {
+      console.error('Failed to get external tasks:', err);
+      res.status(500).json({ message: 'Failed to get external tasks' });
+    }
+  });
+  
+  // Get external risks for the current user (with full risk details)
+  app.get('/api/external-risks', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const shares = await storage.getExternalSharesForUser(userId);
+      const riskShares = shares.filter(s => s.objectType === 'risk');
+      
+      // Fetch full risk details for each share
+      const risks = await Promise.all(
+        riskShares.map(async (share) => {
+          const risk = await storage.getRisk(share.objectId);
+          if (risk) {
+            const org = await storage.getOrganization(share.sourceOrganizationId);
+            // Get project info for context
+            let projectName = null;
+            if (risk.projectId) {
+              const project = await storage.getProject(risk.projectId);
+              projectName = project?.name || null;
+            }
+            return {
+              ...risk,
+              isExternal: true,
+              sourceOrganizationId: share.sourceOrganizationId,
+              sourceOrganizationName: org?.name || 'External Organization',
+              projectName,
+              externalShareId: share.id,
+              accessRole: share.accessRole
+            };
+          }
+          return null;
+        })
+      );
+      
+      res.json(risks.filter(Boolean));
+    } catch (err) {
+      console.error('Failed to get external risks:', err);
+      res.status(500).json({ message: 'Failed to get external risks' });
+    }
+  });
+  
+  // Get external issues for the current user (with full issue details)
+  app.get('/api/external-issues', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const shares = await storage.getExternalSharesForUser(userId);
+      const issueShares = shares.filter(s => s.objectType === 'issue');
+      
+      // Fetch full issue details for each share
+      const issues = await Promise.all(
+        issueShares.map(async (share) => {
+          const issue = await storage.getIssue(share.objectId);
+          if (issue) {
+            const org = await storage.getOrganization(share.sourceOrganizationId);
+            // Get project info for context
+            let projectName = null;
+            if (issue.projectId) {
+              const project = await storage.getProject(issue.projectId);
+              projectName = project?.name || null;
+            }
+            return {
+              ...issue,
+              isExternal: true,
+              sourceOrganizationId: share.sourceOrganizationId,
+              sourceOrganizationName: org?.name || 'External Organization',
+              projectName,
+              externalShareId: share.id,
+              accessRole: share.accessRole
+            };
+          }
+          return null;
+        })
+      );
+      
+      res.json(issues.filter(Boolean));
+    } catch (err) {
+      console.error('Failed to get external issues:', err);
+      res.status(500).json({ message: 'Failed to get external issues' });
+    }
+  });
+
   // --- Recycle Bin ---
   app.get('/api/organizations/:id/recycle-bin', async (req, res) => {
     try {
@@ -5934,7 +6121,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
       }
       
-      const { organizationId, email, projectId, taskId, taskName, projectName } = req.body;
+      const { organizationId, email, projectId, taskId, taskName, projectName, riskId, issueId } = req.body;
       
       if (!organizationId || !email) {
         return res.status(400).json({ message: "organizationId and email are required" });
@@ -6019,7 +6206,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           organizationId,
           resourceId: resource.id,
           projectId: projectId || null,
-          taskId: taskId || null
+          taskId: taskId || null,
+          riskId: riskId || null,
+          issueId: issueId || null
         })
       });
       

@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
+import { useExternalTasks } from "@/hooks/use-external-shares";
+import { ExternalBadge } from "@/components/ExternalBadge";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
@@ -46,6 +48,7 @@ export default function Tasks() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total } = usePaginatedTasks(100, currentOrganization?.id);
+  const { data: externalTasks } = useExternalTasks();
   const { data: projects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
@@ -112,8 +115,11 @@ export default function Tasks() {
 
   const projectIds = useMemo(() => new Set(projects?.map(p => p.id) || []), [projects]);
   const tasks = useMemo(() => {
-    // Backend already filters by organization, just apply local filters
-    let filteredTasks = allTasks || [];
+    // Combine org tasks with external tasks
+    let filteredTasks = [
+      ...(allTasks || []),
+      ...(externalTasks || [])
+    ];
     
     // Filter by project
     if (filterProjectId) {
@@ -137,7 +143,7 @@ export default function Tasks() {
     }
     
     return filteredTasks;
-  }, [allTasks, filterProjectId, searchQuery, myAssignmentsOnly, myResourceId, myTaskIds]);
+  }, [allTasks, externalTasks, filterProjectId, searchQuery, myAssignmentsOnly, myResourceId, myTaskIds]);
 
   const projectMap = useMemo(() => {
     const map = new Map<number, { name: string; portfolioId: number | null }>();

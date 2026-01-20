@@ -1098,7 +1098,7 @@ export async function setupAuth(app: Express) {
       }
 
       // Parse metadata
-      let metadata: { organizationId?: number; resourceId?: number; projectId?: number; taskId?: number } = {};
+      let metadata: { organizationId?: number; resourceId?: number; projectId?: number; taskId?: number; riskId?: number; issueId?: number } = {};
       try {
         if (magicToken.metadata) {
           metadata = JSON.parse(magicToken.metadata);
@@ -1165,41 +1165,100 @@ export async function setupAuth(app: Express) {
       // Log the user in by setting their session
       req.session.userId = currentUser.id;
       
-      // Get organization info and add user
-      let organizationName = "the team";
+      // FEDERATED SHARING MODEL:
+      // Instead of joining the inviting organization, create the user's own organization
+      // and record external shares for the shared objects
+      
+      let sourceOrgName = "another organization";
+      let userOrgName = "your workspace";
+      
+      // Ensure user has their own organization (create if needed)
+      const userOrgResult = await ensureUserOrganization(currentUser.id, currentUser.email || magicToken.email);
+      if (userOrgResult.organization) {
+        userOrgName = userOrgResult.organization.name;
+        console.log(`User ${currentUser.id} has organization: ${userOrgName} (created: ${userOrgResult.created})`);
+      }
+      
+      // Get source organization info for display
       if (metadata.organizationId) {
-        const org = await storage.getOrganization(metadata.organizationId);
-        if (org) {
-          organizationName = org.name;
-          
-          // Add user to organization if not already a member
-          // Resource invites get team_member role (restricted visibility)
-          const members = await storage.getOrganizationMembers(metadata.organizationId);
-          const isAlreadyMember = members.some(m => m.userId === currentUser.id);
-          
-          if (!isAlreadyMember) {
-            await storage.addOrganizationMember({
-              organizationId: metadata.organizationId,
-              userId: currentUser.id,
-              role: "team_member"
-            });
-            console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId} as team_member`);
-          }
-          
-          // Update any pending invites to accepted
-          await db.update(organizationInvites)
-            .set({ status: "accepted", acceptedAt: new Date() })
-            .where(
-              and(
-                eq(organizationInvites.organizationId, metadata.organizationId),
-                eq(organizationInvites.email, currentUser.email?.toLowerCase() || ""),
-                eq(organizationInvites.status, "pending")
-              )
-            );
+        const sourceOrg = await storage.getOrganization(metadata.organizationId);
+        if (sourceOrg) {
+          sourceOrgName = sourceOrg.name;
         }
       }
+      
+      // Create external shares for the shared objects
+      // This allows the user to see the project/task/etc as an "external" item in their own org
+      if (metadata.organizationId) {
+        // Share the project if provided
+        if (metadata.projectId) {
+          await storage.createExternalShare({
+            objectType: 'project',
+            objectId: metadata.projectId,
+            sourceOrganizationId: metadata.organizationId,
+            sharedWithUserId: currentUser.id,
+            sharedWithResourceId: metadata.resourceId || null,
+            accessRole: 'assignee',
+            sharedBy: null // Could track who shared if we have that info
+          });
+          console.log(`Created external share for project ${metadata.projectId} with user ${currentUser.id}`);
+        }
+        
+        // Share the task if provided
+        if (metadata.taskId) {
+          await storage.createExternalShare({
+            objectType: 'task',
+            objectId: metadata.taskId,
+            sourceOrganizationId: metadata.organizationId,
+            sharedWithUserId: currentUser.id,
+            sharedWithResourceId: metadata.resourceId || null,
+            accessRole: 'assignee',
+            sharedBy: null
+          });
+          console.log(`Created external share for task ${metadata.taskId} with user ${currentUser.id}`);
+        }
+        
+        // Share the risk if provided
+        if (metadata.riskId) {
+          await storage.createExternalShare({
+            objectType: 'risk',
+            objectId: metadata.riskId,
+            sourceOrganizationId: metadata.organizationId,
+            sharedWithUserId: currentUser.id,
+            sharedWithResourceId: metadata.resourceId || null,
+            accessRole: 'assignee',
+            sharedBy: null
+          });
+          console.log(`Created external share for risk ${metadata.riskId} with user ${currentUser.id}`);
+        }
+        
+        // Share the issue if provided
+        if (metadata.issueId) {
+          await storage.createExternalShare({
+            objectType: 'issue',
+            objectId: metadata.issueId,
+            sourceOrganizationId: metadata.organizationId,
+            sharedWithUserId: currentUser.id,
+            sharedWithResourceId: metadata.resourceId || null,
+            accessRole: 'assignee',
+            sharedBy: null
+          });
+          console.log(`Created external share for issue ${metadata.issueId} with user ${currentUser.id}`);
+        }
+        
+        // Update any pending invites to mark as accepted (but user doesn't join the org)
+        await db.update(organizationInvites)
+          .set({ status: "accepted", acceptedAt: new Date() })
+          .where(
+            and(
+              eq(organizationInvites.organizationId, metadata.organizationId),
+              eq(organizationInvites.email, currentUser.email?.toLowerCase() || ""),
+              eq(organizationInvites.status, "pending")
+            )
+          );
+      }
 
-      // Link the resource to the user and update invited project access
+      // Link the resource to the user (this resource exists in the source org)
       if (metadata.resourceId) {
         const resource = await storage.getResource(metadata.resourceId);
         if (resource) {
@@ -1237,10 +1296,12 @@ export async function setupAuth(app: Express) {
       res.json({ 
         success: true,
         message: isNewUser 
-          ? `Welcome to ${organizationName}! Your account has been created and you're now signed in.`
-          : `Welcome to ${organizationName}! You can now view your project assignments.`,
-        organizationName,
-        isNewUser
+          ? `Welcome! Your account has been created. You now have access to shared items from ${sourceOrgName} in ${userOrgName}.`
+          : `You now have access to shared items from ${sourceOrgName} in ${userOrgName}.`,
+        organizationName: userOrgName,
+        sourceOrganizationName: sourceOrgName,
+        isNewUser,
+        isExternalShare: true
       });
     } catch (error) {
       console.error("Resource invite verification error:", error);

@@ -97,6 +97,21 @@ export const organizationAccessRequests = pgTable("organization_access_requests"
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// External Shares - Cross-organization object sharing
+// When a user from OrgA assigns a resource from OrgB, the object is "shared" externally
+export const externalShares = pgTable("external_shares", {
+  id: serial("id").primaryKey(),
+  objectType: text("object_type").notNull(), // 'project', 'task', 'risk', 'issue', 'portfolio'
+  objectId: integer("object_id").notNull(), // ID of the shared object
+  sourceOrganizationId: integer("source_organization_id").references(() => organizations.id).notNull(), // Org that owns the object
+  sharedWithUserId: varchar("shared_with_user_id").references(() => users.id).notNull(), // User who has access
+  sharedWithResourceId: integer("shared_with_resource_id"), // Resource record in source org
+  accessRole: text("access_role").notNull().default("viewer"), // 'viewer', 'assignee', 'manager'
+  sharedBy: varchar("shared_by").references(() => users.id), // Who shared it
+  sharedAt: timestamp("shared_at").defaultNow(),
+  revokedAt: timestamp("revoked_at"), // When access was revoked (soft delete)
+});
+
 // Portfolios - High level grouping of projects
 export const portfolios = pgTable("portfolios", {
   organizationId: integer("organization_id").references(() => organizations.id),
@@ -947,6 +962,7 @@ export const insertOrganizationSchema = createInsertSchema(organizations).omit({
 export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({ id: true, createdAt: true });
 export const insertOrganizationInviteSchema = createInsertSchema(organizationInvites).omit({ id: true, createdAt: true, acceptedAt: true });
 export const insertOrganizationAccessRequestSchema = createInsertSchema(organizationAccessRequests).omit({ id: true, createdAt: true, reviewedAt: true });
+export const insertExternalShareSchema = createInsertSchema(externalShares).omit({ id: true, sharedAt: true });
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true });
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
 // Risk schema is now an alias for Issue schema with itemType="risk"
@@ -994,6 +1010,9 @@ export type InsertOrganizationInvite = z.infer<typeof insertOrganizationInviteSc
 
 export type OrganizationAccessRequest = typeof organizationAccessRequests.$inferSelect;
 export type InsertOrganizationAccessRequest = z.infer<typeof insertOrganizationAccessRequestSchema>;
+
+export type ExternalShare = typeof externalShares.$inferSelect;
+export type InsertExternalShare = z.infer<typeof insertExternalShareSchema>;
 
 export type Portfolio = typeof portfolios.$inferSelect;
 export type InsertPortfolio = z.infer<typeof insertPortfolioSchema>;
