@@ -1679,6 +1679,51 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // --- Organization Seat Info ---
+  app.get('/api/organizations/:id/seats', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const { checkSeatLimit } = await import("./services/billing");
+      const seatInfo = await checkSeatLimit(orgId, 0);
+      
+      // Also get the organization's subscription and plan info
+      const { billingProvider } = await import("./services/billing");
+      const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      
+      let planName = "Free";
+      let planCode = "FREE";
+      
+      if (subscription) {
+        const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
+        if (plan) {
+          planName = plan.name;
+          planCode = plan.code;
+        }
+      }
+      
+      // Count pending invites
+      const invites = await storage.getOrganizationInvites(orgId);
+      const pendingInvites = invites.filter(i => i.status === 'pending').length;
+      
+      res.json({
+        ...seatInfo,
+        pendingInvites,
+        planName,
+        planCode,
+        subscriptionId: subscription?.id || null
+      });
+    } catch (err) {
+      console.error("Error fetching seat info:", err);
+      res.status(500).json({ message: 'Failed to fetch seat information' });
+    }
+  });
+
   // --- Organization Invites ---
   app.get('/api/organizations/:id/invites', async (req, res) => {
     try {
