@@ -41,6 +41,12 @@ The application manages comprehensive data entities including:
 - **Roles**: Owner, Admin, Member, Team Member.
 - **Team Member Role**: Restricted visibility based on resource assignments to portfolios, projects, tasks, and issues. Visibility is determined by `createdBy`, `teamMemberResourceIds`, `invitedProjectIds`, `taskResourceAssignments`, `riskResourceAssignments`, and `issueResourceAssignments`.
 
+### Billing and Seat Management
+- **Plan-Based Seat Limits**: Each organization subscription has seat limits based on their plan.
+- **Bonus Seats**: Super Admins can grant additional bonus seats beyond plan limits, stored in the `bonusSeats` column on subscriptions.
+- **Total Seats Calculation**: Available seats = plan's maxSeats + bonusSeats.
+- **Super Admin Billing Management**: API endpoints (`GET/PUT /api/admin/organizations/:id/billing`) allow Super Admins to manually change organization plans and set bonus seats, bypassing normal billing flows.
+
 ### Security and Data Integrity
 - **Organization Soft-Delete**: Organizations are deactivated rather than permanently deleted, preserving data for potential reactivation by Super Admins.
 - **Email Verification**: Mandatory email verification for all creation operations across the application, with a 403 Forbidden response if not verified.
