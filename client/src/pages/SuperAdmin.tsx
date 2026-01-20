@@ -255,7 +255,7 @@ function OrganizationsTab() {
     }
   });
 
-  const { data: billingInfo, isLoading: billingLoading } = useQuery<OrgBillingInfo>({
+  const { data: billingInfo, isLoading: billingLoading, error: billingError } = useQuery<OrgBillingInfo>({
     queryKey: ['/api/admin/organizations', billingOrg?.id, 'billing'],
     queryFn: async () => {
       const res = await fetch(`/api/admin/organizations/${billingOrg?.id}/billing`, { credentials: 'include' });
@@ -263,6 +263,9 @@ function OrganizationsTab() {
       return res.json();
     },
     enabled: !!billingOrg,
+    staleTime: 30000,
+    gcTime: 60000,
+    retry: false,
   });
 
   const updateBilling = useMutation({
@@ -691,6 +694,11 @@ function OrganizationsTab() {
             <div className="flex justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
+          ) : billingError ? (
+            <div className="text-center py-8 text-destructive">
+              <p>Failed to load billing information.</p>
+              <p className="text-sm text-muted-foreground mt-2">Please close and try again.</p>
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="rounded-lg bg-muted border p-4 space-y-2">
@@ -726,7 +734,11 @@ function OrganizationsTab() {
                     {billingInfo?.availablePlans?.map(plan => (
                       <SelectItem key={plan.code} value={plan.code}>
                         {plan.name} ({plan.maxSeats === null ? 'Unlimited' : `${plan.maxSeats} seats`})
-                        {plan.monthlyPriceCents > 0 ? ` - $${(plan.monthlyPriceCents / 100).toFixed(2)}/mo` : ' - Free'}
+                        {plan.monthlyPriceCents === null 
+                          ? ' - Contact Us' 
+                          : plan.monthlyPriceCents > 0 
+                            ? ` - $${(plan.monthlyPriceCents / 100).toFixed(2)}/mo` 
+                            : ' - Free'}
                       </SelectItem>
                     ))}
                   </SelectContent>
