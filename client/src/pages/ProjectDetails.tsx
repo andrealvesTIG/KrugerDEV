@@ -1307,7 +1307,6 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               </p>
             )}
           </div>
-          <BillableStatusCommentLog projectId={project.id} />
         </div>
       </CardContent>
     </Card>
@@ -1383,6 +1382,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
     </Dialog>
     
     <ProjectCommentsFeed projectId={project.id} />
+    <BillableStatusCommentLog projectId={project.id} />
   </>
   );
 }
