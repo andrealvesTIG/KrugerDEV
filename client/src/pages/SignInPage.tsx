@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Mail, 
@@ -85,6 +86,7 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -118,6 +120,7 @@ export default function SignInPage() {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", { 
         email: email.trim(),
         turnstileToken: turnstileToken || undefined,
+        termsAccepted,
         ...honeypotPayload
       });
       const data = await response.json();
@@ -575,10 +578,39 @@ export default function SignInPage() {
                         onExpire={() => setTurnstileToken(null)}
                         className="flex justify-center"
                       />
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="terms"
+                          checked={termsAccepted}
+                          onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                          className="mt-0.5"
+                          data-testid="checkbox-terms-accept"
+                        />
+                        <Label htmlFor="terms" className="text-sm text-slate-400 leading-relaxed cursor-pointer">
+                          I agree to the{" "}
+                          <a 
+                            href="/terms-of-service" 
+                            target="_blank" 
+                            className="text-primary hover:underline"
+                            data-testid="link-terms-of-service"
+                          >
+                            Terms of Service
+                          </a>{" "}
+                          and{" "}
+                          <a 
+                            href="/privacy-statement" 
+                            target="_blank" 
+                            className="text-primary hover:underline"
+                            data-testid="link-privacy-policy"
+                          >
+                            Privacy Policy
+                          </a>
+                        </Label>
+                      </div>
                       <Button 
                         type="submit" 
                         className="w-full bg-primary hover:bg-primary/90" 
-                        disabled={isLoading || !email.trim()}
+                        disabled={isLoading || !email.trim() || !termsAccepted}
                         data-testid="button-send-signin-link"
                       >
                         {isLoading ? (
