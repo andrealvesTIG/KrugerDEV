@@ -7,7 +7,7 @@ import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integ
 import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { setupMicrosoftAuth } from "./auth/microsoftAuth";
 import { setupProjectOnlineRoutes } from "./services/projectOnline";
-import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus } from "./services/microsoftPlanner";
+import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus, getOrgIntegration } from "./services/microsoftPlanner";
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
@@ -3032,7 +3032,7 @@ export async function registerRoutes(
     }
   });
 
-  // Import project from Microsoft Planner
+  // Import project from Microsoft Planner (organization-scoped)
   app.post('/api/planner/import', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -3042,15 +3042,24 @@ export async function registerRoutes(
       if (!emailCheck.verified) {
         return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
       }
-      
-      const token = req.session.plannerAccessToken;
-      if (!token) {
-        return res.status(401).json({ message: "Not connected to Planner. Please connect first." });
-      }
 
       const { planId, organizationId, portfolioId } = req.body;
       if (!planId || !organizationId) {
         return res.status(400).json({ message: "Plan ID and Organization ID are required" });
+      }
+      
+      // Try org-scoped token first, fallback to session
+      let token = req.session.plannerAccessToken;
+      const integration = await getOrgIntegration(organizationId, "planner");
+      if (integration?.accessToken) {
+        const isExpired = integration.tokenExpiry ? Date.now() > new Date(integration.tokenExpiry).getTime() : false;
+        if (!isExpired) {
+          token = integration.accessToken;
+        }
+      }
+      
+      if (!token) {
+        return res.status(401).json({ message: "Not connected to Planner. Please connect first." });
       }
 
       // Check project limit before creation

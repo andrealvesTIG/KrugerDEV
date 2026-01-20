@@ -760,10 +760,15 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
     enabled: open && projectSource === "planner" && !!organizationId,
   });
 
-  // Fetch Planner plans when connected - only when dialog is open and connected
+  // Fetch Planner plans when connected - only when dialog is open and connected (org-scoped)
   const { data: plannerPlans, isLoading: isLoadingPlans, refetch: refetchPlans } = useQuery<{ plans: PlannerPlan[] }>({
-    queryKey: ["/api/planner/plans"],
-    enabled: open && projectSource === "planner" && plannerStatus?.connected === true,
+    queryKey: ["/api/planner/plans", organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/planner/plans?organizationId=${organizationId}`);
+      if (!res.ok) throw new Error('Failed to fetch planner plans');
+      return res.json();
+    },
+    enabled: open && projectSource === "planner" && plannerStatus?.connected === true && !!organizationId,
   });
 
   // Connect to Planner mutation (org-scoped)

@@ -15,8 +15,8 @@ declare module "express-session" {
   }
 }
 
-// Helper functions for org-scoped integration storage
-async function getOrgIntegration(organizationId: number, integrationType: string) {
+// Helper functions for org-scoped integration storage (exported for use in routes.ts)
+export async function getOrgIntegration(organizationId: number, integrationType: string) {
   const [integration] = await db
     .select()
     .from(organizationIntegrations)
@@ -29,7 +29,7 @@ async function getOrgIntegration(organizationId: number, integrationType: string
   return integration;
 }
 
-async function upsertOrgIntegration(
+export async function upsertOrgIntegration(
   organizationId: number,
   integrationType: string,
   data: {
@@ -347,7 +347,19 @@ export async function setupPlannerRoutes(app: Express) {
   });
 
   app.get("/api/planner/plans", async (req, res) => {
-    const token = req.session.plannerAccessToken;
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+    
+    // Try org-scoped token first, fallback to session
+    let token = req.session.plannerAccessToken;
+    if (organizationId) {
+      const integration = await getOrgIntegration(organizationId, "planner");
+      if (integration?.accessToken) {
+        const isExpired = integration.tokenExpiry ? Date.now() > new Date(integration.tokenExpiry).getTime() : false;
+        if (!isExpired) {
+          token = integration.accessToken;
+        }
+      }
+    }
 
     if (!token) {
       return res.status(401).json({ message: "Not connected to Planner" });
@@ -364,6 +376,9 @@ export async function setupPlannerRoutes(app: Express) {
       if (!response.ok) {
         if (response.status === 401) {
           delete req.session.plannerAccessToken;
+          if (organizationId) {
+            await upsertOrgIntegration(organizationId, "planner", { connectionStatus: "expired" });
+          }
           return res.status(401).json({ message: "Session expired. Please reconnect." });
         }
         const errorText = await response.text();
@@ -389,8 +404,20 @@ export async function setupPlannerRoutes(app: Express) {
   });
 
   app.get("/api/planner/plans/:planId/tasks", async (req, res) => {
-    const token = req.session.plannerAccessToken;
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
     const { planId } = req.params;
+    
+    // Try org-scoped token first, fallback to session
+    let token = req.session.plannerAccessToken;
+    if (organizationId) {
+      const integration = await getOrgIntegration(organizationId, "planner");
+      if (integration?.accessToken) {
+        const isExpired = integration.tokenExpiry ? Date.now() > new Date(integration.tokenExpiry).getTime() : false;
+        if (!isExpired) {
+          token = integration.accessToken;
+        }
+      }
+    }
 
     if (!token) {
       return res.status(401).json({ message: "Not connected to Planner" });
@@ -415,6 +442,9 @@ export async function setupPlannerRoutes(app: Express) {
       if (!tasksResponse.ok) {
         if (tasksResponse.status === 401) {
           delete req.session.plannerAccessToken;
+          if (organizationId) {
+            await upsertOrgIntegration(organizationId, "planner", { connectionStatus: "expired" });
+          }
           return res.status(401).json({ message: "Session expired. Please reconnect." });
         }
         throw new Error(`API error: ${tasksResponse.status}`);
@@ -457,8 +487,20 @@ export async function setupPlannerRoutes(app: Express) {
   });
 
   app.get("/api/planner/plans/:planId", async (req, res) => {
-    const token = req.session.plannerAccessToken;
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
     const { planId } = req.params;
+    
+    // Try org-scoped token first, fallback to session
+    let token = req.session.plannerAccessToken;
+    if (organizationId) {
+      const integration = await getOrgIntegration(organizationId, "planner");
+      if (integration?.accessToken) {
+        const isExpired = integration.tokenExpiry ? Date.now() > new Date(integration.tokenExpiry).getTime() : false;
+        if (!isExpired) {
+          token = integration.accessToken;
+        }
+      }
+    }
 
     if (!token) {
       return res.status(401).json({ message: "Not connected to Planner" });
@@ -475,6 +517,9 @@ export async function setupPlannerRoutes(app: Express) {
       if (!response.ok) {
         if (response.status === 401) {
           delete req.session.plannerAccessToken;
+          if (organizationId) {
+            await upsertOrgIntegration(organizationId, "planner", { connectionStatus: "expired" });
+          }
           return res.status(401).json({ message: "Session expired. Please reconnect." });
         }
         throw new Error(`API error: ${response.status}`);

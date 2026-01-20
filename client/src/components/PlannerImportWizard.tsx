@@ -55,8 +55,13 @@ export function PlannerImportWizard({
   });
 
   const { data: plansData, isLoading: loadingPlans, refetch: refetchPlans } = useQuery<{ plans: PlannerPlan[] }>({
-    queryKey: ["/api/planner/plans"],
-    enabled: open && status?.connected,
+    queryKey: ["/api/planner/plans", organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/planner/plans?organizationId=${organizationId}`);
+      if (!res.ok) throw new Error('Failed to fetch planner plans');
+      return res.json();
+    },
+    enabled: open && status?.connected && !!organizationId,
   });
 
   useEffect(() => {
