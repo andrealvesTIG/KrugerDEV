@@ -210,6 +210,9 @@ export default function VerifyMagicLinkPage() {
         // Check if a new organization was created - use org details from response
         // This applies to both regular signups and resource invite signups
         if (result.organizationCreated && result.organizationId && result.organizationName) {
+          // Store the organization ID in localStorage so OrganizationProvider selects it immediately
+          localStorage.setItem('currentOrgId', String(result.organizationId));
+          
           // For external share invites, skip demo dialog and go directly to success
           // since the user is joining as a collaborator, not setting up their own workspace
           if (result.isExternalShare) {
