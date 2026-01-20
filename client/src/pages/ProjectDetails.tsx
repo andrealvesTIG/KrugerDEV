@@ -937,284 +937,179 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
   return (
     <>
     <Card>
-      <CardHeader>
-        <CardTitle>Project Summary</CardTitle>
-        <CardDescription>Click any field to edit - changes are saved automatically</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-              <Label className="text-xs text-muted-foreground">Project Name</Label>
-              {editingField === 'name' ? (
-                <Input
-                  value={editValues.name}
-                  onChange={(e) => setEditValues(prev => ({ ...prev, name: e.target.value }))}
-                  onBlur={() => handleFieldBlur('name')}
-                  onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('name')}
-                  autoFocus
-                  data-testid="input-project-name"
-                />
-              ) : (
-                <p 
-                  className="font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors"
-                  onClick={() => setEditingField('name')}
-                  data-testid="text-project-name"
-                >
-                  {project.name}
-                </p>
-              )}
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Portfolio</Label>
-              <Select 
-                value={project.portfolioId?.toString() || "none"} 
-                onValueChange={handlePortfolioChange}
-              >
-                <SelectTrigger className="mt-1" data-testid="select-project-portfolio">
-                  <SelectValue placeholder="Select portfolio">
-                    {currentPortfolio?.name || "No Portfolio"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Portfolio</SelectItem>
-                  {portfolios?.map((p) => (
-                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                  ))}
-                  <SelectItem value="new" className="text-primary font-medium">
-                    <div className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      Add New Portfolio
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Status</Label>
-              <Select value={project.status || "Initiation"} onValueChange={(v) => handleSelectChange('status', v)}>
-                <SelectTrigger className="mt-1" data-testid="select-project-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Initiation">Initiation</SelectItem>
-                  <SelectItem value="Planning">Planning</SelectItem>
-                  <SelectItem value="Execution">Execution</SelectItem>
-                  <SelectItem value="Monitoring">Monitoring</SelectItem>
-                  <SelectItem value="Closing">Closing</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Priority</Label>
-              <Select value={project.priority || "Medium"} onValueChange={(v) => handleSelectChange('priority', v)}>
-                <SelectTrigger className="mt-1" data-testid="select-project-priority">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Low">Low</SelectItem>
-                  <SelectItem value="Medium">Medium</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Critical">Critical</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Budget</Label>
-              {editingField === 'budget' ? (
-                <Input
-                  type="number"
-                  value={editValues.budget}
-                  onChange={(e) => setEditValues(prev => ({ ...prev, budget: e.target.value }))}
-                  onBlur={() => handleFieldBlur('budget')}
-                  onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('budget')}
-                  autoFocus
-                  data-testid="input-project-budget"
-                />
-              ) : (
-                <p 
-                  className="font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors"
-                  onClick={() => setEditingField('budget')}
-                  data-testid="text-project-budget"
-                >
-                  ${Number(project.budget).toLocaleString()}
-                </p>
-              )}
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Health</Label>
-              <div className="mt-1 flex rounded-lg border border-border bg-muted/30 p-1" data-testid="toggle-project-health">
-                {[
-                  { value: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100', text: 'text-emerald-800', ring: 'ring-emerald-500/30' },
-                  { value: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100', text: 'text-amber-800', ring: 'ring-amber-500/30' },
-                  { value: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100', text: 'text-rose-800', ring: 'ring-rose-500/30' },
-                ].map((option) => {
-                  const isSelected = project.health === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => handleHealthChange(option.value)}
-                      className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
-                        isSelected
-                          ? `${option.bgLight} ${option.text} ring-2 ${option.ring} shadow-sm`
-                          : "text-muted-foreground hover:bg-muted/80"
-                      )}
-                      data-testid={`health-option-${option.value.toLowerCase()}`}
-                    >
-                      <span className={cn(
-                        "w-2 h-2 rounded-full transition-all",
-                        isSelected ? option.bg : "bg-muted-foreground/30"
-                      )} />
-                      {option.value}
-                    </button>
-                  );
-                })}
-              </div>
-              {project.healthReason && (
-                <p className="mt-1 text-xs text-muted-foreground italic">
-                  "{project.healthReason}"
-                </p>
-              )}
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Completion</Label>
-              {editingField === 'completionPercentage' ? (
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={editValues.completionPercentage}
-                  onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))}
-                  onBlur={() => handleFieldBlur('completionPercentage')}
-                  onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')}
-                  autoFocus
-                  data-testid="input-project-completion"
-                />
-              ) : (
-                <p 
-                  className="font-medium cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors"
-                  onClick={() => setEditingField('completionPercentage')}
-                  data-testid="text-project-completion"
-                >
-                  {project.completionPercentage}%
-                </p>
-              )}
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Start Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal mt-1" data-testid="button-start-date">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {project.startDate ? format(new Date(project.startDate), 'MMM d, yyyy') : 'Select date'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={project.startDate ? new Date(project.startDate) : undefined}
-                    onSelect={(date) => handleDateChange('startDate', date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">End Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal mt-1" data-testid="button-end-date">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'Select date'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={project.endDate ? new Date(project.endDate) : undefined}
-                    onSelect={(date) => handleDateChange('endDate', date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Project Manager</Label>
-              <ResourceSelector
-                organizationId={currentOrganization?.id ?? 0}
-                projectId={project.id}
-                selectedResourceId={managerResourceId}
-                onSelectionChange={(resourceId) => {
-                  const selectedResource = resources?.find(r => r.id === resourceId);
-                  setManagerResourceId(resourceId);
-                  onUpdate({ 
-                    id: project.id, 
-                    managerId: selectedResource?.userId || null,
-                    managerResourceId: resourceId 
-                  }, {
-                    onSuccess: () => {
-                      toast({ title: "Project Manager updated" });
-                      queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
-                    },
-                    onError: () => {
-                      toast({ title: "Error", description: "Failed to update project manager", variant: "destructive" });
-                    }
-                  });
-                }}
-                placeholder="Click to assign manager"
-                className="mt-1"
-              />
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg">Project Summary</CardTitle>
+            <CardDescription className="text-xs">Click any field to edit</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-md border border-border bg-muted/30 p-0.5" data-testid="toggle-project-health">
+              {[
+                { value: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300' },
+                { value: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
+                { value: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300' },
+              ].map((option) => {
+                const isSelected = project.health === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleHealthChange(option.value)}
+                    className={cn(
+                      "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all",
+                      isSelected ? `${option.bgLight} ${option.text}` : "text-muted-foreground hover:bg-muted/80"
+                    )}
+                    data-testid={`health-option-${option.value.toLowerCase()}`}
+                  >
+                    <span className={cn("w-1.5 h-1.5 rounded-full", isSelected ? option.bg : "bg-muted-foreground/30")} />
+                    {option.value}
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Description</Label>
-            {editingField === 'description' ? (
-              <Textarea
-                value={editValues.description}
-                onChange={(e) => setEditValues(prev => ({ ...prev, description: e.target.value }))}
-                onBlur={() => handleFieldBlur('description')}
-                className="mt-1 min-h-[100px]"
+        </div>
+        {project.healthReason && (
+          <p className="text-xs text-muted-foreground italic mt-1">"{project.healthReason}"</p>
+        )}
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-3">
+          <div className="col-span-2 md:col-span-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Name</Label>
+            {editingField === 'name' ? (
+              <Input
+                value={editValues.name}
+                onChange={(e) => setEditValues(prev => ({ ...prev, name: e.target.value }))}
+                onBlur={() => handleFieldBlur('name')}
+                onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('name')}
                 autoFocus
-                data-testid="input-project-description"
+                className="h-8 text-sm"
+                data-testid="input-project-name"
               />
             ) : (
-              <p 
-                className="mt-1 text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors min-h-[40px]"
-                onClick={() => setEditingField('description')}
-                data-testid="text-project-description"
-              >
+              <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors truncate" onClick={() => setEditingField('name')} data-testid="text-project-name">
+                {project.name}
+              </p>
+            )}
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Portfolio</Label>
+            <Select value={project.portfolioId?.toString() || "none"} onValueChange={handlePortfolioChange}>
+              <SelectTrigger className="h-8 text-sm" data-testid="select-project-portfolio">
+                <SelectValue>{currentPortfolio?.name || "None"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Portfolio</SelectItem>
+                {portfolios?.map((p) => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}
+                <SelectItem value="new" className="text-primary font-medium"><Plus className="h-3 w-3 inline mr-1" />New</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Status</Label>
+            <Select value={project.status || "Initiation"} onValueChange={(v) => handleSelectChange('status', v)}>
+              <SelectTrigger className="h-8 text-sm" data-testid="select-project-status"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Initiation">Initiation</SelectItem>
+                <SelectItem value="Planning">Planning</SelectItem>
+                <SelectItem value="Execution">Execution</SelectItem>
+                <SelectItem value="Monitoring">Monitoring</SelectItem>
+                <SelectItem value="Closing">Closing</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Priority</Label>
+            <Select value={project.priority || "Medium"} onValueChange={(v) => handleSelectChange('priority', v)}>
+              <SelectTrigger className="h-8 text-sm" data-testid="select-project-priority"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Low">Low</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="High">High</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Budget</Label>
+            {editingField === 'budget' ? (
+              <Input type="number" value={editValues.budget} onChange={(e) => setEditValues(prev => ({ ...prev, budget: e.target.value }))} onBlur={() => handleFieldBlur('budget')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('budget')} autoFocus className="h-8 text-sm" data-testid="input-project-budget" />
+            ) : (
+              <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('budget')} data-testid="text-project-budget">${Number(project.budget).toLocaleString()}</p>
+            )}
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Completion</Label>
+            {editingField === 'completionPercentage' ? (
+              <Input type="number" min="0" max="100" value={editValues.completionPercentage} onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))} onBlur={() => handleFieldBlur('completionPercentage')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')} autoFocus className="h-8 text-sm" data-testid="input-project-completion" />
+            ) : (
+              <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{project.completionPercentage}%</p>
+            )}
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Start</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full h-8 justify-start text-left text-sm font-normal px-2" data-testid="button-start-date">
+                  <CalendarIcon className="mr-1.5 h-3 w-3" />
+                  {project.startDate ? format(new Date(project.startDate), 'MMM d, yy') : 'Set'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={project.startDate ? new Date(project.startDate) : undefined} onSelect={(date) => handleDateChange('startDate', date)} initialFocus />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">End</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full h-8 justify-start text-left text-sm font-normal px-2" data-testid="button-end-date">
+                  <CalendarIcon className="mr-1.5 h-3 w-3" />
+                  {project.endDate ? format(new Date(project.endDate), 'MMM d, yy') : 'Set'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={project.endDate ? new Date(project.endDate) : undefined} onSelect={(date) => handleDateChange('endDate', date)} initialFocus />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Manager</Label>
+            <ResourceSelector
+              organizationId={currentOrganization?.id ?? 0}
+              projectId={project.id}
+              selectedResourceId={managerResourceId}
+              onSelectionChange={(resourceId) => {
+                const selectedResource = resources?.find(r => r.id === resourceId);
+                setManagerResourceId(resourceId);
+                onUpdate({ id: project.id, managerId: selectedResource?.userId || null, managerResourceId: resourceId }, {
+                  onSuccess: () => { toast({ title: "Manager updated" }); queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] }); },
+                  onError: () => { toast({ title: "Error", description: "Failed to update manager", variant: "destructive" }); }
+                });
+              }}
+              placeholder="Assign"
+              className="h-8 text-sm"
+            />
+          </div>
+          <div className="col-span-2 md:col-span-3 lg:col-span-4 xl:col-span-5">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Description</Label>
+            {editingField === 'description' ? (
+              <Textarea value={editValues.description} onChange={(e) => setEditValues(prev => ({ ...prev, description: e.target.value }))} onBlur={() => handleFieldBlur('description')} className="min-h-[60px] text-sm" autoFocus data-testid="input-project-description" />
+            ) : (
+              <p className="text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors line-clamp-2" onClick={() => setEditingField('description')} data-testid="text-project-description">
                 {project.description || 'Click to add description...'}
               </p>
             )}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border">
-            <div>
-              <Label className="text-xs text-muted-foreground">Created By</Label>
-              <p className="text-sm text-foreground" data-testid="text-created-by">
-                {(project as any).createdByName || (project as any).createdBy || '-'}
-              </p>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Created On</Label>
-              <p className="text-sm text-foreground" data-testid="text-created-on">
-                {project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : '-'}
-              </p>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Modified By</Label>
-              <p className="text-sm text-foreground" data-testid="text-modified-by">
-                {(project as any).updatedByName || (project as any).updatedBy || '-'}
-              </p>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Modified On</Label>
-              <p className="text-sm text-foreground" data-testid="text-modified-on">
-                {(project as any).updatedAt ? format(new Date((project as any).updatedAt), 'MMM d, yyyy') : '-'}
-              </p>
-            </div>
-          </div>
+        </div>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
+          <span data-testid="text-created-by">Created by {(project as any).createdByName || '-'}</span>
+          <span data-testid="text-created-on">{project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : '-'}</span>
+          <span data-testid="text-modified-by">Modified by {(project as any).updatedByName || '-'}</span>
+          <span data-testid="text-modified-on">{(project as any).updatedAt ? format(new Date((project as any).updatedAt), 'MMM d, yyyy') : '-'}</span>
         </div>
       </CardContent>
     </Card>
