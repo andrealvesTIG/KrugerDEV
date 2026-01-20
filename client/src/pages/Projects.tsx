@@ -680,7 +680,7 @@ export default function Projects() {
           portfolios={portfolios || []}
           onStatusChange={handleStatusChange}
           onDeleteProject={(id) => deleteProject.mutate(id)}
-          onUpdateProject={(id, data) => updateProject.mutate({ id, data })}
+          onUpdateProject={(id, data) => updateProject.mutate({ id, ...data })}
           isAdmin={isOrgAdmin}
         />
       ) : view === "kanban" ? (
