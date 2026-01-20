@@ -1068,6 +1068,32 @@ export async function setupAuth(app: Express) {
     }
   });
 
+  // Accept Terms of Service and Privacy Policy
+  app.post("/api/auth/accept-terms", async (req, res) => {
+    try {
+      // User must be logged in
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+      
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      // Update terms accepted timestamp
+      await db.update(users)
+        .set({ termsAcceptedAt: new Date() })
+        .where(eq(users.id, user.id));
+
+      res.json({ success: true, message: "Terms accepted" });
+    } catch (error) {
+      console.error("Accept terms error:", error);
+      res.status(500).json({ message: "Failed to accept terms" });
+    }
+  });
+
   // Resource invite verification - handles magic link from resource invitation
   // Supports auto-signup: if user doesn't have an account, one is created automatically
   app.get("/api/auth/resource-invite/verify", async (req, res) => {
