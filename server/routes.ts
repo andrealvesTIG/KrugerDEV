@@ -1550,6 +1550,154 @@ export async function registerRoutes(
     }
   });
 
+  // Get organization billing info (super_admin only)
+  app.get('/api/admin/organizations/:id/billing', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
+      const { billingProvider } = await import("./services/billing");
+      const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      
+      // Get all available plans
+      const allPlans = await db.select().from(plans).where(eq(plans.isActive, true)).orderBy(plans.displayOrder);
+      
+      let currentPlan = null;
+      if (subscription) {
+        const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
+        currentPlan = plan;
+      }
+      
+      res.json({
+        subscription: subscription ? {
+          id: subscription.id,
+          planId: subscription.planId,
+          status: subscription.status,
+          bonusSeats: subscription.bonusSeats || 0,
+          currentPeriodStart: subscription.currentPeriodStart,
+          currentPeriodEnd: subscription.currentPeriodEnd
+        } : null,
+        currentPlan,
+        availablePlans: allPlans
+      });
+    } catch (err) {
+      console.error("Error fetching org billing:", err);
+      res.status(500).json({ message: 'Failed to fetch organization billing' });
+    }
+  });
+
+  // Update organization billing (super_admin only) - change plan and/or bonus seats
+  app.put('/api/admin/organizations/:id/billing', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const { planCode, bonusSeats } = req.body;
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
+      const { billingProvider } = await import("./services/billing");
+      let subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      
+      // If no subscription exists, create one
+      if (!subscription && planCode) {
+        subscription = await billingProvider.createSubscription({
+          planCode,
+          orgId
+        });
+      }
+      
+      if (!subscription) {
+        return res.status(400).json({ message: 'No subscription found and no plan specified' });
+      }
+      
+      // Update plan if specified
+      if (planCode) {
+        const [plan] = await db.select().from(plans).where(eq(plans.code, planCode)).limit(1);
+        if (!plan) {
+          return res.status(400).json({ message: `Plan not found: ${planCode}` });
+        }
+        
+        await db
+          .update(subscriptions)
+          .set({ planId: plan.id })
+          .where(eq(subscriptions.id, subscription.id));
+        
+        // Log the plan change
+        await db.insert(billingAuditLogs).values({
+          actorUserId: userId,
+          orgId,
+          action: "ADMIN_PLAN_CHANGE",
+          entityType: "subscription",
+          entityId: String(subscription.id),
+          metadataJson: { newPlanCode: planCode, previousPlanId: subscription.planId }
+        });
+      }
+      
+      // Update bonus seats if specified
+      if (bonusSeats !== undefined) {
+        const parsedBonusSeats = Math.max(0, parseInt(bonusSeats) || 0);
+        
+        await db
+          .update(subscriptions)
+          .set({ bonusSeats: parsedBonusSeats })
+          .where(eq(subscriptions.id, subscription.id));
+        
+        // Log the bonus seats change
+        await db.insert(billingAuditLogs).values({
+          actorUserId: userId,
+          orgId,
+          action: "ADMIN_BONUS_SEATS_CHANGE",
+          entityType: "subscription",
+          entityId: String(subscription.id),
+          metadataJson: { bonusSeats: parsedBonusSeats, previousBonusSeats: subscription.bonusSeats || 0 }
+        });
+      }
+      
+      // Fetch updated subscription
+      const [updatedSubscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subscription.id))
+        .limit(1);
+      
+      let updatedPlan = null;
+      if (updatedSubscription) {
+        const [plan] = await db.select().from(plans).where(eq(plans.id, updatedSubscription.planId)).limit(1);
+        updatedPlan = plan;
+      }
+      
+      res.json({
+        message: 'Organization billing updated',
+        subscription: updatedSubscription ? {
+          id: updatedSubscription.id,
+          planId: updatedSubscription.planId,
+          status: updatedSubscription.status,
+          bonusSeats: updatedSubscription.bonusSeats || 0
+        } : null,
+        currentPlan: updatedPlan
+      });
+    } catch (err) {
+      console.error("Error updating org billing:", err);
+      res.status(500).json({ message: 'Failed to update organization billing' });
+    }
+  });
+
   // --- Get all task resource assignments for organization (for grouping) ---
   app.get('/api/organizations/:id/task-assignments', async (req, res) => {
     try {
