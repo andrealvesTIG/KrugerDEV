@@ -10855,21 +10855,43 @@ Return ONLY valid JSON.`;
         return res.json([]);
       }
 
-      // Get all tasks and filter to ones assigned to this resource
-      const allTasks = await storage.getAllTasks();
-      const assignedTasks: { task: any; project: any }[] = [];
-
-      for (const task of allTasks) {
-        if (task.deletedAt) continue;
-        const assignments = await storage.getTaskResourceAssignments(task.id);
-        const isAssigned = assignments.some(a => a.resourceId === userResource.id);
-        if (isAssigned) {
-          const project = await storage.getProject(task.projectId);
-          if (project && !project.deletedAt && project.organizationId === organizationId) {
-            assignedTasks.push({ task, project });
-          }
-        }
+      // Optimized: Get all task assignments for this organization in one query
+      const allAssignments = await storage.getAllTaskResourceAssignments(organizationId);
+      
+      // Filter to just this user's assignments
+      const userAssignments = allAssignments.filter(a => a.resourceId === userResource.id);
+      
+      if (userAssignments.length === 0) {
+        return res.json([]);
       }
+
+      // Get unique task IDs
+      const taskIds = [...new Set(userAssignments.map(a => a.taskId))];
+      
+      // Fetch all assigned tasks in parallel
+      const tasksPromises = taskIds.map(id => storage.getTask(id));
+      const tasksResults = await Promise.all(tasksPromises);
+      const validTasks = tasksResults.filter((t): t is NonNullable<typeof t> => t !== undefined && !t.deletedAt);
+      
+      // Get unique project IDs and fetch projects in parallel
+      const projectIds = [...new Set(validTasks.map(t => t.projectId))];
+      const projectsPromises = projectIds.map(id => storage.getProject(id));
+      const projectsResults = await Promise.all(projectsPromises);
+      
+      // Create project lookup map
+      const projectMap = new Map(
+        projectsResults
+          .filter((p): p is NonNullable<typeof p> => p !== undefined && !p.deletedAt && p.organizationId === organizationId)
+          .map(p => [p.id, p])
+      );
+
+      // Build result with task and project pairs
+      const assignedTasks = validTasks
+        .map(task => {
+          const project = projectMap.get(task.projectId);
+          return project ? { task, project } : null;
+        })
+        .filter((item): item is { task: any; project: any } => item !== null);
 
       res.json(assignedTasks);
     } catch (error) {
