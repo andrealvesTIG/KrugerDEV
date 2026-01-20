@@ -9474,10 +9474,20 @@ Return ONLY valid JSON.`;
     try {
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const offset = parseInt(req.query.offset as string) || 0;
+      const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
       
-      // Get the user's subscription
+      // Get subscription - try org subscription first if orgId is provided
       const { billingProvider } = await import("./services/billing");
-      const subscription = await billingProvider.getSubscriptionForUser(userId);
+      let subscription = null;
+      
+      if (orgId) {
+        subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      }
+      
+      // Fall back to user subscription
+      if (!subscription) {
+        subscription = await billingProvider.getSubscriptionForUser(userId);
+      }
       
       if (!subscription) {
         return res.json({ entries: [], total: 0 });
