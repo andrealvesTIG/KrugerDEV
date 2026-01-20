@@ -207,7 +207,6 @@ export default function SignInPage() {
           </div>
         </div>
       </nav>
-
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
@@ -227,10 +226,7 @@ export default function SignInPage() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400"> Confidence</span>
             </h1>
             
-            <p className="text-lg sm:text-xl text-slate-300 mb-8 max-w-2xl mx-auto leading-relaxed">
-              The modern PPM platform trusted by enterprise teams to manage portfolios, 
-              track progress, and deliver strategic initiatives on time and within budget.
-            </p>
+            <p className="text-lg sm:text-xl text-slate-300 mb-8 max-w-2xl mx-auto leading-relaxed">Industrial-proof PPM platform trusted by enterprise teams to manage portfolios, track progress, and deliver strategic initiatives on time and within budget.</p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Button 
@@ -259,7 +255,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Trust Indicators */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 border-y border-slate-800 bg-slate-900/50">
         <div className="max-w-7xl mx-auto">
@@ -276,7 +271,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Benefits Stats */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -293,7 +287,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Features Grid */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/30">
         <div className="max-w-7xl mx-auto">
@@ -322,7 +315,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Value Proposition */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -388,7 +380,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Pricing Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/30">
         <div className="max-w-7xl mx-auto">
@@ -490,7 +481,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* CTA / Sign In Section */}
       <section id="signin-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-800/50 to-slate-900">
         <div className="max-w-7xl mx-auto">
@@ -635,7 +625,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Footer */}
       <Footer />
     </div>
