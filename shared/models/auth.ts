@@ -47,6 +47,9 @@ export const users = pgTable("users", {
   emailVerificationToken: varchar("email_verification_token"),
   emailVerificationExpiry: timestamp("email_verification_expiry"),
 
+  // Terms of Service and Privacy Policy consent
+  termsAcceptedAt: timestamp("terms_accepted_at"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
