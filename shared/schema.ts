@@ -174,10 +174,20 @@ export const projects = pgTable("projects", {
   sourceFileName: text("source_file_name"), // Original filename of imported file (e.g., "project.mpp")
   sourceFileUrl: text("source_file_url"), // URL to the original imported file (in object storage)
   notes: text("notes"), // Additional notes
+  billableStatus: text("billable_status").default("N/A"), // Billable status: N/A, On Track, Waiting for Approval, etc.
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
+});
+
+// Billable Status Comments (Comment log for billable status field)
+export const billableStatusComments = pgTable("billable_status_comments", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  content: text("content").notNull(),
+  authorId: varchar("author_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Note: Risks are now consolidated into the issues table with itemType = "risk"
@@ -975,6 +985,7 @@ export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit
 export const insertProjectDocumentSchema = createInsertSchema(projectDocuments).omit({ id: true, createdAt: true, updatedAt: true });
 
 export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBillableStatusCommentSchema = createInsertSchema(billableStatusComments).omit({ id: true, createdAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1069,6 +1080,9 @@ export type InsertProjectDocument = z.infer<typeof insertProjectDocumentSchema>;
 
 export type ProjectComment = typeof projectComments.$inferSelect;
 export type InsertProjectComment = z.infer<typeof insertProjectCommentSchema>;
+
+export type BillableStatusComment = typeof billableStatusComments.$inferSelect;
+export type InsertBillableStatusComment = z.infer<typeof insertBillableStatusCommentSchema>;
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;

@@ -12,6 +12,7 @@ import { useMilestones } from "@/hooks/use-milestones";
 import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useDeleteChangeRequest } from "@/hooks/use-change-requests";
 import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument, useDeleteProjectDocument } from "@/hooks/use-project-documents";
 import { useProjectComments, useCreateProjectComment, useDeleteProjectComment } from "@/hooks/use-project-comments";
+import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hooks/use-billable-status-comments";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
@@ -773,6 +774,112 @@ function ProjectTimeline({
   );
 }
 
+function BillableStatusCommentLog({ projectId }: { projectId: number }) {
+  const { toast } = useToast();
+  const [newComment, setNewComment] = useState("");
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { data: comments, isLoading } = useBillableStatusComments(projectId);
+  const createComment = useCreateBillableStatusComment(projectId);
+  const { data: users } = useQuery<User[]>({ queryKey: ['/api/users'] });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    
+    createComment.mutate({ content: newComment.trim() }, {
+      onSuccess: () => {
+        setNewComment("");
+        toast({ title: "Comment added to billable status log" });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to add comment", variant: "destructive" });
+      }
+    });
+  };
+
+  const getAuthorName = (authorId: string | null) => {
+    if (!authorId) return 'Unknown';
+    const user = users?.find(u => u.id === authorId);
+    if (!user) return 'Unknown';
+    if (user.firstName && user.lastName) return `${user.firstName} ${user.lastName}`;
+    return user.username || user.email || 'Unknown';
+  };
+
+  return (
+    <div className="border rounded-lg bg-muted/30">
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger asChild>
+          <button 
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors rounded-t-lg"
+            data-testid="button-billable-status-comments-toggle"
+          >
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Billable Status Updates</span>
+              <Badge variant="secondary" className="text-xs">
+                {comments?.length || 0}
+              </Badge>
+            </div>
+            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-4 pb-4 space-y-3">
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <Input
+                placeholder="Add an update..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                className="flex-1"
+                data-testid="input-billable-status-comment"
+              />
+              <Button 
+                type="submit" 
+                size="sm" 
+                disabled={!newComment.trim() || createComment.isPending}
+                data-testid="button-add-billable-status-comment"
+              >
+                {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </form>
+            
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : comments && comments.length > 0 ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {comments.map((comment) => (
+                  <div 
+                    key={comment.id} 
+                    className="flex items-start gap-3 p-2 rounded-md bg-background border"
+                    data-testid={`billable-status-comment-${comment.id}`}
+                  >
+                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <UserIcon className="h-3 w-3 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-medium">{getAuthorName(comment.authorId)}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {comment.createdAt ? format(new Date(comment.createdAt), 'MMM d, yyyy h:mm a') : ''}
+                        </span>
+                      </div>
+                      <p className="text-sm mt-1">{comment.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-2">No updates yet</p>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
 function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any }) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
@@ -1153,6 +1260,31 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 className="mt-1"
               />
             </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Billable Status</Label>
+              <Select 
+                value={project.billableStatus || "N/A"} 
+                onValueChange={(v) => handleSelectChange('billableStatus', v)}
+              >
+                <SelectTrigger className="mt-1" data-testid="select-billable-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="N/A">N/A</SelectItem>
+                  <SelectItem value="On Track">On Track</SelectItem>
+                  <SelectItem value="Waiting for Approval">Waiting for Approval</SelectItem>
+                  <SelectItem value="Verbal Approval">Verbal Approval</SelectItem>
+                  <SelectItem value="Email Approval">Email Approval</SelectItem>
+                  <SelectItem value="SOW Signed">SOW Signed</SelectItem>
+                  <SelectItem value="PO Received">PO Received</SelectItem>
+                  <SelectItem value="Partially Invoiced">Partially Invoiced</SelectItem>
+                  <SelectItem value="At Risk">At Risk</SelectItem>
+                  <SelectItem value="Ready for Invoice">Ready for Invoice</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                  <SelectItem value="Invoiced">Invoiced</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">Description</Label>
@@ -1175,6 +1307,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               </p>
             )}
           </div>
+          <BillableStatusCommentLog projectId={project.id} />
         </div>
       </CardContent>
     </Card>

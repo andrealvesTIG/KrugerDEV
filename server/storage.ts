@@ -6,7 +6,7 @@ import {
   resources, taskResourceAssignments, issueResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
   changeRequests, projectDocuments, projectComments, notifications, statusReportHistory,
-  billingTransactions, timesheetEntries,
+  billingTransactions, timesheetEntries, billableStatusComments,
   magicLinkTokens,
   type User, type UpsertUser,
   type BillingTransaction, type InsertBillingTransaction,
@@ -37,6 +37,7 @@ import {
   type ChangeRequest, type InsertChangeRequest, type UpdateChangeRequestRequest,
   type ProjectDocument, type InsertProjectDocument, type UpdateProjectDocumentRequest,
   type ProjectComment, type InsertProjectComment,
+  type BillableStatusComment, type InsertBillableStatusComment,
   type Notification, type InsertNotification,
   type StatusReportHistory, type InsertStatusReportHistory,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
@@ -273,6 +274,10 @@ export interface IStorage {
   getProjectComment(id: number): Promise<ProjectComment | undefined>;
   createProjectComment(comment: InsertProjectComment): Promise<ProjectComment>;
   deleteProjectComment(id: number): Promise<void>;
+
+  // Billable Status Comments
+  getBillableStatusComments(projectId: number): Promise<BillableStatusComment[]>;
+  createBillableStatusComment(comment: InsertBillableStatusComment): Promise<BillableStatusComment>;
 
   // Notifications
   getNotifications(userId: string): Promise<Notification[]>;
@@ -2374,6 +2379,18 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProjectComment(id: number): Promise<void> {
     await db.delete(projectComments).where(eq(projectComments.id, id));
+  }
+
+  // Billable Status Comments
+  async getBillableStatusComments(projectId: number): Promise<BillableStatusComment[]> {
+    return await db.select().from(billableStatusComments)
+      .where(eq(billableStatusComments.projectId, projectId))
+      .orderBy(desc(billableStatusComments.createdAt));
+  }
+
+  async createBillableStatusComment(comment: InsertBillableStatusComment): Promise<BillableStatusComment> {
+    const [created] = await db.insert(billableStatusComments).values(comment).returning();
+    return created;
   }
 
   // Notifications

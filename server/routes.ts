@@ -7516,6 +7516,72 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     }
   });
 
+  // =========== BILLABLE STATUS COMMENTS ===========
+  
+  // Get all billable status comments for a project
+  app.get('/api/projects/:projectId/billable-status-comments', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const projectId = Number(req.params.projectId);
+      
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      if (userId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(project.organizationId)) {
+          return res.status(404).json({ message: "Project not found" });
+        }
+      }
+      
+      const comments = await storage.getBillableStatusComments(projectId);
+      res.json(comments);
+    } catch (err) {
+      console.error("Error fetching billable status comments:", err);
+      res.status(500).json({ message: "Error fetching billable status comments" });
+    }
+  });
+
+  // Create a billable status comment for a project
+  app.post('/api/projects/:projectId/billable-status-comments', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const content = req.body.content?.trim();
+      if (!content || content.length === 0) {
+        return res.status(400).json({ message: "Comment content is required" });
+      }
+      
+      const comment = await storage.createBillableStatusComment({
+        projectId,
+        authorId: userId,
+        content,
+      });
+      
+      res.status(201).json(comment);
+    } catch (err) {
+      console.error("Error creating billable status comment:", err);
+      res.status(500).json({ message: "Error creating billable status comment" });
+    }
+  });
+
   // =========== NOTIFICATIONS ===========
   
   // Get all notifications for the current user
