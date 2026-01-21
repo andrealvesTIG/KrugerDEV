@@ -2156,10 +2156,78 @@ function ProjectsGridView({
   return (
     <div className={cn(
       "space-y-4",
-      isFullscreen && "fixed inset-0 z-50 bg-background p-4 flex flex-col"
+      isFullscreen && "fixed inset-0 z-50 bg-background flex flex-col"
     )}>
-      {/* Bulk Actions Toolbar */}
-      {selectedProjects.size > 0 && (
+      {/* Fullscreen Header */}
+      {isFullscreen && (
+        <div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-background shrink-0">
+          <h2 className="text-lg font-semibold">Projects</h2>
+          <div className="flex items-center gap-2">
+            {selectedProjects.size > 0 && (
+              <>
+                <span className="text-sm text-muted-foreground">{selectedProjects.size} selected</span>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedProjects(new Set())}>
+                  Clear
+                </Button>
+                {isAdmin && (
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={() => setBulkDeleteOpen(true)}
+                    data-testid="button-bulk-delete-fullscreen"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                )}
+              </>
+            )}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" data-testid="button-grid-columns-fullscreen">
+                  <Settings2 className="h-4 w-4 mr-2" />
+                  Columns
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-56">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Show Columns</p>
+                  <p className="text-xs text-muted-foreground">Drag column headers to reorder</p>
+                  <div className="space-y-1">
+                    {ALL_GRID_COLUMNS.map(column => (
+                      <div
+                        key={column.id}
+                        className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted cursor-pointer"
+                        onClick={() => toggleColumn(column.id)}
+                        data-testid={`toggle-column-fullscreen-${column.id}`}
+                      >
+                        <Checkbox 
+                          checked={visibleColumns.includes(column.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={() => toggleColumn(column.id)}
+                        />
+                        <span className="text-sm">{column.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsFullscreen(false)}
+              data-testid="button-exit-fullscreen"
+            >
+              <Minimize2 className="h-4 w-4 mr-2" />
+              Exit Fullscreen
+            </Button>
+          </div>
+        </div>
+      )}
+      
+      {/* Bulk Actions Toolbar - Only show in non-fullscreen mode */}
+      {!isFullscreen && selectedProjects.size > 0 && (
         <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
           <span className="text-sm font-medium">{selectedProjects.size} project(s) selected</span>
           <Button variant="ghost" size="sm" onClick={() => setSelectedProjects(new Set())}>
@@ -2179,61 +2247,55 @@ function ProjectsGridView({
         </div>
       )}
       
-      <div className="flex justify-end gap-2">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          data-testid="button-grid-fullscreen"
-        >
-          {isFullscreen ? (
-            <>
-              <Minimize2 className="h-4 w-4 mr-2" />
-              Exit Fullscreen
-            </>
-          ) : (
-            <>
-              <Maximize2 className="h-4 w-4 mr-2" />
-              Fullscreen
-            </>
-          )}
-        </Button>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" data-testid="button-grid-columns">
-              <Settings2 className="h-4 w-4 mr-2" />
-              Columns
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-56">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Show Columns</p>
-              <p className="text-xs text-muted-foreground">Drag column headers to reorder</p>
-              <div className="space-y-1">
-                {ALL_GRID_COLUMNS.map(column => (
-                  <div
-                    key={column.id}
-                    className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted cursor-pointer"
-                    onClick={() => toggleColumn(column.id)}
-                    data-testid={`toggle-column-${column.id}`}
-                  >
-                    <Checkbox 
-                      checked={visibleColumns.includes(column.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onCheckedChange={() => toggleColumn(column.id)}
-                    />
-                    <span className="text-sm">{column.label}</span>
-                  </div>
-                ))}
+      {/* Toolbar - Only show in non-fullscreen mode */}
+      {!isFullscreen && (
+        <div className="flex justify-end gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setIsFullscreen(true)}
+            data-testid="button-grid-fullscreen"
+          >
+            <Maximize2 className="h-4 w-4 mr-2" />
+            Fullscreen
+          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="button-grid-columns">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Columns
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Show Columns</p>
+                <p className="text-xs text-muted-foreground">Drag column headers to reorder</p>
+                <div className="space-y-1">
+                  {ALL_GRID_COLUMNS.map(column => (
+                    <div
+                      key={column.id}
+                      className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted cursor-pointer"
+                      onClick={() => toggleColumn(column.id)}
+                      data-testid={`toggle-column-${column.id}`}
+                    >
+                      <Checkbox 
+                        checked={visibleColumns.includes(column.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => toggleColumn(column.id)}
+                      />
+                      <span className="text-sm">{column.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
 
       <div className={cn(
         "rounded-lg border bg-card overflow-x-auto",
-        isFullscreen && "flex-1 overflow-y-auto"
+        isFullscreen && "flex-1 overflow-auto border-0 rounded-none"
       )}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleColumnDragEnd}>
           <Table>
