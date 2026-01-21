@@ -8029,6 +8029,215 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     }
   });
 
+  // =========== PROJECT VIEWS ===========
+  
+  // Get all views for a user in a specific mode (grid or gantt)
+  app.get('/api/organizations/:orgId/project-views', async (req, res) => {
+    try {
+      const orgId = Number(req.params.orgId);
+      const mode = req.query.mode as string;
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      if (!mode || !['grid', 'gantt'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const views = await storage.getProjectViews(orgId, userId, mode);
+      res.json(views);
+    } catch (err) {
+      console.error("Error fetching project views:", err);
+      res.status(500).json({ message: "Error fetching project views" });
+    }
+  });
+
+  // Create a new project view
+  app.post('/api/organizations/:orgId/project-views', async (req, res) => {
+    try {
+      const orgId = Number(req.params.orgId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const { mode, name, visibleColumns, columnOrder, columnWidths, frozenColumns, isDefault } = req.body;
+      
+      if (!mode || !['grid', 'gantt'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      }
+      
+      if (!name || name.trim().length === 0) {
+        return res.status(400).json({ message: "View name is required" });
+      }
+      
+      if (!visibleColumns || !Array.isArray(visibleColumns)) {
+        return res.status(400).json({ message: "Visible columns are required" });
+      }
+      
+      // Check for duplicate name
+      const existingViews = await storage.getProjectViews(orgId, userId, mode);
+      const duplicateName = existingViews.find(v => v.name.toLowerCase() === name.trim().toLowerCase());
+      if (duplicateName) {
+        return res.status(400).json({ message: "A view with this name already exists" });
+      }
+      
+      const view = await storage.createProjectView({
+        organizationId: orgId,
+        userId,
+        mode,
+        name: name.trim(),
+        visibleColumns,
+        columnOrder: columnOrder || null,
+        columnWidths: columnWidths || null,
+        frozenColumns: frozenColumns || null,
+        isDefault: isDefault || false,
+        isSystem: false,
+      });
+      
+      // If this is marked as default, update the default status
+      if (isDefault) {
+        await storage.setDefaultProjectView(orgId, userId, mode, view.id);
+      }
+      
+      res.status(201).json(view);
+    } catch (err) {
+      console.error("Error creating project view:", err);
+      res.status(500).json({ message: "Error creating project view" });
+    }
+  });
+
+  // Update a project view
+  app.patch('/api/project-views/:id', async (req, res) => {
+    try {
+      const viewId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const existingView = await storage.getProjectView(viewId);
+      if (!existingView) {
+        return res.status(404).json({ message: "View not found" });
+      }
+      
+      // Check ownership
+      if (existingView.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Prevent updating system views' name or deleting them
+      if (existingView.isSystem && req.body.name) {
+        return res.status(400).json({ message: "Cannot rename system views" });
+      }
+      
+      const { name, visibleColumns, columnOrder, columnWidths, frozenColumns, isDefault } = req.body;
+      
+      // Check for duplicate name if renaming
+      if (name && name.trim().toLowerCase() !== existingView.name.toLowerCase()) {
+        const existingViews = await storage.getProjectViews(existingView.organizationId, userId, existingView.mode);
+        const duplicateName = existingViews.find(v => v.name.toLowerCase() === name.trim().toLowerCase() && v.id !== viewId);
+        if (duplicateName) {
+          return res.status(400).json({ message: "A view with this name already exists" });
+        }
+      }
+      
+      const updates: any = {};
+      if (name !== undefined) updates.name = name.trim();
+      if (visibleColumns !== undefined) updates.visibleColumns = visibleColumns;
+      if (columnOrder !== undefined) updates.columnOrder = columnOrder;
+      if (columnWidths !== undefined) updates.columnWidths = columnWidths;
+      if (frozenColumns !== undefined) updates.frozenColumns = frozenColumns;
+      
+      const updatedView = await storage.updateProjectView(viewId, updates);
+      
+      // If this is marked as default, update the default status
+      if (isDefault) {
+        await storage.setDefaultProjectView(existingView.organizationId, userId, existingView.mode, viewId);
+      }
+      
+      res.json(updatedView);
+    } catch (err) {
+      console.error("Error updating project view:", err);
+      res.status(500).json({ message: "Error updating project view" });
+    }
+  });
+
+  // Delete a project view
+  app.delete('/api/project-views/:id', async (req, res) => {
+    try {
+      const viewId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const existingView = await storage.getProjectView(viewId);
+      if (!existingView) {
+        return res.status(404).json({ message: "View not found" });
+      }
+      
+      // Check ownership
+      if (existingView.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Prevent deleting system views
+      if (existingView.isSystem) {
+        return res.status(400).json({ message: "Cannot delete system views" });
+      }
+      
+      await storage.deleteProjectView(viewId);
+      res.status(204).send();
+    } catch (err) {
+      console.error("Error deleting project view:", err);
+      res.status(500).json({ message: "Error deleting project view" });
+    }
+  });
+
+  // Set a view as default
+  app.post('/api/project-views/:id/set-default', async (req, res) => {
+    try {
+      const viewId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const existingView = await storage.getProjectView(viewId);
+      if (!existingView) {
+        return res.status(404).json({ message: "View not found" });
+      }
+      
+      // Check ownership
+      if (existingView.userId !== userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.setDefaultProjectView(existingView.organizationId, userId, existingView.mode, viewId);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error setting default view:", err);
+      res.status(500).json({ message: "Error setting default view" });
+    }
+  });
+
   // =========== NOTIFICATIONS ===========
   
   // Get all notifications for the current user
