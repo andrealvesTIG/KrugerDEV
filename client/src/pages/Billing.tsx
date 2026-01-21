@@ -669,7 +669,7 @@ export function BillingContent() {
               </div>
 
               {/* Purchase Extra Seats */}
-              {seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && seatInfo.maxSeats !== null && (
+              {seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && seatInfo.isAdmin && seatInfo.maxSeats !== null && (
                 <div className="pt-3 border-t">
                   <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50">
                     <div className="flex-1">
@@ -697,6 +697,15 @@ export function BillingContent() {
                   <p className="text-xs text-muted-foreground mt-2">
                     Extra seats are billed monthly and added to your next invoice.
                   </p>
+                </div>
+              )}
+
+              {/* Message for non-admins */}
+              {seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && !seatInfo.isAdmin && seatInfo.maxSeats !== null && (
+                <div className="pt-3 border-t">
+                  <div className="text-xs text-muted-foreground">
+                    Contact your organization admin to purchase additional seats.
+                  </div>
                 </div>
               )}
             </div>
