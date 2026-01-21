@@ -581,6 +581,23 @@ function GeneralSection({ organization }: { organization: Organization }) {
 
         <Separator />
 
+        {/* Organization ID Section */}
+        <div className="space-y-2">
+          <div>
+            <Label className="text-base font-medium">Organization ID</Label>
+            <p className="text-sm text-muted-foreground">
+              Unique identifier for your organization. Use this for API integrations.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <code className="px-3 py-2 bg-muted rounded-md text-sm font-mono" data-testid="text-org-id">
+              {organization.id}
+            </code>
+          </div>
+        </div>
+
+        <Separator />
+
         {/* Company Logo Section */}
         <div className="space-y-4">
           <div>
