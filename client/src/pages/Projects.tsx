@@ -17,7 +17,7 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1812,6 +1812,7 @@ function ProjectsGridView({
   const [editingCell, setEditingCell] = useState<{ projectId: number; columnId: string } | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -2153,7 +2154,10 @@ function ProjectsGridView({
   const orderedVisibleColumns = getOrderedVisibleColumns();
 
   return (
-    <div className="space-y-4">
+    <div className={cn(
+      "space-y-4",
+      isFullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto"
+    )}>
       {/* Bulk Actions Toolbar */}
       {selectedProjects.size > 0 && (
         <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
@@ -2175,7 +2179,25 @@ function ProjectsGridView({
         </div>
       )}
       
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          data-testid="button-grid-fullscreen"
+        >
+          {isFullscreen ? (
+            <>
+              <Minimize2 className="h-4 w-4 mr-2" />
+              Exit Fullscreen
+            </>
+          ) : (
+            <>
+              <Maximize2 className="h-4 w-4 mr-2" />
+              Fullscreen
+            </>
+          )}
+        </Button>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" data-testid="button-grid-columns">
