@@ -1099,7 +1099,7 @@ export default function Integrations() {
                       ) : integration.status === "active" ? (
                         <Badge variant="default" className="text-xs bg-blue-600">Available</Badge>
                       ) : (
-                        <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                        <Badge variant="secondary" className="text-xs">Not Connected</Badge>
                       )}
                     </TableCell>
                     <TableCell className="py-2 text-right pr-3">
