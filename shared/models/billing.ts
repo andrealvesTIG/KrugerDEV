@@ -65,6 +65,7 @@ export const plans = pgTable("plans", {
   paypalPlanId: text("paypal_plan_id"),
   paypalProductId: text("paypal_product_id"),
   maxSeats: integer("max_seats"),
+  extraSeatPriceCents: integer("extra_seat_price_cents"), // Price per additional seat per month
   displayOrder: integer("display_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
