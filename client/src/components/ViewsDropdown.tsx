@@ -88,14 +88,16 @@ export function ViewsDropdown({
 
   const hasUnsavedChanges = useMemo(() => {
     if (!activeView) {
-      const isDefaultConfig = 
-        JSON.stringify([...visibleColumns].sort()) === JSON.stringify([...defaultColumns].sort()) &&
-        JSON.stringify(columnOrder) === JSON.stringify(defaultColumnOrder);
-      return !isDefaultConfig;
+      const columnsMatch = JSON.stringify([...visibleColumns].sort()) === JSON.stringify([...defaultColumns].sort());
+      const orderMatch = JSON.stringify(columnOrder) === JSON.stringify(defaultColumnOrder);
+      return !columnsMatch || !orderMatch;
     }
     const savedColumns = [...(activeView.visibleColumns || [])].sort();
     const currentColumns = [...visibleColumns].sort();
-    return JSON.stringify(savedColumns) !== JSON.stringify(currentColumns);
+    const columnsMatch = JSON.stringify(savedColumns) === JSON.stringify(currentColumns);
+    const savedOrder = activeView.columnOrder || activeView.visibleColumns || [];
+    const orderMatch = JSON.stringify(savedOrder) === JSON.stringify(columnOrder);
+    return !columnsMatch || !orderMatch;
   }, [activeView, visibleColumns, columnOrder, defaultColumns, defaultColumnOrder]);
 
   const filteredColumns = useMemo(() => {
