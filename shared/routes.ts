@@ -131,6 +131,8 @@ export const api = {
         baselineEndDate: z.union([z.string(), z.date(), z.null()]).optional(),
         actualStartDate: z.union([z.string(), z.date(), z.null()]).optional(),
         actualEndDate: z.union([z.string(), z.date(), z.null()]).optional(),
+        healthReasonUpdatedAt: z.union([z.string(), z.date(), z.null()]).optional(),
+        deletedAt: z.union([z.string(), z.date(), z.null()]).optional(),
       }),
       responses: {
         200: z.custom<typeof projects.$inferSelect>(),
