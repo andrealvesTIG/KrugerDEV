@@ -2352,9 +2352,9 @@ export async function registerRoutes(
         invites.filter(i => i.status === 'pending').map(i => i.email.toLowerCase())
       );
       
-      // Check if Microsoft Planner integration is connected for this organization
+      // Check if Microsoft Entra ID integration is connected for this organization
       const { getOrgIntegration } = await import('./services/microsoftPlanner');
-      const integration = await getOrgIntegration(orgId, 'microsoft_planner');
+      const integration = await getOrgIntegration(orgId, 'entra');
       
       if (integration?.connectionStatus === 'connected' && integration.accessToken) {
         // Search Microsoft Graph API for users

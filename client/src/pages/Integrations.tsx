@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink, Files, X, Link2, BarChart3, Copy, Check, Puzzle, Building2, Settings, Briefcase, Rocket } from "lucide-react";
+import { Loader2, Upload, FileSpreadsheet, RefreshCw, Trash2, ChevronDown, ChevronRight, Clock, FolderPlus, CheckCircle2, ExternalLink, Files, X, Link2, BarChart3, Copy, Check, Puzzle, Building2, Settings, Briefcase, Rocket, Users } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -32,7 +32,7 @@ interface MppImportWithTasks extends MppImport {
   tasks?: MppImportTask[];
 }
 
-type IntegrationCategory = "project" | "erp" | "analytics";
+type IntegrationCategory = "project" | "erp" | "analytics" | "identity";
 
 interface Integration {
   id: string;
@@ -71,12 +71,16 @@ const integrations: Integration[] = [
   { id: "tableau", name: "Tableau", description: "Export data to Tableau", icon: <SiTableau className="h-6 w-6" />, category: "analytics", status: "coming_soon", bgColor: "bg-blue-100 dark:bg-blue-900" },
   { id: "google-analytics", name: "Google Analytics", description: "Connect with Google Analytics", icon: <SiGoogleanalytics className="h-6 w-6" />, category: "analytics", status: "coming_soon", bgColor: "bg-orange-100 dark:bg-orange-900" },
   { id: "looker", name: "Looker", description: "Integrate with Google Looker", icon: <BarChart3 className="h-6 w-6" />, category: "analytics", status: "coming_soon", bgColor: "bg-purple-100 dark:bg-purple-900" },
+  
+  // Identity & Directory
+  { id: "entra-id", name: "Microsoft Entra ID", description: "Search and invite users from your Azure Active Directory", icon: <Users className="h-6 w-6" />, category: "identity", status: "active", bgColor: "bg-sky-100 dark:bg-sky-900" },
 ];
 
 const categories: { id: IntegrationCategory; name: string; icon: React.ReactNode; description: string }[] = [
   { id: "project", name: "Project Management", icon: <Puzzle className="h-4 w-4" />, description: "Connect your project management tools" },
   { id: "erp", name: "ERP Systems", icon: <Building2 className="h-4 w-4" />, description: "Integrate enterprise resource planning" },
   { id: "analytics", name: "Analytics & BI", icon: <BarChart3 className="h-4 w-4" />, description: "Connect business intelligence tools" },
+  { id: "identity", name: "Identity & Directory", icon: <Users className="h-4 w-4" />, description: "Connect user directories and identity providers" },
 ];
 
 export { integrations, categories };
@@ -143,7 +147,26 @@ export default function Integrations() {
       setShowPlannerPremiumWizard(true);
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, []);
+    // Handle Entra ID connection success
+    if (params.get("entraConnected") === "true") {
+      toast({ 
+        title: "Connected", 
+        description: "Successfully connected to Microsoft Entra ID. You can now search for users in your directory." 
+      });
+      setActiveCategory("identity");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    // Handle OAuth errors
+    const errorParam = params.get("error");
+    if (errorParam) {
+      toast({ 
+        title: "Connection Failed", 
+        description: decodeURIComponent(errorParam),
+        variant: "destructive"
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [toast]);
   
   // Planner connection status - organization scoped
   const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
@@ -167,6 +190,34 @@ export default function Integrations() {
     onSuccess: () => {
       refetchPlannerStatus();
       toast({ title: "Disconnected", description: "Disconnected from Microsoft Planner" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Entra ID connection status - organization scoped
+  const { data: entraStatus, refetch: refetchEntraStatus } = useQuery<{ configured: boolean; connected: boolean }>({
+    queryKey: ["/api/entra/status", currentOrganization?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/entra/status?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) throw new Error('Failed to fetch Entra ID status');
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+  
+  const disconnectEntraMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/entra/disconnect", { 
+        organizationId: currentOrganization?.id 
+      });
+      const text = await response.text();
+      return text ? JSON.parse(text) : {};
+    },
+    onSuccess: () => {
+      refetchEntraStatus();
+      toast({ title: "Disconnected", description: "Disconnected from Microsoft Entra ID" });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -494,6 +545,27 @@ export default function Integrations() {
       setShowPlannerWizard(true);
     } else if (integration.id === "planner-premium") {
       setShowPlannerPremiumWizard(true);
+    } else if (integration.id === "entra-id") {
+      handleEntraConnect();
+    }
+  };
+  
+  // Handle Entra ID connection
+  const handleEntraConnect = async () => {
+    try {
+      const response = await apiRequest("POST", "/api/entra/connect", { 
+        organizationId: currentOrganization?.id 
+      });
+      const data = await response.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (error: any) {
+      toast({ 
+        title: "Connection Failed", 
+        description: error.message || "Failed to connect to Microsoft Entra ID",
+        variant: "destructive"
+      });
     }
   };
 
@@ -991,6 +1063,8 @@ export default function Integrations() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredIntegrations.map((integration) => {
             const isPlannerConnected = integration.id === "planner" && plannerStatus?.connected;
+            const isEntraConnected = integration.id === "entra-id" && entraStatus?.connected;
+            const isConnected = isPlannerConnected || isEntraConnected;
             
             return (
               <Card 
@@ -1007,7 +1081,7 @@ export default function Integrations() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-foreground">{integration.name}</h3>
-                        {isPlannerConnected ? (
+                        {isConnected ? (
                           <Badge variant="default" className="text-xs bg-green-600">Connected</Badge>
                         ) : integration.status === "active" && (
                           <Badge variant="default" className="text-xs bg-green-600">Active</Badge>
@@ -1045,6 +1119,35 @@ export default function Integrations() {
                           )}
                         </Button>
                       </>
+                    ) : isEntraConnected ? (
+                      <>
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          className="flex-1"
+                          data-testid={`button-configure-${integration.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Connected
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            disconnectEntraMutation.mutate();
+                          }}
+                          disabled={disconnectEntraMutation.isPending}
+                          data-testid="button-disconnect-entra-card"
+                        >
+                          {disconnectEntraMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <X className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </>
                     ) : (
                       <Button 
                         variant={integration.status === "active" ? "default" : "outline"} 
@@ -1053,7 +1156,7 @@ export default function Integrations() {
                         data-testid={`button-configure-${integration.id}`}
                       >
                         <Settings className="mr-2 h-4 w-4" />
-                        {integration.status === "active" ? "Configure" : "Learn More"}
+                        {integration.status === "active" ? (integration.id === "entra-id" ? "Connect" : "Configure") : "Learn More"}
                       </Button>
                     )}
                   </div>

@@ -2925,8 +2925,8 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
               <>
                 {directoryResults?.source === 'internal' && !isSearchingDirectory && (
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-700 dark:text-amber-300">
-                    <div className="font-medium">Microsoft Entra not connected</div>
-                    <div className="text-xs mt-1">Connect Microsoft integration in Settings to search your organization's Active Directory.</div>
+                    <div className="font-medium">Microsoft Entra ID not connected</div>
+                    <div className="text-xs mt-1">Go to <a href="/integrations" className="underline font-medium">Integrations &gt; Identity & Directory</a> to connect Microsoft Entra ID and search your organization's Active Directory.</div>
                   </div>
                 )}
                 {directoryResults?.source === 'microsoft_entra' && !isSearchingDirectory && (
