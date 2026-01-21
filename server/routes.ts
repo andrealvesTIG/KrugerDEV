@@ -1887,6 +1887,11 @@ export async function registerRoutes(
       const invites = await storage.getOrganizationInvites(orgId);
       const pendingInvites = invites.filter(i => i.status === 'pending').length;
       
+      // Check if current user is admin
+      const members = await storage.getOrganizationMembers(orgId);
+      const currentMember = members.find(m => m.userId === userId);
+      const isAdmin = currentMember?.role === 'org_admin' || currentMember?.role === 'owner';
+      
       res.json({
         ...seatInfo,
         pendingInvites,
@@ -1894,7 +1899,8 @@ export async function registerRoutes(
         planCode,
         subscriptionId: subscription?.id || null,
         bonusSeats: subscription?.bonusSeats || 0,
-        extraSeatPriceCents
+        extraSeatPriceCents,
+        isAdmin
       });
     } catch (err) {
       console.error("Error fetching seat info:", err);
