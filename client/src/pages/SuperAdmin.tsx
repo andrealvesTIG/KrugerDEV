@@ -1283,6 +1283,7 @@ function AllUsersTab() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Org ID</TableHead>
                       <TableHead>Organization</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead className="w-[80px]">Actions</TableHead>
@@ -1293,6 +1294,9 @@ function AllUsersTab() {
                       const org = allOrganizations?.find(o => o.id === membership.organizationId);
                       return (
                         <TableRow key={membership.id} data-testid={`membership-row-${membership.organizationId}`}>
+                          <TableCell className="text-muted-foreground font-mono text-xs">
+                            {membership.organizationId}
+                          </TableCell>
                           <TableCell className="font-medium">
                             {org?.name || `Org #${membership.organizationId}`}
                           </TableCell>
