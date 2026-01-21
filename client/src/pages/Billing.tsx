@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle, Receipt, Calendar } from "lucide-react";
+import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle, Receipt, Calendar, Minus } from "lucide-react";
 import { SiPaypal } from "react-icons/si";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
@@ -297,6 +297,20 @@ export function BillingContent() {
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${currentOrganization?.id}/seats`] });
       queryClient.invalidateQueries({ queryKey: ['/api/billing/history'] });
       toast({ title: "Success", description: "Extra seat purchased successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeExtraSeatMutation = useMutation({
+    mutationFn: async (quantity: number = 1) => {
+      return apiRequest('POST', `/api/organizations/${currentOrganization?.id}/seats/remove`, { quantity });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${currentOrganization?.id}/seats`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/history'] });
+      toast({ title: "Success", description: "Extra seat removed successfully" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -631,31 +645,41 @@ export function BillingContent() {
                 )}
               </div>
 
-              {/* Purchase Extra Seats */}
+              {/* Purchase/Remove Extra Seats (Admin only) */}
               {seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && seatInfo.isAdmin && seatInfo.maxSeats !== null && (
                 <div className="pt-3 border-t">
                   <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50">
                     <div className="flex-1">
-                      <div className="text-sm font-medium">Add Extra Seats</div>
+                      <div className="text-sm font-medium">Extra Seats</div>
                       <div className="text-xs text-muted-foreground">
                         ${(seatInfo.extraSeatPriceCents / 100).toFixed(2)}/seat/month
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => purchaseExtraSeatMutation.mutate(1)}
-                      disabled={purchaseExtraSeatMutation.isPending}
-                      data-testid="button-purchase-extra-seat"
-                    >
-                      {purchaseExtraSeatMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add Seat
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => removeExtraSeatMutation.mutate(1)}
+                        disabled={removeExtraSeatMutation.isPending || (seatInfo.bonusSeats || 0) <= 0}
+                        data-testid="button-remove-seat"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm font-bold min-w-[1.5rem] text-center" data-testid="text-bonus-seats">
+                        {seatInfo.bonusSeats || 0}
+                      </span>
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => purchaseExtraSeatMutation.mutate(1)}
+                        disabled={purchaseExtraSeatMutation.isPending}
+                        data-testid="button-add-seat"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     Extra seats are billed monthly and added to your next invoice.

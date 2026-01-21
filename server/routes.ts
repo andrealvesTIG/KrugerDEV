@@ -1908,7 +1908,66 @@ export async function registerRoutes(
     }
   });
 
-  // Purchase an extra seat for the organization
+  // Remove extra seats from the organization
+  // Remove extra seats from the organization
+  app.post('/api/organizations/:id/seats/remove', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const { quantity = 1 } = req.body;
+
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      // Check if user is org admin
+      const members = await storage.getOrganizationMembers(orgId);
+      const currentMember = members.find(m => m.userId === userId);
+      if (!currentMember || !['org_admin', 'owner'].includes(currentMember.role)) {
+        return res.status(403).json({ message: 'Only organization admins can remove seats' });
+      }
+
+      // Get organization subscription
+      const { billingProvider } = await import("./services/billing");
+      const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+
+      if (!subscription) {
+        return res.status(400).json({ message: 'No active subscription found' });
+      }
+
+      const currentBonusSeats = subscription.bonusSeats || 0;
+      if (currentBonusSeats < quantity) {
+        return res.status(400).json({ message: "Cannot remove more seats than purchased extra seats" });
+      }
+
+      const newBonusSeats = currentBonusSeats - quantity;
+
+      // Update bonus seats on subscription
+      await db.update(subscriptions)
+        .set({ bonusSeats: newBonusSeats })
+        .where(eq(subscriptions.id, subscription.id));
+
+      // Record in billing audit log
+      await db.insert(billingAuditLogs).values({
+        actorUserId: userId,
+        orgId: orgId,
+        action: "EXTRA_SEAT_REMOVED",
+        entityType: "subscription",
+        entityId: String(subscription.id),
+        metadataJson: {
+          quantity,
+          previousBonusSeats: currentBonusSeats,
+          newBonusSeats
+        }
+      });
+
+      res.json({ message: "Extra seats removed successfully", bonusSeats: newBonusSeats });
+    } catch (error: any) {
+      console.error('Error removing extra seats:', error);
+      res.status(500).json({ message: error.message || "Failed to remove extra seats" });
+    }
+  });
+
   app.post('/api/organizations/:id/seats/purchase', async (req, res) => {
     try {
       const orgId = Number(req.params.id);
