@@ -38,6 +38,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/hooks/use-auth";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import ExcelJS from "exceljs";
+import { ViewsDropdown } from "@/components/ViewsDropdown";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
 
@@ -682,6 +683,7 @@ export default function Projects() {
           onDeleteProject={(id) => deleteProject.mutate(id)}
           onUpdateProject={(id, data) => updateProject.mutate({ id, ...data })}
           isAdmin={isOrgAdmin}
+          organizationId={currentOrganization?.id || null}
         />
       ) : view === "kanban" ? (
         <ProjectsKanbanView 
@@ -1797,6 +1799,7 @@ function ProjectsGridView({
   onDeleteProject,
   onUpdateProject,
   isAdmin,
+  organizationId,
 }: { 
   projects: Project[];
   portfolios: Portfolio[];
@@ -1804,6 +1807,7 @@ function ProjectsGridView({
   onDeleteProject: (projectId: number) => void;
   onUpdateProject: (projectId: number, data: Partial<Project>) => void;
   isAdmin: boolean;
+  organizationId: number | null;
 }) {
   const { toast } = useToast();
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
@@ -1813,6 +1817,16 @@ function ProjectsGridView({
   const [editValue, setEditValue] = useState<string>("");
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  const defaultColumns = useMemo(() => ALL_GRID_COLUMNS.filter(c => c.defaultVisible).map(c => c.id), []);
+  const defaultColumnOrder = useMemo(() => ALL_GRID_COLUMNS.map(c => c.id), []);
+  
+  const handleApplyView = (view: { visibleColumns: string[]; columnOrder: string[] }) => {
+    setVisibleColumns(view.visibleColumns);
+    setColumnOrder(view.columnOrder);
+    saveColumns(view.visibleColumns);
+    saveColumnOrder(view.columnOrder);
+  };
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -2161,7 +2175,19 @@ function ProjectsGridView({
       {/* Fullscreen Header */}
       {isFullscreen && (
         <div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-background shrink-0">
-          <h2 className="text-lg font-semibold">Projects</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-semibold">Projects</h2>
+            <ViewsDropdown
+              mode="grid"
+              organizationId={organizationId}
+              allColumns={ALL_GRID_COLUMNS}
+              visibleColumns={visibleColumns}
+              columnOrder={columnOrder}
+              onApplyView={handleApplyView}
+              defaultColumns={defaultColumns}
+              defaultColumnOrder={defaultColumnOrder}
+            />
+          </div>
           <div className="flex items-center gap-2">
             {selectedProjects.size > 0 && (
               <>
@@ -2249,23 +2275,34 @@ function ProjectsGridView({
       
       {/* Toolbar - Only show in non-fullscreen mode */}
       {!isFullscreen && (
-        <div className="flex justify-end gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setIsFullscreen(true)}
-            data-testid="button-grid-fullscreen"
-          >
-            <Maximize2 className="h-4 w-4 mr-2" />
-            Fullscreen
-          </Button>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" data-testid="button-grid-columns">
-                <Settings2 className="h-4 w-4 mr-2" />
-                Columns
-              </Button>
-            </PopoverTrigger>
+        <div className="flex justify-between gap-2">
+          <ViewsDropdown
+            mode="grid"
+            organizationId={organizationId}
+            allColumns={ALL_GRID_COLUMNS}
+            visibleColumns={visibleColumns}
+            columnOrder={columnOrder}
+            onApplyView={handleApplyView}
+            defaultColumns={defaultColumns}
+            defaultColumnOrder={defaultColumnOrder}
+          />
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsFullscreen(true)}
+              data-testid="button-grid-fullscreen"
+            >
+              <Maximize2 className="h-4 w-4 mr-2" />
+              Fullscreen
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" data-testid="button-grid-columns">
+                  <Settings2 className="h-4 w-4 mr-2" />
+                  Columns
+                </Button>
+              </PopoverTrigger>
             <PopoverContent align="end" className="w-56">
               <div className="space-y-2">
                 <p className="text-sm font-medium">Show Columns</p>
@@ -2290,6 +2327,7 @@ function ProjectsGridView({
               </div>
             </PopoverContent>
           </Popover>
+          </div>
         </div>
       )}
 
