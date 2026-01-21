@@ -165,6 +165,7 @@ const PLANNER_SCOPES = [
   "https://graph.microsoft.com/Tasks.Read",
   "https://graph.microsoft.com/Group.Read.All",
   "https://graph.microsoft.com/User.Read",
+  "https://graph.microsoft.com/User.Read.All",
   "offline_access",
 ];
 

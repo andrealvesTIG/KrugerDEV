@@ -2286,10 +2286,12 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     firstName: string | null;
     lastName: string | null;
     displayName: string;
+    jobTitle?: string;
+    department?: string;
     source: 'internal' | 'entra';
   }
 
-  const { data: directoryResults, isLoading: isSearchingDirectory } = useQuery<{ users: DirectoryUser[] }>({
+  const { data: directoryResults, isLoading: isSearchingDirectory } = useQuery<{ users: DirectoryUser[]; source: 'microsoft_entra' | 'internal' }>({
     queryKey: [`/api/organizations/${organizationId}/directory/search`, directorySearchQuery],
     enabled: directorySearchQuery.length >= 2,
   });
@@ -2915,35 +2917,59 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
             </div>
             
             {directorySearchQuery.length >= 2 && (
-              <div className="border rounded-md max-h-64 overflow-y-auto">
-                {isSearchingDirectory ? (
-                  <div className="p-4 flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  </div>
-                ) : directoryResults?.users && directoryResults.users.length > 0 ? (
-                  <div className="divide-y">
-                    {directoryResults.users.map((user) => (
-                      <div
-                        key={user.id}
-                        className={`p-3 cursor-pointer hover-elevate ${
-                          selectedDirectoryUser?.id === user.id ? 'bg-primary/10' : ''
-                        }`}
-                        onClick={() => setSelectedDirectoryUser(user)}
-                        data-testid={`directory-user-${user.id}`}
-                      >
-                        <div className="font-medium">{user.displayName}</div>
-                        {user.email && (
-                          <div className="text-sm text-muted-foreground">{user.email}</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-4 text-center text-muted-foreground">
-                    No users found matching your search
+              <>
+                {directoryResults?.source === 'internal' && !isSearchingDirectory && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-700 dark:text-amber-300">
+                    <div className="font-medium">Microsoft Entra not connected</div>
+                    <div className="text-xs mt-1">Connect Microsoft integration in Settings to search your organization's Active Directory.</div>
                   </div>
                 )}
-              </div>
+                {directoryResults?.source === 'microsoft_entra' && !isSearchingDirectory && (
+                  <div className="p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Searching Microsoft Entra ID directory
+                  </div>
+                )}
+                <div className="border rounded-md max-h-64 overflow-y-auto">
+                  {isSearchingDirectory ? (
+                    <div className="p-4 flex items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : directoryResults?.users && directoryResults.users.length > 0 ? (
+                    <div className="divide-y">
+                      {directoryResults.users.map((user) => (
+                        <div
+                          key={user.id}
+                          className={`p-3 cursor-pointer hover-elevate ${
+                            selectedDirectoryUser?.id === user.id ? 'bg-primary/10' : ''
+                          }`}
+                          onClick={() => setSelectedDirectoryUser(user)}
+                          data-testid={`directory-user-${user.id}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium">{user.displayName}</div>
+                            {user.source === 'entra' && (
+                              <Badge variant="outline" className="text-xs">Entra ID</Badge>
+                            )}
+                          </div>
+                          {user.email && (
+                            <div className="text-sm text-muted-foreground">{user.email}</div>
+                          )}
+                          {(user.jobTitle || user.department) && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {[user.jobTitle, user.department].filter(Boolean).join(' • ')}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-muted-foreground">
+                      No users found matching your search
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             {selectedDirectoryUser && (

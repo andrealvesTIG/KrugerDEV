@@ -2342,7 +2342,9 @@ export async function registerRoutes(
       
       // Get existing members to exclude from results
       const members = await storage.getOrganizationMembers(orgId);
-      const memberUserIds = new Set(members.map(m => m.userId));
+      const memberEmails = new Set(
+        members.map(m => m.user?.email?.toLowerCase()).filter(Boolean) as string[]
+      );
       
       // Get pending invites to exclude from results
       const invites = await storage.getOrganizationInvites(orgId);
@@ -2350,15 +2352,67 @@ export async function registerRoutes(
         invites.filter(i => i.status === 'pending').map(i => i.email.toLowerCase())
       );
       
-      // For now, search internal users if no external directory is configured
-      // In the future, this would integrate with Microsoft Graph API
+      // Check if Microsoft Planner integration is connected for this organization
+      const { getOrgIntegration } = await import('./services/microsoftPlanner');
+      const integration = await getOrgIntegration(orgId, 'microsoft_planner');
+      
+      if (integration?.connectionStatus === 'connected' && integration.accessToken) {
+        // Search Microsoft Graph API for users
+        try {
+          const searchQuery = encodeURIComponent(q);
+          // Use $filter to search by displayName or mail containing the search term
+          const graphUrl = `https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'${searchQuery}') or startswith(mail,'${searchQuery}') or startswith(givenName,'${searchQuery}') or startswith(surname,'${searchQuery}')&$top=15&$select=id,displayName,mail,givenName,surname,userPrincipalName,jobTitle,department`;
+          
+          const graphResponse = await fetch(graphUrl, {
+            headers: {
+              'Authorization': `Bearer ${integration.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (graphResponse.ok) {
+            const graphData = await graphResponse.json();
+            const graphUsers = (graphData.value || [])
+              .filter((user: any) => {
+                const email = (user.mail || user.userPrincipalName || '').toLowerCase();
+                // Skip if already a member or has pending invite
+                if (memberEmails.has(email)) return false;
+                if (pendingInviteEmails.has(email)) return false;
+                return true;
+              })
+              .slice(0, 10)
+              .map((user: any) => ({
+                id: user.id,
+                email: user.mail || user.userPrincipalName,
+                firstName: user.givenName,
+                lastName: user.surname,
+                displayName: user.displayName || [user.givenName, user.surname].filter(Boolean).join(' ') || user.mail || 'Unknown User',
+                jobTitle: user.jobTitle,
+                department: user.department,
+                source: 'entra' as const
+              }));
+            
+            return res.json({ users: graphUsers, source: 'microsoft_entra' });
+          } else {
+            // Log error but fall back to internal search
+            const errorText = await graphResponse.text();
+            console.error('Microsoft Graph API error:', graphResponse.status, errorText);
+            // Token might be expired or insufficient permissions - fall back to internal
+          }
+        } catch (graphErr) {
+          console.error('Failed to search Microsoft Graph:', graphErr);
+          // Fall back to internal search
+        }
+      }
+      
+      // Fall back to internal users if no external directory is configured or Graph API failed
       const allUsers = await storage.getAllUsers();
       const searchLower = q.toLowerCase();
       
       const matchingUsers = allUsers
         .filter(user => {
           // Skip if already a member
-          if (memberUserIds.has(user.id)) return false;
+          if (user.email && memberEmails.has(user.email.toLowerCase())) return false;
           
           // Skip if already has a pending invite
           if (user.email && pendingInviteEmails.has(user.email.toLowerCase())) return false;
@@ -2379,7 +2433,7 @@ export async function registerRoutes(
           source: 'internal' as const
         }));
       
-      res.json({ users: matchingUsers });
+      res.json({ users: matchingUsers, source: 'internal' });
     } catch (err) {
       console.error('Failed to search directory:', err);
       res.status(500).json({ message: 'Failed to search directory' });
