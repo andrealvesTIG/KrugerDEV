@@ -2210,6 +2210,10 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
   const { user: currentUser } = useAuth();
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isDirectorySearchOpen, setIsDirectorySearchOpen] = useState(false);
+  const [directorySearchQuery, setDirectorySearchQuery] = useState("");
+  const [selectedDirectoryUser, setSelectedDirectoryUser] = useState<{ id: string; email: string | null; displayName: string } | null>(null);
+  const [directoryInviteRole, setDirectoryInviteRole] = useState<string>("member");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<string>("member");
   const [inviteEmails, setInviteEmails] = useState<string>("");
@@ -2274,6 +2278,43 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
 
   const { data: allUsers } = useQuery<User[]>({
     queryKey: ['/api/users']
+  });
+
+  interface DirectoryUser {
+    id: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    displayName: string;
+    source: 'internal' | 'entra';
+  }
+
+  const { data: directoryResults, isLoading: isSearchingDirectory } = useQuery<{ users: DirectoryUser[] }>({
+    queryKey: [`/api/organizations/${organizationId}/directory/search`, directorySearchQuery],
+    enabled: directorySearchQuery.length >= 2,
+  });
+
+  const inviteFromDirectory = useMutation({
+    mutationFn: async ({ email, role }: { email: string; role: string }) => {
+      return apiRequest('POST', `/api/organizations/${organizationId}/invites`, { emails: email, role });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/invites`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/seats`] });
+      toast({ title: "Success", description: "Invitation sent successfully" });
+      setIsDirectorySearchOpen(false);
+      setDirectorySearchQuery("");
+      setSelectedDirectoryUser(null);
+    },
+    onError: async (error: Error & { limitExceeded?: boolean; resourceType?: string }) => {
+      if (error.limitExceeded && error.resourceType === 'seats') {
+        setIsDirectorySearchOpen(false);
+        setUpgradeMessage(error.message || 'You have reached your seat limit. Please upgrade your plan to invite more team members.');
+        setShowUpgradeDialog(true);
+        return;
+      }
+      toast({ title: "Error", description: error.message || "Failed to send invite", variant: "destructive" });
+    }
   });
 
   const addMember = useMutation({
@@ -2487,7 +2528,11 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
             </Button>
           </CardDescription>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setIsDirectorySearchOpen(true)} data-testid="button-search-directory">
+            <Users className="h-4 w-4 mr-2" />
+            Search Directory
+          </Button>
           <Button variant="outline" onClick={() => setIsInviteOpen(true)} data-testid="button-invite-member">
             <Mail className="h-4 w-4 mr-2" />
             Invite by Email
@@ -2838,6 +2883,103 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
               onClick={() => removeMemberId && removeMember.mutate(removeMemberId)}
             >
               Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDirectorySearchOpen} onOpenChange={(open) => {
+        setIsDirectorySearchOpen(open);
+        if (!open) {
+          setDirectorySearchQuery("");
+          setSelectedDirectoryUser(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Search Directory</DialogTitle>
+            <DialogDescription>
+              Search for colleagues in your organization's directory to invite them as team members.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="directory-search">Search by name or email</Label>
+              <Input
+                id="directory-search"
+                placeholder="Start typing to search..."
+                value={directorySearchQuery}
+                onChange={(e) => setDirectorySearchQuery(e.target.value)}
+                data-testid="input-directory-search"
+              />
+            </div>
+            
+            {directorySearchQuery.length >= 2 && (
+              <div className="border rounded-md max-h-64 overflow-y-auto">
+                {isSearchingDirectory ? (
+                  <div className="p-4 flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  </div>
+                ) : directoryResults?.users && directoryResults.users.length > 0 ? (
+                  <div className="divide-y">
+                    {directoryResults.users.map((user) => (
+                      <div
+                        key={user.id}
+                        className={`p-3 cursor-pointer hover-elevate ${
+                          selectedDirectoryUser?.id === user.id ? 'bg-primary/10' : ''
+                        }`}
+                        onClick={() => setSelectedDirectoryUser(user)}
+                        data-testid={`directory-user-${user.id}`}
+                      >
+                        <div className="font-medium">{user.displayName}</div>
+                        {user.email && (
+                          <div className="text-sm text-muted-foreground">{user.email}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground">
+                    No users found matching your search
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedDirectoryUser && (
+              <div className="space-y-2 p-3 bg-muted/50 rounded-md">
+                <div className="text-sm font-medium">Selected: {selectedDirectoryUser.displayName}</div>
+                {selectedDirectoryUser.email && (
+                  <div className="text-sm text-muted-foreground">{selectedDirectoryUser.email}</div>
+                )}
+                <div className="space-y-2 mt-3">
+                  <Label htmlFor="directory-invite-role">Role</Label>
+                  <Select value={directoryInviteRole} onValueChange={setDirectoryInviteRole}>
+                    <SelectTrigger id="directory-invite-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="org_admin">Org Admin</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="team_member">Team Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDirectorySearchOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (selectedDirectoryUser?.email) {
+                  inviteFromDirectory.mutate({ email: selectedDirectoryUser.email, role: directoryInviteRole });
+                }
+              }}
+              disabled={!selectedDirectoryUser?.email || inviteFromDirectory.isPending}
+              data-testid="button-send-directory-invite"
+            >
+              {inviteFromDirectory.isPending ? "Sending..." : "Send Invite"}
             </Button>
           </DialogFooter>
         </DialogContent>
