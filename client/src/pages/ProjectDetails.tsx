@@ -1050,30 +1050,33 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
             <CardTitle className="text-lg">Project Summary</CardTitle>
             <CardDescription className="text-xs">Click any field to edit</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-md border border-border bg-muted/30 p-0.5" data-testid="toggle-project-health">
-              {[
-                { value: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300' },
-                { value: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
-                { value: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300' },
-              ].map((option) => {
-                const isSelected = project.health === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => handleHealthChange(option.value)}
-                    className={cn(
-                      "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all",
-                      isSelected ? `${option.bgLight} ${option.text}` : "text-muted-foreground hover:bg-muted/80"
-                    )}
-                    data-testid={`health-option-${option.value.toLowerCase()}`}
-                  >
-                    <span className={cn("w-1.5 h-1.5 rounded-full", isSelected ? option.bg : "bg-muted-foreground/30")} />
-                    {option.value}
-                  </button>
-                );
-              })}
+          <div className="flex items-end gap-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">Health Status</Label>
+              <div className="flex rounded-md border border-border bg-muted/30 p-0.5 mt-1" data-testid="toggle-project-health">
+                {[
+                  { value: 'Green', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300' },
+                  { value: 'Yellow', bg: 'bg-amber-500', bgLight: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
+                  { value: 'Red', bg: 'bg-rose-500', bgLight: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300' },
+                ].map((option) => {
+                  const isSelected = project.health === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleHealthChange(option.value)}
+                      className={cn(
+                        "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all",
+                        isSelected ? `${option.bgLight} ${option.text}` : "text-muted-foreground hover:bg-muted/80"
+                      )}
+                      data-testid={`health-option-${option.value.toLowerCase()}`}
+                    >
+                      <span className={cn("w-1.5 h-1.5 rounded-full", isSelected ? option.bg : "bg-muted-foreground/30")} />
+                      {option.value}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Billable Status</Label>
