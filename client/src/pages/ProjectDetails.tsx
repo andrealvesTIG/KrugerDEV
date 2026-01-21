@@ -1045,12 +1045,33 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
     <>
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">Project Summary</CardTitle>
-            <CardDescription className="text-xs">Click any field to edit</CardDescription>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Project Summary</CardTitle>
+              <CardDescription className="text-xs">Click any field to edit</CardDescription>
+            </div>
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <Label className="text-xs text-muted-foreground">Project Name</Label>
+              {editingField === 'name' ? (
+                <Input
+                  value={editValues.name}
+                  onChange={(e) => setEditValues(prev => ({ ...prev, name: e.target.value }))}
+                  onBlur={() => handleFieldBlur('name')}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('name')}
+                  autoFocus
+                  className="h-9 text-base font-semibold mt-1"
+                  data-testid="input-project-name"
+                />
+              ) : (
+                <p className="text-base font-semibold cursor-pointer hover:bg-muted/50 rounded px-1 py-1 -mx-1 transition-colors mt-1" onClick={() => setEditingField('name')} data-testid="text-project-name">
+                  {project.name}
+                </p>
+              )}
+            </div>
+            <div className="flex items-end gap-2">
             <div>
               <Label className="text-xs text-muted-foreground">Health Status</Label>
               <div className="flex rounded-md border border-border bg-muted/30 p-0.5 mt-1" data-testid="toggle-project-health">
@@ -1103,6 +1124,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 </SelectContent>
               </Select>
             </div>
+            </div>
           </div>
         </div>
         {project.healthReason && (
@@ -1111,24 +1133,6 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
       </CardHeader>
       <CardContent className="pt-0">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-3">
-          <div className="col-span-2 md:col-span-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Name</Label>
-            {editingField === 'name' ? (
-              <Input
-                value={editValues.name}
-                onChange={(e) => setEditValues(prev => ({ ...prev, name: e.target.value }))}
-                onBlur={() => handleFieldBlur('name')}
-                onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('name')}
-                autoFocus
-                className="h-8 text-sm"
-                data-testid="input-project-name"
-              />
-            ) : (
-              <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors truncate" onClick={() => setEditingField('name')} data-testid="text-project-name">
-                {project.name}
-              </p>
-            )}
-          </div>
           <div>
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Portfolio</Label>
             <Select value={project.portfolioId?.toString() || "none"} onValueChange={handlePortfolioChange}>
