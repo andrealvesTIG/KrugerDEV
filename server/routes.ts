@@ -10219,13 +10219,14 @@ Return ONLY valid JSON.`;
     try {
       const { plans } = await import("@shared/schema");
       const planId = parseInt(req.params.id);
-      const { name, description, monthlyPriceCents, maxSeats, isActive } = req.body;
+      const { name, description, monthlyPriceCents, maxSeats, extraSeatPriceCents, isActive } = req.body;
 
       const updates: any = {};
       if (name !== undefined) updates.name = name;
       if (description !== undefined) updates.description = description;
       if (monthlyPriceCents !== undefined) updates.monthlyPriceCents = monthlyPriceCents;
       if (maxSeats !== undefined) updates.maxSeats = maxSeats;
+      if (extraSeatPriceCents !== undefined) updates.extraSeatPriceCents = extraSeatPriceCents;
       if (isActive !== undefined) updates.isActive = isActive;
 
       const [updated] = await db.update(plans)

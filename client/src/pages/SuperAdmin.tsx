@@ -1407,6 +1407,7 @@ interface PlanData {
   description: string | null;
   monthlyPriceCents: number | null;
   maxSeats: number | null;
+  extraSeatPriceCents: number | null;
   isActive: boolean | null;
   displayOrder: number | null;
   meterRules: Array<{
@@ -1535,7 +1536,7 @@ function PlansTab() {
   });
 
   const updatePlan = useMutation({
-    mutationFn: async (data: { id: number; name?: string; description?: string; monthlyPriceCents?: number | null; maxSeats?: number }) => {
+    mutationFn: async (data: { id: number; name?: string; description?: string; monthlyPriceCents?: number | null; maxSeats?: number; extraSeatPriceCents?: number | null }) => {
       return apiRequest('PUT', `/api/admin/plans/${data.id}`, data);
     },
     onSuccess: () => {
@@ -1636,6 +1637,7 @@ function PlansTab() {
                 <TableHead>Plan</TableHead>
                 <TableHead>Monthly Price</TableHead>
                 <TableHead>Max Seats</TableHead>
+                <TableHead>Extra Seat Price</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -1677,6 +1679,11 @@ function PlansTab() {
                     </Badge>
                   </TableCell>
                   <TableCell>{plan.maxSeats || "Unlimited"}</TableCell>
+                  <TableCell>
+                    {plan.extraSeatPriceCents !== null 
+                      ? `$${(plan.extraSeatPriceCents / 100).toFixed(2)}/mo`
+                      : "N/A"}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={plan.isActive ? "default" : "outline"}>
                       {plan.isActive ? "Active" : "Inactive"}
@@ -1785,6 +1792,23 @@ function PlansTab() {
                     })}
                     data-testid="input-plan-seats"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="plan-extra-seat-price">Extra Seat Price (cents/month)</Label>
+                  <Input
+                    id="plan-extra-seat-price"
+                    type="number"
+                    value={editingPlan.extraSeatPriceCents ?? ""}
+                    placeholder="N/A (no extra seats allowed)"
+                    onChange={(e) => setEditingPlan({ 
+                      ...editingPlan, 
+                      extraSeatPriceCents: e.target.value ? parseInt(e.target.value) : null 
+                    })}
+                    data-testid="input-plan-extra-seat-price"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Price per additional seat per month (e.g., 500 = $5.00/seat/month). Leave empty to disable extra seats.
+                  </p>
                 </div>
               </div>
 
@@ -1997,6 +2021,7 @@ function PlansTab() {
                       description: editingPlan.description || undefined,
                       monthlyPriceCents: editingPlan.monthlyPriceCents,
                       maxSeats: editingPlan.maxSeats || undefined,
+                      extraSeatPriceCents: editingPlan.extraSeatPriceCents,
                     });
                     
                     // Save all meter rules
