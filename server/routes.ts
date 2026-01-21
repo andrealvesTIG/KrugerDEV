@@ -2002,12 +2002,19 @@ export async function registerRoutes(
         }
         
         try {
+          // Generate a secure token for the magic link
+          const crypto = await import('crypto');
+          const inviteToken = crypto.randomBytes(32).toString('hex');
+          const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+          
           await storage.createOrganizationInvite({
             organizationId: orgId,
             email: normalizedEmail,
             role: role || 'member',
             invitedBy: currentUserId,
-            status: 'pending'
+            status: 'pending',
+            token: inviteToken,
+            expiresAt: expiresAt
           });
           results.success.push(normalizedEmail);
           invitesSent++;
@@ -2030,7 +2037,8 @@ export async function registerRoutes(
               org.name,
               inviterName,
               role || 'member',
-              appUrl
+              appUrl,
+              inviteToken
             );
           }
         } catch (err) {
@@ -2085,6 +2093,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'Can only resend pending invites' });
       }
       
+      // Generate new token and update expiration
+      const crypto = await import('crypto');
+      const newToken = crypto.randomBytes(32).toString('hex');
+      const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      
+      await storage.resendOrganizationInvite(inviteId, newToken, newExpiresAt);
+      
       // Get org and inviter info for email
       const org = await storage.getOrganization(orgId);
       const inviter = currentUserId ? await storage.getUser(currentUserId) : null;
@@ -2103,7 +2118,8 @@ export async function registerRoutes(
           org.name,
           inviterName,
           invite.role,
-          appUrl
+          appUrl,
+          newToken
         );
       }
       
@@ -2111,6 +2127,182 @@ export async function registerRoutes(
     } catch (err) {
       console.error('Failed to resend invite:', err);
       res.status(500).json({ message: 'Failed to resend invite' });
+    }
+  });
+
+  // Magic link invite acceptance - validates token and accepts invite for logged in user
+  app.post('/api/invites/accept', async (req, res) => {
+    try {
+      const currentUserId = getUserIdFromRequest(req);
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ message: 'Invite token is required' });
+      }
+      
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required. Please log in first.' });
+      }
+      
+      // Look up the invite by token
+      const invite = await storage.getOrganizationInviteByToken(token);
+      
+      if (!invite) {
+        return res.status(404).json({ message: 'Invalid or expired invitation link' });
+      }
+      
+      if (invite.status !== 'pending') {
+        return res.status(400).json({ 
+          message: invite.status === 'accepted' 
+            ? 'This invitation has already been accepted' 
+            : 'This invitation is no longer valid' 
+        });
+      }
+      
+      // Check if invite has expired
+      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+        return res.status(400).json({ message: 'This invitation has expired. Please ask for a new invite.' });
+      }
+      
+      // Verify the user's email matches the invite
+      const user = await storage.getUser(currentUserId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Check if email matches (case insensitive)
+      if (user.email?.toLowerCase() !== invite.email.toLowerCase()) {
+        return res.status(403).json({ 
+          message: `This invitation was sent to ${invite.email}. Please log in with that email address or ask for a new invitation.` 
+        });
+      }
+      
+      // Accept the invite
+      const member = await storage.acceptOrganizationInvite(invite.id, currentUserId);
+      
+      if (!member) {
+        return res.status(500).json({ message: 'Failed to accept invitation' });
+      }
+      
+      // Get organization details for response
+      const org = await storage.getOrganization(invite.organizationId);
+      
+      res.json({ 
+        message: 'Successfully joined organization',
+        organization: org,
+        role: invite.role
+      });
+    } catch (err) {
+      console.error('Failed to accept invite:', err);
+      res.status(500).json({ message: 'Failed to accept invitation' });
+    }
+  });
+
+  // Get invite details by token (for displaying invite info before login)
+  app.get('/api/invites/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      const invite = await storage.getOrganizationInviteByToken(token);
+      
+      if (!invite) {
+        return res.status(404).json({ message: 'Invalid or expired invitation link' });
+      }
+      
+      if (invite.status !== 'pending') {
+        return res.status(400).json({ 
+          message: invite.status === 'accepted' 
+            ? 'This invitation has already been accepted' 
+            : 'This invitation is no longer valid',
+          status: invite.status
+        });
+      }
+      
+      // Check if invite has expired
+      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+        return res.status(400).json({ message: 'This invitation has expired', expired: true });
+      }
+      
+      // Get organization details
+      const org = await storage.getOrganization(invite.organizationId);
+      
+      // Return safe details (no sensitive info)
+      res.json({
+        email: invite.email,
+        organizationName: org?.name || 'Unknown Organization',
+        role: invite.role,
+        expiresAt: invite.expiresAt
+      });
+    } catch (err) {
+      console.error('Failed to get invite details:', err);
+      res.status(500).json({ message: 'Failed to get invitation details' });
+    }
+  });
+
+  // Microsoft Entra ID directory user search
+  app.get('/api/organizations/:id/directory/search', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const currentUserId = getUserIdFromRequest(req);
+      const { q } = req.query;
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      if (!q || typeof q !== 'string' || q.length < 2) {
+        return res.status(400).json({ message: 'Search query must be at least 2 characters' });
+      }
+      
+      // Get organization to check for Entra ID configuration
+      const org = await storage.getOrganization(orgId);
+      if (!org) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      // Get existing members to exclude from results
+      const members = await storage.getOrganizationMembers(orgId);
+      const memberUserIds = new Set(members.map(m => m.userId));
+      
+      // Get pending invites to exclude from results
+      const invites = await storage.getOrganizationInvites(orgId);
+      const pendingInviteEmails = new Set(
+        invites.filter(i => i.status === 'pending').map(i => i.email.toLowerCase())
+      );
+      
+      // For now, search internal users if no external directory is configured
+      // In the future, this would integrate with Microsoft Graph API
+      const allUsers = await storage.getAllUsers();
+      const searchLower = q.toLowerCase();
+      
+      const matchingUsers = allUsers
+        .filter(user => {
+          // Skip if already a member
+          if (memberUserIds.has(user.id)) return false;
+          
+          // Skip if already has a pending invite
+          if (user.email && pendingInviteEmails.has(user.email.toLowerCase())) return false;
+          
+          // Match on name or email
+          const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').toLowerCase();
+          const email = user.email?.toLowerCase() || '';
+          
+          return fullName.includes(searchLower) || email.includes(searchLower);
+        })
+        .slice(0, 10) // Limit results
+        .map(user => ({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          displayName: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Unknown User',
+          source: 'internal' as const
+        }));
+      
+      res.json({ users: matchingUsers });
+    } catch (err) {
+      console.error('Failed to search directory:', err);
+      res.status(500).json({ message: 'Failed to search directory' });
     }
   });
 

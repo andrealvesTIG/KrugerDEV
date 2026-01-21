@@ -569,6 +569,64 @@ export class DatabaseStorage implements IStorage {
       .where(eq(organizationInvites.id, id));
   }
 
+  async getOrganizationInviteByToken(token: string): Promise<OrganizationInvite | undefined> {
+    const [invite] = await db.select().from(organizationInvites)
+      .where(eq(organizationInvites.token, token));
+    return invite;
+  }
+
+  async getOrganizationInviteById(id: number): Promise<OrganizationInvite | undefined> {
+    const [invite] = await db.select().from(organizationInvites)
+      .where(eq(organizationInvites.id, id));
+    return invite;
+  }
+
+  async acceptOrganizationInvite(id: number, userId: string): Promise<OrganizationMember | null> {
+    const invite = await this.getOrganizationInviteById(id);
+    if (!invite || invite.status !== "pending") {
+      return null;
+    }
+
+    // Check if already a member
+    const existingMember = await db.select().from(organizationMembers)
+      .where(and(
+        eq(organizationMembers.organizationId, invite.organizationId),
+        eq(organizationMembers.userId, userId)
+      ));
+
+    if (existingMember.length > 0) {
+      // Already a member, just mark invite as accepted
+      await db.update(organizationInvites)
+        .set({ status: "accepted", acceptedAt: new Date() })
+        .where(eq(organizationInvites.id, id));
+      return existingMember[0];
+    }
+
+    // Add user to organization
+    const [member] = await db.insert(organizationMembers)
+      .values({
+        organizationId: invite.organizationId,
+        userId: userId,
+        role: invite.role
+      })
+      .returning();
+
+    // Mark invite as accepted
+    await db.update(organizationInvites)
+      .set({ status: "accepted", acceptedAt: new Date() })
+      .where(eq(organizationInvites.id, id));
+
+    return member;
+  }
+
+  async resendOrganizationInvite(id: number, newToken: string, newExpiresAt: Date): Promise<OrganizationInvite | null> {
+    const [updated] = await db.update(organizationInvites)
+      .set({ token: newToken, expiresAt: newExpiresAt })
+      .where(eq(organizationInvites.id, id))
+      .returning();
+    return updated || null;
+  }
+
   async claimInvitesForUser(email: string, userId: string): Promise<OrganizationMember[]> {
     const pendingInvites = await this.getPendingInvitesByEmail(email);
     const claimedMembers: OrganizationMember[] = [];
