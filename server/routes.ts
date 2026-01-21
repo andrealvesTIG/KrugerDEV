@@ -11301,13 +11301,14 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
       }
 
-      const entries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
+      // Single optimized query with JOINs - replaces N+1 queries
+      const entriesWithDetails = await storage.getTimesheetEntriesWithDetails(userId, organizationId, startDate, endDate);
       
-      // Enrich with task and project info
-      const enrichedEntries = await Promise.all(entries.map(async (entry) => {
-        const task = await storage.getTask(entry.taskId);
-        const project = task ? await storage.getProject(task.projectId) : null;
-        return { ...entry, task, project };
+      // Transform to expected format
+      const enrichedEntries = entriesWithDetails.map(({ entry, task, project }) => ({
+        ...entry,
+        task,
+        project
       }));
 
       res.json(enrichedEntries);
@@ -11378,43 +11379,8 @@ Return ONLY valid JSON.`;
         return res.json([]);
       }
 
-      // Optimized: Get all task assignments for this organization in one query
-      const allAssignments = await storage.getAllTaskResourceAssignments(organizationId);
-      
-      // Filter to just this user's assignments
-      const userAssignments = allAssignments.filter(a => a.resourceId === userResource.id);
-      
-      if (userAssignments.length === 0) {
-        return res.json([]);
-      }
-
-      // Get unique task IDs
-      const taskIds = [...new Set(userAssignments.map(a => a.taskId))];
-      
-      // Fetch all assigned tasks in parallel
-      const tasksPromises = taskIds.map(id => storage.getTask(id));
-      const tasksResults = await Promise.all(tasksPromises);
-      const validTasks = tasksResults.filter((t): t is NonNullable<typeof t> => t !== undefined && !t.deletedAt);
-      
-      // Get unique project IDs and fetch projects in parallel
-      const projectIds = [...new Set(validTasks.map(t => t.projectId))];
-      const projectsPromises = projectIds.map(id => storage.getProject(id));
-      const projectsResults = await Promise.all(projectsPromises);
-      
-      // Create project lookup map
-      const projectMap = new Map(
-        projectsResults
-          .filter((p): p is NonNullable<typeof p> => p !== undefined && !p.deletedAt && p.organizationId === organizationId)
-          .map(p => [p.id, p])
-      );
-
-      // Build result with task and project pairs
-      const assignedTasks = validTasks
-        .map(task => {
-          const project = projectMap.get(task.projectId);
-          return project ? { task, project } : null;
-        })
-        .filter((item): item is { task: any; project: any } => item !== null);
+      // Single optimized query with JOINs - replaces N+1 queries
+      const assignedTasks = await storage.getAssignedTasksForResource(userResource.id, organizationId);
 
       res.json(assignedTasks);
     } catch (error) {

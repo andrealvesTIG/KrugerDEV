@@ -11,6 +11,7 @@ export function useTimesheetEntries(userId: string | undefined, organizationId: 
   return useQuery<TimesheetEntryWithDetails[]>({
     queryKey: ["/api/timesheets", organizationId, userId, startDate, endDate],
     enabled: !!organizationId && !!userId && !!startDate && !!endDate,
+    staleTime: 1000 * 30, // Cache for 30 seconds - timesheet data can change frequently
     queryFn: async () => {
       const response = await fetch(`/api/timesheets?organizationId=${organizationId}&startDate=${startDate}&endDate=${endDate}`);
       if (!response.ok) throw new Error("Failed to fetch timesheet entries");
@@ -37,6 +38,8 @@ export function useAssignedTasks(organizationId: number | null, userId: string |
   return useQuery<{ task: Task; project: Project }[]>({
     queryKey: ["/api/timesheets/assigned-tasks", organizationId, userId],
     enabled: !!organizationId && !!userId,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes - assignments don't change often
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
     queryFn: async () => {
       const response = await fetch(`/api/timesheets/assigned-tasks?organizationId=${organizationId}`);
       if (!response.ok) throw new Error("Failed to fetch assigned tasks");
@@ -49,6 +52,8 @@ export function useCurrentUserResource(organizationId: number | null, userId: st
   return useQuery<Resource | null>({
     queryKey: ["/api/timesheets/current-resource", organizationId, userId],
     enabled: !!organizationId && !!userId,
+    staleTime: 1000 * 60 * 10, // Cache for 10 minutes - resource records rarely change
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
     queryFn: async () => {
       const response = await fetch(`/api/timesheets/current-resource?organizationId=${organizationId}`);
       if (!response.ok) {

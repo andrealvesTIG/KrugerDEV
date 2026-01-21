@@ -219,6 +219,7 @@ export interface IStorage {
   // Task Resource Assignments
   getTaskResourceAssignments(taskId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
   getAllTaskResourceAssignments(organizationId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
+  getAssignedTasksForResource(resourceId: number, organizationId: number): Promise<{ task: Task; project: Project }[]>;
   addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment>;
   removeTaskResourceAssignment(taskId: number, resourceId: number): Promise<void>;
   updateTaskResourceAssignments(taskId: number, resourceIds: number[]): Promise<void>;
@@ -311,6 +312,7 @@ export interface IStorage {
 
   // Timesheet Entries
   getTimesheetEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<TimesheetEntry[]>;
+  getTimesheetEntriesWithDetails(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]>;
   getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]>;
   getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined>;
   createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry>;
@@ -1874,6 +1876,25 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  async getAssignedTasksForResource(resourceId: number, organizationId: number): Promise<{ task: Task; project: Project }[]> {
+    // Single optimized query with JOINs - no N+1 problem
+    const results = await db.select({
+      task: tasks,
+      project: projects
+    })
+      .from(taskResourceAssignments)
+      .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(and(
+        eq(taskResourceAssignments.resourceId, resourceId),
+        eq(projects.organizationId, organizationId),
+        isNull(tasks.deletedAt),
+        isNull(projects.deletedAt)
+      ));
+    
+    return results;
+  }
+
   async addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment> {
     const [newAssignment] = await db.insert(taskResourceAssignments).values(assignment).returning();
     return newAssignment;
@@ -2696,6 +2717,30 @@ export class DatabaseStorage implements IStorage {
         sql`${timesheetEntries.entryDate} <= ${endDate}`
       ))
       .orderBy(timesheetEntries.entryDate, timesheetEntries.taskId);
+  }
+
+  async getTimesheetEntriesWithDetails(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]> {
+    // Single optimized query with JOINs - no N+1 problem
+    // Join projects via tasks.projectId (authoritative source) rather than timesheetEntries.projectId
+    const results = await db.select({
+      entry: timesheetEntries,
+      task: tasks,
+      project: projects
+    })
+      .from(timesheetEntries)
+      .innerJoin(tasks, eq(timesheetEntries.taskId, tasks.id))
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(and(
+        eq(timesheetEntries.userId, userId),
+        eq(timesheetEntries.organizationId, organizationId),
+        sql`${timesheetEntries.entryDate} >= ${startDate}`,
+        sql`${timesheetEntries.entryDate} <= ${endDate}`,
+        isNull(tasks.deletedAt),
+        isNull(projects.deletedAt)
+      ))
+      .orderBy(timesheetEntries.entryDate, timesheetEntries.taskId);
+    
+    return results;
   }
 
   async getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]> {

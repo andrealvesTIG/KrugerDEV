@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./use-auth";
 import type { Organization, OrganizationMember } from "@shared/schema";
 
@@ -15,7 +15,33 @@ const OrganizationContext = createContext<OrganizationContextType | null>(null);
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
+
+  // Prefetch assigned tasks when organization changes for faster Timesheets/My Assignments
+  useEffect(() => {
+    if (currentOrganization && user?.id) {
+      queryClient.prefetchQuery({
+        queryKey: ["/api/timesheets/assigned-tasks", currentOrganization.id, user.id],
+        queryFn: async () => {
+          const response = await fetch(`/api/timesheets/assigned-tasks?organizationId=${currentOrganization.id}`);
+          if (!response.ok) throw new Error("Failed to fetch assigned tasks");
+          return response.json();
+        },
+        staleTime: 1000 * 60 * 5, // 5 minutes
+      });
+      // Also prefetch current user resource for timesheets
+      queryClient.prefetchQuery({
+        queryKey: ["/api/timesheets/current-resource", currentOrganization.id, user.id],
+        queryFn: async () => {
+          const response = await fetch(`/api/timesheets/current-resource?organizationId=${currentOrganization.id}`);
+          if (!response.ok) return null;
+          return response.json();
+        },
+        staleTime: 1000 * 60 * 10, // 10 minutes
+      });
+    }
+  }, [currentOrganization, user?.id, queryClient]);
 
   const { data: memberships = [], isLoading: membershipsLoading } = useQuery<OrganizationMember[]>({
     queryKey: ['/api/users', user?.id, 'organizations'],
