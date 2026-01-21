@@ -30,6 +30,7 @@ import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { ProjectOnlineImportWizard } from "@/components/ProjectOnlineImportWizard";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import IntegrationsPage from "@/pages/Integrations";
+import { BillingContent } from "@/pages/Billing";
 
 interface EnrichedMember extends OrganizationMember {
   user?: User;
@@ -98,6 +99,7 @@ export default function OrgSettings() {
 
 const settingsTabs = [
   { value: "general", label: "General", icon: Building2 },
+  { value: "billing", label: "Billing", icon: Zap },
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "intake", label: "Intake Workflow", icon: GitBranch },
   { value: "members", label: "Team Members", icon: Users },
@@ -190,6 +192,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
       <div className="flex-1 min-w-0">
         <TabsContent value="general" className="mt-0">
           <GeneralSection organization={currentOrganization} />
+        </TabsContent>
+        <TabsContent value="billing" className="mt-0">
+          <BillingContent />
         </TabsContent>
         <TabsContent value="modules" className="mt-0">
           <ModuleVisibilitySection organization={currentOrganization} />

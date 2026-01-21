@@ -203,7 +203,8 @@ function formatLimit(limits: { included: number | null; hardCap: number | null; 
 
 type BillingPeriod = "monthly" | "yearly";
 
-export default function Billing() {
+// Exported content component for use in OrgSettings
+export function BillingContent() {
   const { user, isLoading: authLoading } = useAuth();
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
@@ -1333,4 +1334,9 @@ export default function Billing() {
       </Dialog>
     </div>
   );
+}
+
+// Default export wraps BillingContent for standalone page use
+export default function Billing() {
+  return <BillingContent />;
 }
