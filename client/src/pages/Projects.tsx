@@ -1766,7 +1766,7 @@ interface Portfolio {
   name: string;
 }
 
-function SortableColumnHeader({ column, children }: { column: GridColumn; children: React.ReactNode }) {
+function SortableColumnHeader({ column, children, isFullscreen }: { column: GridColumn; children: React.ReactNode; isFullscreen?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -1778,7 +1778,7 @@ function SortableColumnHeader({ column, children }: { column: GridColumn; childr
     <TableHead 
       ref={setNodeRef} 
       style={style} 
-      className="whitespace-nowrap cursor-grab active:cursor-grabbing"
+      className={cn("whitespace-nowrap cursor-grab active:cursor-grabbing", isFullscreen && "bg-card")}
       {...attributes}
       {...listeners}
     >
@@ -2156,7 +2156,7 @@ function ProjectsGridView({
   return (
     <div className={cn(
       "space-y-4",
-      isFullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto"
+      isFullscreen && "fixed inset-0 z-50 bg-background p-4 flex flex-col"
     )}>
       {/* Bulk Actions Toolbar */}
       {selectedProjects.size > 0 && (
@@ -2231,12 +2231,15 @@ function ProjectsGridView({
         </Popover>
       </div>
 
-      <div className="rounded-lg border bg-card overflow-x-auto">
+      <div className={cn(
+        "rounded-lg border bg-card overflow-x-auto",
+        isFullscreen && "flex-1 overflow-y-auto"
+      )}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleColumnDragEnd}>
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
+            <TableHeader className={cn(isFullscreen && "sticky top-0 z-10 bg-card")}>
+              <TableRow className={cn(isFullscreen && "bg-card")}>
+                <TableHead className={cn("w-10", isFullscreen && "bg-card")}>
                   <Checkbox 
                     checked={projects.length > 0 && selectedProjects.size === projects.length}
                     onCheckedChange={toggleSelectAll}
@@ -2245,12 +2248,12 @@ function ProjectsGridView({
                 </TableHead>
                 <SortableContext items={orderedVisibleColumns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
                   {orderedVisibleColumns.map(column => (
-                    <SortableColumnHeader key={column.id} column={column}>
+                    <SortableColumnHeader key={column.id} column={column} isFullscreen={isFullscreen}>
                       {column.label}
                     </SortableColumnHeader>
                   ))}
                 </SortableContext>
-                <TableHead className="w-10"></TableHead>
+                <TableHead className={cn("w-10", isFullscreen && "bg-card")}></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
