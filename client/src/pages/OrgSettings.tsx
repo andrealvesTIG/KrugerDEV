@@ -2293,6 +2293,11 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
 
   const { data: directoryResults, isLoading: isSearchingDirectory } = useQuery<{ users: DirectoryUser[]; source: 'microsoft_entra' | 'internal' }>({
     queryKey: [`/api/organizations/${organizationId}/directory/search`, directorySearchQuery],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${organizationId}/directory/search?q=${encodeURIComponent(directorySearchQuery)}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to search directory');
+      return res.json();
+    },
     enabled: directorySearchQuery.length >= 2,
   });
 
