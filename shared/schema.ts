@@ -1233,3 +1233,30 @@ export interface RecycleBinItem {
   deletedBy: string | null;
   deletedByName?: string;
 }
+
+// Project Views - User-specific saved view configurations for Grid and Gantt modes
+export const projectViews = pgTable("project_views", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  mode: text("mode").notNull(), // 'grid' or 'gantt'
+  name: text("name").notNull(),
+  isDefault: boolean("is_default").default(false), // User's default view for this mode
+  isSystem: boolean("is_system").default(false), // System default view (cannot be deleted)
+  visibleColumns: text("visible_columns").array().notNull(),
+  columnOrder: text("column_order").array(),
+  columnWidths: jsonb("column_widths").$type<Record<string, number>>(),
+  frozenColumns: text("frozen_columns").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProjectViewSchema = createInsertSchema(projectViews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProjectView = z.infer<typeof insertProjectViewSchema>;
+export type ProjectView = typeof projectViews.$inferSelect;
+export type UpdateProjectViewRequest = Partial<InsertProjectView>;
