@@ -2234,10 +2234,26 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     pendingInvites: number;
     planName: string;
     planCode: string;
+    bonusSeats: number;
+    extraSeatPriceCents: number | null;
   }
   
   const { data: seatInfo } = useQuery<SeatInfo>({
     queryKey: [`/api/organizations/${organizationId}/seats`],
+  });
+
+  const purchaseExtraSeat = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', `/api/organizations/${organizationId}/seats/purchase`, { quantity: 1 });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/seats`] });
+      setShowUpgradeDialog(false);
+      toast({ title: "Success", description: "Extra seat added to your subscription" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
   });
 
   // Access requests query
@@ -2832,6 +2848,9 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
         onOpenChange={setShowUpgradeDialog}
         resourceType="seats"
         message={upgradeMessage}
+        extraSeatPriceCents={seatInfo?.extraSeatPriceCents}
+        onPurchaseExtraSeat={() => purchaseExtraSeat.mutate()}
+        isPurchasing={purchaseExtraSeat.isPending}
       />
     </Card>
   );
