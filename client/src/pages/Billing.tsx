@@ -253,7 +253,15 @@ export default function Billing() {
   });
 
   const { data: subscription, isLoading: subscriptionLoading } = useQuery<Subscription & { plan?: Plan }>({
-    queryKey: ['/api/billing/subscription'],
+    queryKey: ['/api/billing/subscription', currentOrganization?.id],
+    queryFn: async () => {
+      const url = currentOrganization?.id 
+        ? `/api/billing/subscription?orgId=${currentOrganization.id}`
+        : '/api/billing/subscription';
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch subscription');
+      return res.json();
+    },
     enabled: !!user,
   });
 
@@ -267,7 +275,7 @@ export default function Billing() {
       if (!res.ok) throw new Error('Failed to fetch usage');
       return res.json();
     },
-    enabled: !!user && !!subscription,
+    enabled: !!user,
     staleTime: 0,
     refetchOnMount: 'always',
   });
@@ -305,13 +313,16 @@ export default function Billing() {
   });
 
   const { data: creditLedger, isLoading: ledgerLoading } = useQuery<CreditLedgerResponse>({
-    queryKey: ['/api/billing/credit-ledger'],
+    queryKey: ['/api/billing/credit-ledger', currentOrganization?.id],
     queryFn: async () => {
-      const res = await fetch('/api/billing/credit-ledger?limit=100', { credentials: 'include' });
+      const url = currentOrganization?.id 
+        ? `/api/billing/credit-ledger?limit=100&orgId=${currentOrganization.id}`
+        : '/api/billing/credit-ledger?limit=100';
+      const res = await fetch(url, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch credit ledger');
       return res.json();
     },
-    enabled: !!user && !!subscription,
+    enabled: !!user,
     staleTime: 0,
     refetchOnMount: 'always',
   });

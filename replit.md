@@ -41,6 +41,12 @@ The application manages comprehensive data entities including:
 - **Roles**: Owner, Admin, Member, Team Member.
 - **Team Member Role**: Restricted visibility based on resource assignments to portfolios, projects, tasks, and issues. Visibility is determined by `createdBy`, `teamMemberResourceIds`, `invitedProjectIds`, `taskResourceAssignments`, `riskResourceAssignments`, and `issueResourceAssignments`.
 
+### Billing and Seat Management
+- **Plan-Based Seat Limits**: Each organization subscription has seat limits based on their plan.
+- **Bonus Seats**: Super Admins can grant additional bonus seats beyond plan limits, stored in the `bonusSeats` column on subscriptions.
+- **Total Seats Calculation**: Available seats = plan's maxSeats + bonusSeats.
+- **Super Admin Billing Management**: API endpoints (`GET/PUT /api/admin/organizations/:id/billing`) allow Super Admins to manually change organization plans and set bonus seats, bypassing normal billing flows.
+
 ### Security and Data Integrity
 - **Organization Soft-Delete**: Organizations are deactivated rather than permanently deleted, preserving data for potential reactivation by Super Admins.
 - **Email Verification**: Mandatory email verification for all creation operations across the application, with a 403 Forbidden response if not verified.
@@ -74,3 +80,10 @@ The application manages comprehensive data entities including:
 - **Microsoft Project (MPXJ)**: Java-based library for parsing `.mpp`, XML (MSPDI), and CSV project files.
 - **Microsoft Planner**: Integration via Microsoft Graph API for importing and syncing projects and tasks. Supports OAuth for secure access and task synchronization, with tasks from Planner being read-only within the application.
 - **Analytics API**: REST endpoints for integrating with external analytics tools like Power BI, providing project, portfolio, risk, issue, milestone, intake, and KPI data. Secured with API key authentication.
+
+### Organization-Scoped Integration Settings
+- **Integration Credentials Storage**: The `organization_integrations` table stores OAuth tokens and connection status per organization and integration type.
+- **Multi-Tenant Integration Architecture**: Each organization has separate integration connections (Microsoft Planner, etc.) that are not shared across organizations.
+- **Token Management**: Access tokens, refresh tokens, and token expiry are stored per organization. When users switch organizations, they see the correct integration status for that specific organization.
+- **Helper Functions**: `getOrgIntegration()` and `upsertOrgIntegration()` in `server/services/microsoftPlanner.ts` handle reading and writing organization-scoped integration data.
+- **API Pattern**: All integration-related API endpoints accept `organizationId` as a parameter (query string for GET, body for POST) to scope operations to the correct organization.

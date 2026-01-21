@@ -97,6 +97,21 @@ export const organizationAccessRequests = pgTable("organization_access_requests"
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// External Shares - Cross-organization object sharing
+// When a user from OrgA assigns a resource from OrgB, the object is "shared" externally
+export const externalShares = pgTable("external_shares", {
+  id: serial("id").primaryKey(),
+  objectType: text("object_type").notNull(), // 'project', 'task', 'risk', 'issue', 'portfolio'
+  objectId: integer("object_id").notNull(), // ID of the shared object
+  sourceOrganizationId: integer("source_organization_id").references(() => organizations.id).notNull(), // Org that owns the object
+  sharedWithUserId: varchar("shared_with_user_id").references(() => users.id).notNull(), // User who has access
+  sharedWithResourceId: integer("shared_with_resource_id"), // Resource record in source org
+  accessRole: text("access_role").notNull().default("viewer"), // 'viewer', 'assignee', 'manager'
+  sharedBy: varchar("shared_by").references(() => users.id), // Who shared it
+  sharedAt: timestamp("shared_at").defaultNow(),
+  revokedAt: timestamp("revoked_at"), // When access was revoked (soft delete)
+});
+
 // Portfolios - High level grouping of projects
 export const portfolios = pgTable("portfolios", {
   organizationId: integer("organization_id").references(() => organizations.id),
@@ -176,6 +191,9 @@ export const projects = pgTable("projects", {
   notes: text("notes"), // Additional notes
   billableStatus: text("billable_status").default("N/A"), // Billable status: N/A, On Track, Waiting for Approval, etc.
   createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id), // Who created the project
+  updatedAt: timestamp("updated_at").defaultNow(), // Last modification date
+  updatedBy: varchar("updated_by").references(() => users.id), // Who last modified the project
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
@@ -751,6 +769,21 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Organization-specific integration settings
+export const organizationIntegrations = pgTable("organization_integrations", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  integrationType: text("integration_type").notNull(), // "planner", "planner_premium", "project_online", etc.
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiry: timestamp("token_expiry"),
+  connectionStatus: text("connection_status").default("disconnected"), // "connected", "disconnected", "expired"
+  additionalData: text("additional_data"), // JSON string for integration-specific config
+  connectedBy: text("connected_by"), // User ID who connected
+  connectedAt: timestamp("connected_at"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // === RELATIONS ===
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
@@ -957,8 +990,9 @@ export const insertOrganizationSchema = createInsertSchema(organizations).omit({
 export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({ id: true, createdAt: true });
 export const insertOrganizationInviteSchema = createInsertSchema(organizationInvites).omit({ id: true, createdAt: true, acceptedAt: true });
 export const insertOrganizationAccessRequestSchema = createInsertSchema(organizationAccessRequests).omit({ id: true, createdAt: true, reviewedAt: true });
+export const insertExternalShareSchema = createInsertSchema(externalShares).omit({ id: true, sharedAt: true });
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true });
-export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
+export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true });
 // Risk schema is now an alias for Issue schema with itemType="risk"
 export const insertRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
@@ -1005,6 +1039,9 @@ export type InsertOrganizationInvite = z.infer<typeof insertOrganizationInviteSc
 
 export type OrganizationAccessRequest = typeof organizationAccessRequests.$inferSelect;
 export type InsertOrganizationAccessRequest = z.infer<typeof insertOrganizationAccessRequestSchema>;
+
+export type ExternalShare = typeof externalShares.$inferSelect;
+export type InsertExternalShare = z.infer<typeof insertExternalShareSchema>;
 
 export type Portfolio = typeof portfolios.$inferSelect;
 export type InsertPortfolio = z.infer<typeof insertPortfolioSchema>;
@@ -1135,6 +1172,14 @@ export type UpdateProjectDocumentRequest = Partial<InsertProjectDocument>;
 
 export type CreateTimesheetEntryRequest = InsertTimesheetEntry;
 export type UpdateTimesheetEntryRequest = Partial<InsertTimesheetEntry>;
+
+// Organization Integrations
+export const insertOrganizationIntegrationSchema = createInsertSchema(organizationIntegrations).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertOrganizationIntegration = z.infer<typeof insertOrganizationIntegrationSchema>;
+export type OrganizationIntegration = typeof organizationIntegrations.$inferSelect;
 
 // Custom Dashboards - AI-generated dashboards saved by users
 export const customDashboards = pgTable("custom_dashboards", {

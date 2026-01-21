@@ -92,7 +92,16 @@ export function TimesheetReportDashboard() {
     URL.revokeObjectURL(url);
   };
 
-  const totalLoggedHours = entries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+  // Helper to safely parse hours - filters out NaN, Infinity, and values outside valid range
+  const parseHoursSafe = (hours: any): number => {
+    const num = Number(hours || 0);
+    if (!isFinite(num) || isNaN(num) || num < 0 || num > 24) {
+      return 0;
+    }
+    return num;
+  };
+
+  const totalLoggedHours = entries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
   const expectedHoursPerResource = 160;
   const totalExpectedHours = activeResources.length * expectedHoursPerResource;
   
@@ -127,7 +136,7 @@ export function TimesheetReportDashboard() {
         return entryDate >= weekStart && entryDate <= weekEnd;
       });
       
-      const weekHours = weekEntries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+      const weekHours = weekEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
       
       weeks.push({ week: `Week ${week + 1}`, logged: Math.round(weekHours), target: activeResources.length * 40 });
     }
@@ -138,7 +147,7 @@ export function TimesheetReportDashboard() {
 
   const resourceHours = activeResources.reduce((acc, resource) => {
     const resourceEntries = entries.filter(e => e.resourceId === resource.id);
-    const totalHours = resourceEntries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+    const totalHours = resourceEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
     acc[resource.id] = {
       name: resource.displayName,
       email: resource.email,

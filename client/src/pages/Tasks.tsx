@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
+import { useExternalTasks } from "@/hooks/use-external-shares";
+import { ExternalBadge } from "@/components/ExternalBadge";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
@@ -46,6 +48,7 @@ export default function Tasks() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total } = usePaginatedTasks(100, currentOrganization?.id);
+  const { data: externalTasks } = useExternalTasks();
   const { data: projects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [view, setView] = useState<"gantt" | "kanban">("gantt");
@@ -112,8 +115,11 @@ export default function Tasks() {
 
   const projectIds = useMemo(() => new Set(projects?.map(p => p.id) || []), [projects]);
   const tasks = useMemo(() => {
-    // Backend already filters by organization, just apply local filters
-    let filteredTasks = allTasks || [];
+    // Combine org tasks with external tasks
+    let filteredTasks = [
+      ...(allTasks || []),
+      ...(externalTasks || [])
+    ];
     
     // Filter by project
     if (filterProjectId) {
@@ -137,7 +143,7 @@ export default function Tasks() {
     }
     
     return filteredTasks;
-  }, [allTasks, filterProjectId, searchQuery, myAssignmentsOnly, myResourceId, myTaskIds]);
+  }, [allTasks, externalTasks, filterProjectId, searchQuery, myAssignmentsOnly, myResourceId, myTaskIds]);
 
   const projectMap = useMemo(() => {
     const map = new Map<number, { name: string; portfolioId: number | null }>();
@@ -459,6 +465,23 @@ export default function Tasks() {
             </TabsList>
           </Tabs>
           
+          <Button
+            variant={myAssignmentsOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setMyAssignmentsOnly(!myAssignmentsOnly)}
+            disabled={!myResourceId}
+            className="gap-2"
+            data-testid="button-my-assignments"
+          >
+            <UserIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">My Assignments</span>
+            {myAssignmentsOnly && myResourceId && (
+              <Badge variant="secondary" className="text-xs">
+                {myTaskIds.size}
+              </Badge>
+            )}
+          </Button>
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-9 w-9" data-testid="button-task-options">
@@ -466,23 +489,6 @@ export default function Tasks() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuCheckboxItem
-                checked={myAssignmentsOnly}
-                onCheckedChange={setMyAssignmentsOnly}
-                disabled={!myResourceId}
-                data-testid="menu-my-assignments"
-              >
-                <UserIcon className="h-4 w-4 mr-2" />
-                My Assignments
-                {myAssignmentsOnly && myResourceId && (
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {myTaskIds.size}
-                  </Badge>
-                )}
-              </DropdownMenuCheckboxItem>
-              
-              <DropdownMenuSeparator />
-              
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <Filter className="h-4 w-4 mr-2" />

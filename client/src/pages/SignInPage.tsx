@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Mail, 
@@ -30,6 +31,7 @@ import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/Turnstile
 import { HoneypotField } from "@/components/HoneypotField";
 import { Footer } from "@/components/layout/Footer";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import demoVideo from "@assets/riverside_managing_risks_&_issues_in_projects_trusted_it_group_1768939954684.mp4";
 
 const features = [
   {
@@ -84,7 +86,16 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = true;
+      videoRef.current.volume = 0;
+    }
+  }, []);
   const [honeypotData, setHoneypotData] = useState<{ honeypot1: string; honeypot2: string; formLoadTime: number } | null>(null);
   const handleHoneypotChange = useCallback((data: { honeypot1: string; honeypot2: string; formLoadTime: number }) => {
     setHoneypotData(data);
@@ -97,6 +108,7 @@ export default function SignInPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
+    if (!termsAccepted) return;
 
     const honeypotPayload = honeypotData ? {
       honeypot1: honeypotData.honeypot1,
@@ -109,6 +121,7 @@ export default function SignInPage() {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", { 
         email: email.trim(),
         turnstileToken: turnstileToken || undefined,
+        termsAccepted,
         ...honeypotPayload
       });
       const data = await response.json();
@@ -207,59 +220,52 @@ export default function SignInPage() {
           </div>
         </div>
       </nav>
-
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      {/* Hero Section with Video */}
+      <section className="relative pt-20 pb-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
         </div>
         
         <div className="max-w-7xl mx-auto relative">
-          <div className="text-center max-w-4xl mx-auto">
-            <Badge variant="secondary" className="mb-6 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
-              <Zap className="h-3 w-3 mr-1" />
-              Enterprise-Grade Project Portfolio Management
-            </Badge>
-            
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+          <div className="text-center max-w-3xl mx-auto mb-6">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 leading-tight">
               Deliver Projects with
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400"> Confidence</span>
             </h1>
             
-            <p className="text-lg sm:text-xl text-slate-300 mb-8 max-w-2xl mx-auto leading-relaxed">
-              The modern PPM platform trusted by enterprise teams to manage portfolios, 
-              track progress, and deliver strategic initiatives on time and within budget.
-            </p>
+            <p className="text-sm sm:text-base text-slate-300 mb-4 max-w-xl mx-auto">Enterprise PPM platform to manage portfolios, track progress, and deliver on time.</p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button 
-                size="lg" 
-                onClick={scrollToSignIn}
-                className="bg-primary hover:bg-primary/90 text-white px-8 py-6 text-lg shadow-lg shadow-primary/25"
-                data-testid="button-hero-start-trial"
+            <Button 
+              size="default" 
+              onClick={scrollToSignIn}
+              className="bg-primary hover:bg-primary/90 text-white px-6 shadow-lg shadow-primary/25"
+              data-testid="button-hero-start-trial"
+            >
+              Get Started Free
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+          
+          <div className="relative max-w-4xl mx-auto">
+            <div className="absolute -inset-2 bg-gradient-to-r from-primary/30 via-orange-500/20 to-primary/30 rounded-xl blur-lg opacity-50" />
+            <div className="relative rounded-lg overflow-hidden border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900">
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="w-full h-auto"
+                data-testid="video-demo"
               >
-                Get Started Free
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-              <Button 
-                variant="outline" 
-                size="lg"
-                className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white px-8 py-6 text-lg"
-                data-testid="button-hero-watch-demo"
-              >
-                <Play className="mr-2 h-5 w-5" />
-                Watch Demo
-              </Button>
+                <source src={demoVideo} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
             </div>
-            
-            <p className="mt-6 text-sm text-slate-400">
-              Free forever for small teams. No credit card required.
-            </p>
           </div>
         </div>
       </section>
-
       {/* Trust Indicators */}
       <section className="py-12 px-4 sm:px-6 lg:px-8 border-y border-slate-800 bg-slate-900/50">
         <div className="max-w-7xl mx-auto">
@@ -276,7 +282,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Benefits Stats */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -293,7 +298,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Features Grid */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/30">
         <div className="max-w-7xl mx-auto">
@@ -322,7 +326,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Value Proposition */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -388,7 +391,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Pricing Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/30">
         <div className="max-w-7xl mx-auto">
@@ -490,7 +492,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* CTA / Sign In Section */}
       <section id="signin-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-800/50 to-slate-900">
         <div className="max-w-7xl mx-auto">
@@ -578,10 +579,39 @@ export default function SignInPage() {
                         onExpire={() => setTurnstileToken(null)}
                         className="flex justify-center"
                       />
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="terms"
+                          checked={termsAccepted}
+                          onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                          className="mt-0.5"
+                          data-testid="checkbox-terms-accept"
+                        />
+                        <Label htmlFor="terms" className="text-sm text-slate-400 leading-relaxed cursor-pointer">
+                          I agree to the{" "}
+                          <a 
+                            href="/terms-of-service" 
+                            target="_blank" 
+                            className="text-primary hover:underline"
+                            data-testid="link-terms-of-service"
+                          >
+                            Terms of Service
+                          </a>{" "}
+                          and{" "}
+                          <a 
+                            href="/privacy-statement" 
+                            target="_blank" 
+                            className="text-primary hover:underline"
+                            data-testid="link-privacy-policy"
+                          >
+                            Privacy Policy
+                          </a>
+                        </Label>
+                      </div>
                       <Button 
                         type="submit" 
                         className="w-full bg-primary hover:bg-primary/90" 
-                        disabled={isLoading || !email.trim()}
+                        disabled={isLoading || !email.trim() || !termsAccepted}
                         data-testid="button-send-signin-link"
                       >
                         {isLoading ? (
@@ -635,7 +665,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Footer */}
       <Footer />
     </div>

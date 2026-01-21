@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -2205,6 +2205,19 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     queryKey: [`/api/organizations/${organizationId}/invites`],
   });
 
+  interface SeatInfo {
+    currentSeats: number;
+    maxSeats: number | null;
+    remaining: number | null;
+    pendingInvites: number;
+    planName: string;
+    planCode: string;
+  }
+  
+  const { data: seatInfo } = useQuery<SeatInfo>({
+    queryKey: [`/api/organizations/${organizationId}/seats`],
+  });
+
   // Access requests query
   interface EnrichedAccessRequest {
     id: number;
@@ -2231,6 +2244,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/members`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/seats`] });
       toast({ title: "Success", description: "Member added to organization" });
       setIsAddMemberOpen(false);
       setSelectedUserId("");
@@ -2245,6 +2259,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     },
     onSuccess: (result: { success: string[]; skipped: string[]; errors: string[] }) => {
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/invites`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/seats`] });
       setInviteResult(result);
       
       // Only close dialog and clear form if all invites succeeded with no errors
@@ -2290,6 +2305,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/invites`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/seats`] });
       toast({ title: "Success", description: "Invite cancelled" });
     }
   });
@@ -2322,6 +2338,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/members`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/seats`] });
       toast({ title: "Success", description: "Member removed from organization" });
       setRemoveMemberId(null);
     }
@@ -2334,6 +2351,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/access-requests`] });
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/members`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/seats`] });
       toast({ title: "Success", description: "Access request approved" });
     },
     onError: (error: Error) => {
@@ -2393,13 +2411,43 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <div>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+        <div className="space-y-1.5">
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
             Team Members - {orgName}
           </CardTitle>
-          <CardDescription>Manage who has access to this organization</CardDescription>
+          <CardDescription className="flex items-center gap-3 flex-wrap">
+            <span>Manage who has access to this organization</span>
+            {seatInfo && (
+              <Badge variant={seatInfo.remaining === 0 ? "destructive" : "secondary"} className="gap-1">
+                <Users className="h-3 w-3" />
+                {seatInfo.maxSeats === null ? (
+                  <span>{seatInfo.currentSeats} members (Unlimited)</span>
+                ) : (
+                  <span>{seatInfo.currentSeats} / {seatInfo.maxSeats} seats used</span>
+                )}
+                {seatInfo.pendingInvites > 0 && (
+                  <span className="text-muted-foreground">({seatInfo.pendingInvites} pending)</span>
+                )}
+              </Badge>
+            )}
+            {seatInfo && (
+              <Badge variant="outline" className="gap-1">
+                {seatInfo.planName} Plan
+              </Badge>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => window.location.href = '/billing'}
+              data-testid="button-upgrade-plan"
+              className="gap-1"
+            >
+              <ArrowUpCircle className="h-3 w-3" />
+              Upgrade
+            </Button>
+          </CardDescription>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setIsInviteOpen(true)} data-testid="button-invite-member">
@@ -2944,7 +2992,7 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
 
         <Button 
           onClick={handleGenerate}
-          disabled={generateMutation.isPending || (!customIndustry.trim() && !selectedIndustry) || (customIndustry.trim() && aiCosts && !aiCosts.aiDemoDataGeneration.canAfford)}
+          disabled={generateMutation.isPending || (!customIndustry.trim() && !selectedIndustry) || (!!customIndustry.trim() && aiCosts && !aiCosts.aiDemoDataGeneration.canAfford)}
           className="w-full"
           data-testid="button-generate-demo"
         >

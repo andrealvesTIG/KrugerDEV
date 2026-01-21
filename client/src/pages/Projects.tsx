@@ -1,8 +1,10 @@
 import { useState, useMemo, useRef } from "react";
 import { useProjects, useCreateProject, useUpdateProject } from "@/hooks/use-projects";
+import { useExternalProjects } from "@/hooks/use-external-shares";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAllTasks } from "@/hooks/use-tasks";
+import { ExternalBadge } from "@/components/ExternalBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,6 +48,7 @@ export default function Projects() {
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("createdAt");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
+  const { data: externalProjects } = useExternalProjects();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const { data: allTasks } = useAllTasks();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -268,15 +271,25 @@ export default function Projects() {
   });
 
   const filteredProjects = useMemo(() => {
-    if (!projects) return [];
+    // Combine org projects with external projects
+    const allProjects = [
+      ...(projects || []),
+      ...(externalProjects || [])
+    ];
+    
+    if (allProjects.length === 0) return [];
     
     // Filter first
-    const filtered = projects.filter(p => {
+    const filtered = allProjects.filter(p => {
       const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
       const matchesSource = sourceFilter === "all" || 
         (sourceFilter === "manual" && (p.source === "manual" || !p.source)) ||
-        (sourceFilter === "imported" && p.source === "imported");
-      return matchesSearch && matchesSource;
+        (sourceFilter === "imported" && p.source === "imported") ||
+        (sourceFilter === "external" && (p as any).isExternal);
+      // If portfolio is selected, only show org projects from that portfolio
+      const matchesPortfolio = selectedPortfolio === "all" || 
+        (!(p as any).isExternal && p.portfolioId === parseInt(selectedPortfolio));
+      return matchesSearch && matchesSource && matchesPortfolio;
     });
     
     // Then sort (most recent first for all date-based sorts)
@@ -297,7 +310,7 @@ export default function Projects() {
       }
       return 0;
     });
-  }, [projects, search, sourceFilter, sortBy]);
+  }, [projects, externalProjects, search, sourceFilter, sortBy, selectedPortfolio]);
 
   const handleStatusChange = (projectId: number, newStatus: string) => {
     updateProject.mutate(
@@ -398,6 +411,12 @@ export default function Projects() {
                 <span className="flex items-center gap-2">
                   <Upload className="h-3 w-3" />
                   Imported
+                </span>
+              </SelectItem>
+              <SelectItem value="external">
+                <span className="flex items-center gap-2">
+                  <ExternalLink className="h-3 w-3" />
+                  External
                 </span>
               </SelectItem>
             </SelectContent>
@@ -541,6 +560,13 @@ export default function Projects() {
                           <Download className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                         </button>
                       )}
+                      {/* External Project Badge */}
+                      {(project as any).isExternal && (
+                        <ExternalBadge 
+                          organizationName={(project as any).sourceOrganizationName}
+                          accessRole={(project as any).accessRole}
+                        />
+                      )}
                       {/* Inline Status Dropdown */}
                       <Select 
                         value={project.status} 
@@ -654,7 +680,7 @@ export default function Projects() {
           portfolios={portfolios || []}
           onStatusChange={handleStatusChange}
           onDeleteProject={(id) => deleteProject.mutate(id)}
-          onUpdateProject={(id, data) => updateProject.mutate({ id, data })}
+          onUpdateProject={(id, data) => updateProject.mutate({ id, ...data })}
           isAdmin={isOrgAdmin}
         />
       ) : view === "kanban" ? (
@@ -723,22 +749,32 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const [selectedMsProjectFile, setSelectedMsProjectFile] = useState<File | null>(null);
   const msProjectFileInputRef = useRef<HTMLInputElement>(null);
   
-  // Check Planner connection status - only when dialog is open and Planner source selected
+  // Check Planner connection status - only when dialog is open and Planner source selected (org-scoped)
   const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
-    queryKey: ["/api/planner/status"],
-    enabled: open && projectSource === "planner",
+    queryKey: ["/api/planner/status", organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/planner/status?organizationId=${organizationId}`);
+      if (!res.ok) throw new Error('Failed to fetch planner status');
+      return res.json();
+    },
+    enabled: open && projectSource === "planner" && !!organizationId,
   });
 
-  // Fetch Planner plans when connected - only when dialog is open and connected
+  // Fetch Planner plans when connected - only when dialog is open and connected (org-scoped)
   const { data: plannerPlans, isLoading: isLoadingPlans, refetch: refetchPlans } = useQuery<{ plans: PlannerPlan[] }>({
-    queryKey: ["/api/planner/plans"],
-    enabled: open && projectSource === "planner" && plannerStatus?.connected === true,
+    queryKey: ["/api/planner/plans", organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/planner/plans?organizationId=${organizationId}`);
+      if (!res.ok) throw new Error('Failed to fetch planner plans');
+      return res.json();
+    },
+    enabled: open && projectSource === "planner" && plannerStatus?.connected === true && !!organizationId,
   });
 
-  // Connect to Planner mutation
+  // Connect to Planner mutation (org-scoped)
   const connectPlanner = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/planner/connect");
+      const response = await apiRequest("POST", "/api/planner/connect", { organizationId });
       return response.json();
     },
     onSuccess: (data: { authUrl: string }) => {
@@ -2014,6 +2050,7 @@ function ProjectsGridView({
           </div>
         );
       case "source":
+        if ((project as any).isExternal) return <ExternalBadge organizationName={(project as any).sourceOrganizationName} />;
         if (project.source === "planner") return <Badge variant="outline" className="text-xs">Planner</Badge>;
         if (project.source === "imported") return <Badge variant="outline" className="text-xs">MS Project</Badge>;
         return <Badge variant="outline" className="text-xs">Manual</Badge>;

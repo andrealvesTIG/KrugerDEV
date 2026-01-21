@@ -116,6 +116,7 @@ export const subscriptions = pgTable("subscriptions", {
   userId: varchar("user_id").references(() => users.id),
   orgId: integer("org_id"),
   hardCapEnabled: boolean("hard_cap_enabled").default(false),
+  bonusSeats: integer("bonus_seats").default(0),
   currentPeriodStart: timestamp("current_period_start").notNull(),
   currentPeriodEnd: timestamp("current_period_end").notNull(),
   stripeCustomerId: text("stripe_customer_id"),

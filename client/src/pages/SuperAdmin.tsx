@@ -13,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -100,6 +101,31 @@ export default function SuperAdmin() {
   );
 }
 
+interface Plan {
+  id: number;
+  code: string;
+  name: string;
+  maxSeats: number | null;
+  monthlyPriceCents: number;
+}
+
+interface OrgBillingInfo {
+  subscription: {
+    id: number;
+    planId: number;
+    status: string;
+    bonusSeats: number;
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+  } | null;
+  currentPlan: Plan | null;
+  availablePlans: Plan[];
+}
+
+type OrgColumnKey = 'name' | 'slug' | 'description' | 'owner' | 'members' | 'created';
+
+const defaultOrgColumns: OrgColumnKey[] = ['name', 'slug', 'description', 'created'];
+
 function OrganizationsTab() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -112,6 +138,11 @@ function OrganizationsTab() {
   const [selectedIndustry, setSelectedIndustry] = useState<string>("");
   const [deactivatedOpen, setDeactivatedOpen] = useState(false);
   const [restoreOrgId, setRestoreOrgId] = useState<number | null>(null);
+  const [billingOrg, setBillingOrg] = useState<Organization | null>(null);
+  const [selectedPlanCode, setSelectedPlanCode] = useState<string | null>(null);
+  const [bonusSeats, setBonusSeats] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [visibleColumns, setVisibleColumns] = useState<OrgColumnKey[]>(defaultOrgColumns);
 
   const { data: organizations, isLoading } = useQuery<Organization[]>({
     queryKey: ['/api/organizations']
@@ -131,6 +162,52 @@ function OrganizationsTab() {
     queryKey: ['/api/users'],
     enabled: user?.role === 'super_admin',
   });
+
+  const { data: allOrgMembers } = useQuery<{ organizationId: number; userId: string }[]>({
+    queryKey: ['/api/admin/organization-members'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/organization-members', { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: user?.role === 'super_admin',
+  });
+
+  const getMemberCount = (orgId: number) => {
+    return allOrgMembers?.filter(m => m.organizationId === orgId).length ?? 0;
+  };
+
+  const getOwnerName = (ownerId: string | null) => {
+    if (!ownerId) return '-';
+    const owner = users?.find(u => u.id === ownerId);
+    return owner ? `${owner.firstName || ''} ${owner.lastName || ''}`.trim() || owner.email : ownerId;
+  };
+
+  const filteredOrganizations = organizations?.filter(org => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      org.name?.toLowerCase().includes(q) ||
+      org.slug?.toLowerCase().includes(q) ||
+      org.description?.toLowerCase().includes(q) ||
+      getOwnerName(org.ownerId)?.toLowerCase().includes(q)
+    );
+  });
+
+  const toggleColumn = (col: OrgColumnKey) => {
+    setVisibleColumns(prev => 
+      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+    );
+  };
+
+  const columnLabels: Record<OrgColumnKey, string> = {
+    name: 'Name',
+    slug: 'Slug',
+    description: 'Description',
+    owner: 'Owner',
+    members: 'Members',
+    created: 'Created',
+  };
 
   const createOrg = useMutation({
     mutationFn: async (data: { name: string; slug: string; description: string }) => {
@@ -231,42 +308,112 @@ function OrganizationsTab() {
     }
   });
 
+  const { data: billingInfo, isLoading: billingLoading, error: billingError } = useQuery<OrgBillingInfo>({
+    queryKey: ['/api/admin/organizations', billingOrg?.id, 'billing'],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/organizations/${billingOrg?.id}/billing`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch billing');
+      return res.json();
+    },
+    enabled: !!billingOrg,
+    staleTime: 30000,
+    gcTime: 60000,
+    retry: false,
+  });
+
+  const updateBilling = useMutation({
+    mutationFn: async ({ planCode, bonusSeats }: { planCode?: string; bonusSeats?: number }) => {
+      return apiRequest('PUT', `/api/admin/organizations/${billingOrg?.id}/billing`, { planCode, bonusSeats });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/organizations', billingOrg?.id, 'billing'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${billingOrg?.id}/seats`] });
+      toast({ title: "Success", description: "Organization billing updated" });
+      setBillingOrg(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update billing", variant: "destructive" });
+    }
+  });
+
   if (isLoading) return <Loader2 className="animate-spin" />;
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
+      <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
         <div>
           <CardTitle>All Organizations</CardTitle>
           <CardDescription>Manage organization tenants in the system</CardDescription>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-org">
-          <Plus className="h-4 w-4 mr-2" />
-          Create Organization
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search organizations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 w-[200px]"
+              data-testid="input-org-search"
+            />
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" data-testid="button-column-toggle">
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {(Object.keys(columnLabels) as OrgColumnKey[]).map(col => (
+                <DropdownMenuCheckboxItem
+                  key={col}
+                  checked={visibleColumns.includes(col)}
+                  onCheckedChange={() => toggleColumn(col)}
+                >
+                  {columnLabels[col]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-org">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Organization
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Slug</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Created</TableHead>
+              {visibleColumns.includes('name') && <TableHead>Name</TableHead>}
+              {visibleColumns.includes('slug') && <TableHead>Slug</TableHead>}
+              {visibleColumns.includes('description') && <TableHead>Description</TableHead>}
+              {visibleColumns.includes('owner') && <TableHead>Owner</TableHead>}
+              {visibleColumns.includes('members') && <TableHead>Members</TableHead>}
+              {visibleColumns.includes('created') && <TableHead>Created</TableHead>}
               <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {organizations?.map(org => (
+            {filteredOrganizations?.map(org => (
               <TableRow key={org.id} data-testid={`org-row-${org.id}`}>
-                <TableCell className="font-medium">{org.name}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{org.slug}</Badge>
-                </TableCell>
-                <TableCell className="max-w-[200px] truncate">{org.description || '-'}</TableCell>
-                <TableCell>
-                  {org.createdAt ? format(new Date(org.createdAt), 'MMM d, yyyy') : 'N/A'}
-                </TableCell>
+                {visibleColumns.includes('name') && <TableCell className="font-medium">{org.name}</TableCell>}
+                {visibleColumns.includes('slug') && (
+                  <TableCell>
+                    <Badge variant="outline">{org.slug}</Badge>
+                  </TableCell>
+                )}
+                {visibleColumns.includes('description') && <TableCell className="max-w-[200px] truncate">{org.description || '-'}</TableCell>}
+                {visibleColumns.includes('owner') && <TableCell>{getOwnerName(org.ownerId)}</TableCell>}
+                {visibleColumns.includes('members') && (
+                  <TableCell>
+                    <Badge variant="secondary">{getMemberCount(org.id)}</Badge>
+                  </TableCell>
+                )}
+                {visibleColumns.includes('created') && (
+                  <TableCell>
+                    {org.createdAt ? format(new Date(org.createdAt), 'MMM d, yyyy') : 'N/A'}
+                  </TableCell>
+                )}
                 <TableCell>
                   <div className="flex gap-1">
                     <Button 
@@ -290,6 +437,19 @@ function OrganizationsTab() {
                     <Button 
                       variant="ghost" 
                       size="icon" 
+                      onClick={() => {
+                        setBillingOrg(org);
+                        setSelectedPlanCode(null);
+                        setBonusSeats(null);
+                      }}
+                      data-testid={`button-billing-${org.id}`}
+                      title="Manage billing & seats"
+                    >
+                      <CreditCard className="h-4 w-4 text-emerald-500" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
                       onClick={() => setEditingOrg(org)}
                       data-testid={`button-edit-org-${org.id}`}
                     >
@@ -309,8 +469,10 @@ function OrganizationsTab() {
             ))}
           </TableBody>
         </Table>
-        {organizations?.length === 0 && (
-          <div className="text-center py-8 text-slate-500">No organizations yet. Create one to get started.</div>
+        {filteredOrganizations?.length === 0 && (
+          <div className="text-center py-8 text-slate-500">
+            {searchQuery ? 'No organizations match your search.' : 'No organizations yet. Create one to get started.'}
+          </div>
         )}
 
         {deactivatedOrgs && deactivatedOrgs.length > 0 && (
@@ -608,6 +770,119 @@ function OrganizationsTab() {
                   <Eraser className="h-4 w-4 mr-2" />
                   Remove Demo Data
                 </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={billingOrg !== null} onOpenChange={() => setBillingOrg(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-emerald-500" />
+              Manage Billing - {billingOrg?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Override plan and set bonus seats for this organization. Changes bypass normal billing.
+            </DialogDescription>
+          </DialogHeader>
+          {billingLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : billingError ? (
+            <div className="text-center py-8 text-destructive">
+              <p>Failed to load billing information.</p>
+              <p className="text-sm text-muted-foreground mt-2">Please close and try again.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted border p-4 space-y-2">
+                <p className="text-sm font-medium">Current Status</p>
+                <div className="flex items-center gap-2">
+                  <Badge variant={billingInfo?.subscription ? "default" : "secondary"}>
+                    {billingInfo?.currentPlan?.name || "No Plan"}
+                  </Badge>
+                  {billingInfo?.subscription && (
+                    <Badge variant="outline">
+                      {billingInfo.subscription.status}
+                    </Badge>
+                  )}
+                </div>
+                {billingInfo?.currentPlan && (
+                  <p className="text-sm text-muted-foreground">
+                    Plan seats: {billingInfo.currentPlan.maxSeats === null ? 'Unlimited' : billingInfo.currentPlan.maxSeats}
+                    {(billingInfo?.subscription?.bonusSeats ?? 0) > 0 && ` + ${billingInfo.subscription?.bonusSeats} bonus`}
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Change Plan</Label>
+                <Select 
+                  value={selectedPlanCode ?? billingInfo?.currentPlan?.code ?? ""} 
+                  onValueChange={setSelectedPlanCode}
+                >
+                  <SelectTrigger data-testid="select-plan">
+                    <SelectValue placeholder="Select a plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {billingInfo?.availablePlans?.map(plan => (
+                      <SelectItem key={plan.code} value={plan.code}>
+                        {plan.name} ({plan.maxSeats === null ? 'Unlimited' : `${plan.maxSeats} seats`})
+                        {plan.monthlyPriceCents === null 
+                          ? ' - Contact Us' 
+                          : plan.monthlyPriceCents > 0 
+                            ? ` - $${(plan.monthlyPriceCents / 100).toFixed(2)}/mo` 
+                            : ' - Free'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Bonus Seats</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={bonusSeats ?? billingInfo?.subscription?.bonusSeats?.toString() ?? "0"}
+                  onChange={(e) => setBonusSeats(e.target.value)}
+                  placeholder="0"
+                  data-testid="input-bonus-seats"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Additional seats granted as a bonus. These are added to the plan's seat limit.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBillingOrg(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const finalPlanCode = selectedPlanCode ?? billingInfo?.currentPlan?.code;
+                const finalBonusSeats = bonusSeats !== null 
+                  ? parseInt(bonusSeats) 
+                  : (billingInfo?.subscription?.bonusSeats ?? 0);
+                updateBilling.mutate({
+                  planCode: finalPlanCode,
+                  bonusSeats: isNaN(finalBonusSeats) ? 0 : finalBonusSeats
+                });
+              }}
+              disabled={updateBilling.isPending || billingLoading}
+              data-testid="button-save-billing"
+            >
+              {updateBilling.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
               )}
             </Button>
           </DialogFooter>

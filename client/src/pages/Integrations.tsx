@@ -145,14 +145,22 @@ export default function Integrations() {
     }
   }, []);
   
-  // Planner connection status
+  // Planner connection status - organization scoped
   const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
-    queryKey: ["/api/planner/status"],
+    queryKey: ["/api/planner/status", currentOrganization?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/planner/status?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) throw new Error('Failed to fetch planner status');
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
   });
   
   const disconnectPlannerMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/planner/disconnect", {});
+      const response = await apiRequest("POST", "/api/planner/disconnect", { 
+        organizationId: currentOrganization?.id 
+      });
       const text = await response.text();
       return text ? JSON.parse(text) : {};
     },

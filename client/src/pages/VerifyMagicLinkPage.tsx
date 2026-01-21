@@ -48,11 +48,43 @@ export default function VerifyMagicLinkPage() {
         queryClient.invalidateQueries({ queryKey: ['/api/tasks'] }),
         queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] }),
       ]);
+
+      // Wait for user data to be fully loaded before redirecting
+      const userData = await queryClient.fetchQuery({
+        queryKey: ["/api/auth/user"],
+        queryFn: async () => {
+          const res = await fetch("/api/auth/user", { credentials: "include" });
+          if (!res.ok) return null;
+          return res.json();
+        },
+        staleTime: 0,
+      });
+
+      // Load organizations and memberships
+      if (userData?.id) {
+        await Promise.all([
+          queryClient.fetchQuery({
+            queryKey: ["/api/organizations"],
+            staleTime: 0,
+          }),
+          queryClient.fetchQuery({
+            queryKey: ['/api/users', userData.id, 'organizations'],
+            queryFn: async () => {
+              const res = await fetch(`/api/users/${userData.id}/organizations`);
+              return res.json();
+            },
+            staleTime: 0,
+          }),
+        ]);
+      }
+
       toast({
         title: "Demo Data Generated",
         description: `Created ${response.stats?.portfolios || 0} portfolios, ${response.stats?.projects || 0} projects`,
       });
-      setLocation("/");
+      
+      // Small delay to ensure React Query cache is fully propagated
+      setTimeout(() => setLocation("/"), 100);
     },
     onError: (error: any) => {
       toast({
@@ -73,12 +105,37 @@ export default function VerifyMagicLinkPage() {
   };
 
   const handleSkip = async () => {
-    // Invalidate queries to ensure fresh data is loaded
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] }),
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] }),
-    ]);
-    setLocation("/");
+    // Fetch user data first to get the user ID
+    const userData = await queryClient.fetchQuery({
+      queryKey: ["/api/auth/user"],
+      queryFn: async () => {
+        const res = await fetch("/api/auth/user", { credentials: "include" });
+        if (!res.ok) return null;
+        return res.json();
+      },
+      staleTime: 0,
+    });
+
+    // Load organizations and memberships before redirecting
+    if (userData?.id) {
+      await Promise.all([
+        queryClient.fetchQuery({
+          queryKey: ["/api/organizations"],
+          staleTime: 0,
+        }),
+        queryClient.fetchQuery({
+          queryKey: ['/api/users', userData.id, 'organizations'],
+          queryFn: async () => {
+            const res = await fetch(`/api/users/${userData.id}/organizations`);
+            return res.json();
+          },
+          staleTime: 0,
+        }),
+      ]);
+    }
+    
+    // Small delay to ensure React Query cache is fully propagated
+    setTimeout(() => setLocation("/"), 100);
   };
 
   useEffect(() => {
@@ -108,11 +165,63 @@ export default function VerifyMagicLinkPage() {
           return;
         }
 
-        // Ensure auth query is refreshed
-        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        // Ensure all relevant queries are invalidated before refetching
+        // This is critical for new users who just had their organization created
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] }),
+          queryClient.invalidateQueries({ queryKey: ["/api/organizations"] }),
+          // Also invalidate user-specific organization queries (used by Profile page)
+          queryClient.invalidateQueries({ predicate: (query) => 
+            Array.isArray(query.queryKey) && 
+            query.queryKey[0] === '/api/users' && 
+            query.queryKey[2] === 'organizations'
+          }),
+        ]);
+        
+        // Wait for user auth to be fully loaded with actual data
+        const userData = await queryClient.fetchQuery({
+          queryKey: ["/api/auth/user"],
+          queryFn: async () => {
+            const res = await fetch("/api/auth/user", { credentials: "include" });
+            if (!res.ok) return null;
+            return res.json();
+          },
+          staleTime: 0,
+        });
+
+        // If we have user data, also load their organizations and memberships
+        if (userData?.id) {
+          await Promise.all([
+            queryClient.fetchQuery({
+              queryKey: ["/api/organizations"],
+              staleTime: 0,
+            }),
+            queryClient.fetchQuery({
+              queryKey: ['/api/users', userData.id, 'organizations'],
+              queryFn: async () => {
+                const res = await fetch(`/api/users/${userData.id}/organizations`);
+                return res.json();
+              },
+              staleTime: 0,
+            }),
+          ]);
+        }
 
         // Check if a new organization was created - use org details from response
+        // This applies to both regular signups and resource invite signups
         if (result.organizationCreated && result.organizationId && result.organizationName) {
+          // Store the organization ID in localStorage so OrganizationProvider selects it immediately
+          localStorage.setItem('currentOrgId', String(result.organizationId));
+          
+          // For external share invites, skip demo dialog and go directly to success
+          // since the user is joining as a collaborator, not setting up their own workspace
+          if (result.isExternalShare) {
+            setState("success");
+            // Small delay to ensure React Query cache is fully propagated
+            setTimeout(() => setLocation("/"), 100);
+            return;
+          }
+          
           setUserOrg({ id: result.organizationId, name: result.organizationName });
           setState("show_demo_dialog");
           return;
@@ -120,10 +229,8 @@ export default function VerifyMagicLinkPage() {
 
         // Default: show success and redirect
         setState("success");
-        await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
-        setTimeout(() => {
-          setLocation("/");
-        }, 1000);
+        // Small delay to ensure React Query cache is fully propagated
+        setTimeout(() => setLocation("/"), 100);
       } catch (error) {
         setState("error");
         setErrorMessage("An error occurred while verifying your link");

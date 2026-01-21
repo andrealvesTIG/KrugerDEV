@@ -135,7 +135,7 @@ export default function Profile() {
     }
   };
 
-  const { data: memberships } = useQuery<OrganizationMember[]>({
+  const { data: memberships, isLoading: membershipsLoading } = useQuery<OrganizationMember[]>({
     queryKey: ['/api/users', user?.id, 'organizations'],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -145,7 +145,7 @@ export default function Profile() {
     enabled: !!user?.id
   });
 
-  const { data: organizations } = useQuery<Organization[]>({
+  const { data: organizations, isLoading: organizationsLoading } = useQuery<Organization[]>({
     queryKey: ['/api/organizations']
   });
 
@@ -471,7 +471,11 @@ export default function Profile() {
             <Card>
               <CardContent className="pt-6">
                 {user?.role === 'super_admin' ? (
-                  organizations && organizations.length > 0 ? (
+                  organizationsLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : organizations && organizations.length > 0 ? (
                     <div className="grid gap-4 sm:grid-cols-2">
                       {organizations.map((org) => (
                         <div key={org.id} className="flex items-center gap-3 rounded-lg border p-4" data-testid={`org-${org.id}`}>
@@ -490,6 +494,10 @@ export default function Profile() {
                       No organizations found.
                     </div>
                   )
+                ) : membershipsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
                 ) : userOrgs.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     You are not a member of any organizations yet.
