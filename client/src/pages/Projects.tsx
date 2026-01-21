@@ -541,9 +541,73 @@ export default function Projects() {
                           project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
                         )} />
                         <div className="flex-1 pl-5">
-                          <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
-                            {project.name}
-                          </h3>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
+                              {project.name}
+                            </h3>
+                            {project.source === "planner" && project.plannerPlanId && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
+                                }}
+                                className="flex items-center gap-1.5 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/50 transition-colors"
+                                title="Synced from Microsoft Planner - Click to open in Planner"
+                                data-testid={`planner-badge-fullscreen-${project.id}`}
+                              >
+                                <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                                <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Planner</span>
+                                <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                              </button>
+                            )}
+                            {project.source === "imported" && project.sourceFileUrl && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const link = document.createElement('a');
+                                  link.href = project.sourceFileUrl!;
+                                  link.download = project.sourceFileName || 'project.mpp';
+                                  link.click();
+                                }}
+                                className="flex items-center gap-1.5 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/50 rounded-md hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors"
+                                title={`Imported from MS Project - Click to download ${project.sourceFileName || "source file"}`}
+                                data-testid={`msproject-badge-fullscreen-${project.id}`}
+                              >
+                                <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">MS Project</span>
+                                <Download className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                              </button>
+                            )}
+                            {(project as any).isExternal && (
+                              <ExternalBadge 
+                                organizationName={(project as any).sourceOrganizationName}
+                                accessRole={(project as any).accessRole}
+                              />
+                            )}
+                            <Select 
+                              value={project.status} 
+                              onValueChange={(newStatus) => {
+                                handleStatusChange(project.id, newStatus);
+                              }}
+                            >
+                              <SelectTrigger 
+                                className="h-7 w-auto min-w-[120px] text-xs font-medium border-slate-300 dark:border-slate-600"
+                                onClick={(e) => e.preventDefault()}
+                                data-testid={`select-project-status-fullscreen-${project.id}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent onClick={(e) => e.stopPropagation()}>
+                                {PROJECT_STATUS_LIST.map(status => (
+                                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -565,15 +629,53 @@ export default function Projects() {
                             </div>
                           </div>
                         </div>
-                        <Badge className={cn(
-                          "ml-auto sm:ml-0 px-4 py-1.5 text-xs font-semibold rounded-full",
-                          project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
-                          project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
-                          project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
-                          project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
-                        )}>
-                          {project.priority}
-                        </Badge>
+                        <div className="flex items-center gap-6 pl-5 sm:pl-0 mt-4 sm:mt-0">
+                          <div className="text-right hidden sm:block">
+                            <div className="flex items-center gap-1.5 justify-end text-muted-foreground mb-1">
+                              <TrendingUp className="h-3.5 w-3.5" />
+                              <span className="text-xs font-medium uppercase tracking-wide">Budget</span>
+                            </div>
+                            <p className="text-lg font-bold text-foreground">${Number(project.budget).toLocaleString()}</p>
+                          </div>
+                          <Badge className={cn(
+                            "ml-auto sm:ml-0 px-4 py-1.5 text-xs font-semibold rounded-full",
+                            project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
+                            project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
+                            project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
+                            project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
+                          )}>
+                            {project.priority}
+                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                size="icon" 
+                                variant="ghost"
+                                onClick={(e) => e.preventDefault()}
+                                data-testid={`button-menu-project-fullscreen-${project.id}`}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link href={`/projects/${project.id}`}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View Details
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} 
+                                className="text-red-600 focus:text-red-600"
+                                data-testid={`menu-delete-project-fullscreen-${project.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     </Link>
                   </motion.div>
