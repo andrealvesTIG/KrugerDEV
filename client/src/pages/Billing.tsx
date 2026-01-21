@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle } from "lucide-react";
+import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle, Receipt, Calendar } from "lucide-react";
 import { SiPaypal } from "react-icons/si";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
@@ -608,6 +608,66 @@ export function BillingContent() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Monthly Billing Summary */}
+      {subscription && currentPlan && (
+        <Card data-testid="card-billing-summary">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Receipt className="h-4 w-4" />
+              Monthly Billing Summary
+            </CardTitle>
+            <CardDescription className="text-xs flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Billing cycle: {format(new Date(subscription.currentPeriodStart), "MMM d")} - {format(new Date(subscription.currentPeriodEnd), "MMM d, yyyy")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{currentPlan.name} Plan</span>
+                <span className="font-medium">
+                  {currentPlan.monthlyPriceCents === null 
+                    ? "Custom pricing" 
+                    : currentPlan.monthlyPriceCents > 0 
+                      ? `$${(currentPlan.monthlyPriceCents / 100).toFixed(2)}` 
+                      : "Free"}
+                </span>
+              </div>
+              
+              {seatInfo?.bonusSeats !== undefined && seatInfo.bonusSeats > 0 && seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Extra Seats ({seatInfo.bonusSeats} × ${(seatInfo.extraSeatPriceCents / 100).toFixed(2)})
+                  </span>
+                  <span className="font-medium">
+                    ${((seatInfo.bonusSeats * seatInfo.extraSeatPriceCents) / 100).toFixed(2)}
+                  </span>
+                </div>
+              )}
+              
+              <div className="border-t pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">Total Monthly Amount</span>
+                  <span className="text-lg font-bold text-primary">
+                    {(() => {
+                      if (currentPlan.monthlyPriceCents === null) {
+                        return "Contact sales";
+                      }
+                      const planPrice = currentPlan.monthlyPriceCents || 0;
+                      const extraSeatsPrice = (seatInfo?.bonusSeats && seatInfo?.extraSeatPriceCents) 
+                        ? seatInfo.bonusSeats * seatInfo.extraSeatPriceCents 
+                        : 0;
+                      const total = planPrice + extraSeatsPrice;
+                      return total > 0 ? `$${(total / 100).toFixed(2)}/mo` : "Free";
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Extra Seats Section */}
