@@ -2537,7 +2537,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={() => setIsDirectorySearchOpen(true)} data-testid="button-search-directory">
-            <Users className="h-4 w-4 mr-2" />
+            <Building2 className="h-4 w-4 mr-2" />
             Search Directory
           </Button>
           <Button variant="outline" onClick={() => setIsInviteOpen(true)} data-testid="button-invite-member">
