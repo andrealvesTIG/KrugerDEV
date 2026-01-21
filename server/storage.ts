@@ -6,7 +6,7 @@ import {
   resources, taskResourceAssignments, issueResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
   changeRequests, projectDocuments, projectComments, notifications, statusReportHistory,
-  billingTransactions, timesheetEntries, billableStatusComments,
+  billingTransactions, timesheetEntries, billableStatusComments, projectViews,
   magicLinkTokens,
   type User, type UpsertUser,
   type BillingTransaction, type InsertBillingTransaction,
@@ -43,7 +43,8 @@ import {
   type StatusReportHistory, type InsertStatusReportHistory,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
   type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
-  type RecycleBinItem, type RecycleBinItemType
+  type RecycleBinItem, type RecycleBinItemType,
+  type ProjectView, type InsertProjectView, type UpdateProjectViewRequest
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
@@ -286,6 +287,14 @@ export interface IStorage {
   // Billable Status Comments
   getBillableStatusComments(projectId: number): Promise<BillableStatusComment[]>;
   createBillableStatusComment(comment: InsertBillableStatusComment): Promise<BillableStatusComment>;
+
+  // Project Views
+  getProjectViews(organizationId: number, userId: string, mode: string): Promise<ProjectView[]>;
+  getProjectView(id: number): Promise<ProjectView | undefined>;
+  createProjectView(view: InsertProjectView): Promise<ProjectView>;
+  updateProjectView(id: number, updates: UpdateProjectViewRequest): Promise<ProjectView>;
+  deleteProjectView(id: number): Promise<void>;
+  setDefaultProjectView(organizationId: number, userId: string, mode: string, viewId: number): Promise<void>;
 
   // Notifications
   getNotifications(userId: string): Promise<Notification[]>;
@@ -2461,6 +2470,54 @@ export class DatabaseStorage implements IStorage {
   async createBillableStatusComment(comment: InsertBillableStatusComment): Promise<BillableStatusComment> {
     const [created] = await db.insert(billableStatusComments).values(comment).returning();
     return created;
+  }
+
+  // Project Views
+  async getProjectViews(organizationId: number, userId: string, mode: string): Promise<ProjectView[]> {
+    return await db.select().from(projectViews)
+      .where(and(
+        eq(projectViews.organizationId, organizationId),
+        eq(projectViews.userId, userId),
+        eq(projectViews.mode, mode)
+      ))
+      .orderBy(desc(projectViews.isSystem), asc(projectViews.name));
+  }
+
+  async getProjectView(id: number): Promise<ProjectView | undefined> {
+    const [view] = await db.select().from(projectViews).where(eq(projectViews.id, id));
+    return view;
+  }
+
+  async createProjectView(view: InsertProjectView): Promise<ProjectView> {
+    const [created] = await db.insert(projectViews).values(view).returning();
+    return created;
+  }
+
+  async updateProjectView(id: number, updates: UpdateProjectViewRequest): Promise<ProjectView> {
+    const [updated] = await db.update(projectViews)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(projectViews.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProjectView(id: number): Promise<void> {
+    await db.delete(projectViews).where(eq(projectViews.id, id));
+  }
+
+  async setDefaultProjectView(organizationId: number, userId: string, mode: string, viewId: number): Promise<void> {
+    // First, unset any existing default for this user/mode
+    await db.update(projectViews)
+      .set({ isDefault: false })
+      .where(and(
+        eq(projectViews.organizationId, organizationId),
+        eq(projectViews.userId, userId),
+        eq(projectViews.mode, mode)
+      ));
+    // Then set the new default
+    await db.update(projectViews)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(projectViews.id, viewId));
   }
 
   // Notifications
