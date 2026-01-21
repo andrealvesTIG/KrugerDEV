@@ -77,6 +77,7 @@ export default function Projects() {
   const { toast } = useToast();
   const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExportToExcel = async () => {
@@ -494,10 +495,116 @@ export default function Projects() {
             Gantt
           </Button>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsFullscreen(true)}
+          data-testid="button-fullscreen"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </Button>
       </div>
 
+      {/* Fullscreen Container */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 bg-background flex flex-col">
+          <div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-background shrink-0">
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-semibold">Projects - {view.charAt(0).toUpperCase() + view.slice(1)} View</h2>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsFullscreen(false)}
+              data-testid="button-exit-fullscreen"
+            >
+              <Minimize2 className="h-4 w-4 mr-2" />
+              Exit Fullscreen
+            </Button>
+          </div>
+          <div className="flex-1 overflow-auto p-4">
+            {view === "list" ? (
+              <div className="space-y-6">
+                {filteredProjects?.map((project, index) => (
+                  <motion.div
+                    key={project.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                  >
+                    <Link href={`/projects/${project.id}`}>
+                      <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer">
+                        <div className={cn(
+                          "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-all duration-300 group-hover:w-2",
+                          project.health === 'Green' && "bg-gradient-to-b from-emerald-400 to-emerald-600",
+                          project.health === 'Yellow' && "bg-gradient-to-b from-amber-400 to-amber-600",
+                          project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
+                        )} />
+                        <div className="flex-1 pl-5">
+                          <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
+                            {project.name}
+                          </h3>
+                          <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span>Due {project.endDate ? format(new Date(project.endDate), 'MMM d, yyyy') : 'TBD'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
+                                <div 
+                                  className={cn(
+                                    "h-full rounded-full transition-all duration-500",
+                                    project.health === 'Green' && "bg-emerald-500",
+                                    project.health === 'Yellow' && "bg-amber-500",
+                                    project.health === 'Red' && "bg-rose-500",
+                                  )}
+                                  style={{ width: `${projectProgress[project.id] || 0}%` }}
+                                />
+                              </div>
+                              <span className="font-medium">{projectProgress[project.id] || 0}%</span>
+                            </div>
+                          </div>
+                        </div>
+                        <Badge className={cn(
+                          "ml-auto sm:ml-0 px-4 py-1.5 text-xs font-semibold rounded-full",
+                          project.priority === 'Critical' && "bg-rose-500 text-white hover:bg-rose-500",
+                          project.priority === 'High' && "bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400",
+                          project.priority === 'Medium' && "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400",
+                          project.priority === 'Low' && "bg-slate-100 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400"
+                        )}>
+                          {project.priority}
+                        </Badge>
+                      </div>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            ) : view === "grid" ? (
+              <ProjectsGridView 
+                projects={filteredProjects || []} 
+                portfolios={portfolios || []}
+                onStatusChange={handleStatusChange}
+                onDeleteProject={(id) => deleteProject.mutate(id)}
+                onUpdateProject={(id, data) => updateProject.mutate({ id, ...data })}
+                isAdmin={isOrgAdmin}
+                organizationId={currentOrganization?.id || null}
+                isFullscreen={true}
+                onExitFullscreen={() => setIsFullscreen(false)}
+              />
+            ) : view === "kanban" ? (
+              <ProjectsKanbanView 
+                projects={filteredProjects || []} 
+                onStatusChange={handleStatusChange} 
+              />
+            ) : (
+              <ProjectsGanttView projects={filteredProjects || []} />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Projects View */}
-      {view === "list" ? (
+      {!isFullscreen && view === "list" ? (
         <div className="space-y-6">
           {filteredProjects?.map((project, index) => (
             <motion.div
@@ -675,7 +782,7 @@ export default function Projects() {
             </div>
           )}
         </div>
-      ) : view === "grid" ? (
+      ) : !isFullscreen && view === "grid" ? (
         <ProjectsGridView 
           projects={filteredProjects || []} 
           portfolios={portfolios || []}
@@ -685,14 +792,14 @@ export default function Projects() {
           isAdmin={isOrgAdmin}
           organizationId={currentOrganization?.id || null}
         />
-      ) : view === "kanban" ? (
+      ) : !isFullscreen && view === "kanban" ? (
         <ProjectsKanbanView 
           projects={filteredProjects || []} 
           onStatusChange={handleStatusChange} 
         />
-      ) : (
+      ) : !isFullscreen ? (
         <ProjectsGanttView projects={filteredProjects || []} />
-      )}
+      ) : null}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteProjectId !== null} onOpenChange={() => setDeleteProjectId(null)}>
@@ -1800,6 +1907,8 @@ function ProjectsGridView({
   onUpdateProject,
   isAdmin,
   organizationId,
+  isFullscreen: externalFullscreen,
+  onExitFullscreen,
 }: { 
   projects: Project[];
   portfolios: Portfolio[];
@@ -1808,6 +1917,8 @@ function ProjectsGridView({
   onUpdateProject: (projectId: number, data: Partial<Project>) => void;
   isAdmin: boolean;
   organizationId: number | null;
+  isFullscreen?: boolean;
+  onExitFullscreen?: () => void;
 }) {
   const { toast } = useToast();
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
@@ -1816,7 +1927,10 @@ function ProjectsGridView({
   const [editingCell, setEditingCell] = useState<{ projectId: number; columnId: string } | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [internalFullscreen, setInternalFullscreen] = useState(false);
+  
+  const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
+  const setIsFullscreen = onExitFullscreen ? () => onExitFullscreen() : setInternalFullscreen;
   
   const defaultColumns = useMemo(() => ALL_GRID_COLUMNS.filter(c => c.defaultVisible).map(c => c.id), []);
   const defaultColumnOrder = useMemo(() => ALL_GRID_COLUMNS.map(c => c.id), []);
