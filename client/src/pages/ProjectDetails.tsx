@@ -1132,95 +1132,99 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
         )}
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-3">
-          <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Portfolio</Label>
-            <Select value={project.portfolioId?.toString() || "none"} onValueChange={handlePortfolioChange}>
-              <SelectTrigger className="h-8 text-sm" data-testid="select-project-portfolio">
-                <SelectValue>{currentPortfolio?.name || "None"}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No Portfolio</SelectItem>
-                {portfolios?.map((p) => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}
-                <SelectItem value="new" className="text-primary font-medium"><Plus className="h-3 w-3 inline mr-1" />New</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Portfolio</Label>
+              <Select value={project.portfolioId?.toString() || "none"} onValueChange={handlePortfolioChange}>
+                <SelectTrigger className="h-8 text-sm" data-testid="select-project-portfolio">
+                  <SelectValue>{currentPortfolio?.name || "None"}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Portfolio</SelectItem>
+                  {portfolios?.map((p) => (<SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>))}
+                  <SelectItem value="new" className="text-primary font-medium"><Plus className="h-3 w-3 inline mr-1" />New</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Priority</Label>
+              <Select value={project.priority || "Medium"} onValueChange={(v) => handleSelectChange('priority', v)}>
+                <SelectTrigger className="h-8 text-sm" data-testid="select-project-priority"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Budget</Label>
+              {editingField === 'budget' ? (
+                <Input type="number" value={editValues.budget} onChange={(e) => setEditValues(prev => ({ ...prev, budget: e.target.value }))} onBlur={() => handleFieldBlur('budget')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('budget')} autoFocus className="h-8 text-sm" data-testid="input-project-budget" />
+              ) : (
+                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('budget')} data-testid="text-project-budget">${Number(project.budget).toLocaleString()}</p>
+              )}
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Completion</Label>
+              {editingField === 'completionPercentage' ? (
+                <Input type="number" min="0" max="100" value={editValues.completionPercentage} onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))} onBlur={() => handleFieldBlur('completionPercentage')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')} autoFocus className="h-8 text-sm" data-testid="input-project-completion" />
+              ) : (
+                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{project.completionPercentage}%</p>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Start</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full h-8 justify-start text-left text-sm font-normal px-2" data-testid="button-start-date">
+                    <CalendarIcon className="mr-1.5 h-3 w-3" />
+                    {project.startDate ? format(new Date(project.startDate), 'MMM d, yy') : 'Set'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={project.startDate ? new Date(project.startDate) : undefined} onSelect={(date) => handleDateChange('startDate', date)} initialFocus />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">End</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full h-8 justify-start text-left text-sm font-normal px-2" data-testid="button-end-date">
+                    <CalendarIcon className="mr-1.5 h-3 w-3" />
+                    {project.endDate ? format(new Date(project.endDate), 'MMM d, yy') : 'Set'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={project.endDate ? new Date(project.endDate) : undefined} onSelect={(date) => handleDateChange('endDate', date)} initialFocus />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Manager</Label>
+              <ResourceSelector
+                organizationId={currentOrganization?.id ?? 0}
+                projectId={project.id}
+                selectedResourceId={managerResourceId}
+                onSelectionChange={(resourceId) => {
+                  const selectedResource = resources?.find(r => r.id === resourceId);
+                  setManagerResourceId(resourceId);
+                  onUpdate({ id: project.id, managerId: selectedResource?.userId || null, managerResourceId: resourceId }, {
+                    onSuccess: () => { toast({ title: "Manager updated" }); queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] }); },
+                    onError: () => { toast({ title: "Error", description: "Failed to update manager", variant: "destructive" }); }
+                  });
+                }}
+                placeholder="Assign"
+                className="h-8 text-sm"
+              />
+            </div>
           </div>
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Priority</Label>
-            <Select value={project.priority || "Medium"} onValueChange={(v) => handleSelectChange('priority', v)}>
-              <SelectTrigger className="h-8 text-sm" data-testid="select-project-priority"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Low">Low</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Critical">Critical</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Budget</Label>
-            {editingField === 'budget' ? (
-              <Input type="number" value={editValues.budget} onChange={(e) => setEditValues(prev => ({ ...prev, budget: e.target.value }))} onBlur={() => handleFieldBlur('budget')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('budget')} autoFocus className="h-8 text-sm" data-testid="input-project-budget" />
-            ) : (
-              <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('budget')} data-testid="text-project-budget">${Number(project.budget).toLocaleString()}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Completion</Label>
-            {editingField === 'completionPercentage' ? (
-              <Input type="number" min="0" max="100" value={editValues.completionPercentage} onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))} onBlur={() => handleFieldBlur('completionPercentage')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')} autoFocus className="h-8 text-sm" data-testid="input-project-completion" />
-            ) : (
-              <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{project.completionPercentage}%</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Start</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full h-8 justify-start text-left text-sm font-normal px-2" data-testid="button-start-date">
-                  <CalendarIcon className="mr-1.5 h-3 w-3" />
-                  {project.startDate ? format(new Date(project.startDate), 'MMM d, yy') : 'Set'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={project.startDate ? new Date(project.startDate) : undefined} onSelect={(date) => handleDateChange('startDate', date)} initialFocus />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">End</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full h-8 justify-start text-left text-sm font-normal px-2" data-testid="button-end-date">
-                  <CalendarIcon className="mr-1.5 h-3 w-3" />
-                  {project.endDate ? format(new Date(project.endDate), 'MMM d, yy') : 'Set'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={project.endDate ? new Date(project.endDate) : undefined} onSelect={(date) => handleDateChange('endDate', date)} initialFocus />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Manager</Label>
-            <ResourceSelector
-              organizationId={currentOrganization?.id ?? 0}
-              projectId={project.id}
-              selectedResourceId={managerResourceId}
-              onSelectionChange={(resourceId) => {
-                const selectedResource = resources?.find(r => r.id === resourceId);
-                setManagerResourceId(resourceId);
-                onUpdate({ id: project.id, managerId: selectedResource?.userId || null, managerResourceId: resourceId }, {
-                  onSuccess: () => { toast({ title: "Manager updated" }); queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] }); },
-                  onError: () => { toast({ title: "Error", description: "Failed to update manager", variant: "destructive" }); }
-                });
-              }}
-              placeholder="Assign"
-              className="h-8 text-sm"
-            />
-          </div>
-          <div className="col-span-2 md:col-span-3 lg:col-span-4 xl:col-span-5">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Description</Label>
             {editingField === 'description' ? (
               <Textarea value={editValues.description} onChange={(e) => setEditValues(prev => ({ ...prev, description: e.target.value }))} onBlur={() => handleFieldBlur('description')} className="min-h-[60px] text-sm" autoFocus data-testid="input-project-description" />
