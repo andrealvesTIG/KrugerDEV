@@ -1151,11 +1151,11 @@ export default function Integrations() {
                       ) : (
                         <Button 
                           variant="ghost" 
-                          size="sm"
-                          className="h-7 text-xs px-2"
+                          size="icon"
+                          className="h-7 w-7"
                           data-testid={`button-info-${integration.id}`}
                         >
-                          Info
+                          <Settings className="h-3 w-3" />
                         </Button>
                       )}
                     </TableCell>
