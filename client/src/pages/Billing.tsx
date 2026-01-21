@@ -85,6 +85,17 @@ interface CreditCostInfo {
   description: string | null;
 }
 
+interface SeatInfo {
+  currentSeats: number;
+  maxSeats: number | null;
+  remaining: number | null;
+  planName: string;
+  pendingInvites: number;
+  extraSeatPriceCents?: number | null;
+  bonusSeats?: number;
+  isAdmin?: boolean;
+}
+
 interface UsageSummary {
   credits: {
     used: number;
@@ -326,6 +337,25 @@ export function BillingContent() {
     enabled: !!user,
     staleTime: 0,
     refetchOnMount: 'always',
+  });
+
+  const { data: seatInfo, isLoading: seatLoading } = useQuery<SeatInfo>({
+    queryKey: [`/api/organizations/${currentOrganization?.id}/seats`],
+    enabled: !!currentOrganization?.id,
+  });
+
+  const purchaseExtraSeatMutation = useMutation({
+    mutationFn: async (quantity: number = 1) => {
+      return apiRequest('POST', `/api/organizations/${currentOrganization?.id}/seats/purchase`, { quantity });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${currentOrganization?.id}/seats`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/history'] });
+      toast({ title: "Success", description: "Extra seat purchased successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
   });
 
   const requestPayoutMutation = useMutation({
@@ -578,6 +608,109 @@ export function BillingContent() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Extra Seats Section */}
+      {seatInfo && currentOrganization && (
+        <Card data-testid="card-extra-seats">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UserPlus className="h-4 w-4" />
+              Team Seats
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Manage team member seats for your organization
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-4">
+              {/* Current Seat Usage */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Seat Usage</span>
+                  </div>
+                  {seatInfo.remaining === 0 && seatInfo.maxSeats !== null && (
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                  )}
+                </div>
+                {seatInfo.maxSeats !== null ? (
+                  <>
+                    <Progress 
+                      value={Math.min((seatInfo.currentSeats / seatInfo.maxSeats) * 100, 100)} 
+                      className={`h-2 ${seatInfo.remaining === 0 ? "bg-destructive/20" : ""}`}
+                      data-testid="progress-seats"
+                    />
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {seatInfo.currentSeats} / {seatInfo.maxSeats} seats used
+                        {seatInfo.pendingInvites > 0 && (
+                          <span className="ml-1">({seatInfo.pendingInvites} pending)</span>
+                        )}
+                      </span>
+                      <span className={`font-medium ${seatInfo.remaining === 0 ? 'text-destructive' : 'text-primary'}`}>
+                        {seatInfo.remaining} available
+                      </span>
+                    </div>
+                    {seatInfo.bonusSeats !== undefined && seatInfo.bonusSeats > 0 && (
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Plus className="h-3 w-3" />
+                        Includes {seatInfo.bonusSeats} extra seat{seatInfo.bonusSeats !== 1 ? 's' : ''} purchased
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    <Check className="h-4 w-4 inline mr-1 text-green-500" />
+                    Unlimited seats ({seatInfo.currentSeats} members)
+                  </div>
+                )}
+              </div>
+
+              {/* Purchase Extra Seats */}
+              {seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && seatInfo.isAdmin && seatInfo.maxSeats !== null && (
+                <div className="pt-3 border-t">
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">Add Extra Seats</div>
+                      <div className="text-xs text-muted-foreground">
+                        ${(seatInfo.extraSeatPriceCents / 100).toFixed(2)}/seat/month
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => purchaseExtraSeatMutation.mutate(1)}
+                      disabled={purchaseExtraSeatMutation.isPending}
+                      data-testid="button-purchase-extra-seat"
+                    >
+                      {purchaseExtraSeatMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Seat
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Extra seats are billed monthly and added to your next invoice.
+                  </p>
+                </div>
+              )}
+
+              {/* Message for non-admins */}
+              {seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && !seatInfo.isAdmin && seatInfo.maxSeats !== null && (
+                <div className="pt-3 border-t">
+                  <div className="text-xs text-muted-foreground">
+                    Contact your organization admin to purchase additional seats.
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="space-y-4">
