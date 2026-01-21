@@ -2303,7 +2303,7 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
 
   const inviteFromDirectory = useMutation({
     mutationFn: async ({ email, role }: { email: string; role: string }) => {
-      return apiRequest('POST', `/api/organizations/${organizationId}/invites`, { emails: email, role });
+      return apiRequest('POST', `/api/organizations/${organizationId}/invites`, { emails: [email], role });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/invites`] });
