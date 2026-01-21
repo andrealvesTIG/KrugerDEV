@@ -1705,16 +1705,33 @@ interface GridColumn {
 
 const ALL_GRID_COLUMNS: GridColumn[] = [
   { id: "name", label: "Name", defaultVisible: true },
+  { id: "projectCode", label: "Project Code", defaultVisible: false },
   { id: "status", label: "Status", defaultVisible: true },
   { id: "priority", label: "Priority", defaultVisible: true },
   { id: "health", label: "Health", defaultVisible: true },
+  { id: "billableStatus", label: "Billable Status", defaultVisible: false },
   { id: "portfolio", label: "Portfolio", defaultVisible: true },
   { id: "startDate", label: "Start Date", defaultVisible: true },
   { id: "endDate", label: "End Date", defaultVisible: true },
+  { id: "baselineStartDate", label: "Baseline Start", defaultVisible: false },
+  { id: "baselineEndDate", label: "Baseline End", defaultVisible: false },
+  { id: "actualStartDate", label: "Actual Start", defaultVisible: false },
+  { id: "actualEndDate", label: "Actual End", defaultVisible: false },
   { id: "budget", label: "Budget", defaultVisible: false },
+  { id: "actualCost", label: "Actual Cost", defaultVisible: false },
+  { id: "forecastCost", label: "Forecast Cost", defaultVisible: false },
+  { id: "costVariance", label: "Cost Variance", defaultVisible: false },
+  { id: "scheduleVariance", label: "Schedule Variance", defaultVisible: false },
   { id: "completion", label: "Completion %", defaultVisible: true },
+  { id: "projectType", label: "Project Type", defaultVisible: false },
+  { id: "methodology", label: "Methodology", defaultVisible: false },
+  { id: "department", label: "Department", defaultVisible: false },
+  { id: "category", label: "Category", defaultVisible: false },
+  { id: "businessValue", label: "Business Value", defaultVisible: false },
+  { id: "riskLevel", label: "Risk Level", defaultVisible: false },
   { id: "source", label: "Source", defaultVisible: false },
   { id: "owner", label: "Manager", defaultVisible: false },
+  { id: "createdAt", label: "Created Date", defaultVisible: false },
   { id: "description", label: "Description", defaultVisible: false },
 ];
 
@@ -2071,6 +2088,63 @@ function ProjectsGridView({
             </Button>
           </div>
         );
+      case "projectCode":
+        return <span className="text-sm">{project.projectCode || "-"}</span>;
+      case "billableStatus":
+        return (
+          <Badge variant="outline" className="text-xs">
+            {project.billableStatus || "N/A"}
+          </Badge>
+        );
+      case "baselineStartDate":
+        return <span className="text-sm">{project.baselineStartDate ? format(new Date(project.baselineStartDate), 'MMM d, yyyy') : "-"}</span>;
+      case "baselineEndDate":
+        return <span className="text-sm">{project.baselineEndDate ? format(new Date(project.baselineEndDate), 'MMM d, yyyy') : "-"}</span>;
+      case "actualStartDate":
+        return <span className="text-sm">{project.actualStartDate ? format(new Date(project.actualStartDate), 'MMM d, yyyy') : "-"}</span>;
+      case "actualEndDate":
+        return <span className="text-sm">{project.actualEndDate ? format(new Date(project.actualEndDate), 'MMM d, yyyy') : "-"}</span>;
+      case "actualCost":
+        return <span className="text-sm">${Number(project.actualCost || 0).toLocaleString()}</span>;
+      case "forecastCost":
+        return <span className="text-sm">{project.forecastCost ? `$${Number(project.forecastCost).toLocaleString()}` : "-"}</span>;
+      case "costVariance":
+        const costVar = Number(project.costVariance || 0);
+        return (
+          <span className={cn("text-sm", costVar < 0 ? "text-rose-600" : costVar > 0 ? "text-emerald-600" : "")}>
+            {project.costVariance ? `$${costVar.toLocaleString()}` : "-"}
+          </span>
+        );
+      case "scheduleVariance":
+        const schedVar = project.scheduleVariance || 0;
+        return (
+          <span className={cn("text-sm", schedVar < 0 ? "text-rose-600" : schedVar > 0 ? "text-emerald-600" : "")}>
+            {project.scheduleVariance ? `${schedVar} days` : "-"}
+          </span>
+        );
+      case "projectType":
+        return <span className="text-sm">{project.projectType || "-"}</span>;
+      case "methodology":
+        return <span className="text-sm">{project.methodology || "-"}</span>;
+      case "department":
+        return <span className="text-sm">{project.department || "-"}</span>;
+      case "category":
+        return <span className="text-sm">{project.category || "-"}</span>;
+      case "businessValue":
+        return <span className="text-sm text-muted-foreground line-clamp-1">{project.businessValue || "-"}</span>;
+      case "riskLevel":
+        return project.riskLevel ? (
+          <Badge variant="outline" className={cn(
+            "text-xs",
+            project.riskLevel === "High" && "border-rose-500 text-rose-600",
+            project.riskLevel === "Medium" && "border-amber-500 text-amber-600",
+            project.riskLevel === "Low" && "border-emerald-500 text-emerald-600"
+          )}>
+            {project.riskLevel}
+          </Badge>
+        ) : <span className="text-sm">-</span>;
+      case "createdAt":
+        return <span className="text-sm">{project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : "-"}</span>;
       default:
         return "-";
     }
