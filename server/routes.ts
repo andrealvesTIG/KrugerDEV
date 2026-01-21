@@ -1872,12 +1872,14 @@ export async function registerRoutes(
       
       let planName = "Free";
       let planCode = "FREE";
+      let extraSeatPriceCents: number | null = null;
       
       if (subscription) {
         const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
         if (plan) {
           planName = plan.name;
           planCode = plan.code;
+          extraSeatPriceCents = plan.extraSeatPriceCents;
         }
       }
       
@@ -1891,11 +1893,89 @@ export async function registerRoutes(
         planName,
         planCode,
         subscriptionId: subscription?.id || null,
-        bonusSeats: subscription?.bonusSeats || 0
+        bonusSeats: subscription?.bonusSeats || 0,
+        extraSeatPriceCents
       });
     } catch (err) {
       console.error("Error fetching seat info:", err);
       res.status(500).json({ message: 'Failed to fetch seat information' });
+    }
+  });
+
+  // Purchase an extra seat for the organization
+  app.post('/api/organizations/:id/seats/purchase', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const { quantity = 1 } = req.body;
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      // Check if user is org admin
+      const members = await storage.getOrganizationMembers(orgId);
+      const currentMember = members.find(m => m.userId === userId);
+      if (!currentMember || currentMember.role !== 'org_admin') {
+        return res.status(403).json({ message: 'Only organization admins can purchase extra seats' });
+      }
+      
+      // Get organization subscription and plan
+      const { billingProvider } = await import("./services/billing");
+      const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      
+      if (!subscription) {
+        return res.status(400).json({ message: 'No active subscription found. Please upgrade to a paid plan first.' });
+      }
+      
+      const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
+      
+      if (!plan) {
+        return res.status(400).json({ message: 'Plan not found' });
+      }
+      
+      if (plan.extraSeatPriceCents === null) {
+        return res.status(400).json({ message: 'Extra seats are not available for the Free plan. Please upgrade first.' });
+      }
+      
+      // For Enterprise plan with $0 extra seats, just add them
+      // For paid plans, we record the purchase
+      const newBonusSeats = (subscription.bonusSeats || 0) + quantity;
+      
+      // Update bonus seats on subscription
+      await db.update(subscriptions)
+        .set({ bonusSeats: newBonusSeats })
+        .where(eq(subscriptions.id, subscription.id));
+      
+      // Record in billing audit log
+      await db.insert(billingAuditLogs).values({
+        actorUserId: userId,
+        orgId: orgId,
+        action: "EXTRA_SEAT_PURCHASE",
+        entityType: "subscription",
+        entityId: String(subscription.id),
+        metadataJson: { 
+          quantity,
+          pricePerSeatCents: plan.extraSeatPriceCents,
+          totalCents: plan.extraSeatPriceCents * quantity,
+          previousBonusSeats: subscription.bonusSeats || 0,
+          newBonusSeats
+        }
+      });
+      
+      // Get updated seat info
+      const { checkSeatLimit } = await import("./services/billing");
+      const seatInfo = await checkSeatLimit(orgId, 0);
+      
+      res.json({
+        success: true,
+        message: `Successfully added ${quantity} extra seat${quantity > 1 ? 's' : ''} to your subscription`,
+        bonusSeats: newBonusSeats,
+        ...seatInfo
+      });
+    } catch (err) {
+      console.error("Error purchasing extra seat:", err);
+      res.status(500).json({ message: 'Failed to purchase extra seat' });
     }
   });
 
