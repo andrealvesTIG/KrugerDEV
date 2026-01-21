@@ -73,7 +73,9 @@ const integrations: Integration[] = [
   { id: "looker", name: "Looker", description: "Integrate with Google Looker", icon: <BarChart3 className="h-6 w-6" />, category: "analytics", status: "coming_soon", bgColor: "bg-purple-100 dark:bg-purple-900" },
   
   // Identity & Directory
-  { id: "entra-id", name: "Microsoft Entra ID", description: "Search and invite users from your Azure Active Directory", icon: <Users className="h-6 w-6" />, category: "identity", status: "active", bgColor: "bg-sky-100 dark:bg-sky-900" },
+  { id: "entra-id", name: "Microsoft Entra ID", description: "Search users from Azure Active Directory", icon: <Users className="h-6 w-6" />, category: "identity", status: "active", bgColor: "bg-sky-100 dark:bg-sky-900" },
+  { id: "dynamics-365", name: "Dynamics 365", description: "Sync users from Dynamics 365 CRM", icon: <Square className="h-6 w-6" />, category: "identity", status: "coming_soon", bgColor: "bg-purple-100 dark:bg-purple-900" },
+  { id: "business-central", name: "Business Central", description: "Import users from Business Central", icon: <Briefcase className="h-6 w-6" />, category: "identity", status: "coming_soon", bgColor: "bg-green-100 dark:bg-green-900" },
 ];
 
 const categories: { id: IntegrationCategory; name: string; icon: React.ReactNode; description: string }[] = [
@@ -1060,111 +1062,170 @@ export default function Integrations() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredIntegrations.map((integration) => {
-            const isPlannerConnected = integration.id === "planner" && plannerStatus?.connected;
-            const isEntraConnected = integration.id === "entra-id" && entraStatus?.connected;
-            const isConnected = isPlannerConnected || isEntraConnected;
-            
-            return (
-              <Card 
-                key={integration.id} 
-                className="hover-elevate cursor-pointer"
-                onClick={() => handleIntegrationClick(integration)}
-                data-testid={`card-integration-${integration.id}`}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${integration.bgColor}`}>
-                      {integration.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-foreground">{integration.name}</h3>
-                        {isConnected ? (
-                          <Badge variant="default" className="text-xs bg-green-600">Connected</Badge>
-                        ) : integration.status === "active" && (
-                          <Badge variant="default" className="text-xs bg-green-600">Active</Badge>
+        {activeCategory === "identity" ? (
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead>Provider</TableHead>
+                  <TableHead className="hidden md:table-cell">Description</TableHead>
+                  <TableHead className="w-32 text-center">Status</TableHead>
+                  <TableHead className="w-28 text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredIntegrations.map((integration) => {
+                  const isEntraConnected = integration.id === "entra-id" && entraStatus?.connected;
+                  
+                  return (
+                    <TableRow 
+                      key={integration.id}
+                      className="hover-elevate cursor-pointer"
+                      onClick={() => handleIntegrationClick(integration)}
+                      data-testid={`row-integration-${integration.id}`}
+                    >
+                      <TableCell className="py-2">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-md ${integration.bgColor}`}>
+                          {integration.icon}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2 font-medium">{integration.name}</TableCell>
+                      <TableCell className="py-2 text-sm text-muted-foreground hidden md:table-cell">{integration.description}</TableCell>
+                      <TableCell className="py-2 text-center">
+                        {isEntraConnected ? (
+                          <Badge variant="default" className="bg-green-600">Connected</Badge>
+                        ) : integration.status === "active" ? (
+                          <Badge variant="default" className="bg-blue-600">Available</Badge>
+                        ) : (
+                          <Badge variant="secondary">Coming Soon</Badge>
                         )}
+                      </TableCell>
+                      <TableCell className="py-2 text-right">
+                        {isEntraConnected ? (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              disconnectEntraMutation.mutate();
+                            }}
+                            disabled={disconnectEntraMutation.isPending}
+                            data-testid="button-disconnect-entra"
+                          >
+                            {disconnectEntraMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <X className="h-4 w-4 mr-1" />
+                                Disconnect
+                              </>
+                            )}
+                          </Button>
+                        ) : integration.status === "active" ? (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            data-testid={`button-connect-${integration.id}`}
+                          >
+                            <Link2 className="h-4 w-4 mr-1" />
+                            Connect
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            data-testid={`button-info-${integration.id}`}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            Info
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredIntegrations.map((integration) => {
+              const isPlannerConnected = integration.id === "planner" && plannerStatus?.connected;
+              const isEntraConnected = integration.id === "entra-id" && entraStatus?.connected;
+              const isConnected = isPlannerConnected || isEntraConnected;
+              
+              return (
+                <Card 
+                  key={integration.id} 
+                  className="hover-elevate cursor-pointer"
+                  onClick={() => handleIntegrationClick(integration)}
+                  data-testid={`card-integration-${integration.id}`}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-4">
+                      <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${integration.bgColor}`}>
+                        {integration.icon}
                       </div>
-                      <p className="text-sm text-muted-foreground">{integration.description}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-foreground">{integration.name}</h3>
+                          {isConnected ? (
+                            <Badge variant="default" className="text-xs bg-green-600">Connected</Badge>
+                          ) : integration.status === "active" && (
+                            <Badge variant="default" className="text-xs bg-green-600">Active</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{integration.description}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    {isPlannerConnected ? (
-                      <>
+                    <div className="mt-4 flex gap-2">
+                      {isPlannerConnected ? (
+                        <>
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            className="flex-1"
+                            data-testid={`button-configure-${integration.id}`}
+                          >
+                            <Settings className="mr-2 h-4 w-4" />
+                            Import Plans
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              disconnectPlannerMutation.mutate();
+                            }}
+                            disabled={disconnectPlannerMutation.isPending}
+                            data-testid="button-disconnect-planner-card"
+                          >
+                            {disconnectPlannerMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <X className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </>
+                      ) : (
                         <Button 
-                          variant="default" 
+                          variant={integration.status === "active" ? "default" : "outline"} 
                           size="sm" 
-                          className="flex-1"
+                          className="w-full"
                           data-testid={`button-configure-${integration.id}`}
                         >
                           <Settings className="mr-2 h-4 w-4" />
-                          Import Plans
+                          {integration.status === "active" ? "Configure" : "Learn More"}
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            disconnectPlannerMutation.mutate();
-                          }}
-                          disabled={disconnectPlannerMutation.isPending}
-                          data-testid="button-disconnect-planner-card"
-                        >
-                          {disconnectPlannerMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <X className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </>
-                    ) : isEntraConnected ? (
-                      <>
-                        <Button 
-                          variant="default" 
-                          size="sm" 
-                          className="flex-1"
-                          data-testid={`button-configure-${integration.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <CheckCircle2 className="mr-2 h-4 w-4" />
-                          Connected
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            disconnectEntraMutation.mutate();
-                          }}
-                          disabled={disconnectEntraMutation.isPending}
-                          data-testid="button-disconnect-entra-card"
-                        >
-                          {disconnectEntraMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <X className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </>
-                    ) : (
-                      <Button 
-                        variant={integration.status === "active" ? "default" : "outline"} 
-                        size="sm" 
-                        className="w-full"
-                        data-testid={`button-configure-${integration.id}`}
-                      >
-                        <Settings className="mr-2 h-4 w-4" />
-                        {integration.status === "active" ? (integration.id === "entra-id" ? "Connect" : "Configure") : "Learn More"}
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Coming Soon Dialog */}
