@@ -1925,10 +1925,13 @@ export async function registerRoutes(
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
 
-      // Check if user is org admin
+      // Check if user is org admin or super admin
       const members = await storage.getOrganizationMembers(orgId);
       const currentMember = members.find(m => m.userId === userId);
-      if (!currentMember || !['org_admin', 'owner'].includes(currentMember.role)) {
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      
+      if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
         return res.status(403).json({ message: 'Only organization admins can remove seats' });
       }
 
@@ -1983,10 +1986,13 @@ export async function registerRoutes(
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      // Check if user is org admin
+      // Check if user is org admin or super admin
       const members = await storage.getOrganizationMembers(orgId);
       const currentMember = members.find(m => m.userId === userId);
-      if (!currentMember || currentMember.role !== 'org_admin') {
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      
+      if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
         return res.status(403).json({ message: 'Only organization admins can purchase extra seats' });
       }
       
