@@ -459,8 +459,13 @@ export class DatabaseStorage implements IStorage {
       await db.delete(magicLinkTokens).where(eq(magicLinkTokens.email, user.email));
     }
     // 35. Delete external shares where this user is either the recipient or the sharer
-    await db.delete(externalShares).where(eq(externalShares.sharedWithUserId, id));
-    await db.delete(externalShares).where(eq(externalShares.sharedBy, id));
+    // Wrapped in try-catch in case the table doesn't exist yet
+    try {
+      await db.delete(externalShares).where(eq(externalShares.sharedWithUserId, id));
+      await db.delete(externalShares).where(eq(externalShares.sharedBy, id));
+    } catch (err) {
+      // Table may not exist, ignore the error
+    }
     // 36. Finally delete the user
     await db.delete(users).where(eq(users.id, id));
   }
