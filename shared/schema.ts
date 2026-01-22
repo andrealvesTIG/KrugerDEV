@@ -1280,3 +1280,31 @@ export const insertProjectViewSchema = createInsertSchema(projectViews).omit({
 export type InsertProjectView = z.infer<typeof insertProjectViewSchema>;
 export type ProjectView = typeof projectViews.$inferSelect;
 export type UpdateProjectViewRequest = Partial<InsertProjectView>;
+
+// User Consents - Tracking acceptance of Terms of Service, Privacy Policy, etc.
+export const userConsents = pgTable("user_consents", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  consentType: text("consent_type").notNull(), // 'terms_of_service', 'privacy_policy', 'marketing', etc.
+  version: text("version").notNull(), // Version of the document accepted (e.g., '1.0', '2024-01')
+  acceptedAt: timestamp("accepted_at").defaultNow().notNull(),
+  ipAddress: text("ip_address"), // IP address at time of consent
+  userAgent: text("user_agent"), // Browser/device info
+  method: text("method").notNull().default("checkbox"), // 'checkbox', 'modal', 'signup', etc.
+  revoked: boolean("revoked").default(false),
+  revokedAt: timestamp("revoked_at"),
+});
+
+export const insertUserConsentSchema = createInsertSchema(userConsents).omit({
+  id: true,
+  acceptedAt: true,
+  revoked: true,
+  revokedAt: true,
+});
+
+export type InsertUserConsent = z.infer<typeof insertUserConsentSchema>;
+export type UserConsent = typeof userConsents.$inferSelect;
+
+// Current Terms/Privacy versions - used to check if user needs to re-accept
+export const CURRENT_TERMS_VERSION = "2026-01";
+export const CURRENT_PRIVACY_VERSION = "2026-01";
