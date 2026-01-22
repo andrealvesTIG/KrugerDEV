@@ -52,6 +52,14 @@ The application manages comprehensive data entities including:
 - **Email Verification**: Mandatory email verification for all creation operations across the application, with a 403 Forbidden response if not verified.
 - **Bot Protection**: Implemented via honeypot fields and time-based validation for public authentication forms, with optional Cloudflare Turnstile integration.
 
+### User Consent Tracking
+- **Consent Table**: `user_consents` table stores consent records with user ID, consent type, version, timestamp, IP address, user agent, and method.
+- **Versioning**: Each consent type (Terms of Service, Privacy Policy) has a version string. When versions change, users must re-accept.
+- **Current Versions**: Defined in `shared/schema.ts` as `CURRENT_TERMS_VERSION` and `CURRENT_PRIVACY_VERSION`.
+- **Consent Flow**: `TermsConsentModal` appears for logged-in users who haven't accepted the current versions.
+- **Admin View**: Super Admins can view all consent records and statistics in the "User Consents" tab of the Super Admin Console.
+- **Public Pages**: Terms of Service at `/terms`, Privacy Policy at `/privacy`.
+
 ## External Dependencies
 
 ### Database & ORM
