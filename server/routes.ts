@@ -1890,7 +1890,12 @@ export async function registerRoutes(
       // Check if current user is admin
       const members = await storage.getOrganizationMembers(orgId);
       const currentMember = members.find(m => m.userId === userId);
-      const isAdmin = currentMember?.role === 'org_admin' || currentMember?.role === 'owner';
+      
+      // Also check if user is super_admin
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      
+      const isAdmin = currentMember?.role === 'org_admin' || currentMember?.role === 'owner' || isSuperAdmin;
       
       res.json({
         ...seatInfo,
