@@ -4427,13 +4427,19 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Project not found" });
       
       const input = api.projects.update.input.parse(req.body);
-      const sanitizedInput = {
+      const sanitizedInput: Record<string, any> = {
         ...input,
         startDate: input.startDate || null,
         endDate: input.endDate || null,
         updatedAt: new Date(),
         updatedBy: userId || null,
       };
+      
+      // If healthReason is provided or health changed, update the timestamp
+      if (input.healthReason !== undefined || (input.health && input.health !== existing.health)) {
+        sanitizedInput.healthReasonUpdatedAt = new Date();
+      }
+      
       const updated = await storage.updateProject(projectId, sanitizedInput);
       
       // Track changes
