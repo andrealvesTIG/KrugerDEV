@@ -700,7 +700,7 @@ export default function Projects() {
                 onStatusChange={handleStatusChange} 
               />
             ) : (
-              <ProjectsGanttView projects={filteredProjects || []} />
+              <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
             )}
           </div>
         </div>
@@ -901,7 +901,7 @@ export default function Projects() {
           onStatusChange={handleStatusChange} 
         />
       ) : !isFullscreen ? (
-        <ProjectsGanttView projects={filteredProjects || []} />
+        <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
       ) : null}
 
       {/* Delete Confirmation Dialog */}
@@ -2222,7 +2222,7 @@ function ProjectsGridView({
       case 'businessValue': return project.businessValue;
       case 'riskLevel': return project.riskLevel;
       case 'source': return project.source;
-      case 'owner': return project.owner;
+      case 'owner': return project.managerId;
       case 'createdAt': return project.createdAt ? new Date(project.createdAt) : null;
       case 'description': return project.description;
       default: return null;
@@ -3096,9 +3096,19 @@ const zoomDaysLabels: Record<ZoomLevel, string> = {
   1825: '5 Years'
 };
 
-function ProjectsGanttView({ projects }: { projects: Project[] }) {
+const GANTT_COLUMNS: GridColumn[] = [
+  { id: "name", label: "Project", defaultVisible: true },
+  { id: "status", label: "Status", defaultVisible: false },
+  { id: "health", label: "Health", defaultVisible: false },
+  { id: "completion", label: "%", defaultVisible: false },
+];
+
+function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; organizationId: number | null }) {
   const [zoomDays, setZoomDays] = useState<ZoomLevel>(90);
   const [rangePreset, setRangePreset] = useState<RangePreset>("custom");
+  const [isResizing, setIsResizing] = useState(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
   const [timelineStart, setTimelineStart] = useState(() => {
     const projectsWithDates = projects.filter(p => p.startDate);
     if (projectsWithDates.length > 0) {
@@ -3215,6 +3225,72 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
 
   const timeMarkers = getTimeMarkers();
 
+  const defaultGanttWidths = useMemo(() => ({ name: 256 }), []);
+
+  const {
+    sortState: ganttSortState,
+    handleColumnSort: handleGanttSort,
+    handleColumnResize: handleGanttResize,
+    getColumnWidth: getGanttColumnWidth,
+    getSortDirection: getGanttSortDirection,
+  } = useColumnState({
+    viewType: 'gantt',
+    organizationId,
+    defaultWidths: defaultGanttWidths,
+  });
+
+  const getGanttFieldValue = useCallback((project: Project, columnId: string): any => {
+    switch (columnId) {
+      case 'name': return project.name;
+      case 'status': return project.status;
+      case 'health': return project.health;
+      case 'completion': return project.completionPercentage;
+      case 'startDate': return project.startDate ? new Date(project.startDate) : null;
+      case 'endDate': return project.endDate ? new Date(project.endDate) : null;
+      default: return null;
+    }
+  }, []);
+
+  const sortedGanttProjects = useMemo(() => {
+    return sortData(projects, ganttSortState, getGanttFieldValue);
+  }, [projects, ganttSortState, getGanttFieldValue]);
+
+  const projectColumnWidth = getGanttColumnWidth('name', 256);
+
+  const handleGanttResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    startXRef.current = e.clientX;
+    startWidthRef.current = projectColumnWidth;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const diff = e.clientX - startXRef.current;
+      const newWidth = Math.max(150, Math.min(500, startWidthRef.current + diff));
+      handleGanttResize('name', newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const renderGanttSortIcon = () => {
+    const direction = getGanttSortDirection('name');
+    if (direction === 'asc') {
+      return <ArrowUp className="h-3 w-3 text-primary" />;
+    }
+    if (direction === 'desc') {
+      return <ArrowDown className="h-3 w-3 text-primary" />;
+    }
+    return <ChevronsUpDown className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />;
+  };
+
   return (
     <Card>
       <CardContent className="p-6">
@@ -3283,7 +3359,26 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
         <div className="relative overflow-x-auto">
           <div className="min-w-[800px]">
             <div className="flex border-b border-border mb-2">
-              <div className="w-64 flex-shrink-0 p-2 font-semibold text-sm">Project</div>
+              <div 
+                className="flex-shrink-0 p-2 font-semibold text-sm relative group select-none cursor-pointer"
+                style={{ width: `${projectColumnWidth}px` }}
+                onClick={() => handleGanttSort('name')}
+                data-testid="gantt-column-header-name"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Project</span>
+                  {renderGanttSortIcon()}
+                </div>
+                <div
+                  className={cn(
+                    "absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-primary/50 transition-colors",
+                    isResizing && "bg-primary"
+                  )}
+                  onMouseDown={handleGanttResizeMouseDown}
+                  onClick={(e) => e.stopPropagation()}
+                  data-testid="gantt-resize-handle-name"
+                />
+              </div>
               <div className="flex-1 relative h-8">
                 {timeMarkers.map((marker, i) => (
                   <div 
@@ -3298,12 +3393,15 @@ function ProjectsGanttView({ projects }: { projects: Project[] }) {
             </div>
 
             <div className="space-y-2">
-              {projects.map(project => {
+              {sortedGanttProjects.map(project => {
                 const barPosition = getBarPosition(project.startDate, project.endDate);
                 
                 return (
                   <div key={project.id} className="flex items-center">
-                    <div className="w-64 flex-shrink-0 p-2">
+                    <div 
+                      className="flex-shrink-0 p-2"
+                      style={{ width: `${projectColumnWidth}px` }}
+                    >
                       <Link href={`/projects/${project.id}`}>
                         <div className="hover:text-primary cursor-pointer">
                           <div className="flex items-center gap-2">
