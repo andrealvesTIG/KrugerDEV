@@ -2349,29 +2349,21 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   
   // Make Editable state (convert imported/planner to native tasks)
   const [isMakeEditableDialogOpen, setIsMakeEditableDialogOpen] = useState(false);
-  const [isMakingEditable, setIsMakingEditable] = useState(false);
   
-  const handleMakeEditable = async () => {
-    setIsMakingEditable(true);
-    try {
-      const response = await fetch(`/api/projects/${projectId}/make-editable`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        toast({ title: "Error", description: data.message || "Failed to convert project", variant: "destructive" });
-      } else {
-        toast({ title: "Success", description: "Project is now editable. You can add, edit, and delete tasks." });
-        queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
-        setIsMakeEditableDialogOpen(false);
-      }
-    } catch (err) {
-      toast({ title: "Error", description: "Failed to convert project to editable mode", variant: "destructive" });
-    } finally {
-      setIsMakingEditable(false);
+  const makeEditableMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/projects/${projectId}/make-editable`, { method: 'POST' });
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Project is now editable. You can add, edit, and delete tasks." });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+      setIsMakeEditableDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to convert project", variant: "destructive" });
     }
-  };
+  });
   
   // Planner sync handler - not memoized, called manually
   const handlePlannerSync = async (silent = false) => {
@@ -2812,7 +2804,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               variant="outline"
               size="sm"
               onClick={() => setIsMakeEditableDialogOpen(true)}
-              className="bg-emerald-100 dark:bg-emerald-800 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-700 text-emerald-700 dark:text-emerald-200"
               data-testid="button-make-editable"
             >
               <Pencil className="h-4 w-4 mr-2" />
@@ -2822,7 +2813,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               variant="outline"
               size="sm"
               onClick={() => setIsReimportDialogOpen(true)}
-              className="bg-emerald-100 dark:bg-emerald-800 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-700 text-emerald-700 dark:text-emerald-200"
               data-testid="button-reimport-msproject"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -2961,12 +2951,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isMakingEditable}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={makeEditableMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={handleMakeEditable}
-              disabled={isMakingEditable}
+              onClick={() => makeEditableMutation.mutate()}
+              disabled={makeEditableMutation.isPending}
             >
-              {isMakingEditable ? (
+              {makeEditableMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Converting...
