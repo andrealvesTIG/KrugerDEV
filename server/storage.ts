@@ -5,7 +5,7 @@ import {
   projectChangeLogs, issueChangeLogs,
   resources, taskResourceAssignments, issueResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
-  changeRequests, projectDocuments, projectComments, notifications, statusReportHistory,
+  changeRequests, projectDocuments, projectComments, notifications, statusReportHistory, healthStatusHistory,
   billingTransactions, timesheetEntries, billableStatusComments, projectViews,
   magicLinkTokens,
   type User, type UpsertUser,
@@ -39,6 +39,7 @@ import {
   type ProjectDocument, type InsertProjectDocument, type UpdateProjectDocumentRequest,
   type ProjectComment, type InsertProjectComment,
   type BillableStatusComment, type InsertBillableStatusComment,
+  type HealthStatusHistory, type InsertHealthStatusHistory,
   type Notification, type InsertNotification,
   type StatusReportHistory, type InsertStatusReportHistory,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
@@ -288,6 +289,10 @@ export interface IStorage {
   // Billable Status Comments
   getBillableStatusComments(projectId: number): Promise<BillableStatusComment[]>;
   createBillableStatusComment(comment: InsertBillableStatusComment): Promise<BillableStatusComment>;
+
+  // Health Status History
+  getHealthStatusHistory(projectId: number): Promise<HealthStatusHistory[]>;
+  createHealthStatusHistory(entry: InsertHealthStatusHistory): Promise<HealthStatusHistory>;
 
   // Project Views
   getProjectViews(organizationId: number, userId: string, mode: string): Promise<ProjectView[]>;
@@ -2555,6 +2560,18 @@ export class DatabaseStorage implements IStorage {
 
   async createBillableStatusComment(comment: InsertBillableStatusComment): Promise<BillableStatusComment> {
     const [created] = await db.insert(billableStatusComments).values(comment).returning();
+    return created;
+  }
+
+  // Health Status History
+  async getHealthStatusHistory(projectId: number): Promise<HealthStatusHistory[]> {
+    return await db.select().from(healthStatusHistory)
+      .where(eq(healthStatusHistory.projectId, projectId))
+      .orderBy(desc(healthStatusHistory.createdAt));
+  }
+
+  async createHealthStatusHistory(entry: InsertHealthStatusHistory): Promise<HealthStatusHistory> {
+    const [created] = await db.insert(healthStatusHistory).values(entry).returning();
     return created;
   }
 
