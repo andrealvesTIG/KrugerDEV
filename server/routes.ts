@@ -4468,6 +4468,7 @@ export async function registerRoutes(
       
       res.json(updated);
     } catch (err) {
+      console.error("Error updating project:", err);
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
