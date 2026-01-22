@@ -134,6 +134,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
                 inputMode="decimal"
                 value={gridData[task.id]?.[dateKey]?.hours || ""}
                 onChange={(e) => handleHoursChange(task.id, dateKey, e.target.value)}
+                onFocus={(e) => e.target.select()}
                 placeholder="0"
                 disabled={!isEditable}
                 className={`w-16 text-center h-9 rounded-lg border-2 ${
