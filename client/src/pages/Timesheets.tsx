@@ -192,63 +192,48 @@ interface TimesheetGridProps {
   entries: TimesheetEntryWithDetails[];
   onSave: (data: Record<string, Record<string, { hours: number; notes: string; id?: number }>>) => void;
   isSaving: boolean;
-  saveError: boolean;
   viewMode: ViewMode;
   groupByProject: boolean;
+  gridData: Record<string, Record<string, { hours: string; notes: string; id?: number }>>;
+  setGridData: React.Dispatch<React.SetStateAction<Record<string, Record<string, { hours: string; notes: string; id?: number }>>>>;
+  hasChanges: boolean;
+  setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, saveError, viewMode, groupByProject }: TimesheetGridProps) {
-  const [gridData, setGridData] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>>({});
-  const [hasChanges, setHasChanges] = useState(false);
+function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges }: TimesheetGridProps) {
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
-  
-  // Track which specific cells have been modified locally (taskId-dateKey)
-  const modifiedCellsRef = useRef<Set<string>>(new Set());
-  // Track previous isSaving state to detect save completion
-  const prevIsSavingRef = useRef(false);
 
-  // Clear dirty tracking only after save completes successfully (isSaving: true -> false, and no error)
-  useEffect(() => {
-    if (prevIsSavingRef.current && !isSaving && !saveError) {
-      // Save completed successfully - clear dirty tracking
-      modifiedCellsRef.current.clear();
-      setHasChanges(false);
-    }
-    prevIsSavingRef.current = isSaving;
-  }, [isSaving, saveError]);
-
-  // Sync grid data: merge API entries with local changes, always preserving dirty cells
+  // Initialize grid data for any new cells (tasks/dates not yet in gridData)
   useEffect(() => {
     setGridData(prevGridData => {
-      const data: Record<string, Record<string, { hours: string; notes: string; id?: number }>> = {};
+      const data = { ...prevGridData };
+      let changed = false;
+      
       for (const { task } of assignedTasks) {
-        data[task.id] = {};
+        if (!data[task.id]) {
+          data[task.id] = {};
+          changed = true;
+        }
         for (const date of dates) {
           const dateKey = formatDateKey(date);
-          const cellKey = `${task.id}-${dateKey}`;
-          const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
-          
-          // If this cell has been locally modified, always preserve the local data
-          if (modifiedCellsRef.current.has(cellKey) && prevGridData[task.id]?.[dateKey] !== undefined) {
-            data[task.id][dateKey] = prevGridData[task.id][dateKey];
-          } else if (prevGridData[task.id]?.[dateKey] !== undefined && !entry) {
-            // Preserve existing local data for cells not in current API response (view change)
-            data[task.id][dateKey] = prevGridData[task.id][dateKey];
-          } else {
-            // Use API data
+          // Only initialize if this cell doesn't exist yet
+          if (data[task.id][dateKey] === undefined) {
+            const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
             data[task.id][dateKey] = {
               hours: entry ? String(Number(entry.hours)) : "",
               notes: entry?.notes || "",
               id: entry?.id
             };
+            changed = true;
           }
         }
       }
-      return data;
+      
+      return changed ? data : prevGridData;
     });
-  }, [entries, assignedTasks, dates]);
+  }, [entries, assignedTasks, dates, setGridData]);
 
   const handleHoursChange = (taskId: number, dateKey: string, value: string) => {
     // Allow only numbers and one decimal point
@@ -282,7 +267,6 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, saveEr
       }
     }));
     setHasChanges(true);
-    modifiedCellsRef.current.add(`${taskId}-${dateKey}`);
   };
 
   const handleNoteSave = (taskId: number, dateKey: string) => {
@@ -294,7 +278,6 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, saveEr
       }
     }));
     setHasChanges(true);
-    modifiedCellsRef.current.add(`${taskId}-${dateKey}`);
     setEditingNote(null);
     setNoteText("");
   };
@@ -341,7 +324,6 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, saveEr
       }
     }
     onSave(formattedData);
-    // Note: hasChanges is cleared in the useEffect when isSaving goes from true to false
   };
 
   const getRowTotal = (taskId: number): number => {
@@ -735,6 +717,10 @@ export default function Timesheets() {
   const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const { toast } = useToast();
+  
+  // Lift grid data state to parent to persist across view changes
+  const [gridData, setGridData] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>>({});
+  const [hasChanges, setHasChanges] = useState(false);
 
   const dates = useMemo(() => {
     switch (viewMode) {
@@ -803,6 +789,7 @@ export default function Timesheets() {
 
     try {
       await bulkUpsert.mutateAsync(entriesToUpsert);
+      setHasChanges(false);
       toast({ title: "Saved", description: "Your timesheet has been saved" });
     } catch (err) {
       toast({ title: "Error", description: "Failed to save timesheet", variant: "destructive" });
@@ -1103,9 +1090,12 @@ export default function Timesheets() {
                   entries={entries}
                   onSave={handleSave}
                   isSaving={bulkUpsert.isPending}
-                  saveError={bulkUpsert.isError}
                   viewMode={viewMode}
                   groupByProject={true}
+                  gridData={gridData}
+                  setGridData={setGridData}
+                  hasChanges={hasChanges}
+                  setHasChanges={setHasChanges}
                 />
               </motion.div>
             )}
