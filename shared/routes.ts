@@ -131,6 +131,7 @@ export const api = {
         baselineEndDate: z.union([z.string(), z.date(), z.null()]).optional(),
         actualStartDate: z.union([z.string(), z.date(), z.null()]).optional(),
         actualEndDate: z.union([z.string(), z.date(), z.null()]).optional(),
+        healthReason: z.union([z.string(), z.null()]).optional(),
         healthReasonUpdatedAt: z.union([z.string(), z.date(), z.null()]).optional(),
         deletedAt: z.union([z.string(), z.date(), z.null()]).optional(),
       }),
