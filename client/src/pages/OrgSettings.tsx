@@ -30,6 +30,7 @@ import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { ProjectOnlineImportWizard } from "@/components/ProjectOnlineImportWizard";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import IntegrationsPage from "@/pages/Integrations";
+import { BillingContent } from "@/pages/Billing";
 
 interface EnrichedMember extends OrganizationMember {
   user?: User;
@@ -98,6 +99,7 @@ export default function OrgSettings() {
 
 const settingsTabs = [
   { value: "general", label: "General", icon: Building2 },
+  { value: "billing", label: "Billing", icon: Zap },
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "intake", label: "Intake Workflow", icon: GitBranch },
   { value: "members", label: "Team Members", icon: Users },
@@ -190,6 +192,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
       <div className="flex-1 min-w-0">
         <TabsContent value="general" className="mt-0">
           <GeneralSection organization={currentOrganization} />
+        </TabsContent>
+        <TabsContent value="billing" className="mt-0">
+          <BillingContent />
         </TabsContent>
         <TabsContent value="modules" className="mt-0">
           <ModuleVisibilitySection organization={currentOrganization} />
@@ -576,6 +581,23 @@ function GeneralSection({ organization }: { organization: Organization }) {
                 </Button>
               </>
             )}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Organization ID Section */}
+        <div className="space-y-2">
+          <div>
+            <Label className="text-base font-medium">Organization ID</Label>
+            <p className="text-sm text-muted-foreground">
+              Unique identifier for your organization. Use this for API integrations.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <code className="px-3 py-2 bg-muted rounded-md text-sm font-mono" data-testid="text-org-id">
+              {organization.id}
+            </code>
           </div>
         </div>
 
@@ -2188,6 +2210,10 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
   const { user: currentUser } = useAuth();
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isDirectorySearchOpen, setIsDirectorySearchOpen] = useState(false);
+  const [directorySearchQuery, setDirectorySearchQuery] = useState("");
+  const [selectedDirectoryUser, setSelectedDirectoryUser] = useState<{ id: string; email: string | null; displayName: string } | null>(null);
+  const [directoryInviteRole, setDirectoryInviteRole] = useState<string>("member");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<string>("member");
   const [inviteEmails, setInviteEmails] = useState<string>("");
@@ -2212,10 +2238,26 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
     pendingInvites: number;
     planName: string;
     planCode: string;
+    bonusSeats: number;
+    extraSeatPriceCents: number | null;
   }
   
   const { data: seatInfo } = useQuery<SeatInfo>({
     queryKey: [`/api/organizations/${organizationId}/seats`],
+  });
+
+  const purchaseExtraSeat = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', `/api/organizations/${organizationId}/seats/purchase`, { quantity: 1 });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/seats`] });
+      setShowUpgradeDialog(false);
+      toast({ title: "Success", description: "Extra seat added to your subscription" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
   });
 
   // Access requests query
@@ -2236,6 +2278,50 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
 
   const { data: allUsers } = useQuery<User[]>({
     queryKey: ['/api/users']
+  });
+
+  interface DirectoryUser {
+    id: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    displayName: string;
+    jobTitle?: string;
+    department?: string;
+    source: 'internal' | 'entra';
+  }
+
+  const { data: directoryResults, isLoading: isSearchingDirectory } = useQuery<{ users: DirectoryUser[]; source: 'microsoft_entra' | 'internal' }>({
+    queryKey: [`/api/organizations/${organizationId}/directory/search`, directorySearchQuery],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${organizationId}/directory/search?q=${encodeURIComponent(directorySearchQuery)}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to search directory');
+      return res.json();
+    },
+    enabled: directorySearchQuery.length >= 2,
+  });
+
+  const inviteFromDirectory = useMutation({
+    mutationFn: async ({ email, role }: { email: string; role: string }) => {
+      return apiRequest('POST', `/api/organizations/${organizationId}/invites`, { emails: [email], role });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/invites`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/seats`] });
+      toast({ title: "Success", description: "Invitation sent successfully" });
+      setIsDirectorySearchOpen(false);
+      setDirectorySearchQuery("");
+      setSelectedDirectoryUser(null);
+    },
+    onError: async (error: Error & { limitExceeded?: boolean; resourceType?: string }) => {
+      if (error.limitExceeded && error.resourceType === 'seats') {
+        setIsDirectorySearchOpen(false);
+        setUpgradeMessage(error.message || 'You have reached your seat limit. Please upgrade your plan to invite more team members.');
+        setShowUpgradeDialog(true);
+        return;
+      }
+      toast({ title: "Error", description: error.message || "Failed to send invite", variant: "destructive" });
+    }
   });
 
   const addMember = useMutation({
@@ -2449,7 +2535,11 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
             </Button>
           </CardDescription>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setIsDirectorySearchOpen(true)} data-testid="button-search-directory">
+            <Building2 className="h-4 w-4 mr-2" />
+            Search Directory
+          </Button>
           <Button variant="outline" onClick={() => setIsInviteOpen(true)} data-testid="button-invite-member">
             <Mail className="h-4 w-4 mr-2" />
             Invite by Email
@@ -2805,11 +2895,135 @@ function MembersSection({ organizationId, orgName }: { organizationId: number; o
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isDirectorySearchOpen} onOpenChange={(open) => {
+        setIsDirectorySearchOpen(open);
+        if (!open) {
+          setDirectorySearchQuery("");
+          setSelectedDirectoryUser(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Search Directory</DialogTitle>
+            <DialogDescription>
+              Search for colleagues in your organization's directory to invite them as team members.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="directory-search">Search by name or email</Label>
+              <Input
+                id="directory-search"
+                placeholder="Start typing to search..."
+                value={directorySearchQuery}
+                onChange={(e) => setDirectorySearchQuery(e.target.value)}
+                data-testid="input-directory-search"
+              />
+            </div>
+            
+            {directorySearchQuery.length >= 2 && (
+              <>
+                {directoryResults?.source === 'internal' && !isSearchingDirectory && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-700 dark:text-amber-300">
+                    <div className="font-medium">Microsoft Entra ID not connected</div>
+                    <div className="text-xs mt-1">Go to <a href="/integrations" className="underline font-medium">Integrations &gt; Identity & Directory</a> to connect Microsoft Entra ID and search your organization's Active Directory.</div>
+                  </div>
+                )}
+                {directoryResults?.source === 'microsoft_entra' && !isSearchingDirectory && (
+                  <div className="p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Searching Microsoft Entra ID directory
+                  </div>
+                )}
+                <div className="border rounded-md max-h-64 overflow-y-auto">
+                  {isSearchingDirectory ? (
+                    <div className="p-4 flex items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : directoryResults?.users && directoryResults.users.length > 0 ? (
+                    <div className="divide-y">
+                      {directoryResults.users.map((user) => (
+                        <div
+                          key={user.id}
+                          className={`p-3 cursor-pointer hover-elevate ${
+                            selectedDirectoryUser?.id === user.id ? 'bg-primary/10' : ''
+                          }`}
+                          onClick={() => setSelectedDirectoryUser(user)}
+                          data-testid={`directory-user-${user.id}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium">{user.displayName}</div>
+                            {user.source === 'entra' && (
+                              <Badge variant="outline" className="text-xs">Entra ID</Badge>
+                            )}
+                          </div>
+                          {user.email && (
+                            <div className="text-sm text-muted-foreground">{user.email}</div>
+                          )}
+                          {(user.jobTitle || user.department) && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {[user.jobTitle, user.department].filter(Boolean).join(' • ')}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-muted-foreground">
+                      No users found matching your search
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {selectedDirectoryUser && (
+              <div className="space-y-2 p-3 bg-muted/50 rounded-md">
+                <div className="text-sm font-medium">Selected: {selectedDirectoryUser.displayName}</div>
+                {selectedDirectoryUser.email && (
+                  <div className="text-sm text-muted-foreground">{selectedDirectoryUser.email}</div>
+                )}
+                <div className="space-y-2 mt-3">
+                  <Label htmlFor="directory-invite-role">Role</Label>
+                  <Select value={directoryInviteRole} onValueChange={setDirectoryInviteRole}>
+                    <SelectTrigger id="directory-invite-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="org_admin">Org Admin</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="team_member">Team Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDirectorySearchOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (selectedDirectoryUser?.email) {
+                  inviteFromDirectory.mutate({ email: selectedDirectoryUser.email, role: directoryInviteRole });
+                }
+              }}
+              disabled={!selectedDirectoryUser?.email || inviteFromDirectory.isPending}
+              data-testid="button-send-directory-invite"
+            >
+              {inviteFromDirectory.isPending ? "Sending..." : "Send Invite"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <LimitExceededDialog
         open={showUpgradeDialog}
         onOpenChange={setShowUpgradeDialog}
         resourceType="seats"
         message={upgradeMessage}
+        extraSeatPriceCents={seatInfo?.extraSeatPriceCents}
+        onPurchaseExtraSeat={() => purchaseExtraSeat.mutate()}
+        isPurchasing={purchaseExtraSeat.isPending}
       />
     </Card>
   );

@@ -11,7 +11,7 @@ import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPerc
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards, organizationMembers, plans } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -1872,12 +1872,14 @@ export async function registerRoutes(
       
       let planName = "Free";
       let planCode = "FREE";
+      let extraSeatPriceCents: number | null = null;
       
       if (subscription) {
         const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
         if (plan) {
           planName = plan.name;
           planCode = plan.code;
+          extraSeatPriceCents = plan.extraSeatPriceCents;
         }
       }
       
@@ -1885,17 +1887,171 @@ export async function registerRoutes(
       const invites = await storage.getOrganizationInvites(orgId);
       const pendingInvites = invites.filter(i => i.status === 'pending').length;
       
+      // Check if current user is admin
+      const members = await storage.getOrganizationMembers(orgId);
+      const currentMember = members.find(m => m.userId === userId);
+      
+      // Also check if user is super_admin
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      
+      const isAdmin = currentMember?.role === 'org_admin' || currentMember?.role === 'owner' || isSuperAdmin;
+      
       res.json({
         ...seatInfo,
         pendingInvites,
         planName,
         planCode,
         subscriptionId: subscription?.id || null,
-        bonusSeats: subscription?.bonusSeats || 0
+        bonusSeats: subscription?.bonusSeats || 0,
+        extraSeatPriceCents,
+        isAdmin
       });
     } catch (err) {
       console.error("Error fetching seat info:", err);
       res.status(500).json({ message: 'Failed to fetch seat information' });
+    }
+  });
+
+  // Remove extra seats from the organization
+  // Remove extra seats from the organization
+  app.post('/api/organizations/:id/seats/remove', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const { quantity = 1 } = req.body;
+
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      // Check if user is org admin or super admin
+      const members = await storage.getOrganizationMembers(orgId);
+      const currentMember = members.find(m => m.userId === userId);
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      
+      if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
+        return res.status(403).json({ message: 'Only organization admins can remove seats' });
+      }
+
+      // Get organization subscription
+      const { billingProvider } = await import("./services/billing");
+      const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+
+      if (!subscription) {
+        return res.status(400).json({ message: 'No active subscription found' });
+      }
+
+      const currentBonusSeats = subscription.bonusSeats || 0;
+      if (currentBonusSeats < quantity) {
+        return res.status(400).json({ message: "Cannot remove more seats than purchased extra seats" });
+      }
+
+      const newBonusSeats = currentBonusSeats - quantity;
+
+      // Update bonus seats on subscription
+      await db.update(subscriptions)
+        .set({ bonusSeats: newBonusSeats })
+        .where(eq(subscriptions.id, subscription.id));
+
+      // Record in billing audit log
+      await db.insert(billingAuditLogs).values({
+        actorUserId: userId,
+        orgId: orgId,
+        action: "EXTRA_SEAT_REMOVED",
+        entityType: "subscription",
+        entityId: String(subscription.id),
+        metadataJson: {
+          quantity,
+          previousBonusSeats: currentBonusSeats,
+          newBonusSeats
+        }
+      });
+
+      res.json({ message: "Extra seats removed successfully", bonusSeats: newBonusSeats });
+    } catch (error: any) {
+      console.error('Error removing extra seats:', error);
+      res.status(500).json({ message: error.message || "Failed to remove extra seats" });
+    }
+  });
+
+  app.post('/api/organizations/:id/seats/purchase', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const { quantity = 1 } = req.body;
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      // Check if user is org admin or super admin
+      const members = await storage.getOrganizationMembers(orgId);
+      const currentMember = members.find(m => m.userId === userId);
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      
+      if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
+        return res.status(403).json({ message: 'Only organization admins can purchase extra seats' });
+      }
+      
+      // Get organization subscription and plan
+      const { billingProvider } = await import("./services/billing");
+      const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      
+      if (!subscription) {
+        return res.status(400).json({ message: 'No active subscription found. Please upgrade to a paid plan first.' });
+      }
+      
+      const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
+      
+      if (!plan) {
+        return res.status(400).json({ message: 'Plan not found' });
+      }
+      
+      if (plan.extraSeatPriceCents === null) {
+        return res.status(400).json({ message: 'Extra seats are not available for the Free plan. Please upgrade first.' });
+      }
+      
+      // For Enterprise plan with $0 extra seats, just add them
+      // For paid plans, we record the purchase
+      const newBonusSeats = (subscription.bonusSeats || 0) + quantity;
+      
+      // Update bonus seats on subscription
+      await db.update(subscriptions)
+        .set({ bonusSeats: newBonusSeats })
+        .where(eq(subscriptions.id, subscription.id));
+      
+      // Record in billing audit log
+      await db.insert(billingAuditLogs).values({
+        actorUserId: userId,
+        orgId: orgId,
+        action: "EXTRA_SEAT_PURCHASE",
+        entityType: "subscription",
+        entityId: String(subscription.id),
+        metadataJson: { 
+          quantity,
+          pricePerSeatCents: plan.extraSeatPriceCents,
+          totalCents: plan.extraSeatPriceCents * quantity,
+          previousBonusSeats: subscription.bonusSeats || 0,
+          newBonusSeats
+        }
+      });
+      
+      // Get updated seat info
+      const { checkSeatLimit } = await import("./services/billing");
+      const seatInfo = await checkSeatLimit(orgId, 0);
+      
+      res.json({
+        success: true,
+        message: `Successfully added ${quantity} extra seat${quantity > 1 ? 's' : ''} to your subscription`,
+        bonusSeats: newBonusSeats,
+        ...seatInfo
+      });
+    } catch (err) {
+      console.error("Error purchasing extra seat:", err);
+      res.status(500).json({ message: 'Failed to purchase extra seat' });
     }
   });
 
@@ -2002,12 +2158,19 @@ export async function registerRoutes(
         }
         
         try {
+          // Generate a secure token for the magic link
+          const crypto = await import('crypto');
+          const inviteToken = crypto.randomBytes(32).toString('hex');
+          const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+          
           await storage.createOrganizationInvite({
             organizationId: orgId,
             email: normalizedEmail,
             role: role || 'member',
             invitedBy: currentUserId,
-            status: 'pending'
+            status: 'pending',
+            token: inviteToken,
+            expiresAt: expiresAt
           });
           results.success.push(normalizedEmail);
           invitesSent++;
@@ -2030,7 +2193,8 @@ export async function registerRoutes(
               org.name,
               inviterName,
               role || 'member',
-              appUrl
+              appUrl,
+              inviteToken
             );
           }
         } catch (err) {
@@ -2085,6 +2249,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'Can only resend pending invites' });
       }
       
+      // Generate new token and update expiration
+      const crypto = await import('crypto');
+      const newToken = crypto.randomBytes(32).toString('hex');
+      const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      
+      await storage.resendOrganizationInvite(inviteId, newToken, newExpiresAt);
+      
       // Get org and inviter info for email
       const org = await storage.getOrganization(orgId);
       const inviter = currentUserId ? await storage.getUser(currentUserId) : null;
@@ -2103,7 +2274,8 @@ export async function registerRoutes(
           org.name,
           inviterName,
           invite.role,
-          appUrl
+          appUrl,
+          newToken
         );
       }
       
@@ -2111,6 +2283,236 @@ export async function registerRoutes(
     } catch (err) {
       console.error('Failed to resend invite:', err);
       res.status(500).json({ message: 'Failed to resend invite' });
+    }
+  });
+
+  // Magic link invite acceptance - validates token and accepts invite for logged in user
+  app.post('/api/invites/accept', async (req, res) => {
+    try {
+      const currentUserId = getUserIdFromRequest(req);
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ message: 'Invite token is required' });
+      }
+      
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required. Please log in first.' });
+      }
+      
+      // Look up the invite by token
+      const invite = await storage.getOrganizationInviteByToken(token);
+      
+      if (!invite) {
+        return res.status(404).json({ message: 'Invalid or expired invitation link' });
+      }
+      
+      if (invite.status !== 'pending') {
+        return res.status(400).json({ 
+          message: invite.status === 'accepted' 
+            ? 'This invitation has already been accepted' 
+            : 'This invitation is no longer valid' 
+        });
+      }
+      
+      // Check if invite has expired
+      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+        return res.status(400).json({ message: 'This invitation has expired. Please ask for a new invite.' });
+      }
+      
+      // Verify the user's email matches the invite
+      const user = await storage.getUser(currentUserId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Check if email matches (case insensitive)
+      if (user.email?.toLowerCase() !== invite.email.toLowerCase()) {
+        return res.status(403).json({ 
+          message: `This invitation was sent to ${invite.email}. Please log in with that email address or ask for a new invitation.` 
+        });
+      }
+      
+      // Accept the invite
+      const member = await storage.acceptOrganizationInvite(invite.id, currentUserId);
+      
+      if (!member) {
+        return res.status(500).json({ message: 'Failed to accept invitation' });
+      }
+      
+      // Get organization details for response
+      const org = await storage.getOrganization(invite.organizationId);
+      
+      res.json({ 
+        message: 'Successfully joined organization',
+        organization: org,
+        role: invite.role
+      });
+    } catch (err) {
+      console.error('Failed to accept invite:', err);
+      res.status(500).json({ message: 'Failed to accept invitation' });
+    }
+  });
+
+  // Get invite details by token (for displaying invite info before login)
+  app.get('/api/invites/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      const invite = await storage.getOrganizationInviteByToken(token);
+      
+      if (!invite) {
+        return res.status(404).json({ message: 'Invalid or expired invitation link' });
+      }
+      
+      if (invite.status !== 'pending') {
+        return res.status(400).json({ 
+          message: invite.status === 'accepted' 
+            ? 'This invitation has already been accepted' 
+            : 'This invitation is no longer valid',
+          status: invite.status
+        });
+      }
+      
+      // Check if invite has expired
+      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+        return res.status(400).json({ message: 'This invitation has expired', expired: true });
+      }
+      
+      // Get organization details
+      const org = await storage.getOrganization(invite.organizationId);
+      
+      // Return safe details (no sensitive info)
+      res.json({
+        email: invite.email,
+        organizationName: org?.name || 'Unknown Organization',
+        role: invite.role,
+        expiresAt: invite.expiresAt
+      });
+    } catch (err) {
+      console.error('Failed to get invite details:', err);
+      res.status(500).json({ message: 'Failed to get invitation details' });
+    }
+  });
+
+  // Microsoft Entra ID directory user search
+  app.get('/api/organizations/:id/directory/search', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const currentUserId = getUserIdFromRequest(req);
+      const { q } = req.query;
+      
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      if (!q || typeof q !== 'string' || q.length < 2) {
+        return res.status(400).json({ message: 'Search query must be at least 2 characters' });
+      }
+      
+      // Get organization to check for Entra ID configuration
+      const org = await storage.getOrganization(orgId);
+      if (!org) {
+        return res.status(404).json({ message: 'Organization not found' });
+      }
+      
+      // Get existing members to exclude from results
+      const members = await storage.getOrganizationMembers(orgId);
+      const memberEmails = new Set(
+        members.map(m => m.user?.email?.toLowerCase()).filter(Boolean) as string[]
+      );
+      
+      // Get pending invites to exclude from results
+      const invites = await storage.getOrganizationInvites(orgId);
+      const pendingInviteEmails = new Set(
+        invites.filter(i => i.status === 'pending').map(i => i.email.toLowerCase())
+      );
+      
+      // Check if Microsoft Entra ID integration is connected for this organization
+      const { getOrgIntegration } = await import('./services/microsoftPlanner');
+      const integration = await getOrgIntegration(orgId, 'entra');
+      
+      if (integration?.connectionStatus === 'connected' && integration.accessToken) {
+        // Search Microsoft Graph API for users
+        try {
+          const searchQuery = encodeURIComponent(q);
+          // Use $filter to search by displayName or mail containing the search term
+          const graphUrl = `https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'${searchQuery}') or startswith(mail,'${searchQuery}') or startswith(givenName,'${searchQuery}') or startswith(surname,'${searchQuery}')&$top=15&$select=id,displayName,mail,givenName,surname,userPrincipalName,jobTitle,department`;
+          
+          const graphResponse = await fetch(graphUrl, {
+            headers: {
+              'Authorization': `Bearer ${integration.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (graphResponse.ok) {
+            const graphData = await graphResponse.json();
+            const graphUsers = (graphData.value || [])
+              .filter((user: any) => {
+                const email = (user.mail || user.userPrincipalName || '').toLowerCase();
+                // Skip if already a member or has pending invite
+                if (memberEmails.has(email)) return false;
+                if (pendingInviteEmails.has(email)) return false;
+                return true;
+              })
+              .slice(0, 10)
+              .map((user: any) => ({
+                id: user.id,
+                email: user.mail || user.userPrincipalName,
+                firstName: user.givenName,
+                lastName: user.surname,
+                displayName: user.displayName || [user.givenName, user.surname].filter(Boolean).join(' ') || user.mail || 'Unknown User',
+                jobTitle: user.jobTitle,
+                department: user.department,
+                source: 'entra' as const
+              }));
+            
+            return res.json({ users: graphUsers, source: 'microsoft_entra' });
+          } else {
+            // Log error but fall back to internal search
+            const errorText = await graphResponse.text();
+            console.error('Microsoft Graph API error:', graphResponse.status, errorText);
+            // Token might be expired or insufficient permissions - fall back to internal
+          }
+        } catch (graphErr) {
+          console.error('Failed to search Microsoft Graph:', graphErr);
+          // Fall back to internal search
+        }
+      }
+      
+      // Fall back to internal users if no external directory is configured or Graph API failed
+      const allUsers = await storage.getAllUsers();
+      const searchLower = q.toLowerCase();
+      
+      const matchingUsers = allUsers
+        .filter(user => {
+          // Skip if already a member
+          if (user.email && memberEmails.has(user.email.toLowerCase())) return false;
+          
+          // Skip if already has a pending invite
+          if (user.email && pendingInviteEmails.has(user.email.toLowerCase())) return false;
+          
+          // Match on name or email
+          const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').toLowerCase();
+          const email = user.email?.toLowerCase() || '';
+          
+          return fullName.includes(searchLower) || email.includes(searchLower);
+        })
+        .slice(0, 10) // Limit results
+        .map(user => ({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          displayName: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Unknown User',
+          source: 'internal' as const
+        }));
+      
+      res.json({ users: matchingUsers, source: 'internal' });
+    } catch (err) {
+      console.error('Failed to search directory:', err);
+      res.status(500).json({ message: 'Failed to search directory' });
     }
   });
 
@@ -2784,7 +3186,7 @@ export async function registerRoutes(
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
-        await recordResourceUsage(userId, METER_CODES.PORTFOLIOS, portfolio.id);
+        await recordResourceUsage(userId, METER_CODES.PORTFOLIOS, portfolio.id, 1, portfolio.organizationId);
       }
       
       res.status(201).json(portfolio);
@@ -3014,7 +3416,7 @@ export async function registerRoutes(
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
-        await recordResourceUsage(userId, METER_CODES.PROJECTS, project.id);
+        await recordResourceUsage(userId, METER_CODES.PROJECTS, project.id, 1, project.organizationId);
       }
       
       // Log change
@@ -3188,7 +3590,7 @@ export async function registerRoutes(
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
-        await recordResourceUsage(userId, METER_CODES.PROJECTS, project.id);
+        await recordResourceUsage(userId, METER_CODES.PROJECTS, project.id, 1, project.organizationId);
       }
 
       // Log change
@@ -3436,7 +3838,7 @@ export async function registerRoutes(
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
-        await recordResourceUsage(userId, METER_CODES.PROJECTS, project.id);
+        await recordResourceUsage(userId, METER_CODES.PROJECTS, project.id, 1, project.organizationId);
       }
 
       // Log change
@@ -4205,7 +4607,7 @@ export async function registerRoutes(
         ].join('\n');
         
         // Record report usage
-        await recordResourceUsage(userId, METER_CODES.REPORTS, `export_${projectId}_${Date.now()}`);
+        await recordResourceUsage(userId, METER_CODES.REPORTS, `export_${projectId}_${Date.now()}`, 1, project.organizationId);
         
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}_export.csv"`);
@@ -4382,7 +4784,7 @@ export async function registerRoutes(
 </Project>`;
         
         // Record report usage
-        await recordResourceUsage(userId, METER_CODES.REPORTS, `export_${projectId}_${Date.now()}`);
+        await recordResourceUsage(userId, METER_CODES.REPORTS, `export_${projectId}_${Date.now()}`, 1, project.organizationId);
         
         res.setHeader('Content-Type', 'application/xml');
         res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}_export.xml"`);
@@ -4863,8 +5265,8 @@ Generated by FridayReport.AI
         });
         
         // Record usage for report and email after successful send
-        await recordResourceUsage(userId, METER_CODES.REPORTS, `report_${projectId}_${Date.now()}`);
-        await recordResourceUsage(userId, METER_CODES.EMAILS, `email_${projectId}_${Date.now()}`);
+        await recordResourceUsage(userId, METER_CODES.REPORTS, `report_${projectId}_${Date.now()}`, 1, project.organizationId);
+        await recordResourceUsage(userId, METER_CODES.EMAILS, `email_${projectId}_${Date.now()}`, 1, project.organizationId);
         
         res.json({ success: true, message: `Status report sent to ${recipientEmail}` });
       } else {
@@ -5256,6 +5658,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       const input = api.issues.create.input.parse(req.body);
       const issue = await storage.createIssue(input);
+      
+      // Record usage after successful creation
+      if (userId) {
+        const { recordResourceUsage, METER_CODES } = await import("./services/billing");
+        // Get org ID from project for billing
+        const project = input.projectId ? await storage.getProject(input.projectId) : null;
+        await recordResourceUsage(userId, METER_CODES.ISSUES, issue.id, 1, project?.organizationId);
+      }
       
       // Log change
       const user = userId ? await storage.getUser(userId) : null;
@@ -5667,7 +6077,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
-        await recordResourceUsage(userId, METER_CODES.TASKS, task.id);
+        // Get org ID from project for billing
+        const project = await storage.getProject(input.projectId);
+        await recordResourceUsage(userId, METER_CODES.TASKS, task.id, 1, project?.organizationId);
       }
       
       // Log the creation
@@ -6336,6 +6748,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         isActive,
         notes
       });
+      
+      // Record usage after successful creation
+      if (userId) {
+        const { recordResourceUsage, METER_CODES } = await import("./services/billing");
+        await recordResourceUsage(userId, METER_CODES.RESOURCES, resource.id, 1, organizationId);
+      }
+      
       res.status(201).json(resource);
     } catch (err) {
       res.status(500).json({ message: "Error creating resource" });
@@ -6431,6 +6850,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         isActive: true,
         invitedProjectIds: projectId ? [projectId] : null,
       });
+      
+      // Record usage after successful creation
+      if (currentUserId) {
+        const { recordResourceUsage, METER_CODES } = await import("./services/billing");
+        await recordResourceUsage(currentUserId, METER_CODES.RESOURCES, resource.id);
+      }
       
       // Check if there's already an organization invite for this email
       const existingInvites = await storage.getOrganizationInvites(organizationId);
@@ -7173,7 +7598,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
-        await recordResourceUsage(userId, METER_CODES.INTAKES, intake.id);
+        await recordResourceUsage(userId, METER_CODES.INTAKES, intake.id, 1, organizationId);
       }
       
       res.status(201).json(intake);
@@ -7665,7 +8090,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
-        await recordResourceUsage(userId, METER_CODES.CHANGE_REQUESTS, changeRequest.id);
+        // Get org ID from project for billing
+        const project = await storage.getProject(projectId);
+        await recordResourceUsage(userId, METER_CODES.CHANGE_REQUESTS, changeRequest.id, 1, project?.organizationId);
       }
       
       res.status(201).json(changeRequest);
@@ -7759,7 +8186,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
-        await recordResourceUsage(userId, METER_CODES.DOCUMENTS, document.id);
+        // Get org ID from project for billing
+        const project = await storage.getProject(projectId);
+        await recordResourceUsage(userId, METER_CODES.DOCUMENTS, document.id, 1, project?.organizationId);
       }
       
       res.status(201).json(document);
@@ -10129,13 +10558,14 @@ Return ONLY valid JSON.`;
     try {
       const { plans } = await import("@shared/schema");
       const planId = parseInt(req.params.id);
-      const { name, description, monthlyPriceCents, maxSeats, isActive } = req.body;
+      const { name, description, monthlyPriceCents, maxSeats, extraSeatPriceCents, isActive } = req.body;
 
       const updates: any = {};
       if (name !== undefined) updates.name = name;
       if (description !== undefined) updates.description = description;
       if (monthlyPriceCents !== undefined) updates.monthlyPriceCents = monthlyPriceCents;
       if (maxSeats !== undefined) updates.maxSeats = maxSeats;
+      if (extraSeatPriceCents !== undefined) updates.extraSeatPriceCents = extraSeatPriceCents;
       if (isActive !== undefined) updates.isActive = isActive;
 
       const [updated] = await db.update(plans)
@@ -10147,6 +10577,48 @@ Return ONLY valid JSON.`;
     } catch (error) {
       console.error("Error updating plan:", error);
       res.status(500).json({ message: "Failed to update plan" });
+    }
+  });
+
+  // Initialize extra seat prices for plans (super admin only)
+  app.post('/api/admin/plans/init-extra-seat-prices', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { plans } = await import("@shared/schema");
+      
+      // Update Professional plan (code: BASIC) with $5/seat extra
+      await db.update(plans)
+        .set({ extraSeatPriceCents: 500 })
+        .where(eq(plans.code, 'BASIC'));
+      
+      // Update Business plan (code: BUSINESS) with $8/seat extra
+      await db.update(plans)
+        .set({ extraSeatPriceCents: 800 })
+        .where(eq(plans.code, 'BUSINESS'));
+      
+      // Get updated plans
+      const updatedPlans = await db.select().from(plans).orderBy(plans.displayOrder);
+      
+      res.json({ 
+        message: "Extra seat prices initialized successfully",
+        plans: updatedPlans.map(p => ({ 
+          code: p.code, 
+          name: p.name, 
+          extraSeatPriceCents: p.extraSeatPriceCents 
+        }))
+      });
+    } catch (error) {
+      console.error("Error initializing extra seat prices:", error);
+      res.status(500).json({ message: "Failed to initialize extra seat prices" });
     }
   });
 
@@ -11091,13 +11563,14 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
       }
 
-      const entries = await storage.getTimesheetEntries(userId, organizationId, startDate, endDate);
+      // Single optimized query with JOINs - replaces N+1 queries
+      const entriesWithDetails = await storage.getTimesheetEntriesWithDetails(userId, organizationId, startDate, endDate);
       
-      // Enrich with task and project info
-      const enrichedEntries = await Promise.all(entries.map(async (entry) => {
-        const task = await storage.getTask(entry.taskId);
-        const project = task ? await storage.getProject(task.projectId) : null;
-        return { ...entry, task, project };
+      // Transform to expected format
+      const enrichedEntries = entriesWithDetails.map(({ entry, task, project }) => ({
+        ...entry,
+        task,
+        project
       }));
 
       res.json(enrichedEntries);
@@ -11168,43 +11641,8 @@ Return ONLY valid JSON.`;
         return res.json([]);
       }
 
-      // Optimized: Get all task assignments for this organization in one query
-      const allAssignments = await storage.getAllTaskResourceAssignments(organizationId);
-      
-      // Filter to just this user's assignments
-      const userAssignments = allAssignments.filter(a => a.resourceId === userResource.id);
-      
-      if (userAssignments.length === 0) {
-        return res.json([]);
-      }
-
-      // Get unique task IDs
-      const taskIds = [...new Set(userAssignments.map(a => a.taskId))];
-      
-      // Fetch all assigned tasks in parallel
-      const tasksPromises = taskIds.map(id => storage.getTask(id));
-      const tasksResults = await Promise.all(tasksPromises);
-      const validTasks = tasksResults.filter((t): t is NonNullable<typeof t> => t !== undefined && !t.deletedAt);
-      
-      // Get unique project IDs and fetch projects in parallel
-      const projectIds = [...new Set(validTasks.map(t => t.projectId))];
-      const projectsPromises = projectIds.map(id => storage.getProject(id));
-      const projectsResults = await Promise.all(projectsPromises);
-      
-      // Create project lookup map
-      const projectMap = new Map(
-        projectsResults
-          .filter((p): p is NonNullable<typeof p> => p !== undefined && !p.deletedAt && p.organizationId === organizationId)
-          .map(p => [p.id, p])
-      );
-
-      // Build result with task and project pairs
-      const assignedTasks = validTasks
-        .map(task => {
-          const project = projectMap.get(task.projectId);
-          return project ? { task, project } : null;
-        })
-        .filter((item): item is { task: any; project: any } => item !== null);
+      // Single optimized query with JOINs - replaces N+1 queries
+      const assignedTasks = await storage.getAssignedTasksForResource(userResource.id, organizationId);
 
       res.json(assignedTasks);
     } catch (error) {

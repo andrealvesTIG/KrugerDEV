@@ -1283,6 +1283,7 @@ function AllUsersTab() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[60px]">Org ID</TableHead>
                       <TableHead>Organization</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead className="w-[80px]">Actions</TableHead>
@@ -1293,6 +1294,9 @@ function AllUsersTab() {
                       const org = allOrganizations?.find(o => o.id === membership.organizationId);
                       return (
                         <TableRow key={membership.id} data-testid={`membership-row-${membership.organizationId}`}>
+                          <TableCell className="text-muted-foreground font-mono text-xs">
+                            {membership.organizationId}
+                          </TableCell>
                           <TableCell className="font-medium">
                             {org?.name || `Org #${membership.organizationId}`}
                           </TableCell>
@@ -1407,6 +1411,7 @@ interface PlanData {
   description: string | null;
   monthlyPriceCents: number | null;
   maxSeats: number | null;
+  extraSeatPriceCents: number | null;
   isActive: boolean | null;
   displayOrder: number | null;
   meterRules: Array<{
@@ -1445,6 +1450,7 @@ function PlansTab() {
   const [newPlan, setNewPlan] = useState({ code: "", name: "", description: "", monthlyPriceCents: 0, maxSeats: "" });
   const [deletePlanId, setDeletePlanId] = useState<number | null>(null);
   const [isSyncingPayPal, setIsSyncingPayPal] = useState(false);
+  const [isInitializingSeats, setIsInitializingSeats] = useState(false);
 
   const { data: plans, isLoading } = useQuery<PlanData[]>({
     queryKey: ['/api/billing/plans']
@@ -1476,6 +1482,34 @@ function PlansTab() {
       });
     }
     setIsSyncingPayPal(false);
+  };
+
+  const initExtraSeatPrices = async () => {
+    setIsInitializingSeats(true);
+    try {
+      const res = await fetch('/api/admin/plans/init-extra-seat-prices', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to initialize extra seat prices');
+      }
+      const result = await res.json();
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      toast({ 
+        title: "Extra Seat Prices Initialized", 
+        description: `Professional: $5/seat, Business: $8/seat` 
+      });
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to initialize extra seat prices", 
+        variant: "destructive" 
+      });
+    }
+    setIsInitializingSeats(false);
   };
 
   const sortedPlans = plans ? [...plans].sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)) : [];
@@ -1535,7 +1569,7 @@ function PlansTab() {
   });
 
   const updatePlan = useMutation({
-    mutationFn: async (data: { id: number; name?: string; description?: string; monthlyPriceCents?: number | null; maxSeats?: number }) => {
+    mutationFn: async (data: { id: number; name?: string; description?: string; monthlyPriceCents?: number | null; maxSeats?: number; extraSeatPriceCents?: number | null }) => {
       return apiRequest('PUT', `/api/admin/plans/${data.id}`, data);
     },
     onSuccess: () => {
@@ -1611,6 +1645,19 @@ function PlansTab() {
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
+              onClick={initExtraSeatPrices} 
+              disabled={isInitializingSeats}
+              data-testid="button-init-seat-prices"
+            >
+              {isInitializingSeats ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <DollarSign className="h-4 w-4 mr-2" />
+              )}
+              Init Seat Prices
+            </Button>
+            <Button 
+              variant="outline" 
               onClick={syncPayPalPlans} 
               disabled={isSyncingPayPal}
               data-testid="button-sync-paypal"
@@ -1636,6 +1683,7 @@ function PlansTab() {
                 <TableHead>Plan</TableHead>
                 <TableHead>Monthly Price</TableHead>
                 <TableHead>Max Seats</TableHead>
+                <TableHead>Extra Seat Price</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -1677,6 +1725,11 @@ function PlansTab() {
                     </Badge>
                   </TableCell>
                   <TableCell>{plan.maxSeats || "Unlimited"}</TableCell>
+                  <TableCell>
+                    {plan.extraSeatPriceCents !== null 
+                      ? `$${(plan.extraSeatPriceCents / 100).toFixed(2)}/mo`
+                      : "N/A"}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={plan.isActive ? "default" : "outline"}>
                       {plan.isActive ? "Active" : "Inactive"}
@@ -1785,6 +1838,23 @@ function PlansTab() {
                     })}
                     data-testid="input-plan-seats"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="plan-extra-seat-price">Extra Seat Price (cents/month)</Label>
+                  <Input
+                    id="plan-extra-seat-price"
+                    type="number"
+                    value={editingPlan.extraSeatPriceCents ?? ""}
+                    placeholder="N/A (no extra seats allowed)"
+                    onChange={(e) => setEditingPlan({ 
+                      ...editingPlan, 
+                      extraSeatPriceCents: e.target.value ? parseInt(e.target.value) : null 
+                    })}
+                    data-testid="input-plan-extra-seat-price"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Price per additional seat per month (e.g., 500 = $5.00/seat/month). Leave empty to disable extra seats.
+                  </p>
                 </div>
               </div>
 
@@ -1997,6 +2067,7 @@ function PlansTab() {
                       description: editingPlan.description || undefined,
                       monthlyPriceCents: editingPlan.monthlyPriceCents,
                       maxSeats: editingPlan.maxSeats || undefined,
+                      extraSeatPriceCents: editingPlan.extraSeatPriceCents,
                     });
                     
                     // Save all meter rules

@@ -220,6 +220,7 @@ export interface IStorage {
   // Task Resource Assignments
   getTaskResourceAssignments(taskId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
   getAllTaskResourceAssignments(organizationId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
+  getAssignedTasksForResource(resourceId: number, organizationId: number): Promise<{ task: Task; project: Project }[]>;
   addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment>;
   removeTaskResourceAssignment(taskId: number, resourceId: number): Promise<void>;
   updateTaskResourceAssignments(taskId: number, resourceIds: number[]): Promise<void>;
@@ -320,6 +321,7 @@ export interface IStorage {
 
   // Timesheet Entries
   getTimesheetEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<TimesheetEntry[]>;
+  getTimesheetEntriesWithDetails(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]>;
   getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]>;
   getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined>;
   createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry>;
@@ -576,6 +578,64 @@ export class DatabaseStorage implements IStorage {
     await db.update(organizationInvites)
       .set({ status: "cancelled" })
       .where(eq(organizationInvites.id, id));
+  }
+
+  async getOrganizationInviteByToken(token: string): Promise<OrganizationInvite | undefined> {
+    const [invite] = await db.select().from(organizationInvites)
+      .where(eq(organizationInvites.token, token));
+    return invite;
+  }
+
+  async getOrganizationInviteById(id: number): Promise<OrganizationInvite | undefined> {
+    const [invite] = await db.select().from(organizationInvites)
+      .where(eq(organizationInvites.id, id));
+    return invite;
+  }
+
+  async acceptOrganizationInvite(id: number, userId: string): Promise<OrganizationMember | null> {
+    const invite = await this.getOrganizationInviteById(id);
+    if (!invite || invite.status !== "pending") {
+      return null;
+    }
+
+    // Check if already a member
+    const existingMember = await db.select().from(organizationMembers)
+      .where(and(
+        eq(organizationMembers.organizationId, invite.organizationId),
+        eq(organizationMembers.userId, userId)
+      ));
+
+    if (existingMember.length > 0) {
+      // Already a member, just mark invite as accepted
+      await db.update(organizationInvites)
+        .set({ status: "accepted", acceptedAt: new Date() })
+        .where(eq(organizationInvites.id, id));
+      return existingMember[0];
+    }
+
+    // Add user to organization
+    const [member] = await db.insert(organizationMembers)
+      .values({
+        organizationId: invite.organizationId,
+        userId: userId,
+        role: invite.role
+      })
+      .returning();
+
+    // Mark invite as accepted
+    await db.update(organizationInvites)
+      .set({ status: "accepted", acceptedAt: new Date() })
+      .where(eq(organizationInvites.id, id));
+
+    return member;
+  }
+
+  async resendOrganizationInvite(id: number, newToken: string, newExpiresAt: Date): Promise<OrganizationInvite | null> {
+    const [updated] = await db.update(organizationInvites)
+      .set({ token: newToken, expiresAt: newExpiresAt })
+      .where(eq(organizationInvites.id, id))
+      .returning();
+    return updated || null;
   }
 
   async claimInvitesForUser(email: string, userId: string): Promise<OrganizationMember[]> {
@@ -1825,6 +1885,25 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  async getAssignedTasksForResource(resourceId: number, organizationId: number): Promise<{ task: Task; project: Project }[]> {
+    // Single optimized query with JOINs - no N+1 problem
+    const results = await db.select({
+      task: tasks,
+      project: projects
+    })
+      .from(taskResourceAssignments)
+      .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(and(
+        eq(taskResourceAssignments.resourceId, resourceId),
+        eq(projects.organizationId, organizationId),
+        isNull(tasks.deletedAt),
+        isNull(projects.deletedAt)
+      ));
+    
+    return results;
+  }
+
   async addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment> {
     const [newAssignment] = await db.insert(taskResourceAssignments).values(assignment).returning();
     return newAssignment;
@@ -2695,6 +2774,30 @@ export class DatabaseStorage implements IStorage {
         sql`${timesheetEntries.entryDate} <= ${endDate}`
       ))
       .orderBy(timesheetEntries.entryDate, timesheetEntries.taskId);
+  }
+
+  async getTimesheetEntriesWithDetails(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]> {
+    // Single optimized query with JOINs - no N+1 problem
+    // Join projects via tasks.projectId (authoritative source) rather than timesheetEntries.projectId
+    const results = await db.select({
+      entry: timesheetEntries,
+      task: tasks,
+      project: projects
+    })
+      .from(timesheetEntries)
+      .innerJoin(tasks, eq(timesheetEntries.taskId, tasks.id))
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(and(
+        eq(timesheetEntries.userId, userId),
+        eq(timesheetEntries.organizationId, organizationId),
+        sql`${timesheetEntries.entryDate} >= ${startDate}`,
+        sql`${timesheetEntries.entryDate} <= ${endDate}`,
+        isNull(tasks.deletedAt),
+        isNull(projects.deletedAt)
+      ))
+      .orderBy(timesheetEntries.entryDate, timesheetEntries.taskId);
+    
+    return results;
   }
 
   async getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]> {

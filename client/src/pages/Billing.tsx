@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle } from "lucide-react";
+import { Loader2, CreditCard, Check, Zap, Users, FileText, FolderKanban, CheckSquare, Sparkles, AlertTriangle, ArrowRight, Plus, Wallet, Gift, Share2, DollarSign, Copy, UserPlus, TrendingUp, Clock, CheckCircle2, History, XCircle, Receipt, Calendar, Minus } from "lucide-react";
 import { SiPaypal } from "react-icons/si";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
@@ -30,59 +30,22 @@ interface PlanWithRules extends Omit<Plan, 'monthlyPriceCents'> {
   }>;
 }
 
-interface ReferralCode {
-  id: number;
-  userId: string;
-  code: string;
-  commissionPercent: number;
-  isActive: boolean;
-  totalReferrals: number;
-  totalEarningsCents: number;
-  createdAt: string;
-}
-
-interface Referral {
-  id: number;
-  referralCodeId: number;
-  referrerId: string;
-  referredUserId: string | null;
-  referredEmail: string | null;
-  status: string;
-  signedUpAt: string | null;
-  convertedAt: string | null;
-  conversionAmountCents: number | null;
-  commissionAmountCents: number | null;
-  createdAt: string;
-}
-
-interface ReferralPayout {
-  id: number;
-  userId: string;
-  amountCents: number;
-  status: string;
-  paypalEmail: string | null;
-  paypalTransactionId: string | null;
-  processedAt: string | null;
-  notes: string | null;
-  createdAt: string;
-}
-
-interface ReferralStats {
-  code: ReferralCode | null;
-  totalReferrals: number;
-  signedUp: number;
-  converted: number;
-  pendingEarningsCents: number;
-  paidOutCents: number;
-  referrals: Referral[];
-  payouts: ReferralPayout[];
-}
-
 interface CreditCostInfo {
   resourceType: string;
   creditCost: number;
   displayName: string;
   description: string | null;
+}
+
+interface SeatInfo {
+  currentSeats: number;
+  maxSeats: number | null;
+  remaining: number | null;
+  planName: string;
+  pendingInvites: number;
+  extraSeatPriceCents?: number | null;
+  bonusSeats?: number;
+  isAdmin?: boolean;
 }
 
 interface UsageSummary {
@@ -203,14 +166,13 @@ function formatLimit(limits: { included: number | null; hardCap: number | null; 
 
 type BillingPeriod = "monthly" | "yearly";
 
-export default function Billing() {
+// Exported content component for use in OrgSettings
+export function BillingContent() {
   const { user, isLoading: authLoading } = useAuth();
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const [changePlanDialog, setChangePlanDialog] = useState<PlanWithRules | null>(null);
   const [activeTab, setActiveTab] = useState("billing");
-  const [paypalEmail, setPaypalEmail] = useState("");
-  const [payoutDialogOpen, setPayoutDialogOpen] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
 
   const YEARLY_DISCOUNT = 0.10; // 10% discount for yearly billing
@@ -280,11 +242,6 @@ export default function Billing() {
     refetchOnMount: 'always',
   });
 
-  const { data: referralStats, isLoading: referralLoading } = useQuery<ReferralStats>({
-    queryKey: ['/api/referral/stats'],
-    enabled: !!user,
-  });
-
   interface PaymentMethod {
     hasPaymentMethod: boolean;
     type?: string;
@@ -327,15 +284,33 @@ export default function Billing() {
     refetchOnMount: 'always',
   });
 
-  const requestPayoutMutation = useMutation({
-    mutationFn: async (email: string) => {
-      return apiRequest('POST', '/api/referral/request-payout', { paypalEmail: email });
+  const { data: seatInfo, isLoading: seatLoading } = useQuery<SeatInfo>({
+    queryKey: [`/api/organizations/${currentOrganization?.id}/seats`],
+    enabled: !!currentOrganization?.id,
+  });
+
+  const purchaseExtraSeatMutation = useMutation({
+    mutationFn: async (quantity: number = 1) => {
+      return apiRequest('POST', `/api/organizations/${currentOrganization?.id}/seats/purchase`, { quantity });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/referral/stats'] });
-      toast({ title: "Payout Requested", description: "Your payout request has been submitted." });
-      setPayoutDialogOpen(false);
-      setPaypalEmail("");
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${currentOrganization?.id}/seats`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/history'] });
+      toast({ title: "Success", description: "Extra seat purchased successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeExtraSeatMutation = useMutation({
+    mutationFn: async (quantity: number = 1) => {
+      return apiRequest('POST', `/api/organizations/${currentOrganization?.id}/seats/remove`, { quantity });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${currentOrganization?.id}/seats`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/history'] });
+      toast({ title: "Success", description: "Extra seat removed successfully" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -401,35 +376,12 @@ export default function Billing() {
   const currentPlan = subscription?.plan || plans?.find(p => p.code === "FREE");
   const sortedPlans = plans ? [...plans].sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)) : [];
 
-  const copyReferralLink = () => {
-    if (referralStats?.code) {
-      const link = `${window.location.origin}/auth?ref=${referralStats.code.code}`;
-      navigator.clipboard.writeText(link);
-      toast({ title: "Copied!", description: "Referral link copied to clipboard" });
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>;
-      case "SIGNED_UP":
-        return <Badge variant="outline"><UserPlus className="h-3 w-3 mr-1" /> Signed Up</Badge>;
-      case "CONVERTED":
-        return <Badge variant="default"><TrendingUp className="h-3 w-3 mr-1" /> Converted</Badge>;
-      case "PAID_OUT":
-        return <Badge variant="default"><CheckCircle2 className="h-3 w-3 mr-1" /> Paid</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <CreditCard className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-display font-bold text-foreground">Billing & Referrals</h1>
+          <h1 className="text-2xl font-display font-bold text-foreground">Billing</h1>
         </div>
         {subscription && (
           <Badge variant={subscription.status === "ACTIVE" ? "default" : "secondary"} data-testid="badge-subscription-status">
@@ -439,7 +391,7 @@ export default function Billing() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="billing" data-testid="tab-billing">
             <CreditCard className="h-4 w-4 mr-2" />
             Billing
@@ -451,10 +403,6 @@ export default function Billing() {
           <TabsTrigger value="history" data-testid="tab-history">
             <History className="h-4 w-4 mr-2" />
             History
-          </TabsTrigger>
-          <TabsTrigger value="referrals" data-testid="tab-referrals">
-            <Gift className="h-4 w-4 mr-2" />
-            Referrals
           </TabsTrigger>
         </TabsList>
 
@@ -579,6 +527,179 @@ export default function Billing() {
         </div>
       )}
 
+      {/* Monthly Billing Summary */}
+      {subscription && currentPlan && (
+        <Card data-testid="card-billing-summary">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Receipt className="h-4 w-4" />
+              Monthly Billing Summary
+            </CardTitle>
+            <CardDescription className="text-xs flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Billing cycle: {format(new Date(subscription.currentPeriodStart), "MMM d")} - {format(new Date(subscription.currentPeriodEnd), "MMM d, yyyy")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{currentPlan.name} Plan</span>
+                <span className="font-medium">
+                  {currentPlan.monthlyPriceCents === null || currentPlan.monthlyPriceCents === undefined
+                    ? "Custom pricing" 
+                    : currentPlan.monthlyPriceCents > 0 
+                      ? `$${(currentPlan.monthlyPriceCents / 100).toFixed(2)}` 
+                      : "Free"}
+                </span>
+              </div>
+              
+              {seatInfo?.bonusSeats !== undefined && seatInfo.bonusSeats > 0 && seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Extra Seats ({seatInfo.bonusSeats} × ${(seatInfo.extraSeatPriceCents / 100).toFixed(2)})
+                  </span>
+                  <span className="font-medium">
+                    ${((seatInfo.bonusSeats * seatInfo.extraSeatPriceCents) / 100).toFixed(2)}
+                  </span>
+                </div>
+              )}
+              
+              <div className="border-t pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">Total Monthly Amount</span>
+                  <span className="text-lg font-bold text-primary">
+                    {(() => {
+                      if (currentPlan.monthlyPriceCents === null) {
+                        return "Contact sales";
+                      }
+                      const planPrice = currentPlan.monthlyPriceCents || 0;
+                      const extraSeatsPrice = (seatInfo?.bonusSeats && seatInfo?.extraSeatPriceCents) 
+                        ? seatInfo.bonusSeats * seatInfo.extraSeatPriceCents 
+                        : 0;
+                      const total = planPrice + extraSeatsPrice;
+                      return total > 0 ? `$${(total / 100).toFixed(2)}/mo` : "Free";
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Extra Seats Section */}
+      {seatInfo && currentOrganization && (
+        <Card data-testid="card-extra-seats">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UserPlus className="h-4 w-4" />
+              Team Seats
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Manage team member seats for your organization
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-4">
+              {/* Current Seat Usage */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Seat Usage</span>
+                  </div>
+                  {seatInfo.remaining === 0 && seatInfo.maxSeats !== null && (
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                  )}
+                </div>
+                {seatInfo.maxSeats !== null ? (
+                  <>
+                    <Progress 
+                      value={Math.min((seatInfo.currentSeats / seatInfo.maxSeats) * 100, 100)} 
+                      className={`h-2 ${seatInfo.remaining === 0 ? "bg-destructive/20" : ""}`}
+                      data-testid="progress-seats"
+                    />
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {seatInfo.currentSeats} / {seatInfo.maxSeats} seats used
+                        {seatInfo.pendingInvites > 0 && (
+                          <span className="ml-1">({seatInfo.pendingInvites} pending)</span>
+                        )}
+                      </span>
+                      <span className={`font-medium ${seatInfo.remaining === 0 ? 'text-destructive' : 'text-primary'}`}>
+                        {seatInfo.remaining} available
+                      </span>
+                    </div>
+                    {seatInfo.bonusSeats !== undefined && seatInfo.bonusSeats > 0 && (
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Plus className="h-3 w-3" />
+                        Includes {seatInfo.bonusSeats} extra seat{seatInfo.bonusSeats !== 1 ? 's' : ''} purchased
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    <Check className="h-4 w-4 inline mr-1 text-green-500" />
+                    Unlimited seats ({seatInfo.currentSeats} members)
+                  </div>
+                )}
+              </div>
+
+              {/* Purchase/Remove Extra Seats (Admin only) */}
+              {seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && seatInfo.isAdmin && seatInfo.maxSeats !== null && (
+                <div className="pt-3 border-t">
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">Extra Seats</div>
+                      <div className="text-xs text-muted-foreground">
+                        ${(seatInfo.extraSeatPriceCents / 100).toFixed(2)}/seat/month
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => removeExtraSeatMutation.mutate(1)}
+                        disabled={removeExtraSeatMutation.isPending || (seatInfo.bonusSeats || 0) <= 0}
+                        data-testid="button-remove-seat"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm font-bold min-w-[1.5rem] text-center" data-testid="text-bonus-seats">
+                        {seatInfo.bonusSeats || 0}
+                      </span>
+                      <Button 
+                        size="icon" 
+                        variant="outline" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => purchaseExtraSeatMutation.mutate(1)}
+                        disabled={purchaseExtraSeatMutation.isPending}
+                        data-testid="button-add-seat"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Extra seats are billed monthly and added to your next invoice.
+                  </p>
+                </div>
+              )}
+
+              {/* Message for non-admins */}
+              {seatInfo.extraSeatPriceCents && seatInfo.extraSeatPriceCents > 0 && !seatInfo.isAdmin && seatInfo.maxSeats !== null && (
+                <div className="pt-3 border-t">
+                  <div className="text-xs text-muted-foreground">
+                    Contact your organization admin to purchase additional seats.
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-4">
         <h2 className="text-lg font-display font-semibold text-center">Plans</h2>
         <div className="flex justify-center">
@@ -697,6 +818,11 @@ export default function Billing() {
                               <span className="text-muted-foreground">
                                 Up to {plan.maxSeats} {plan.maxSeats === 1 ? 'seat' : 'seats'}
                               </span>
+                            </div>
+                          )}
+                          {plan.maxSeats && plan.extraSeatPriceCents && plan.extraSeatPriceCents > 0 && (
+                            <div className="ml-5 text-[10px] text-muted-foreground">
+                              +${(plan.extraSeatPriceCents / 100).toFixed(2)}/seat/month for extra seats
                             </div>
                           )}
                           {!plan.maxSeats && (
@@ -961,214 +1087,7 @@ export default function Billing() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="referrals" className="space-y-5 mt-4">
-          <Card data-testid="card-referral-link">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Share2 className="h-4 w-4" />
-                Your Referral Link
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Share your unique link and earn 10% commission on every paid subscription.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {referralLoading ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Input 
-                      value={referralStats?.code ? `${window.location.origin}/auth?ref=${referralStats.code.code}` : ""} 
-                      readOnly 
-                      className="font-mono text-sm"
-                      data-testid="input-referral-link"
-                    />
-                    <Button size="icon" variant="outline" onClick={copyReferralLink} data-testid="button-copy-referral-link">
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {referralStats?.code && (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">
-                        Code: {referralStats.code.code}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {referralStats.code.commissionPercent}% Commission
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card data-testid="card-stat-referrals">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-primary/10">
-                    <UserPlus className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{referralStats?.totalReferrals || 0}</p>
-                    <p className="text-xs text-muted-foreground">Total Referrals</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="card-stat-signups">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-blue-500/10">
-                    <Users className="h-4 w-4 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{referralStats?.signedUp || 0}</p>
-                    <p className="text-xs text-muted-foreground">Signed Up</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="card-stat-conversions">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-green-500/10">
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{referralStats?.converted || 0}</p>
-                    <p className="text-xs text-muted-foreground">Converted</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card data-testid="card-stat-earnings">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-yellow-500/10">
-                    <DollarSign className="h-4 w-4 text-yellow-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">
-                      ${((referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Pending Earnings</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card data-testid="card-referral-history">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Referral History</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {referralStats?.referrals && referralStats.referrals.length > 0 ? (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {referralStats.referrals.map((ref) => (
-                      <div key={ref.id} className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/30">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-sm truncate">
-                            {ref.referredEmail || `User ${ref.referredUserId?.substring(0, 8)}...`}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {ref.commissionAmountCents && (
-                            <span className="text-xs text-muted-foreground">
-                              ${(ref.commissionAmountCents / 100).toFixed(2)}
-                            </span>
-                          )}
-                          {getStatusBadge(ref.status)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <UserPlus className="h-8 w-8 text-muted-foreground/50 mb-2" />
-                    <p className="text-sm text-muted-foreground">No referrals yet</p>
-                    <p className="text-xs text-muted-foreground">Share your link to start earning</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card data-testid="card-payout">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Request Payout</CardTitle>
-                <CardDescription className="text-xs">
-                  Minimum payout: $10.00 | Total paid: ${((referralStats?.paidOutCents || 0) / 100).toFixed(2)}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  <div className="p-3 rounded-md bg-muted/30 text-center">
-                    <p className="text-sm text-muted-foreground">Available for payout</p>
-                    <p className="text-2xl font-bold text-primary">
-                      ${((referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)}
-                    </p>
-                  </div>
-                  <Button 
-                    className="w-full" 
-                    onClick={() => setPayoutDialogOpen(true)}
-                    disabled={(referralStats?.pendingEarningsCents || 0) < 1000}
-                    data-testid="button-request-payout"
-                  >
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    Request Payout via PayPal
-                  </Button>
-                  {(referralStats?.pendingEarningsCents || 0) < 1000 && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      You need ${(10 - (referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)} more to request a payout
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
       </Tabs>
-
-      <Dialog open={payoutDialogOpen} onOpenChange={setPayoutDialogOpen}>
-        <DialogContent data-testid="dialog-payout">
-          <DialogHeader>
-            <DialogTitle>Request Payout</DialogTitle>
-            <DialogDescription>
-              Enter your PayPal email to receive your earnings of ${((referralStats?.pendingEarningsCents || 0) / 100).toFixed(2)}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="paypal-email">PayPal Email</Label>
-            <Input 
-              id="paypal-email"
-              type="email" 
-              value={paypalEmail} 
-              onChange={(e) => setPaypalEmail(e.target.value)}
-              placeholder="your@email.com"
-              className="mt-2"
-              data-testid="input-paypal-email"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPayoutDialogOpen(false)} data-testid="button-cancel-payout">
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => requestPayoutMutation.mutate(paypalEmail)}
-              disabled={requestPayoutMutation.isPending || !paypalEmail}
-              data-testid="button-confirm-payout"
-            >
-              {requestPayoutMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Request Payout
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!changePlanDialog} onOpenChange={(open) => !open && setChangePlanDialog(null)}>
         <DialogContent data-testid="dialog-change-plan">
@@ -1333,4 +1252,9 @@ export default function Billing() {
       </Dialog>
     </div>
   );
+}
+
+// Default export wraps BillingContent for standalone page use
+export default function Billing() {
+  return <BillingContent />;
 }

@@ -78,8 +78,10 @@ export const organizationInvites = pgTable("organization_invites", {
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   email: text("email").notNull(),
   role: text("role").notNull().default("member"), // 'org_admin', 'member', 'viewer'
-  status: text("status").notNull().default("pending"), // 'pending', 'accepted', 'cancelled'
+  status: text("status").notNull().default("pending"), // 'pending', 'accepted', 'cancelled', 'expired'
   invitedBy: varchar("invited_by").references(() => users.id),
+  token: text("token").unique(), // Magic link token for accepting invite
+  expiresAt: timestamp("expires_at"), // When the invite expires
   createdAt: timestamp("created_at").defaultNow(),
   acceptedAt: timestamp("accepted_at"),
 });

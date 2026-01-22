@@ -814,17 +814,33 @@ export async function checkAndEnforceLimit(
 export async function recordCreditUsage(
   userId: string,
   resourceType: ResourceType,
-  resourceId: string | number
+  resourceId: string | number,
+  orgId?: number | null
 ): Promise<void> {
   try {
-    console.log(`[CREDITS] Recording credit usage for user ${userId}, resource ${resourceType}, id ${resourceId}`);
+    console.log(`[CREDITS] Recording credit usage for user ${userId}, resource ${resourceType}, id ${resourceId}, orgId ${orgId}`);
     
-    const subscription = await billingProvider.getSubscriptionForUser(userId);
+    // If an orgId is provided, try to use the organization's subscription first
+    let subscription = null;
+    if (orgId) {
+      subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      if (subscription) {
+        console.log(`[CREDITS] Found ORG subscription ${subscription.id} for org ${orgId}`);
+      }
+    }
+    
+    // Fall back to user's personal subscription if no org subscription
     if (!subscription) {
-      console.log(`[CREDITS] No subscription found for user ${userId}`);
+      subscription = await billingProvider.getSubscriptionForUser(userId);
+      if (subscription) {
+        console.log(`[CREDITS] Found USER subscription ${subscription.id} for user ${userId}`);
+      }
+    }
+    
+    if (!subscription) {
+      console.log(`[CREDITS] No subscription found for user ${userId} or org ${orgId}`);
       return;
     }
-    console.log(`[CREDITS] Found subscription ${subscription.id} for user ${userId}`);
 
     const creditCost = await getResourceCreditCost(resourceType);
     console.log(`[CREDITS] Credit cost for ${resourceType}: ${creditCost} (hundredths)`);
@@ -847,7 +863,8 @@ export async function recordResourceUsage(
   userId: string,
   meterCode: MeterCode,
   resourceId: string | number,
-  units: number = 1
+  units: number = 1,
+  orgId?: number | null
 ): Promise<void> {
   const meterToResource: Record<string, ResourceType> = {
     projects: RESOURCE_TYPES.PROJECT,
@@ -870,7 +887,7 @@ export async function recordResourceUsage(
   
   const resourceType = meterToResource[meterCode];
   if (resourceType) {
-    await recordCreditUsage(userId, resourceType, resourceId);
+    await recordCreditUsage(userId, resourceType, resourceId, orgId);
   }
 }
 

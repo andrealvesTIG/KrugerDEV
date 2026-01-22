@@ -12,6 +12,8 @@ declare module "express-session" {
     plannerAccessToken?: string;
     plannerRefreshToken?: string;
     plannerTokenExpiry?: number;
+    entraOAuthState?: string;
+    entraOAuthOrgId?: number; // Organization ID for the Entra OAuth flow
   }
 }
 
@@ -165,8 +167,23 @@ const PLANNER_SCOPES = [
   "https://graph.microsoft.com/Tasks.Read",
   "https://graph.microsoft.com/Group.Read.All",
   "https://graph.microsoft.com/User.Read",
+  "https://graph.microsoft.com/User.Read.All",
   "offline_access",
 ];
+
+// Entra ID scopes for directory/user lookup only
+const ENTRA_ID_SCOPES = [
+  "https://graph.microsoft.com/User.Read",
+  "https://graph.microsoft.com/User.Read.All",
+  "https://graph.microsoft.com/Directory.Read.All",
+  "offline_access",
+];
+
+function getEntraRedirectUri(req: Express.Request): string {
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const host = req.get("host") || "localhost:5000";
+  return `${protocol}://${host}/api/entra/callback`;
+}
 
 async function fetchWithToken(url: string, token: string): Promise<Response> {
   const response = await fetch(url, {
@@ -343,6 +360,157 @@ export async function setupPlannerRoutes(app: Express) {
     delete req.session.plannerAccessToken;
     delete req.session.plannerRefreshToken;
     delete req.session.plannerTokenExpiry;
+    res.json({ success: true });
+  });
+
+  // ============================================
+  // Microsoft Entra ID Integration (User Directory)
+  // ============================================
+  
+  app.get("/api/entra/status", async (req, res) => {
+    const isConfigured = !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET);
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+    
+    if (!organizationId) {
+      return res.json({ configured: isConfigured, connected: false });
+    }
+
+    const integration = await getOrgIntegration(organizationId, "entra");
+    const hasToken = !!integration?.accessToken;
+    const isExpired = integration?.tokenExpiry ? Date.now() > new Date(integration.tokenExpiry).getTime() : true;
+    
+    res.json({ 
+      configured: isConfigured, 
+      connected: hasToken && !isExpired,
+      needsRefresh: hasToken && isExpired && !!integration?.refreshToken
+    });
+  });
+
+  app.post("/api/entra/connect", async (req, res) => {
+    const client = getPlannerMsalClient();
+    if (!client) {
+      return res.status(503).json({ 
+        message: "Microsoft authentication is not configured. Please add MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET." 
+      });
+    }
+
+    const organizationId = req.body.organizationId ? Number(req.body.organizationId) : null;
+    if (!organizationId) {
+      return res.status(400).json({ message: "Organization ID is required" });
+    }
+
+    const state = generateSecureToken();
+    req.session.entraOAuthState = state;
+    req.session.entraOAuthOrgId = organizationId;
+    
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const redirectUri = getEntraRedirectUri(req);
+    
+    const authCodeUrlParameters = {
+      scopes: ENTRA_ID_SCOPES,
+      redirectUri,
+      prompt: "consent" as const,
+      state,
+    };
+
+    try {
+      const authUrl = await client.getAuthCodeUrl(authCodeUrlParameters);
+      res.json({ authUrl });
+    } catch (error) {
+      console.error("Entra auth URL error:", error);
+      res.status(500).json({ message: "Failed to initiate Entra ID connection" });
+    }
+  });
+
+  app.get("/api/entra/callback", async (req, res) => {
+    const { code, error, error_description, state } = req.query;
+
+    if (error) {
+      console.error("Entra OAuth error:", error, error_description);
+      return res.redirect(`/integrations?error=${encodeURIComponent(String(error_description || error))}`);
+    }
+
+    const savedState = req.session.entraOAuthState;
+    const organizationId = req.session.entraOAuthOrgId;
+    delete req.session.entraOAuthState;
+    delete req.session.entraOAuthOrgId;
+
+    if (!state || state !== savedState) {
+      console.error("CSRF state mismatch");
+      return res.redirect("/integrations?error=Security validation failed");
+    }
+
+    if (!code || typeof code !== "string") {
+      return res.redirect("/integrations?error=No authorization code received");
+    }
+
+    if (!organizationId) {
+      return res.redirect("/integrations?error=Organization context lost");
+    }
+
+    const client = getPlannerMsalClient();
+    if (!client) {
+      return res.redirect("/integrations?error=Configuration error");
+    }
+
+    try {
+      const redirectUri = getEntraRedirectUri(req);
+      
+      const tokenRequest: AuthorizationCodeRequest = {
+        code,
+        scopes: ENTRA_ID_SCOPES,
+        redirectUri,
+      };
+
+      const response = await client.acquireTokenByCode(tokenRequest);
+      
+      if (!response || !response.accessToken) {
+        throw new Error("No access token received");
+      }
+
+      // Store tokens in organization-scoped integration
+      const userId = (req.session as any)?.passport?.user?.id || req.session.userId;
+      await upsertOrgIntegration(organizationId, "entra", {
+        accessToken: response.accessToken,
+        refreshToken: null,
+        tokenExpiry: response.expiresOn || null,
+        connectionStatus: "connected",
+        connectedBy: userId,
+        connectedAt: new Date(),
+      });
+      
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      res.redirect("/integrations?entraConnected=true");
+    } catch (error) {
+      console.error("Entra token error:", error);
+      res.redirect("/integrations?error=Failed to complete authentication");
+    }
+  });
+
+  app.post("/api/entra/disconnect", async (req, res) => {
+    const organizationId = req.body.organizationId ? Number(req.body.organizationId) : null;
+    
+    if (organizationId) {
+      await upsertOrgIntegration(organizationId, "entra", {
+        accessToken: null,
+        refreshToken: null,
+        tokenExpiry: null,
+        connectionStatus: "disconnected",
+      });
+    }
+    
     res.json({ success: true });
   });
 

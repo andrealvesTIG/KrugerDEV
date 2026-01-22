@@ -11,10 +11,10 @@ async function seedBilling() {
   }
 
   const [freePlan, professionalPlan, businessPlan, enterprisePlan] = await db.insert(plans).values([
-    { code: "FREE", name: "Free", description: "Start your project management journey with essential tools. Perfect for individuals and small projects exploring structured delivery.", monthlyPriceCents: 0 },
-    { code: "BASIC", name: "Professional", description: "Elevate your project management with advanced tracking, reporting, and team collaboration. Ideal for growing teams managing multiple initiatives.", maxSeats: 3, monthlyPriceCents: 1200 },
-    { code: "TEAM", name: "Business", description: "Enterprise-grade portfolio management with unlimited team members, advanced analytics, resource planning, and priority support for scaling organizations.", maxSeats: 25, monthlyPriceCents: 2800 },
-    { code: "ENTERPRISE", name: "Enterprise", description: "Tailored solutions for global enterprises with dedicated success management, custom integrations, SSO/SAML, advanced security, and unlimited capacity.", maxSeats: null, monthlyPriceCents: null },
+    { code: "FREE", name: "Free", description: "Start your project management journey with essential tools. Perfect for individuals and small projects exploring structured delivery.", monthlyPriceCents: 0, extraSeatPriceCents: null },
+    { code: "BASIC", name: "Professional", description: "Elevate your project management with advanced tracking, reporting, and team collaboration. Ideal for growing teams managing multiple initiatives.", maxSeats: 3, monthlyPriceCents: 1200, extraSeatPriceCents: 500 },
+    { code: "TEAM", name: "Business", description: "Enterprise-grade portfolio management with unlimited team members, advanced analytics, resource planning, and priority support for scaling organizations.", maxSeats: 25, monthlyPriceCents: 2800, extraSeatPriceCents: 300 },
+    { code: "ENTERPRISE", name: "Enterprise", description: "Tailored solutions for global enterprises with dedicated success management, custom integrations, SSO/SAML, advanced security, and unlimited capacity.", maxSeats: null, monthlyPriceCents: null, extraSeatPriceCents: 0 },
   ]).returning();
 
   console.log("Created plans:", { freePlan, professionalPlan, businessPlan, enterprisePlan });

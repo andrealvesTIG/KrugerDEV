@@ -282,8 +282,14 @@ export async function sendOrganizationInviteEmail(
   organizationName: string,
   inviterName: string,
   role: string,
-  appUrl: string
+  appUrl: string,
+  inviteToken?: string
 ): Promise<boolean> {
+  // If a token is provided, create a magic link, otherwise just use the app URL
+  const acceptUrl = inviteToken 
+    ? `${appUrl}/auth?invite=${inviteToken}`
+    : appUrl;
+  
   const subject = `You've been invited to join ${organizationName} - FridayReport.AI`;
   
   const text = `
@@ -292,7 +298,7 @@ You've been invited to join ${organizationName} on FridayReport.AI.
 ${inviterName} has invited you to join as a ${role}.
 
 To accept this invitation, click the link below:
-${appUrl}
+${acceptUrl}
 
 Simply log in with your Microsoft account to get started.
 
@@ -322,13 +328,13 @@ Simply log in with your Microsoft account to get started.
     
     <div style="text-align: center; margin: 30px 0;">
       <!--[if mso]>
-      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${appUrl}" style="height:48px;v-text-anchor:middle;width:200px;" arcsize="13%" strokecolor="#ea580c" fillcolor="#f97316">
+      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${acceptUrl}" style="height:48px;v-text-anchor:middle;width:200px;" arcsize="13%" strokecolor="#ea580c" fillcolor="#f97316">
         <w:anchorlock/>
         <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:bold;">Accept Invitation</center>
       </v:roundrect>
       <![endif]-->
       <!--[if !mso]><!-->
-      <a href="${appUrl}" style="display: inline-block; background-color: #f97316; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 16px; mso-hide: all;">Accept Invitation</a>
+      <a href="${acceptUrl}" style="display: inline-block; background-color: #f97316; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 16px; mso-hide: all;">Accept Invitation</a>
       <!--<![endif]-->
     </div>
     
