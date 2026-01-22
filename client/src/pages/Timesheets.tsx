@@ -1092,26 +1092,22 @@ export default function Timesheets() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`${startDate}-${endDate}-${viewMode}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <TimesheetGrid
-                    dates={dates}
-                    assignedTasks={assignedTasks}
-                    entries={entries}
-                    onSave={handleSave}
-                    isSaving={bulkUpsert.isPending}
-                    saveError={bulkUpsert.isError}
-                    viewMode={viewMode}
-                    groupByProject={true}
-                  />
-                </motion.div>
-              </AnimatePresence>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <TimesheetGrid
+                  dates={dates}
+                  assignedTasks={assignedTasks}
+                  entries={entries}
+                  onSave={handleSave}
+                  isSaving={bulkUpsert.isPending}
+                  saveError={bulkUpsert.isError}
+                  viewMode={viewMode}
+                  groupByProject={true}
+                />
+              </motion.div>
             )}
           </motion.div>
         )}
