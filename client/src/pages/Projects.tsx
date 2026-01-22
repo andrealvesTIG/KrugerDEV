@@ -2706,10 +2706,12 @@ function ProjectsGridView({
                   Columns
                 </Button>
               </PopoverTrigger>
-            <PopoverContent align="end" className="w-56">
-              <div className="space-y-2">
+            <PopoverContent align="end" className="w-56 p-0">
+              <div className="p-3 pb-2 border-b">
                 <p className="text-sm font-medium">Show Columns</p>
                 <p className="text-xs text-muted-foreground">Drag column headers to reorder</p>
+              </div>
+              <div className="max-h-64 overflow-y-auto p-2">
                 <div className="space-y-1">
                   {ALL_GRID_COLUMNS.map(column => (
                     <div
