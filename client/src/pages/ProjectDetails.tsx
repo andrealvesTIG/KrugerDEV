@@ -6199,8 +6199,8 @@ function ProjectGanttView({
                   </Button>
                 </div>
               )}
-              {/* Header row */}
-              <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+              {/* Header row - height must match timeline header */}
+              <div className="flex border-b bg-muted/50 sticky top-0 z-10 h-[28px]">
                 {/* Bulk selection header column */}
                 <div className="w-8 flex-shrink-0 border-r p-1 flex items-center justify-center">
                   <Checkbox
@@ -6342,8 +6342,8 @@ function ProjectGanttView({
                     </button>
                   </div>
                 )}
-                {/* Project Summary Row (when enabled) */}
-                {showProjectSummary && projectSummaryTask && (
+                {/* Project Summary Row (when enabled) - conditions must match timeline side */}
+                {showProjectSummary && projectSummaryTask && projectSummaryTask.startDate && projectSummaryTask.endDate && (
                   <div 
                     className="flex border-b bg-primary/10 font-semibold h-[28px]"
                     data-testid="project-summary-row"
@@ -6468,9 +6468,9 @@ function ProjectGanttView({
                     </SortableContext>
                   )}
                 </DndContext>
-                {/* Add task row - hidden for read-only projects */}
+                {/* Add task row - hidden for read-only projects, height must match timeline side */}
                 {!isReadOnly && (
-                <div className="flex border-t bg-muted/20">
+                <div className="flex border-t bg-muted/20 h-[28px]">
                   <div className="w-8 flex-shrink-0 border-r p-1" />
                   {baselineSelectionMode && <div className="w-8 flex-shrink-0 border-r p-1" />}
                   <div className="w-8 flex-shrink-0 border-r p-1" />
@@ -6512,8 +6512,8 @@ function ProjectGanttView({
                   className="relative"
                   style={{ minWidth: `${filteredDates.length * 60}px` }}
                 >
-                  {/* Timeline header */}
-                  <div className="flex border-b bg-muted/50 sticky top-0 z-10">
+                  {/* Timeline header - height must match metadata header */}
+                  <div className="flex border-b bg-muted/50 sticky top-0 z-10 h-[28px]">
                     {filteredDates.map((date, i) => (
                       <div key={i} className={cn("flex-1 p-1 text-center text-[10px] font-medium text-muted-foreground border-l", columnWidth)}>
                         {format(date, dateFormat)}
@@ -6567,8 +6567,8 @@ function ProjectGanttView({
                       />
                     ))
                   )}
-                  {/* Empty row for add task alignment */}
-                  <div className="h-[28px] border-t bg-muted/20" />
+                  {/* Empty row for add task alignment - must match left pane condition */}
+                  {!isReadOnly && <div className="h-[28px] border-t bg-muted/20" />}
                   
                 </div>
               </div>
