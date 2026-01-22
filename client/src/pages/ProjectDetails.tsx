@@ -6165,7 +6165,7 @@ function ProjectGanttView({
         <ResizablePanelGroup key={hideTimeline ? "table-mode" : "gantt-mode"} direction="horizontal" className={cn("text-[11px]", isFullscreen ? "flex-1" : "h-[500px]")}>
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
           <ResizablePanel defaultSize={hideTimeline ? 100 : 50} minSize={20} maxSize={hideTimeline ? 100 : 80}>
-            <div ref={leftPaneRef} onScroll={handleLeftScroll} className="h-full overflow-x-auto overflow-y-auto relative">
+            <div ref={leftPaneRef} onScroll={handleLeftScroll} className="h-full overflow-x-auto overflow-y-auto relative scrollbar-thin">
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Bulk actions bar - appears when tasks are selected */}
               {selectedTaskIds.size > 0 && (
@@ -6507,7 +6507,7 @@ function ProjectGanttView({
           {/* Right pane: Timeline (resizable + scrollable) - hidden in table view */}
           {!hideTimeline && (
             <ResizablePanel defaultSize={50} minSize={20}>
-              <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full overflow-x-auto overflow-y-auto">
+              <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full overflow-x-auto overflow-y-auto scrollbar-thin">
                 <div 
                   className="relative"
                   style={{ minWidth: `${filteredDates.length * 60}px` }}

@@ -95,6 +95,18 @@
   @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
 }
 
+/* Thin scrollbar for Gantt chart and similar views */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
 /* Glassmorphism utilities */
 .glass {
   @apply bg-white/70 backdrop-blur-lg border border-white/20 shadow-xl;
