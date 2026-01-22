@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -16,18 +16,33 @@ import { Label } from "@/components/ui/label";
 import { Loader2, FileText, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+interface ConsentStatus {
+  currentTermsVersion: string;
+  currentPrivacyVersion: string;
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
+  needsConsent: boolean;
+}
+
 export function TermsConsentModal() {
   const { user, isLoading: authLoading } = useAuth();
   const [termsAccepted, setTermsAccepted] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const { data: consentStatus, isLoading: consentLoading } = useQuery<ConsentStatus>({
+    queryKey: ["/api/consents/status"],
+    enabled: !!user,
+    refetchOnWindowFocus: false,
+  });
+
   const acceptTermsMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/auth/accept-terms", {});
+      const response = await apiRequest("POST", "/api/consents/accept-all", { method: "modal" });
       return response.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/consents/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({
         title: "Terms Accepted",
@@ -43,11 +58,11 @@ export function TermsConsentModal() {
     },
   });
 
-  if (authLoading) {
+  if (authLoading || consentLoading) {
     return null;
   }
 
-  if (!user || user.termsAcceptedAt) {
+  if (!user || !consentStatus?.needsConsent) {
     return null;
   }
 
@@ -79,7 +94,7 @@ export function TermsConsentModal() {
               </p>
               <div className="flex gap-4">
                 <a 
-                  href="/terms-of-service" 
+                  href="/terms" 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline flex items-center gap-1"
@@ -88,7 +103,7 @@ export function TermsConsentModal() {
                   Terms of Service
                 </a>
                 <a 
-                  href="/privacy-statement" 
+                  href="/privacy" 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline flex items-center gap-1"
@@ -111,7 +126,7 @@ export function TermsConsentModal() {
             <Label htmlFor="terms-consent" className="text-sm leading-relaxed cursor-pointer">
               I have read and agree to the{" "}
               <a 
-                href="/terms-of-service" 
+                href="/terms" 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
@@ -120,7 +135,7 @@ export function TermsConsentModal() {
               </a>{" "}
               and{" "}
               <a 
-                href="/privacy-statement" 
+                href="/privacy" 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
