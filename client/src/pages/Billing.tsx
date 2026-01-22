@@ -545,7 +545,7 @@ export function BillingContent() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{currentPlan.name} Plan</span>
                 <span className="font-medium">
-                  {currentPlan.monthlyPriceCents === null 
+                  {currentPlan.monthlyPriceCents === null || currentPlan.monthlyPriceCents === undefined
                     ? "Custom pricing" 
                     : currentPlan.monthlyPriceCents > 0 
                       ? `$${(currentPlan.monthlyPriceCents / 100).toFixed(2)}` 
