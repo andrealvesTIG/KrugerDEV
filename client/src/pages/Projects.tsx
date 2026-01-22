@@ -2503,15 +2503,6 @@ function ProjectsGridView({
             defaultColumnOrder={defaultColumnOrder}
           />
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setIsFullscreen(true)}
-              data-testid="button-grid-fullscreen"
-            >
-              <Maximize2 className="h-4 w-4 mr-2" />
-              Fullscreen
-            </Button>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" data-testid="button-grid-columns">
