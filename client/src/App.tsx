@@ -168,8 +168,6 @@ function Router() {
         <Route path="/profile" component={Profile} />
         <Route path="/user-guide" component={UserGuide} />
         <Route path="/embed" component={Embed} />
-        <Route path="/terms" component={TermsOfService} />
-        <Route path="/privacy" component={PrivacyStatement} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
@@ -194,6 +192,8 @@ function App() {
               <Route path="/verify-email" component={VerifyEmailPage} />
               <Route path="/resource-invite" component={ResourceInvitePage} />
               <Route path="/onboarding" component={OnboardingPage} />
+              <Route path="/terms" component={TermsOfService} />
+              <Route path="/privacy" component={PrivacyStatement} />
               <Route>
                 <Router />
               </Route>
