@@ -11,7 +11,7 @@ import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPerc
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -12412,6 +12412,189 @@ Return ONLY valid JSON.`;
     } catch (error) {
       console.error('Error deleting custom dashboard:', error);
       res.status(500).json({ message: 'Failed to delete custom dashboard' });
+    }
+  });
+
+  // ===== USER CONSENT ENDPOINTS =====
+
+  // Get current terms/privacy versions and user's consent status
+  app.get('/api/consents/status', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const termsConsent = await storage.getUserConsentByType(userId, 'terms_of_service');
+      const privacyConsent = await storage.getUserConsentByType(userId, 'privacy_policy');
+
+      res.json({
+        currentTermsVersion: CURRENT_TERMS_VERSION,
+        currentPrivacyVersion: CURRENT_PRIVACY_VERSION,
+        termsAccepted: termsConsent ? termsConsent.version === CURRENT_TERMS_VERSION : false,
+        privacyAccepted: privacyConsent ? privacyConsent.version === CURRENT_PRIVACY_VERSION : false,
+        termsConsentDate: termsConsent?.acceptedAt,
+        privacyConsentDate: privacyConsent?.acceptedAt,
+        needsConsent: !termsConsent || termsConsent.version !== CURRENT_TERMS_VERSION ||
+                      !privacyConsent || privacyConsent.version !== CURRENT_PRIVACY_VERSION
+      });
+    } catch (error) {
+      console.error('Error fetching consent status:', error);
+      res.status(500).json({ message: 'Failed to fetch consent status' });
+    }
+  });
+
+  // Get user's consent history
+  app.get('/api/consents', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const consents = await storage.getUserConsents(userId);
+      res.json(consents);
+    } catch (error) {
+      console.error('Error fetching consents:', error);
+      res.status(500).json({ message: 'Failed to fetch consents' });
+    }
+  });
+
+  // Record user consent
+  app.post('/api/consents', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { consentType, version, method } = req.body;
+      
+      if (!consentType || !version) {
+        return res.status(400).json({ message: 'consentType and version are required' });
+      }
+
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+
+      const consent = await storage.createUserConsent({
+        userId,
+        consentType,
+        version,
+        ipAddress,
+        userAgent,
+        method: method || 'checkbox'
+      });
+
+      res.status(201).json(consent);
+    } catch (error) {
+      console.error('Error recording consent:', error);
+      res.status(500).json({ message: 'Failed to record consent' });
+    }
+  });
+
+  // Accept both terms and privacy in one request
+  app.post('/api/consents/accept-all', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { method } = req.body;
+      const ipAddress = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+
+      const termsConsent = await storage.createUserConsent({
+        userId,
+        consentType: 'terms_of_service',
+        version: CURRENT_TERMS_VERSION,
+        ipAddress,
+        userAgent,
+        method: method || 'modal'
+      });
+
+      const privacyConsent = await storage.createUserConsent({
+        userId,
+        consentType: 'privacy_policy',
+        version: CURRENT_PRIVACY_VERSION,
+        ipAddress,
+        userAgent,
+        method: method || 'modal'
+      });
+
+      res.status(201).json({
+        termsConsent,
+        privacyConsent,
+        message: 'Consents recorded successfully'
+      });
+    } catch (error) {
+      console.error('Error recording consents:', error);
+      res.status(500).json({ message: 'Failed to record consents' });
+    }
+  });
+
+  // Admin: Get all user consents (super_admin only)
+  app.get('/api/admin/consents', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Forbidden: Super admin access required' });
+      }
+
+      const limit = Number(req.query.limit) || 100;
+      const offset = Number(req.query.offset) || 0;
+
+      const consents = await storage.getAllUserConsents(limit, offset);
+      
+      // Get user details for each consent
+      const consentsWithUsers = await Promise.all(
+        consents.map(async (consent) => {
+          const consentUser = await storage.getUser(consent.userId);
+          return {
+            ...consent,
+            userName: consentUser ? `${consentUser.firstName || ''} ${consentUser.lastName || ''}`.trim() || consentUser.email : 'Unknown',
+            userEmail: consentUser?.email || 'Unknown'
+          };
+        })
+      );
+
+      res.json(consentsWithUsers);
+    } catch (error) {
+      console.error('Error fetching all consents:', error);
+      res.status(500).json({ message: 'Failed to fetch consents' });
+    }
+  });
+
+  // Admin: Get consent statistics (super_admin only)
+  app.get('/api/admin/consents/stats', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Forbidden: Super admin access required' });
+      }
+
+      const stats = await storage.getUserConsentStats();
+      res.json({
+        stats,
+        currentVersions: {
+          terms_of_service: CURRENT_TERMS_VERSION,
+          privacy_policy: CURRENT_PRIVACY_VERSION
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching consent stats:', error);
+      res.status(500).json({ message: 'Failed to fetch consent statistics' });
     }
   });
 
