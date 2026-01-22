@@ -45,7 +45,8 @@ import {
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
   type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
   type RecycleBinItem, type RecycleBinItemType,
-  type ProjectView, type InsertProjectView, type UpdateProjectViewRequest
+  type ProjectView, type InsertProjectView, type UpdateProjectViewRequest,
+  userConsents, type UserConsent, type InsertUserConsent
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
@@ -335,6 +336,14 @@ export interface IStorage {
   submitTimesheetWeek(userId: string, organizationId: number, startDate: string, endDate: string): Promise<void>;
   approveTimesheetEntry(id: number, approvedBy: string): Promise<TimesheetEntry>;
   rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry>;
+
+  // User Consents
+  getUserConsents(userId: string): Promise<UserConsent[]>;
+  getUserConsentByType(userId: string, consentType: string): Promise<UserConsent | undefined>;
+  createUserConsent(consent: InsertUserConsent): Promise<UserConsent>;
+  revokeUserConsent(id: number): Promise<UserConsent>;
+  getAllUserConsents(limit?: number, offset?: number): Promise<UserConsent[]>;
+  getUserConsentStats(): Promise<{ consentType: string; version: string; count: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2882,6 +2891,57 @@ export class DatabaseStorage implements IStorage {
       .where(eq(timesheetEntries.id, id))
       .returning();
     return updated;
+  }
+
+  // User Consents
+  async getUserConsents(userId: string): Promise<UserConsent[]> {
+    return await db.select().from(userConsents)
+      .where(and(eq(userConsents.userId, userId), eq(userConsents.revoked, false)))
+      .orderBy(desc(userConsents.acceptedAt));
+  }
+
+  async getUserConsentByType(userId: string, consentType: string): Promise<UserConsent | undefined> {
+    const [consent] = await db.select().from(userConsents)
+      .where(and(
+        eq(userConsents.userId, userId),
+        eq(userConsents.consentType, consentType),
+        eq(userConsents.revoked, false)
+      ))
+      .orderBy(desc(userConsents.acceptedAt))
+      .limit(1);
+    return consent;
+  }
+
+  async createUserConsent(consent: InsertUserConsent): Promise<UserConsent> {
+    const [created] = await db.insert(userConsents).values(consent).returning();
+    return created;
+  }
+
+  async revokeUserConsent(id: number): Promise<UserConsent> {
+    const [updated] = await db.update(userConsents)
+      .set({ revoked: true, revokedAt: new Date() })
+      .where(eq(userConsents.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getAllUserConsents(limit: number = 100, offset: number = 0): Promise<UserConsent[]> {
+    return await db.select().from(userConsents)
+      .orderBy(desc(userConsents.acceptedAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getUserConsentStats(): Promise<{ consentType: string; version: string; count: number }[]> {
+    const stats = await db.select({
+      consentType: userConsents.consentType,
+      version: userConsents.version,
+      count: sql<number>`count(*)::int`
+    })
+      .from(userConsents)
+      .where(eq(userConsents.revoked, false))
+      .groupBy(userConsents.consentType, userConsents.version);
+    return stats;
   }
 }
 
