@@ -122,6 +122,8 @@ export default function Profile() {
   const [newlyGeneratedApiKey, setNewlyGeneratedApiKey] = useState<string | null>(null);
   const [payoutDialogOpen, setPayoutDialogOpen] = useState(false);
   const [paypalEmail, setPaypalEmail] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const { data: referralStats, isLoading: referralLoading } = useQuery<ReferralStats>({
     queryKey: ['/api/referral/stats'],
@@ -214,6 +216,22 @@ export default function Profile() {
       toast({
         title: "Error",
         description: "Failed to revoke API key. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", "/api/user/account");
+    },
+    onSuccess: () => {
+      window.location.href = "/auth";
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete account. Please try again.",
         variant: "destructive"
       });
     }
@@ -857,7 +875,13 @@ export default function Profile() {
                       <p className="font-medium">Delete Account</p>
                       <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
                     </div>
-                    <Button variant="destructive" size="sm" data-testid="button-delete-account">
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={() => setDeleteDialogOpen(true)}
+                      data-testid="button-delete-account"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
                       Delete
                     </Button>
                   </div>
@@ -1156,6 +1180,49 @@ export default function Profile() {
               </DialogFooter>
             </TabsContent>
           </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) setDeleteConfirmText(""); }}>
+        <DialogContent data-testid="dialog-delete-account">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Account
+            </DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              To confirm, type <span className="font-mono font-semibold text-foreground">DELETE</span> below:
+            </p>
+            <Input 
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              data-testid="input-delete-confirm"
+            />
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => { setDeleteDialogOpen(false); setDeleteConfirmText(""); }}
+              data-testid="button-cancel-delete"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => deleteAccountMutation.mutate()}
+              disabled={deleteConfirmText.trim().toUpperCase() !== "DELETE" || deleteAccountMutation.isPending}
+              data-testid="button-confirm-delete"
+            >
+              {deleteAccountMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete Account
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

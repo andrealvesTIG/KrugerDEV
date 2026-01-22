@@ -9469,6 +9469,33 @@ Return ONLY valid JSON.`;
     res.json({ success: true, message: "API key revoked" });
   });
 
+  // Delete own account
+  app.delete('/api/user/account', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      // Delete the user and all associated data
+      await storage.deleteUser(userId);
+
+      // Clear the session
+      if (req.session) {
+        req.session.destroy((err: Error | null) => {
+          if (err) {
+            console.error('Error destroying session:', err);
+          }
+        });
+      }
+
+      res.json({ success: true, message: "Account deleted successfully" });
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      res.status(500).json({ message: 'Failed to delete account' });
+    }
+  });
+
   // Analytics: Projects flat data for Power BI
   app.get('/api/analytics/projects', async (req, res) => {
     try {
