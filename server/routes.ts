@@ -4435,9 +4435,26 @@ export async function registerRoutes(
         updatedBy: userId || null,
       };
       
-      // If healthReason is provided or health changed, update the timestamp
-      if (input.healthReason !== undefined || (input.health && input.health !== existing.health)) {
+      // If healthReason is provided or health changed, update the timestamp and record history
+      const healthChanged = input.health && input.health !== existing.health;
+      const healthReasonProvided = input.healthReason !== undefined && input.healthReason !== null && input.healthReason.trim() !== '';
+      
+      if (healthReasonProvided || healthChanged) {
         sanitizedInput.healthReasonUpdatedAt = new Date();
+        
+        // Get user name for history record
+        const user = userId ? await storage.getUser(userId) : null;
+        const changedByName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System';
+        
+        // Record to health status history
+        await storage.createHealthStatusHistory({
+          projectId,
+          previousHealth: existing.health || null,
+          newHealth: input.health || existing.health || 'Green',
+          comment: input.healthReason || null,
+          changedBy: userId || null,
+          changedByName,
+        });
       }
       
       const updated = await storage.updateProject(projectId, sanitizedInput);
