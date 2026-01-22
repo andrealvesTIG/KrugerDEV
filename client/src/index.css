@@ -107,13 +107,15 @@
   scrollbar-width: thin;
 }
 
-/* Hide vertical scrollbar but keep scroll functionality */
-.scrollbar-hide-y::-webkit-scrollbar {
+/* Hide vertical scrollbar but keep scroll functionality and horizontal scrollbar */
+.scrollbar-hide-y::-webkit-scrollbar:vertical {
   width: 0;
+}
+.scrollbar-hide-y::-webkit-scrollbar:horizontal {
   height: 4px;
 }
-.scrollbar-hide-y {
-  scrollbar-width: none;
+.scrollbar-hide-y::-webkit-scrollbar-thumb:horizontal {
+  @apply bg-muted-foreground/30 rounded-full;
 }
 
 /* Glassmorphism utilities */
