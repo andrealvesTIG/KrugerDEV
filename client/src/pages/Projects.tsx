@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useProjects, useCreateProject, useUpdateProject } from "@/hooks/use-projects";
 import { useExternalProjects } from "@/hooks/use-external-shares";
 import { usePortfolios } from "@/hooks/use-portfolios";
@@ -17,7 +17,7 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2 } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -39,6 +39,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import ExcelJS from "exceljs";
 import { ViewsDropdown } from "@/components/ViewsDropdown";
+import { useColumnState, sortData, type SortDirection, type ColumnSort } from "@/hooks/use-column-state";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
 
@@ -1977,6 +1978,117 @@ interface Portfolio {
   name: string;
 }
 
+interface ResizableSortableColumnHeaderProps {
+  column: GridColumn;
+  children: React.ReactNode;
+  isFullscreen?: boolean;
+  width?: number;
+  sortDirection?: SortDirection;
+  onSort?: () => void;
+  onResize?: (width: number) => void;
+}
+
+function ResizableSortableColumnHeader({ 
+  column, 
+  children, 
+  isFullscreen,
+  width,
+  sortDirection,
+  onSort,
+  onResize,
+}: ResizableSortableColumnHeaderProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id });
+  const [isResizing, setIsResizing] = useState(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+  
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: isResizing ? 'none' : transition,
+    opacity: isDragging ? 0.5 : 1,
+    width: width ? `${width}px` : undefined,
+    minWidth: width ? `${width}px` : undefined,
+    maxWidth: width ? `${width}px` : undefined,
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    startXRef.current = e.clientX;
+    startWidthRef.current = width || 150;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const diff = e.clientX - startXRef.current;
+      const newWidth = Math.max(80, Math.min(500, startWidthRef.current + diff));
+      onResize?.(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleHeaderClick = (e: React.MouseEvent) => {
+    if (!isResizing) {
+      onSort?.();
+    }
+  };
+
+  const renderSortIcon = () => {
+    if (sortDirection === 'asc') {
+      return <ArrowUp className="h-3 w-3 text-primary" />;
+    }
+    if (sortDirection === 'desc') {
+      return <ArrowDown className="h-3 w-3 text-primary" />;
+    }
+    return <ChevronsUpDown className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />;
+  };
+  
+  return (
+    <TableHead 
+      ref={setNodeRef} 
+      style={style} 
+      className={cn(
+        "whitespace-nowrap relative group select-none",
+        isFullscreen && "bg-card",
+        !isResizing && "cursor-pointer"
+      )}
+      data-testid={`column-header-${column.id}`}
+    >
+      <div className="flex items-center gap-1">
+        <div 
+          className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-muted rounded"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-3 w-3 text-muted-foreground" />
+        </div>
+        <div 
+          className="flex items-center gap-1 flex-1"
+          onClick={handleHeaderClick}
+        >
+          <span>{children}</span>
+          {renderSortIcon()}
+        </div>
+      </div>
+      <div
+        className={cn(
+          "absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-primary/50 transition-colors",
+          isResizing && "bg-primary"
+        )}
+        onMouseDown={handleMouseDown}
+        data-testid={`resize-handle-${column.id}`}
+      />
+    </TableHead>
+  );
+}
+
 function SortableColumnHeader({ column, children, isFullscreen }: { column: GridColumn; children: React.ReactNode; isFullscreen?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id });
   const style = {
@@ -2036,6 +2148,90 @@ function ProjectsGridView({
   
   const defaultColumns = useMemo(() => ALL_GRID_COLUMNS.filter(c => c.defaultVisible).map(c => c.id), []);
   const defaultColumnOrder = useMemo(() => ALL_GRID_COLUMNS.map(c => c.id), []);
+
+  const defaultWidths = useMemo(() => ({
+    name: 200,
+    projectCode: 120,
+    status: 120,
+    priority: 100,
+    health: 100,
+    billableStatus: 120,
+    portfolio: 150,
+    startDate: 120,
+    endDate: 120,
+    baselineStartDate: 130,
+    baselineEndDate: 130,
+    actualStartDate: 120,
+    actualEndDate: 120,
+    budget: 120,
+    actualCost: 120,
+    forecastCost: 120,
+    costVariance: 120,
+    scheduleVariance: 130,
+    completion: 100,
+    projectType: 120,
+    methodology: 120,
+    department: 120,
+    category: 120,
+    businessValue: 120,
+    riskLevel: 100,
+    source: 100,
+    owner: 150,
+    createdAt: 120,
+    description: 200,
+  }), []);
+
+  const {
+    columnWidths,
+    sortState,
+    handleColumnResize,
+    handleColumnSort,
+    getColumnWidth,
+    getSortDirection,
+  } = useColumnState({
+    viewType: 'grid',
+    organizationId,
+    defaultWidths,
+  });
+
+  const getFieldValue = useCallback((project: Project, columnId: string): any => {
+    switch (columnId) {
+      case 'name': return project.name;
+      case 'projectCode': return project.projectCode;
+      case 'status': return project.status;
+      case 'priority': return project.priority;
+      case 'health': return project.health;
+      case 'billableStatus': return project.billableStatus;
+      case 'portfolio': return portfolios.find(p => p.id === project.portfolioId)?.name || '';
+      case 'startDate': return project.startDate ? new Date(project.startDate) : null;
+      case 'endDate': return project.endDate ? new Date(project.endDate) : null;
+      case 'baselineStartDate': return project.baselineStartDate ? new Date(project.baselineStartDate) : null;
+      case 'baselineEndDate': return project.baselineEndDate ? new Date(project.baselineEndDate) : null;
+      case 'actualStartDate': return project.actualStartDate ? new Date(project.actualStartDate) : null;
+      case 'actualEndDate': return project.actualEndDate ? new Date(project.actualEndDate) : null;
+      case 'budget': return project.budget;
+      case 'actualCost': return project.actualCost;
+      case 'forecastCost': return project.forecastCost;
+      case 'costVariance': return project.costVariance;
+      case 'scheduleVariance': return project.scheduleVariance;
+      case 'completion': return project.completionPercentage;
+      case 'projectType': return project.projectType;
+      case 'methodology': return project.methodology;
+      case 'department': return project.department;
+      case 'category': return project.category;
+      case 'businessValue': return project.businessValue;
+      case 'riskLevel': return project.riskLevel;
+      case 'source': return project.source;
+      case 'owner': return project.owner;
+      case 'createdAt': return project.createdAt ? new Date(project.createdAt) : null;
+      case 'description': return project.description;
+      default: return null;
+    }
+  }, [portfolios]);
+
+  const sortedProjects = useMemo(() => {
+    return sortData(projects, sortState, getFieldValue);
+  }, [projects, sortState, getFieldValue]);
   
   const handleApplyView = (view: { visibleColumns: string[]; columnOrder: string[] }) => {
     setVisibleColumns(view.visibleColumns);
@@ -2555,23 +2751,31 @@ function ProjectsGridView({
                 </TableHead>
                 <SortableContext items={orderedVisibleColumns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
                   {orderedVisibleColumns.map(column => (
-                    <SortableColumnHeader key={column.id} column={column} isFullscreen={isFullscreen}>
+                    <ResizableSortableColumnHeader 
+                      key={column.id} 
+                      column={column} 
+                      isFullscreen={isFullscreen}
+                      width={getColumnWidth(column.id, defaultWidths[column.id as keyof typeof defaultWidths] || 150)}
+                      sortDirection={getSortDirection(column.id)}
+                      onSort={() => handleColumnSort(column.id)}
+                      onResize={(width) => handleColumnResize(column.id, width)}
+                    >
                       {column.label}
-                    </SortableColumnHeader>
+                    </ResizableSortableColumnHeader>
                   ))}
                 </SortableContext>
                 <TableHead className={cn("w-10", isFullscreen && "bg-card")}></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {projects.length === 0 ? (
+              {sortedProjects.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={orderedVisibleColumns.length + 2} className="text-center py-8 text-muted-foreground">
                     No projects found
                   </TableCell>
                 </TableRow>
               ) : (
-                projects.map(project => (
+                sortedProjects.map(project => (
                   <TableRow 
                     key={project.id} 
                     data-testid={`grid-row-${project.id}`}
@@ -2584,11 +2788,21 @@ function ProjectsGridView({
                         data-testid={`checkbox-project-${project.id}`}
                       />
                     </TableCell>
-                    {orderedVisibleColumns.map(column => (
-                      <TableCell key={column.id}>
-                        {renderCellContent(project, column.id)}
-                      </TableCell>
-                    ))}
+                    {orderedVisibleColumns.map(column => {
+                      const width = getColumnWidth(column.id, defaultWidths[column.id as keyof typeof defaultWidths] || 150);
+                      return (
+                        <TableCell 
+                          key={column.id}
+                          style={{ 
+                            width: `${width}px`, 
+                            minWidth: `${width}px`, 
+                            maxWidth: `${width}px` 
+                          }}
+                        >
+                          {renderCellContent(project, column.id)}
+                        </TableCell>
+                      );
+                    })}
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
