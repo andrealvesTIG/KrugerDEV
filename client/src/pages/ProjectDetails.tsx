@@ -6507,7 +6507,8 @@ function ProjectGanttView({
           {/* Right pane: Timeline (resizable + scrollable) - hidden in table view */}
           {!hideTimeline && (
             <ResizablePanel defaultSize={50} minSize={20}>
-              <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full overflow-x-auto overflow-y-auto scrollbar-thin">
+              <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full flex overflow-y-auto scrollbar-thin">
+                <div className="flex-1 overflow-x-auto">
                 <div 
                   className="relative"
                   style={{ minWidth: `${filteredDates.length * 60}px` }}
@@ -6570,6 +6571,7 @@ function ProjectGanttView({
                   {/* Empty row for add task alignment - must match left pane condition */}
                   {!isReadOnly && <div className="h-[28px] border-t bg-muted/20" />}
                   
+                </div>
                 </div>
               </div>
             </ResizablePanel>
