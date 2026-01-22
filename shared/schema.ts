@@ -210,6 +210,18 @@ export const billableStatusComments = pgTable("billable_status_comments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Health Status History (Track all health status changes with comments)
+export const healthStatusHistory = pgTable("health_status_history", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  previousHealth: text("previous_health"), // Previous health status (Green, Yellow, Red, or null if first entry)
+  newHealth: text("new_health").notNull(), // New health status (Green, Yellow, Red)
+  comment: text("comment"), // Optional comment/reason for the change
+  changedBy: varchar("changed_by").references(() => users.id), // User who made the change
+  changedByName: text("changed_by_name"), // User's display name at time of change
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Note: Risks are now consolidated into the issues table with itemType = "risk"
 // The 'risks' table is deprecated - use issues with itemType filter instead
 
@@ -1022,6 +1034,7 @@ export const insertProjectDocumentSchema = createInsertSchema(projectDocuments).
 
 export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBillableStatusCommentSchema = createInsertSchema(billableStatusComments).omit({ id: true, createdAt: true });
+export const insertHealthStatusHistorySchema = createInsertSchema(healthStatusHistory).omit({ id: true, createdAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1122,6 +1135,9 @@ export type InsertProjectComment = z.infer<typeof insertProjectCommentSchema>;
 
 export type BillableStatusComment = typeof billableStatusComments.$inferSelect;
 export type InsertBillableStatusComment = z.infer<typeof insertBillableStatusCommentSchema>;
+
+export type HealthStatusHistory = typeof healthStatusHistory.$inferSelect;
+export type InsertHealthStatusHistory = z.infer<typeof insertHealthStatusHistorySchema>;
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
