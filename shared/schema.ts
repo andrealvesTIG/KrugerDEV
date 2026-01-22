@@ -205,8 +205,10 @@ export const projects = pgTable("projects", {
 export const billableStatusComments = pgTable("billable_status_comments", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
-  content: text("content").notNull(),
-  authorId: varchar("author_id").references(() => users.id),
+  billableStatus: text("billable_status"), // The billable status value at time of comment
+  comment: text("comment").notNull(),
+  userId: varchar("user_id").references(() => users.id),
+  userName: text("user_name"), // User's display name at time of comment
   createdAt: timestamp("created_at").defaultNow(),
 });
 

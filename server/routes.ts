@@ -8285,11 +8285,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         return res.status(401).json({ message: "Authentication required" });
       }
       
-      // Require email verification before creating
-      const emailCheck = await requireEmailVerified(userId);
-      if (!emailCheck.verified) {
-        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
-      }
+      // Note: Email verification not required for comments since they are low-risk,
+      // append-only, and essential for team collaboration
       
       // Verify project exists and user has access
       const project = await storage.getProject(projectId);
@@ -8469,10 +8466,21 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         return res.status(400).json({ message: "Comment content is required" });
       }
       
+      // Get user's display name
+      const user = await storage.getUser(userId);
+      const userName = user?.firstName && user?.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user?.email || 'Unknown';
+      
+      // Get current project's billable status
+      const currentBillableStatus = project.billableStatus || 'N/A';
+      
       const comment = await storage.createBillableStatusComment({
         projectId,
-        authorId: userId,
-        content,
+        billableStatus: currentBillableStatus,
+        comment: content,
+        userId,
+        userName,
       });
       
       res.status(201).json(comment);

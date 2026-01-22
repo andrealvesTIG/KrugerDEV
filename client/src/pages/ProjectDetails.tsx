@@ -812,9 +812,11 @@ function BillableStatusCommentLog({ projectId }: { projectId: number }) {
     });
   };
 
-  const getAuthorName = (authorId: string | null) => {
-    if (!authorId) return 'Unknown';
-    const user = users?.find(u => u.id === authorId);
+  // Use stored userName from the comment, fallback to lookup if needed
+  const getAuthorName = (userName: string | null, userId: string | null) => {
+    if (userName) return userName;
+    if (!userId) return 'Unknown';
+    const user = users?.find(u => u.id === userId);
     if (!user) return 'Unknown';
     if (user.firstName && user.lastName) return `${user.firstName} ${user.lastName}`;
     return user.username || user.email || 'Unknown';
@@ -864,23 +866,28 @@ function BillableStatusCommentLog({ projectId }: { projectId: number }) {
               </div>
             ) : comments && comments.length > 0 ? (
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {comments.map((comment) => (
+                {comments.map((entry) => (
                   <div 
-                    key={comment.id} 
+                    key={entry.id} 
                     className="flex items-start gap-3 p-2 rounded-md bg-background border"
-                    data-testid={`billable-status-comment-${comment.id}`}
+                    data-testid={`billable-status-comment-${entry.id}`}
                   >
                     <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <UserIcon className="h-3 w-3 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-medium">{getAuthorName(comment.authorId)}</span>
+                        <span className="text-xs font-medium">{getAuthorName(entry.userName, entry.userId)}</span>
                         <span className="text-xs text-muted-foreground">
-                          {comment.createdAt ? format(new Date(comment.createdAt), 'MMM d, yyyy h:mm a') : ''}
+                          {entry.createdAt ? format(new Date(entry.createdAt), 'MMM d, yyyy h:mm a') : ''}
                         </span>
+                        {entry.billableStatus && (
+                          <Badge variant="outline" className="text-xs">
+                            {entry.billableStatus}
+                          </Badge>
+                        )}
                       </div>
-                      <p className="text-sm mt-1">{comment.content}</p>
+                      <p className="text-sm mt-1">{entry.comment}</p>
                     </div>
                   </div>
                 ))}
