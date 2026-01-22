@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { 
@@ -192,33 +192,62 @@ interface TimesheetGridProps {
   entries: TimesheetEntryWithDetails[];
   onSave: (data: Record<string, Record<string, { hours: number; notes: string; id?: number }>>) => void;
   isSaving: boolean;
+  saveError: boolean;
   viewMode: ViewMode;
   groupByProject: boolean;
 }
 
-function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject }: TimesheetGridProps) {
+function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, saveError, viewMode, groupByProject }: TimesheetGridProps) {
   const [gridData, setGridData] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
+  
+  // Track which specific cells have been modified locally (taskId-dateKey)
+  const modifiedCellsRef = useRef<Set<string>>(new Set());
+  // Track previous isSaving state to detect save completion
+  const prevIsSavingRef = useRef(false);
 
+  // Clear dirty tracking only after save completes successfully (isSaving: true -> false, and no error)
   useEffect(() => {
-    const data: Record<string, Record<string, { hours: string; notes: string; id?: number }>> = {};
-    for (const { task } of assignedTasks) {
-      data[task.id] = {};
-      for (const date of dates) {
-        const dateKey = formatDateKey(date);
-        const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
-        data[task.id][dateKey] = {
-          hours: entry ? String(Number(entry.hours)) : "",
-          notes: entry?.notes || "",
-          id: entry?.id
-        };
-      }
+    if (prevIsSavingRef.current && !isSaving && !saveError) {
+      // Save completed successfully - clear dirty tracking
+      modifiedCellsRef.current.clear();
+      setHasChanges(false);
     }
-    setGridData(data);
-    setHasChanges(false);
+    prevIsSavingRef.current = isSaving;
+  }, [isSaving, saveError]);
+
+  // Sync grid data: merge API entries with local changes, always preserving dirty cells
+  useEffect(() => {
+    setGridData(prevGridData => {
+      const data: Record<string, Record<string, { hours: string; notes: string; id?: number }>> = {};
+      for (const { task } of assignedTasks) {
+        data[task.id] = {};
+        for (const date of dates) {
+          const dateKey = formatDateKey(date);
+          const cellKey = `${task.id}-${dateKey}`;
+          const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
+          
+          // If this cell has been locally modified, always preserve the local data
+          if (modifiedCellsRef.current.has(cellKey) && prevGridData[task.id]?.[dateKey] !== undefined) {
+            data[task.id][dateKey] = prevGridData[task.id][dateKey];
+          } else if (prevGridData[task.id]?.[dateKey] !== undefined && !entry) {
+            // Preserve existing local data for cells not in current API response (view change)
+            data[task.id][dateKey] = prevGridData[task.id][dateKey];
+          } else {
+            // Use API data
+            data[task.id][dateKey] = {
+              hours: entry ? String(Number(entry.hours)) : "",
+              notes: entry?.notes || "",
+              id: entry?.id
+            };
+          }
+        }
+      }
+      return data;
+    });
   }, [entries, assignedTasks, dates]);
 
   const handleHoursChange = (taskId: number, dateKey: string, value: string) => {
@@ -253,6 +282,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
       }
     }));
     setHasChanges(true);
+    modifiedCellsRef.current.add(`${taskId}-${dateKey}`);
   };
 
   const handleNoteSave = (taskId: number, dateKey: string) => {
@@ -264,6 +294,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
       }
     }));
     setHasChanges(true);
+    modifiedCellsRef.current.add(`${taskId}-${dateKey}`);
     setEditingNote(null);
     setNoteText("");
   };
@@ -310,7 +341,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
       }
     }
     onSave(formattedData);
-    setHasChanges(false);
+    // Note: hasChanges is cleared in the useEffect when isSaving goes from true to false
   };
 
   const getRowTotal = (taskId: number): number => {
@@ -1075,6 +1106,7 @@ export default function Timesheets() {
                     entries={entries}
                     onSave={handleSave}
                     isSaving={bulkUpsert.isPending}
+                    saveError={bulkUpsert.isError}
                     viewMode={viewMode}
                     groupByProject={true}
                   />
