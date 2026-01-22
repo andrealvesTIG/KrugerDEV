@@ -4505,6 +4505,59 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Convert imported project to editable (native) mode
+  app.post('/api/projects/:id/make-editable', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      // Check user has access to this project's organization
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied to this project" });
+      }
+      
+      // Only allow conversion for imported or planner projects
+      if (project.source !== "imported" && project.source !== "planner" && project.source !== "planner_premium") {
+        return res.status(400).json({ message: "Project is already editable" });
+      }
+      
+      // Convert to manual (editable) mode - keep source file info for reference
+      const updated = await storage.updateProject(projectId, {
+        source: "manual",
+        // Keep plannerPlanId, sourceFileName, sourceFileUrl for historical reference
+      });
+      
+      // Log the conversion
+      const user = await storage.getUser(userId);
+      await storage.createProjectChangeLog({
+        projectId,
+        changedBy: userId,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'updated',
+        changeSummary: `Converted from "${project.source}" to editable mode`,
+        previousValues: JSON.stringify({ source: project.source }),
+        newValues: JSON.stringify({ source: "manual" }),
+      });
+      
+      res.json({ 
+        message: "Project converted to editable mode successfully",
+        project: updated 
+      });
+    } catch (err) {
+      console.error("Error converting project to editable:", err);
+      res.status(500).json({ message: "Error converting project to editable mode" });
+    }
+  });
+
   // Project History
   app.get(api.projects.getHistory.path, async (req, res) => {
     try {

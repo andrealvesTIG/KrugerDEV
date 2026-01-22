@@ -2347,6 +2347,32 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [selectedReimportFile, setSelectedReimportFile] = useState<File | null>(null);
   const reimportFileInputRef = useRef<HTMLInputElement>(null);
   
+  // Make Editable state (convert imported/planner to native tasks)
+  const [isMakeEditableDialogOpen, setIsMakeEditableDialogOpen] = useState(false);
+  const [isMakingEditable, setIsMakingEditable] = useState(false);
+  
+  const handleMakeEditable = async () => {
+    setIsMakingEditable(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/make-editable`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        toast({ title: "Error", description: data.message || "Failed to convert project", variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: "Project is now editable. You can add, edit, and delete tasks." });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+        setIsMakeEditableDialogOpen(false);
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to convert project to editable mode", variant: "destructive" });
+    } finally {
+      setIsMakingEditable(false);
+    }
+  };
+  
   // Planner sync handler - not memoized, called manually
   const handlePlannerSync = async (silent = false) => {
     if (!isPlannerProject) return;
@@ -2721,7 +2747,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6" />
             <div>
               <span className="font-medium">Synced from {isPremiumPlan ? "Planner Premium" : "Microsoft Planner"}</span>
-              <p className="text-sm text-muted-foreground">Tasks are read-only. Edit them in {isPremiumPlan ? "Project for the Web" : "Microsoft Planner"}.</p>
+              <p className="text-sm text-muted-foreground">Tasks are read-only. Edit in {isPremiumPlan ? "Project for the Web" : "Planner"} or make editable to enable editing here.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -2729,7 +2755,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               href={(() => {
                 if (!plannerPlanId) return "https://planner.cloud.microsoft";
                 if (isPremiumPlan) {
-                  // Planner Premium uses full URL with org ID and tenant ID
                   let url = `https://planner.cloud.microsoft/webui/premiumplan/${plannerPlanId}`;
                   if (dataverseOrgId) {
                     url += `/org/${dataverseOrgId}`;
@@ -2739,7 +2764,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                   }
                   return url;
                 }
-                // Regular Planner URL
                 return `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board`;
               })()}
               target="_blank"
@@ -2749,6 +2773,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               <ExternalLink className="h-3 w-3" />
               {isPremiumPlan ? "Open in Project" : "Open in Planner"}
             </a>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsMakeEditableDialogOpen(true)}
+              data-testid="button-make-editable-planner"
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Make Editable
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 
@@ -2770,11 +2803,21 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             <div>
               <span className="font-medium text-emerald-800 dark:text-emerald-200">Imported from Microsoft Project</span>
               <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                Tasks are read-only. Re-import to update task data.
+                Tasks are read-only. Re-import to update or make editable to enable editing.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsMakeEditableDialogOpen(true)}
+              className="bg-emerald-100 dark:bg-emerald-800 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-700 text-emerald-700 dark:text-emerald-200"
+              data-testid="button-make-editable"
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Make Editable
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -2896,6 +2939,48 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Make Editable Confirmation Dialog */}
+      <AlertDialog open={isMakeEditableDialogOpen} onOpenChange={setIsMakeEditableDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Make Schedule Editable
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Converting this project to editable mode will allow you to add, edit, and delete tasks directly in the app.
+              </p>
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 text-amber-800 dark:text-amber-200 text-sm">
+                <strong>Important:</strong> After conversion, re-importing or syncing from the original source will no longer be available. The source file reference will be kept for historical purposes.
+              </div>
+              <p className="text-sm">
+                This action cannot be undone. Are you sure you want to continue?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isMakingEditable}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleMakeEditable}
+              disabled={isMakingEditable}
+            >
+              {isMakingEditable ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Converting...
+                </>
+              ) : (
+                <>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Make Editable
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* MS Project Read-Only Task Dialog */}
       <Dialog open={showMsProjectEditDialog} onOpenChange={setShowMsProjectEditDialog}>
