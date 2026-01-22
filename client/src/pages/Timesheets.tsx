@@ -810,7 +810,18 @@ export default function Timesheets() {
     }
   };
 
-  const totalHoursThisWeek = entries.reduce((sum, e) => sum + Number(e.hours), 0);
+  // Calculate total hours from local gridData for real-time updates
+  const totalHoursThisWeek = useMemo(() => {
+    let total = 0;
+    for (const taskId in gridData) {
+      for (const dateKey in gridData[taskId]) {
+        const hours = parseFloat(gridData[taskId][dateKey]?.hours || "0");
+        if (!isNaN(hours)) total += hours;
+      }
+    }
+    return total;
+  }, [gridData]);
+  
   const weeklyTarget = 40;
   const progressPercent = Math.min((totalHoursThisWeek / weeklyTarget) * 100, 100);
   const hasDraftEntries = entries.some(e => e.status === "Draft");
