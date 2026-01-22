@@ -8465,6 +8465,34 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     }
   });
 
+  // =========== HEALTH STATUS HISTORY ===========
+  
+  // Get health status history for a project
+  app.get('/api/projects/:projectId/health-status-history', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const projectId = Number(req.params.projectId);
+      
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      if (userId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(project.organizationId)) {
+          return res.status(404).json({ message: "Project not found" });
+        }
+      }
+      
+      const history = await storage.getHealthStatusHistory(projectId);
+      res.json(history);
+    } catch (err) {
+      console.error("Error fetching health status history:", err);
+      res.status(500).json({ message: "Error fetching health status history" });
+    }
+  });
+
   // =========== PROJECT VIEWS ===========
   
   // Get all views for a user in a specific mode (grid or gantt)
