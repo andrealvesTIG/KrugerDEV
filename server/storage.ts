@@ -391,6 +391,8 @@ export class DatabaseStorage implements IStorage {
     await db.update(projects).set({ businessOwnerId: null }).where(eq(projects.businessOwnerId, id));
     await db.update(projects).set({ technicalLeadId: null }).where(eq(projects.technicalLeadId, id));
     await db.update(projects).set({ deletedBy: null }).where(eq(projects.deletedBy, id));
+    await db.update(projects).set({ createdBy: null }).where(eq(projects.createdBy, id));
+    await db.update(projects).set({ updatedBy: null }).where(eq(projects.updatedBy, id));
     // 8. Nullify user references in risks (now stored in issues table with ownerId and reviewerId)
     await db.update(issues).set({ ownerId: null }).where(and(eq(issues.ownerId, id), eq(issues.itemType, 'risk')));
     await db.update(issues).set({ reviewerId: null }).where(and(eq(issues.reviewerId, id), eq(issues.itemType, 'risk')));
