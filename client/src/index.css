@@ -107,6 +107,15 @@
   scrollbar-width: thin;
 }
 
+/* Hide vertical scrollbar but keep scroll functionality */
+.scrollbar-hide-y::-webkit-scrollbar {
+  width: 0;
+  height: 4px;
+}
+.scrollbar-hide-y {
+  scrollbar-width: none;
+}
+
 /* Glassmorphism utilities */
 .glass {
   @apply bg-white/70 backdrop-blur-lg border border-white/20 shadow-xl;
