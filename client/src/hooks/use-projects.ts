@@ -74,6 +74,7 @@ export function useUpdateProject() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [api.projects.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.projects.get.path, data.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', data.id, 'health-status-history'] });
     },
   });
 }

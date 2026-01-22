@@ -13,6 +13,7 @@ import { useChangeRequests, useCreateChangeRequest, useUpdateChangeRequest, useD
 import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument, useDeleteProjectDocument } from "@/hooks/use-project-documents";
 import { useProjectComments, useCreateProjectComment, useDeleteProjectComment } from "@/hooks/use-project-comments";
 import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hooks/use-billable-status-comments";
+import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
@@ -894,6 +895,84 @@ function BillableStatusCommentLog({ projectId }: { projectId: number }) {
   );
 }
 
+function HealthStatusHistoryLog({ projectId }: { projectId: number }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { data: history, isLoading } = useHealthStatusHistory(projectId);
+
+  const getHealthColor = (health: string | null) => {
+    switch (health) {
+      case 'Green': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200';
+      case 'Yellow': return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+      case 'Red': return 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200';
+      default: return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  return (
+    <div className="border rounded-lg bg-muted/30">
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger asChild>
+          <button 
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors rounded-t-lg"
+            data-testid="button-health-status-history-toggle"
+          >
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Health Status History</span>
+              <Badge variant="secondary" className="text-xs">
+                {history?.length || 0}
+              </Badge>
+            </div>
+            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-4 pb-4 space-y-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : history && history.length > 0 ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {history.map((entry) => (
+                  <div 
+                    key={entry.id} 
+                    className="flex items-start gap-3 p-3 rounded-md bg-background border"
+                    data-testid={`health-status-history-${entry.id}`}
+                  >
+                    <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <Badge className={cn("text-xs px-2 py-0.5", getHealthColor(entry.previousHealth))}>
+                        {entry.previousHealth || 'None'}
+                      </Badge>
+                      <ArrowDown className="h-3 w-3 text-muted-foreground" />
+                      <Badge className={cn("text-xs px-2 py-0.5", getHealthColor(entry.newHealth))}>
+                        {entry.newHealth}
+                      </Badge>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-medium">{entry.changedByName || 'Unknown'}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {entry.createdAt ? format(new Date(entry.createdAt), 'MMM d, yyyy h:mm a') : ''}
+                        </span>
+                      </div>
+                      {entry.comment && (
+                        <p className="text-sm text-muted-foreground mt-1">{entry.comment}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-2">No health status changes recorded yet</p>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
 function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any }) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
@@ -1322,6 +1401,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
     
     <ProjectCommentsFeed projectId={project.id} />
     <BillableStatusCommentLog projectId={project.id} />
+    <HealthStatusHistoryLog projectId={project.id} />
   </>
   );
 }
