@@ -1612,18 +1612,28 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
     </div>
   );
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
-    <Card className="mt-4">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          <CardTitle className="text-base">Comments</CardTitle>
-          {comments && comments.length > 0 && (
-            <Badge variant="secondary" className="text-xs">{comments.length}</Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="border rounded-lg bg-muted/30 mt-4">
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger asChild>
+          <button 
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors rounded-t-lg"
+            data-testid="button-comments-toggle"
+          >
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Comments</span>
+              <Badge variant="secondary" className="text-xs">
+                {comments?.length || 0}
+              </Badge>
+            </div>
+            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-4 pb-4 space-y-4">
         <form onSubmit={handleSubmit} className="relative">
           <div className="flex gap-2">
             <Input
@@ -1740,8 +1750,10 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
         ) : (
           <p className="text-sm text-muted-foreground text-center py-4">No comments yet. Be the first to add one!</p>
         )}
-      </CardContent>
-    </Card>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
   );
 }
 
