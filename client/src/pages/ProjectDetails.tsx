@@ -1421,6 +1421,7 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
   const [mentionTarget, setMentionTarget] = useState<'new' | 'reply'>('new');
+  const [isExpanded, setIsExpanded] = useState(false);
   const { data: comments, isLoading } = useProjectComments(projectId);
   const { data: users } = useQuery<User[]>({ queryKey: ['/api/users'] });
   const createComment = useCreateProjectComment(projectId);
@@ -1611,8 +1612,6 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
       </Button>
     </div>
   );
-
-  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <div className="border rounded-lg bg-muted/30 mt-4">
