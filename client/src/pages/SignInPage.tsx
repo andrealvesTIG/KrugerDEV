@@ -23,8 +23,15 @@ import {
   FileCheck,
   Briefcase,
   ChevronRight,
-  Play
+  Play,
+  ChevronDown
 } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
@@ -77,6 +84,41 @@ const trustedBy = [
   "Technology Teams",
   "Consulting Firms",
   "Government Agencies"
+];
+
+const faqs = [
+  {
+    question: "How is FridayReport.AI different from spreadsheets and manual reporting?",
+    answer: "Unlike spreadsheets, FridayReport.AI provides real-time portfolio visibility, automated status reporting, and AI-powered insights. You'll spend 40% less time on status updates while getting 100% visibility into project health across your entire portfolio."
+  },
+  {
+    question: "Can I import my existing projects from Microsoft Project or Excel?",
+    answer: "Yes! FridayReport.AI supports direct import from Microsoft Project (.mpp files), Excel spreadsheets, and CSV files. We also integrate with Microsoft Planner for seamless project synchronization."
+  },
+  {
+    question: "How does the risk and issue tracking help my projects?",
+    answer: "Our proactive risk management system helps you identify potential issues before they become problems. With automated risk scoring, mitigation tracking, and early warning alerts, teams typically see a 25% reduction in project risks."
+  },
+  {
+    question: "Is my data secure?",
+    answer: "Absolutely. FridayReport.AI uses enterprise-grade security with encrypted data storage, role-based access controls, and multi-tenant isolation. Your project data is protected with the same security standards used by Fortune 500 companies."
+  },
+  {
+    question: "How does the AI-powered reporting work?",
+    answer: "Our AI analyzes your project data to generate professional status reports in seconds. It identifies trends, highlights risks, and provides actionable recommendations - saving hours of manual report writing each week."
+  },
+  {
+    question: "Can different team members have different access levels?",
+    answer: "Yes. FridayReport.AI offers flexible role-based access control with roles including Owner, Admin, Member, and Team Member. Team members can be restricted to only see projects and tasks they're assigned to."
+  },
+  {
+    question: "What happens if I need to track timesheets?",
+    answer: "Built-in timesheet tracking lets team members log time against tasks and projects. Managers get visibility into resource utilization, and the data integrates directly with project progress tracking."
+  },
+  {
+    question: "Is there a free trial?",
+    answer: "Yes! You can start with our free plan which includes 1 seat and core project management features. Upgrade to Professional or Business plans as your team grows to unlock additional seats, integrations, and advanced features."
+  }
 ];
 
 export default function SignInPage() {
@@ -590,7 +632,7 @@ export default function SignInPage() {
                         <Label htmlFor="terms" className="text-sm text-slate-400 leading-relaxed cursor-pointer">
                           I agree to the{" "}
                           <a 
-                            href="/terms-of-service" 
+                            href="/terms" 
                             target="_blank" 
                             className="text-primary hover:underline"
                             data-testid="link-terms-of-service"
@@ -599,7 +641,7 @@ export default function SignInPage() {
                           </a>{" "}
                           and{" "}
                           <a 
-                            href="/privacy-statement" 
+                            href="/privacy" 
                             target="_blank" 
                             className="text-primary hover:underline"
                             data-testid="link-privacy-policy"
@@ -665,6 +707,55 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
+
+      {/* FAQ Section */}
+      <section className="py-20 px-4 bg-slate-800/30">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <Badge variant="secondary" className="mb-4 bg-primary/10 text-primary border-primary/20">
+              Questions & Answers
+            </Badge>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+              Everything you need to know about managing your project portfolio with FridayReport.AI
+            </p>
+          </div>
+          
+          <Accordion type="single" collapsible className="space-y-4">
+            {faqs.map((faq, index) => (
+              <AccordionItem 
+                key={index} 
+                value={`faq-${index}`}
+                className="bg-slate-800/50 border border-slate-700 rounded-lg px-6 data-[state=open]:bg-slate-800/70"
+                data-testid={`accordion-faq-${index}`}
+              >
+                <AccordionTrigger className="text-left text-white hover:text-primary hover:no-underline py-5">
+                  <span className="text-base font-medium">{faq.question}</span>
+                </AccordionTrigger>
+                <AccordionContent className="text-slate-400 pb-5 leading-relaxed">
+                  {faq.answer}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+
+          <div className="mt-12 text-center">
+            <p className="text-slate-400 mb-4">Still have questions?</p>
+            <Button 
+              variant="outline" 
+              className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              onClick={scrollToSignIn}
+              data-testid="button-faq-get-started"
+            >
+              Get started and explore
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <Footer />
     </div>
