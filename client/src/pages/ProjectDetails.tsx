@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { useRoute } from "wouter";
@@ -4876,6 +4876,30 @@ function ProjectGanttView({
   const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(DEFAULT_GANTT_COLUMNS);
   const [newTaskName, setNewTaskName] = useState('');
   
+  // Scroll sync refs for left/right panes
+  const leftPaneRef = useRef<HTMLDivElement>(null);
+  const rightPaneRef = useRef<HTMLDivElement>(null);
+  const isScrollingSyncedRef = useRef(false);
+  
+  // Sync vertical scroll between left and right panes
+  const handleLeftScroll = useCallback(() => {
+    if (isScrollingSyncedRef.current) return;
+    if (leftPaneRef.current && rightPaneRef.current) {
+      isScrollingSyncedRef.current = true;
+      rightPaneRef.current.scrollTop = leftPaneRef.current.scrollTop;
+      requestAnimationFrame(() => { isScrollingSyncedRef.current = false; });
+    }
+  }, []);
+  
+  const handleRightScroll = useCallback(() => {
+    if (isScrollingSyncedRef.current) return;
+    if (leftPaneRef.current && rightPaneRef.current) {
+      isScrollingSyncedRef.current = true;
+      leftPaneRef.current.scrollTop = rightPaneRef.current.scrollTop;
+      requestAnimationFrame(() => { isScrollingSyncedRef.current = false; });
+    }
+  }, []);
+  
   // Baseline state
   const [showBaseline, setShowBaseline] = useState(false);
   const [isBaselineDialogOpen, setIsBaselineDialogOpen] = useState(false);
@@ -6141,7 +6165,7 @@ function ProjectGanttView({
         <ResizablePanelGroup key={hideTimeline ? "table-mode" : "gantt-mode"} direction="horizontal" className={cn("text-[11px]", isFullscreen ? "flex-1" : "h-[500px]")}>
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
           <ResizablePanel defaultSize={hideTimeline ? 100 : 50} minSize={20} maxSize={hideTimeline ? 100 : 80}>
-            <div className="h-full overflow-x-auto overflow-y-auto relative">
+            <div ref={leftPaneRef} onScroll={handleLeftScroll} className="h-full overflow-x-auto overflow-y-auto relative">
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Bulk actions bar - appears when tasks are selected */}
               {selectedTaskIds.size > 0 && (
@@ -6483,7 +6507,7 @@ function ProjectGanttView({
           {/* Right pane: Timeline (resizable + scrollable) - hidden in table view */}
           {!hideTimeline && (
             <ResizablePanel defaultSize={50} minSize={20}>
-              <div className="h-full overflow-x-auto overflow-y-auto">
+              <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full overflow-x-auto overflow-y-auto">
                 <div 
                   className="relative"
                   style={{ minWidth: `${filteredDates.length * 60}px` }}
