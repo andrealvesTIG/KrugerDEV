@@ -1450,6 +1450,7 @@ function PlansTab() {
   const [newPlan, setNewPlan] = useState({ code: "", name: "", description: "", monthlyPriceCents: 0, maxSeats: "" });
   const [deletePlanId, setDeletePlanId] = useState<number | null>(null);
   const [isSyncingPayPal, setIsSyncingPayPal] = useState(false);
+  const [isInitializingSeats, setIsInitializingSeats] = useState(false);
 
   const { data: plans, isLoading } = useQuery<PlanData[]>({
     queryKey: ['/api/billing/plans']
@@ -1481,6 +1482,34 @@ function PlansTab() {
       });
     }
     setIsSyncingPayPal(false);
+  };
+
+  const initExtraSeatPrices = async () => {
+    setIsInitializingSeats(true);
+    try {
+      const res = await fetch('/api/admin/plans/init-extra-seat-prices', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to initialize extra seat prices');
+      }
+      const result = await res.json();
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      toast({ 
+        title: "Extra Seat Prices Initialized", 
+        description: `Professional: $5/seat, Business: $8/seat` 
+      });
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to initialize extra seat prices", 
+        variant: "destructive" 
+      });
+    }
+    setIsInitializingSeats(false);
   };
 
   const sortedPlans = plans ? [...plans].sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)) : [];
@@ -1614,6 +1643,19 @@ function PlansTab() {
             <CardDescription>Configure pricing, quotas, and features for each plan</CardDescription>
           </div>
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={initExtraSeatPrices} 
+              disabled={isInitializingSeats}
+              data-testid="button-init-seat-prices"
+            >
+              {isInitializingSeats ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <DollarSign className="h-4 w-4 mr-2" />
+              )}
+              Init Seat Prices
+            </Button>
             <Button 
               variant="outline" 
               onClick={syncPayPalPlans} 

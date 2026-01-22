@@ -10371,6 +10371,48 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // Initialize extra seat prices for plans (super admin only)
+  app.post('/api/admin/plans/init-extra-seat-prices', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { plans } = await import("@shared/schema");
+      
+      // Update Professional plan (code: BASIC) with $5/seat extra
+      await db.update(plans)
+        .set({ extraSeatPriceCents: 500 })
+        .where(eq(plans.code, 'BASIC'));
+      
+      // Update Business plan (code: BUSINESS) with $8/seat extra
+      await db.update(plans)
+        .set({ extraSeatPriceCents: 800 })
+        .where(eq(plans.code, 'BUSINESS'));
+      
+      // Get updated plans
+      const updatedPlans = await db.select().from(plans).orderBy(plans.displayOrder);
+      
+      res.json({ 
+        message: "Extra seat prices initialized successfully",
+        plans: updatedPlans.map(p => ({ 
+          code: p.code, 
+          name: p.name, 
+          extraSeatPriceCents: p.extraSeatPriceCents 
+        }))
+      });
+    } catch (error) {
+      console.error("Error initializing extra seat prices:", error);
+      res.status(500).json({ message: "Failed to initialize extra seat prices" });
+    }
+  });
+
   // Delete a plan (super admin only)
   app.delete('/api/admin/plans/:id', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
