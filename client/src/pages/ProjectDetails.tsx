@@ -46,7 +46,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
 import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User } from "@shared/schema";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
