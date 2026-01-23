@@ -89,9 +89,11 @@ export function MicrosoftContactCard({
   });
 
   return (
-    <HoverCard openDelay={300} closeDelay={100}>
+    <HoverCard openDelay={200} closeDelay={150}>
       <HoverCardTrigger asChild>
-        {children}
+        <div className="inline-block cursor-pointer">
+          {children}
+        </div>
       </HoverCardTrigger>
       <HoverCardContent 
         side={side} 
