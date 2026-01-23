@@ -9735,7 +9735,7 @@ function CustomViewTab({ project, onUpdate }: { project: Project; onUpdate: (dat
       parsedValue = editValue || null;
     }
     
-    onUpdate({ [fieldId]: parsedValue });
+    onUpdate({ id: project.id, [fieldId]: parsedValue });
     setEditingField(null);
     setEditValue("");
     toast({ title: "Field updated" });
@@ -9826,6 +9826,7 @@ function CustomViewTab({ project, onUpdate }: { project: Project; onUpdate: (dat
                     >
                       <Checkbox 
                         checked={selectedFields.includes(field.id)}
+                        onClick={(e) => e.stopPropagation()}
                         onCheckedChange={() => toggleField(field.id)}
                       />
                       <span className="text-sm">{field.label}</span>
