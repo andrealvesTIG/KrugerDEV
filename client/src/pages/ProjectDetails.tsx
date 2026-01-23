@@ -19,6 +19,7 @@ import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskRe
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { ResourceSelector } from "@/components/ResourceSelector";
+import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { ProjectStatusReport } from "@/components/ProjectStatusReport";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
@@ -4412,20 +4413,39 @@ function ProjectGanttTaskRowMeta({
               >
                 {hasChildren ? (
                   <span className="text-muted-foreground/70 italic truncate w-full">Summary</span>
-                ) : assignedNames ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="truncate w-full">{assignedNames}</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[300px]">
-                      <div className="space-y-1">
-                        <p className="font-medium text-xs">Assigned Resources:</p>
-                        {assignedNames.split(', ').map((name, idx) => (
-                          <p key={idx} className="text-xs">{name}</p>
-                        ))}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
+                ) : taskAssignments && taskAssignments.length > 0 ? (
+                  <div className="flex items-center gap-1 truncate w-full">
+                    {taskAssignments.slice(0, 3).map((assignment, idx) => (
+                      <MicrosoftContactCard
+                        key={assignment.resourceId}
+                        displayName={assignment.resource.displayName}
+                        email={assignment.resource.email}
+                        title={assignment.resource.title}
+                        department={assignment.resource.department}
+                        phone={assignment.resource.phone}
+                        photoUrl={assignment.resource.photoUrl}
+                        side="top"
+                      >
+                        <span className="text-xs hover:text-primary hover:underline cursor-pointer">
+                          {assignment.resource.displayName}{idx < Math.min(taskAssignments.length, 3) - 1 ? ',' : ''}
+                        </span>
+                      </MicrosoftContactCard>
+                    ))}
+                    {taskAssignments.length > 3 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-xs text-muted-foreground">+{taskAssignments.length - 3} more</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div className="space-y-1">
+                            {taskAssignments.slice(3).map(a => (
+                              <p key={a.resourceId} className="text-xs">{a.resource.displayName}</p>
+                            ))}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                 ) : (
                   <span className="truncate w-full text-muted-foreground/50">—</span>
                 )}
