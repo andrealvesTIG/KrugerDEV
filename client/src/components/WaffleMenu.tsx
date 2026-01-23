@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import plannerLogo from "@/assets/planner-logo.png";
 
 // Microsoft 365 icon component using official CDN
 function MsIcon({ app }: { app: string }) {
@@ -37,7 +38,7 @@ const MICROSOFT_APPS: AppItem[] = [
   { id: "excel", name: "Excel", icon: <MsIcon app="excel" />, href: "https://www.office.com/launch/excel", external: true, color: "bg-[#217346]" },
   { id: "powerpoint", name: "PowerPoint", icon: <MsIcon app="powerpoint" />, href: "https://www.office.com/launch/powerpoint", external: true, color: "bg-[#B7472A]" },
   { id: "onenote", name: "OneNote", icon: <MsIcon app="onenote" />, href: "https://www.onenote.com", external: true, color: "bg-[#7719AA]" },
-  { id: "planner", name: "Planner", icon: <img src="https://res.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/planner_48x1.svg" alt="Planner" className="h-6 w-6" />, href: "https://tasks.office.com", external: true, color: "bg-[#31752F]" },
+  { id: "planner", name: "Planner", icon: <img src={plannerLogo} alt="Planner" className="h-6 w-6" />, href: "https://tasks.office.com", external: true, color: "bg-[#31752F]" },
 ];
 
 export function WaffleMenu({ 
