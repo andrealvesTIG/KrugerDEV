@@ -11775,7 +11775,23 @@ Return ONLY valid JSON.`;
 
       // Find the resource for this user
       const resources = await storage.getResources(organizationId);
-      const userResource = resources.find(r => r.userId === userId);
+      let userResource = resources.find(r => r.userId === userId);
+
+      // If no resource linked by userId, try to auto-link by email
+      if (!userResource) {
+        const user = await storage.getUser(userId);
+        if (user?.email) {
+          const resourceByEmail = resources.find(r => 
+            r.email?.toLowerCase() === user.email?.toLowerCase() && !r.userId
+          );
+          if (resourceByEmail) {
+            // Auto-link resource to user
+            await storage.updateResource(resourceByEmail.id, { userId });
+            userResource = { ...resourceByEmail, userId };
+            console.log(`Auto-linked resource ${resourceByEmail.id} to user ${userId} by email ${user.email}`);
+          }
+        }
+      }
 
       if (!userResource) {
         return res.json([]);
@@ -11805,7 +11821,23 @@ Return ONLY valid JSON.`;
       }
 
       const resources = await storage.getResources(organizationId);
-      const userResource = resources.find(r => r.userId === userId);
+      let userResource = resources.find(r => r.userId === userId);
+
+      // If no resource linked by userId, try to auto-link by email
+      if (!userResource) {
+        const user = await storage.getUser(userId);
+        if (user?.email) {
+          const resourceByEmail = resources.find(r => 
+            r.email?.toLowerCase() === user.email?.toLowerCase() && !r.userId
+          );
+          if (resourceByEmail) {
+            // Auto-link resource to user
+            await storage.updateResource(resourceByEmail.id, { userId });
+            userResource = { ...resourceByEmail, userId };
+            console.log(`Auto-linked resource ${resourceByEmail.id} to user ${userId} by email ${user.email}`);
+          }
+        }
+      }
 
       if (!userResource) {
         return res.status(404).json({ message: 'Resource not found' });
