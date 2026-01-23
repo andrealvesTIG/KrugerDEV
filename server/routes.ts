@@ -4247,20 +4247,28 @@ export async function registerRoutes(
             }
 
             // Try to match existing resource by name or email
-            let matchedResource = resourcesByName.get(memberName.toLowerCase());
-            if (!matchedResource && memberEmail) {
+            // First try matching by email (most reliable - primary identifier)
+            let matchedResource: typeof existingResources[0] | undefined;
+            if (memberEmail) {
               matchedResource = resourcesByEmail.get(memberEmail.toLowerCase());
+            }
+            // Then try matching by display name
+            if (!matchedResource && memberName) {
+              matchedResource = resourcesByName.get(memberName.toLowerCase());
             }
 
             if (matchedResource) {
               if (bookableResourceId) {
                 bookableResourceMap.set(bookableResourceId, matchedResource.id);
               }
-              // Update existing resource with email if it was missing
-              if (memberEmail && !matchedResource.email) {
+              // Update existing resource with email if it was missing or different (email is primary identifier)
+              if (memberEmail && (!matchedResource.email || matchedResource.email.toLowerCase() !== memberEmail.toLowerCase())) {
                 try {
                   await storage.updateResource(matchedResource.id, { email: memberEmail });
-                  console.log(`Import: Updated resource ${memberName} with email: ${memberEmail}`);
+                  console.log(`Import: Updated resource ${memberName} with email: ${memberEmail} (was: ${matchedResource.email || 'none'})`);
+                  // Update local cache
+                  matchedResource.email = memberEmail;
+                  resourcesByEmail.set(memberEmail.toLowerCase(), matchedResource);
                 } catch (updateErr) {
                   console.log(`Import: Could not update email for ${memberName}`);
                 }
@@ -4848,11 +4856,14 @@ export async function registerRoutes(
                 if (bookableResourceId) {
                   bookableResourceMap.set(bookableResourceId, matchedResource.id);
                 }
-                // Update existing resource with email if it was missing
-                if (memberEmail && !matchedResource.email) {
+                // Update existing resource with email if it was missing or different (email is primary identifier)
+                if (memberEmail && (!matchedResource.email || matchedResource.email.toLowerCase() !== memberEmail.toLowerCase())) {
                   try {
                     await storage.updateResource(matchedResource.id, { email: memberEmail });
-                    console.log(`Planner sync: Updated resource ${memberName} with email: ${memberEmail}`);
+                    console.log(`Planner sync: Updated resource ${memberName} with email: ${memberEmail} (was: ${matchedResource.email || 'none'})`);
+                    // Update local cache
+                    matchedResource.email = memberEmail;
+                    resourcesByEmail.set(memberEmail.toLowerCase(), matchedResource);
                   } catch (updateErr) {
                     console.log(`Planner sync: Could not update email for ${memberName}`);
                   }
