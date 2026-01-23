@@ -420,6 +420,7 @@ export default function ProjectDetails() {
           <TabsTrigger value="change-requests" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-change-requests">Change Requests</TabsTrigger>
           <TabsTrigger value="documents" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-documents">Documents</TabsTrigger>
           <TabsTrigger value="status-report" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-status-report">Status Report</TabsTrigger>
+          <TabsTrigger value="custom-view" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-custom-view">Custom View</TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
@@ -454,6 +455,9 @@ export default function ProjectDetails() {
               changeRequests={projectChangeRequests || []}
               documents={projectDocuments || []}
             />
+          </TabsContent>
+          <TabsContent value="custom-view">
+            <CustomViewTab project={project} onUpdate={updateProject} />
           </TabsContent>
         </div>
       </Tabs>
@@ -9644,6 +9648,289 @@ interface StatusReportTabProps {
   tasks: Task[];
   changeRequests: ChangeRequest[];
   documents: ProjectDocument[];
+}
+
+// Available project fields for custom view configuration
+const CUSTOM_VIEW_FIELDS = [
+  { id: 'name', label: 'Project Name', type: 'text', group: 'Basic Info' },
+  { id: 'projectCode', label: 'Project Code', type: 'text', group: 'Basic Info' },
+  { id: 'description', label: 'Description', type: 'textarea', group: 'Basic Info' },
+  { id: 'status', label: 'Status', type: 'select', options: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'On Hold', 'Cancelled', 'Completed'], group: 'Basic Info' },
+  { id: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Medium', 'High', 'Critical'], group: 'Basic Info' },
+  { id: 'health', label: 'Health', type: 'select', options: ['Green', 'Yellow', 'Red'], group: 'Basic Info' },
+  { id: 'healthReason', label: 'Health Reason', type: 'textarea', group: 'Basic Info' },
+  { id: 'projectType', label: 'Project Type', type: 'select', options: ['Internal', 'External', 'Strategic', 'Operational', 'Regulatory'], group: 'Classification' },
+  { id: 'methodology', label: 'Methodology', type: 'select', options: ['Waterfall', 'Agile', 'Hybrid', 'Scrum', 'Kanban'], group: 'Classification' },
+  { id: 'department', label: 'Department', type: 'text', group: 'Classification' },
+  { id: 'category', label: 'Category', type: 'text', group: 'Classification' },
+  { id: 'riskLevel', label: 'Risk Level', type: 'select', options: ['Low', 'Medium', 'High'], group: 'Classification' },
+  { id: 'startDate', label: 'Start Date', type: 'date', group: 'Schedule' },
+  { id: 'endDate', label: 'End Date', type: 'date', group: 'Schedule' },
+  { id: 'baselineStartDate', label: 'Baseline Start', type: 'date', group: 'Schedule' },
+  { id: 'baselineEndDate', label: 'Baseline End', type: 'date', group: 'Schedule' },
+  { id: 'actualStartDate', label: 'Actual Start', type: 'date', group: 'Schedule' },
+  { id: 'actualEndDate', label: 'Actual End', type: 'date', group: 'Schedule' },
+  { id: 'scheduleVariance', label: 'Schedule Variance (days)', type: 'number', group: 'Schedule' },
+  { id: 'budget', label: 'Budget', type: 'currency', group: 'Financials' },
+  { id: 'actualCost', label: 'Actual Cost', type: 'currency', group: 'Financials' },
+  { id: 'forecastCost', label: 'Forecast Cost', type: 'currency', group: 'Financials' },
+  { id: 'costVariance', label: 'Cost Variance', type: 'currency', group: 'Financials' },
+  { id: 'billableStatus', label: 'Billable Status', type: 'select', options: ['N/A', 'Billable', 'Non-Billable', 'Partially Billable', 'On Track', 'Waiting for Approval'], group: 'Financials' },
+  { id: 'completionPercentage', label: 'Completion %', type: 'percentage', group: 'Progress' },
+  { id: 'scope', label: 'Scope', type: 'textarea', group: 'Details' },
+  { id: 'objectives', label: 'Objectives', type: 'textarea', group: 'Details' },
+  { id: 'successCriteria', label: 'Success Criteria', type: 'textarea', group: 'Details' },
+  { id: 'constraints', label: 'Constraints', type: 'textarea', group: 'Details' },
+  { id: 'assumptions', label: 'Assumptions', type: 'textarea', group: 'Details' },
+  { id: 'dependencies', label: 'Dependencies', type: 'textarea', group: 'Details' },
+  { id: 'businessValue', label: 'Business Value', type: 'textarea', group: 'Details' },
+  { id: 'notes', label: 'Notes', type: 'textarea', group: 'Details' },
+  { id: 'timesheetBlocked', label: 'Timesheet Blocked', type: 'checkbox', group: 'Settings' },
+];
+
+const CUSTOM_VIEW_STORAGE_KEY = 'project-custom-view-fields';
+
+function CustomViewTab({ project, onUpdate }: { project: Project; onUpdate: (data: Partial<Project>) => void }) {
+  const { toast } = useToast();
+  const [isConfiguring, setIsConfiguring] = useState(false);
+  const [selectedFields, setSelectedFields] = useState<string[]>(() => {
+    const stored = localStorage.getItem(CUSTOM_VIEW_STORAGE_KEY);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return ['name', 'status', 'health', 'startDate', 'endDate', 'budget', 'completionPercentage'];
+      }
+    }
+    return ['name', 'status', 'health', 'startDate', 'endDate', 'budget', 'completionPercentage'];
+  });
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+
+  const saveFieldSelection = (fields: string[]) => {
+    setSelectedFields(fields);
+    localStorage.setItem(CUSTOM_VIEW_STORAGE_KEY, JSON.stringify(fields));
+  };
+
+  const toggleField = (fieldId: string) => {
+    const newFields = selectedFields.includes(fieldId)
+      ? selectedFields.filter(f => f !== fieldId)
+      : [...selectedFields, fieldId];
+    saveFieldSelection(newFields);
+  };
+
+  const startEditing = (fieldId: string, value: any) => {
+    setEditingField(fieldId);
+    setEditValue(value?.toString() || "");
+  };
+
+  const saveEdit = (fieldId: string, fieldType: string) => {
+    let parsedValue: any = editValue;
+    
+    if (fieldType === 'number' || fieldType === 'currency' || fieldType === 'percentage') {
+      parsedValue = editValue ? parseFloat(editValue) : null;
+    } else if (fieldType === 'checkbox') {
+      parsedValue = editValue === 'true';
+    } else if (fieldType === 'date') {
+      parsedValue = editValue || null;
+    }
+    
+    onUpdate({ [fieldId]: parsedValue });
+    setEditingField(null);
+    setEditValue("");
+    toast({ title: "Field updated" });
+  };
+
+  const cancelEdit = () => {
+    setEditingField(null);
+    setEditValue("");
+  };
+
+  const getFieldValue = (fieldId: string): any => {
+    return (project as any)[fieldId];
+  };
+
+  const formatDisplayValue = (fieldId: string, fieldType: string): string => {
+    const value = getFieldValue(fieldId);
+    if (value === null || value === undefined) return "Not set";
+    
+    switch (fieldType) {
+      case 'date':
+        return value ? format(new Date(value), 'MMM d, yyyy') : "Not set";
+      case 'currency':
+        return `$${parseFloat(value).toLocaleString()}`;
+      case 'percentage':
+        return `${value}%`;
+      case 'checkbox':
+        return value ? "Yes" : "No";
+      default:
+        return String(value);
+    }
+  };
+
+  const groupedFields = useMemo(() => {
+    const groups: Record<string, typeof CUSTOM_VIEW_FIELDS> = {};
+    CUSTOM_VIEW_FIELDS.forEach(field => {
+      if (!groups[field.group]) groups[field.group] = [];
+      groups[field.group].push(field);
+    });
+    return groups;
+  }, []);
+
+  const activeFields = useMemo(() => {
+    return selectedFields
+      .map(id => CUSTOM_VIEW_FIELDS.find(f => f.id === id))
+      .filter(Boolean) as typeof CUSTOM_VIEW_FIELDS;
+  }, [selectedFields]);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4">
+        <div>
+          <CardTitle className="text-lg">Custom View</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Personalized view with your selected project fields
+          </p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => setIsConfiguring(!isConfiguring)}
+          data-testid="button-configure-custom-view"
+        >
+          <Settings2 className="h-4 w-4 mr-2" />
+          {isConfiguring ? "Done" : "Configure"}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isConfiguring ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Select the fields you want to display in your custom view:
+            </p>
+            {Object.entries(groupedFields).map(([group, fields]) => (
+              <div key={group}>
+                <h4 className="font-medium text-sm mb-2">{group}</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {fields.map(field => (
+                    <div 
+                      key={field.id}
+                      className={cn(
+                        "flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors",
+                        selectedFields.includes(field.id) 
+                          ? "bg-primary/10 border-primary" 
+                          : "hover:bg-muted/50"
+                      )}
+                      onClick={() => toggleField(field.id)}
+                      data-testid={`checkbox-field-${field.id}`}
+                    >
+                      <Checkbox 
+                        checked={selectedFields.includes(field.id)}
+                        onCheckedChange={() => toggleField(field.id)}
+                      />
+                      <span className="text-sm">{field.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : activeFields.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Settings2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No fields selected</p>
+            <p className="text-sm mt-1">Click "Configure" to choose which fields to display</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeFields.map(field => (
+              <div key={field.id} className="border rounded-lg p-3">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {field.label}
+                </Label>
+                {editingField === field.id ? (
+                  <div className="mt-1 flex items-center gap-2">
+                    {field.type === 'select' ? (
+                      <Select value={editValue} onValueChange={setEditValue}>
+                        <SelectTrigger className="h-8 text-sm flex-1">
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {field.options?.map(opt => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : field.type === 'textarea' ? (
+                      <Textarea 
+                        value={editValue} 
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="text-sm flex-1 min-h-[60px]"
+                      />
+                    ) : field.type === 'checkbox' ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <Checkbox 
+                          checked={editValue === 'true'}
+                          onCheckedChange={(checked) => setEditValue(checked ? 'true' : 'false')}
+                        />
+                        <span className="text-sm">{editValue === 'true' ? 'Yes' : 'No'}</span>
+                      </div>
+                    ) : field.type === 'date' ? (
+                      <Input 
+                        type="date" 
+                        value={editValue} 
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="h-8 text-sm flex-1"
+                      />
+                    ) : field.type === 'number' || field.type === 'currency' || field.type === 'percentage' ? (
+                      <Input 
+                        type="number" 
+                        value={editValue} 
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="h-8 text-sm flex-1"
+                      />
+                    ) : (
+                      <Input 
+                        value={editValue} 
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="h-8 text-sm flex-1"
+                      />
+                    )}
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      className="h-7 w-7"
+                      onClick={() => saveEdit(field.id, field.type)}
+                      data-testid={`button-save-field-${field.id}`}
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      className="h-7 w-7"
+                      onClick={cancelEdit}
+                      data-testid={`button-cancel-field-${field.id}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p 
+                    className="mt-1 text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors"
+                    onClick={() => startEditing(field.id, getFieldValue(field.id))}
+                    data-testid={`field-value-${field.id}`}
+                  >
+                    {formatDisplayValue(field.id, field.type)}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function StatusReportTab({
