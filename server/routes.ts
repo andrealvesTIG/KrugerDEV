@@ -4200,37 +4200,35 @@ export async function registerRoutes(
                   const brData = await brResponse.json();
                   console.log(`Import: Bookable resource data for ${memberName}:`, JSON.stringify(brData));
                   
-                  // The userId field links to the Azure AD user - use it to fetch email from Graph
+                  // The userId field links to the Dataverse systemuser - use it to fetch email
                   if (brData._userid_value) {
-                    console.log(`Import: No email in Dataverse, trying Graph API with userId ${brData._userid_value}`);
+                    console.log(`Import: Trying Dataverse systemusers with userId ${brData._userid_value}`);
                     try {
-                      // Get org-scoped Planner token for Graph API
-                      const plannerIntegration = await getOrgIntegration(Number(organizationId), "planner");
-                      const graphToken = plannerIntegration?.accessToken || req.session.plannerAccessToken;
-                      
-                      if (graphToken) {
-                        const graphResponse = await fetch(
-                          `https://graph.microsoft.com/v1.0/users/${brData._userid_value}?$select=mail,userPrincipalName`,
-                          {
-                            headers: {
-                              "Authorization": `Bearer ${graphToken}`,
-                              "Content-Type": "application/json",
-                            },
-                          }
-                        );
-                        if (graphResponse.ok) {
-                          const graphData = await graphResponse.json();
-                          memberEmail = graphData.mail || graphData.userPrincipalName;
-                          console.log(`Import: Fetched email from Graph for ${memberName}: ${memberEmail}`);
-                        } else {
-                          const errorText = await graphResponse.text();
-                          console.log(`Import: Graph API failed for ${memberName}: ${graphResponse.status} - ${errorText}`);
+                      // Fetch email from Dataverse systemusers entity (same token works)
+                      const systemUserResponse = await fetch(
+                        `${environmentUrl}/api/data/v9.2/systemusers(${brData._userid_value})?$select=internalemailaddress,domainname,fullname`,
+                        {
+                          headers: {
+                            "Authorization": `Bearer ${token}`,
+                            "Content-Type": "application/json",
+                            "OData-MaxVersion": "4.0",
+                            "OData-Version": "4.0",
+                          },
+                        }
+                      );
+                      if (systemUserResponse.ok) {
+                        const systemUserData = await systemUserResponse.json();
+                        console.log(`Import: Systemuser data for ${memberName}:`, JSON.stringify(systemUserData));
+                        memberEmail = systemUserData.internalemailaddress || systemUserData.domainname;
+                        if (memberEmail) {
+                          console.log(`Import: Fetched email from Dataverse systemusers for ${memberName}: ${memberEmail}`);
                         }
                       } else {
-                        console.log(`Import: No Graph token available for ${memberName}`);
+                        const errorText = await systemUserResponse.text();
+                        console.log(`Import: Dataverse systemusers API failed for ${memberName}: ${systemUserResponse.status} - ${errorText}`);
                       }
-                    } catch (graphErr) {
-                      console.log(`Import: Could not fetch email from Graph for ${memberName}:`, graphErr);
+                    } catch (systemUserErr) {
+                      console.log(`Import: Could not fetch systemuser details for ${memberName}:`, systemUserErr);
                     }
                   } else {
                     console.log(`Import: No userId in Dataverse for ${memberName} - cannot lookup email`);
@@ -4786,37 +4784,35 @@ export async function registerRoutes(
                     const brData = await brResponse.json();
                     console.log(`Planner sync: Bookable resource data for ${memberName}:`, JSON.stringify(brData));
                     
-                    // The userId field links to the Azure AD user - use it to fetch email from Graph
+                    // The userId field links to the Dataverse systemuser - use it to fetch email
                     if (brData._userid_value) {
-                      console.log(`Planner sync: Trying Graph API with userId ${brData._userid_value}`);
+                      console.log(`Planner sync: Trying Dataverse systemusers with userId ${brData._userid_value}`);
                       try {
-                        // Get org-scoped Planner token for Graph API
-                        const plannerIntegration = await getOrgIntegration(project.organizationId!, "planner");
-                        const graphToken = plannerIntegration?.accessToken || req.session.plannerAccessToken;
-                        
-                        if (graphToken) {
-                          const graphResponse = await fetch(
-                            `https://graph.microsoft.com/v1.0/users/${brData._userid_value}?$select=mail,userPrincipalName`,
-                            {
-                              headers: {
-                                "Authorization": `Bearer ${graphToken}`,
-                                "Content-Type": "application/json",
-                              },
-                            }
-                          );
-                          if (graphResponse.ok) {
-                            const graphData = await graphResponse.json();
-                            memberEmail = graphData.mail || graphData.userPrincipalName;
-                            console.log(`Planner sync: Fetched email from Graph for ${memberName}: ${memberEmail}`);
-                          } else {
-                            const errorText = await graphResponse.text();
-                            console.log(`Planner sync: Graph API failed for ${memberName}: ${graphResponse.status} - ${errorText}`);
+                        // Fetch email from Dataverse systemusers entity (same token works)
+                        const systemUserResponse = await fetch(
+                          `${environmentUrl}/api/data/v9.2/systemusers(${brData._userid_value})?$select=internalemailaddress,domainname,fullname`,
+                          {
+                            headers: {
+                              "Authorization": `Bearer ${dataverseToken}`,
+                              "Content-Type": "application/json",
+                              "OData-MaxVersion": "4.0",
+                              "OData-Version": "4.0",
+                            },
+                          }
+                        );
+                        if (systemUserResponse.ok) {
+                          const systemUserData = await systemUserResponse.json();
+                          console.log(`Planner sync: Systemuser data for ${memberName}:`, JSON.stringify(systemUserData));
+                          memberEmail = systemUserData.internalemailaddress || systemUserData.domainname;
+                          if (memberEmail) {
+                            console.log(`Planner sync: Fetched email from Dataverse systemusers for ${memberName}: ${memberEmail}`);
                           }
                         } else {
-                          console.log(`Planner sync: No Graph token available for ${memberName}`);
+                          const errorText = await systemUserResponse.text();
+                          console.log(`Planner sync: Dataverse systemusers API failed for ${memberName}: ${systemUserResponse.status} - ${errorText}`);
                         }
-                      } catch (graphErr) {
-                        console.log(`Planner sync: Could not fetch email from Graph for ${memberName}:`, graphErr);
+                      } catch (systemUserErr) {
+                        console.log(`Planner sync: Could not fetch systemuser details for ${memberName}:`, systemUserErr);
                       }
                     } else {
                       console.log(`Planner sync: No userId in Dataverse for ${memberName} - cannot lookup email`);
