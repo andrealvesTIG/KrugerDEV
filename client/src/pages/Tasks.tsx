@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
+import plannerLogoPath from "@/assets/planner-logo.png";
+import msprojectLogoPath from "@/assets/msproject-logo.png";
 import { usePaginatedTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskHistory } from "@/hooks/use-tasks";
 import { useExternalTasks } from "@/hooks/use-external-shares";
 import { ExternalBadge } from "@/components/ExternalBadge";
@@ -157,7 +159,7 @@ export default function Tasks() {
     return map;
   }, [portfolios]);
 
-  type TaskGroup = { id: string; name: string; icon: "project" | "portfolio" | "resource"; tasks: Task[] };
+  type TaskGroup = { id: string; name: string; icon: "project" | "portfolio" | "resource"; tasks: Task[]; projectId?: number; source?: string | null };
 
   // Build map of taskId -> resourceIds for resource grouping
   const taskToResources = useMemo(() => {
@@ -176,12 +178,17 @@ export default function Tasks() {
         if (!groups.has(task.projectId)) groups.set(task.projectId, []);
         groups.get(task.projectId)!.push(task);
       });
-      return Array.from(groups.entries()).map(([projectId, projectTasks]) => ({
-        id: `project-${projectId}`,
-        name: projectMap.get(projectId)?.name || "Unknown Project",
-        icon: "project" as const,
-        tasks: projectTasks,
-      }));
+      return Array.from(groups.entries()).map(([projectId, projectTasks]) => {
+        const project = projectMap.get(projectId);
+        return {
+          id: `project-${projectId}`,
+          name: project?.name || "Unknown Project",
+          icon: "project" as const,
+          tasks: projectTasks,
+          projectId,
+          source: project?.source,
+        };
+      });
     }
     
     if (groupBy === "portfolio") {
@@ -233,12 +240,17 @@ export default function Tasks() {
       if (!groups.has(task.projectId)) groups.set(task.projectId, []);
       groups.get(task.projectId)!.push(task);
     });
-    return Array.from(groups.entries()).map(([projectId, projectTasks]) => ({
-      id: `project-${projectId}`,
-      name: projectMap.get(projectId)?.name || "Unknown Project",
-      icon: "project" as const,
-      tasks: projectTasks,
-    }));
+    return Array.from(groups.entries()).map(([projectId, projectTasks]) => {
+      const project = projectMap.get(projectId);
+      return {
+        id: `project-${projectId}`,
+        name: project?.name || "Unknown Project",
+        icon: "project" as const,
+        tasks: projectTasks,
+        projectId,
+        source: project?.source,
+      };
+    });
   }, [tasks, groupBy, projectMap, portfolioMap, taskToResources]);
 
   const taskFormSchema = insertTaskSchema.extend({
@@ -980,7 +992,7 @@ export default function Tasks() {
   );
 }
 
-type TaskGroup = { id: string; name: string; icon: "project" | "portfolio" | "resource"; tasks: Task[] };
+type TaskGroup = { id: string; name: string; icon: "project" | "portfolio" | "resource"; tasks: Task[]; projectId?: number; source?: string | null };
 
 function GroupedTasksView({
   groupedTasks,
@@ -1039,6 +1051,36 @@ function GroupedTasksView({
                 <FolderKanban className="h-5 w-5 text-primary" />
               )}
               <CardTitle className="text-lg">{group.name}</CardTitle>
+              {group.source && group.icon === "project" && (
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    "ml-2 text-xs gap-1",
+                    group.source === "planner" && "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300",
+                    group.source === "planner_premium" && "border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-300",
+                    group.source === "imported" && "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300"
+                  )}
+                >
+                  {group.source === "planner" && (
+                    <>
+                      <img src={plannerLogoPath} alt="Planner" className="h-3 w-3" />
+                      Planner
+                    </>
+                  )}
+                  {group.source === "planner_premium" && (
+                    <>
+                      <img src={plannerLogoPath} alt="Planner Premium" className="h-3 w-3" />
+                      Premium
+                    </>
+                  )}
+                  {group.source === "imported" && (
+                    <>
+                      <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3" />
+                      MS Project
+                    </>
+                  )}
+                </Badge>
+              )}
               <Badge variant="secondary" className="ml-auto">
                 {group.tasks.length} {group.tasks.length === 1 ? "task" : "tasks"}
               </Badge>
