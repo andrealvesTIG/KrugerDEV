@@ -4091,7 +4091,8 @@ export async function registerRoutes(
         while (!tasksResponse.ok && fieldSetIndex < fieldSets.length - 1) {
           fieldSetIndex++;
           console.log(`Field set ${fieldSetIndex - 1} failed (status ${tasksResponse.status}), trying field set ${fieldSetIndex}`);
-          tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${fieldSets[fieldSetIndex]}&$filter=_msdyn_project_value eq ${planId}`;
+          // Always include $orderby=msdyn_wbsid asc to preserve task sequence/indexing
+          tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${fieldSets[fieldSetIndex]}&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
           tasksResponse = await fetch(tasksApiUrl, {
             headers: {
               "Authorization": `Bearer ${dataverseToken}`,
@@ -4113,13 +4114,38 @@ export async function registerRoutes(
         console.log(`Successfully fetched tasks using field set ${fieldSetIndex}: ${fieldSets[fieldSetIndex]}`);
 
         const tasksData = await tasksResponse.json();
-        const dataverseTasks = tasksData.value || [];
+        let dataverseTasks = tasksData.value || [];
         
         // Log first task to debug field availability
         if (dataverseTasks.length > 0) {
           console.log("Dataverse sync - First task fields available:", Object.keys(dataverseTasks[0]));
           console.log("Dataverse sync - First task sample:", JSON.stringify(dataverseTasks[0], null, 2));
         }
+
+        // Sort tasks by WBS ID to preserve sequence/indexing from the plan
+        // WBS IDs are in format like "1", "1.1", "1.2", "2", "2.1", etc.
+        const parseWbsId = (wbs: string | null | undefined): number[] => {
+          if (!wbs) return [Infinity];
+          return wbs.split('.').map(part => parseInt(part, 10) || 0);
+        };
+        
+        const compareWbs = (a: string | null | undefined, b: string | null | undefined): number => {
+          const partsA = parseWbsId(a);
+          const partsB = parseWbsId(b);
+          const maxLen = Math.max(partsA.length, partsB.length);
+          for (let i = 0; i < maxLen; i++) {
+            const numA = partsA[i] || 0;
+            const numB = partsB[i] || 0;
+            if (numA !== numB) return numA - numB;
+          }
+          return 0;
+        };
+        
+        dataverseTasks = dataverseTasks.sort((a: any, b: any) => 
+          compareWbs(a.msdyn_wbsid, b.msdyn_wbsid)
+        );
+        
+        console.log(`Sorted ${dataverseTasks.length} tasks by WBS ID for proper sequencing`);
 
         // Get existing tasks for this project
         const existingTasks = await storage.getTasksByProject(projectId);
@@ -4277,6 +4303,226 @@ export async function registerRoutes(
           await storage.updateTask(taskId, { outlineLevel: level });
         }
 
+        // =====================================================
+        // Import Resources from Planner Premium (Project Team)
+        // =====================================================
+        let resourcesSynced = 0;
+        const bookableResourceMap = new Map<string, number>(); // Dataverse bookableresourceid -> our resource ID
+        const assignedPairs = new Set<string>(); // Track assigned task-resource pairs to avoid duplicates
+        
+        try {
+          // Try multiple API approaches to fetch team members (different Dataverse schemas)
+          const teamApiUrls = [
+            // Full expand with msdyn_primaryemail (Project Operations)
+            `${environmentUrl}/api/data/v9.2/msdyn_projectteams?$select=msdyn_projectteamid,msdyn_name,_msdyn_bookableresourceid_value&$expand=msdyn_bookableresourceid($select=name,msdyn_primaryemail,emailaddress1)&$filter=_msdyn_project_value eq ${planId}`,
+            // Simpler expand with just name (some environments)
+            `${environmentUrl}/api/data/v9.2/msdyn_projectteams?$select=msdyn_projectteamid,msdyn_name,_msdyn_bookableresourceid_value&$expand=msdyn_bookableresourceid($select=name)&$filter=_msdyn_project_value eq ${planId}`,
+            // No expand - just get team member names
+            `${environmentUrl}/api/data/v9.2/msdyn_projectteams?$select=msdyn_projectteamid,msdyn_name,_msdyn_bookableresourceid_value&$filter=_msdyn_project_value eq ${planId}`,
+          ];
+          
+          let teamResponse: Response | null = null;
+          let teamApiUrlIndex = 0;
+          
+          for (let i = 0; i < teamApiUrls.length; i++) {
+            teamResponse = await fetch(teamApiUrls[i], {
+              headers: {
+                "Authorization": `Bearer ${dataverseToken}`,
+                "Content-Type": "application/json",
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0",
+              },
+            });
+            if (teamResponse.ok) {
+              teamApiUrlIndex = i;
+              break;
+            }
+            console.log(`Team API attempt ${i + 1} failed (status ${teamResponse.status}), trying next...`);
+          }
+
+          if (teamResponse && teamResponse.ok) {
+            const teamData = await teamResponse.json();
+            const teamMembers = teamData.value || [];
+            
+            console.log(`Planner Premium sync - Found ${teamMembers.length} team members (using API variant ${teamApiUrlIndex + 1})`);
+            if (teamMembers.length > 0) {
+              console.log("Sample team member:", JSON.stringify(teamMembers[0], null, 2));
+            }
+
+            // Get existing resources for this organization to match
+            const existingResources = project.organizationId 
+              ? await storage.getResources(project.organizationId)
+              : [];
+            
+            // Create a map of existing resources by email and name for matching
+            const resourcesByEmail = new Map<string, typeof existingResources[0]>();
+            const resourcesByName = new Map<string, typeof existingResources[0]>();
+            for (const res of existingResources) {
+              if (res.email) {
+                resourcesByEmail.set(res.email.toLowerCase(), res);
+              }
+              if (res.name) {
+                resourcesByName.set(res.name.toLowerCase(), res);
+              }
+            }
+
+            // Process each team member
+            for (const teamMember of teamMembers) {
+              const bookableResourceId = teamMember._msdyn_bookableresourceid_value;
+              const bookableResource = teamMember.msdyn_bookableresourceid;
+              
+              // Get name from bookable resource or fallback to team member name
+              const memberName = bookableResource?.name || teamMember.msdyn_name;
+              
+              // Skip if we can't determine a valid name
+              if (!memberName || memberName === 'Unknown Resource' || memberName.trim() === '') {
+                console.log(`Skipping team member with no valid name`);
+                continue;
+              }
+              
+              // Get email from multiple possible fields (different Dataverse schemas)
+              const memberEmail = bookableResource?.msdyn_primaryemail || 
+                                  bookableResource?.emailaddress1 || 
+                                  null;
+              
+              // Try to match with existing resource first
+              let matchedResource: typeof existingResources[0] | undefined;
+              
+              // First try matching by email (most reliable)
+              if (memberEmail) {
+                matchedResource = resourcesByEmail.get(memberEmail.toLowerCase());
+              }
+              
+              // Then try matching by exact name
+              if (!matchedResource && memberName) {
+                matchedResource = resourcesByName.get(memberName.toLowerCase());
+              }
+              
+              if (matchedResource) {
+                // Use existing resource
+                if (bookableResourceId) {
+                  bookableResourceMap.set(bookableResourceId, matchedResource.id);
+                }
+                console.log(`Matched resource: ${memberName} (ID: ${matchedResource.id})`);
+              } else if (project.organizationId) {
+                // Create new resource in resource pool
+                try {
+                  const newResource = await storage.createResource({
+                    organizationId: project.organizationId,
+                    name: memberName,
+                    email: memberEmail,
+                    role: 'Team Member',
+                    type: 'Human',
+                    availability: 100,
+                  });
+                  
+                  if (bookableResourceId) {
+                    bookableResourceMap.set(bookableResourceId, newResource.id);
+                  }
+                  // Also add to name map for future matching
+                  resourcesByName.set(memberName.toLowerCase(), newResource);
+                  if (memberEmail) {
+                    resourcesByEmail.set(memberEmail.toLowerCase(), newResource);
+                  }
+                  
+                  resourcesSynced++;
+                  console.log(`Created resource: ${memberName} (ID: ${newResource.id})`);
+                } catch (createErr) {
+                  console.log(`Failed to create resource ${memberName}:`, createErr);
+                }
+              }
+            }
+
+            // Try multiple API approaches to fetch resource assignments
+            const assignmentApiUrls = [
+              // Standard approach with project filter
+              `${environmentUrl}/api/data/v9.2/msdyn_resourceassignments?$select=msdyn_resourceassignmentid,_msdyn_projecttaskid_value,_msdyn_bookableresourceid_value&$filter=_msdyn_projectid_value eq ${planId}`,
+              // Alternative: filter via task relationship using project
+              `${environmentUrl}/api/data/v9.2/msdyn_resourceassignments?$select=msdyn_resourceassignmentid,_msdyn_projecttaskid_value,_msdyn_bookableresourceid_value`,
+            ];
+            
+            let assignmentsResponse: Response | null = null;
+            let assignmentsFetched = false;
+            
+            for (let i = 0; i < assignmentApiUrls.length; i++) {
+              assignmentsResponse = await fetch(assignmentApiUrls[i], {
+                headers: {
+                  "Authorization": `Bearer ${dataverseToken}`,
+                  "Content-Type": "application/json",
+                  "OData-MaxVersion": "4.0",
+                  "OData-Version": "4.0",
+                },
+              });
+              if (assignmentsResponse.ok) {
+                console.log(`Successfully fetched resource assignments using API variant ${i + 1}`);
+                assignmentsFetched = true;
+                break;
+              }
+              console.log(`Assignments API attempt ${i + 1} failed (status ${assignmentsResponse.status}), trying next...`);
+            }
+
+            if (assignmentsResponse && assignmentsFetched) {
+              const assignmentsData = await assignmentsResponse.json();
+              let assignments = assignmentsData.value || [];
+              
+              // If we used the unfiltered query, filter manually to only include tasks in our project
+              const projectTaskIds = new Set(Array.from(taskIdMap.keys()));
+              assignments = assignments.filter((a: any) => 
+                a._msdyn_projecttaskid_value && projectTaskIds.has(a._msdyn_projecttaskid_value)
+              );
+              
+              console.log(`Planner Premium sync - Found ${assignments.length} relevant resource assignments`);
+
+              // Apply assignments to tasks (with duplicate prevention)
+              for (const assignment of assignments) {
+                const dvTaskId = assignment._msdyn_projecttaskid_value;
+                const dvResourceId = assignment._msdyn_bookableresourceid_value;
+                
+                if (!dvTaskId || !dvResourceId) continue;
+                
+                const ourTaskId = taskIdMap.get(dvTaskId);
+                const ourResourceId = bookableResourceMap.get(dvResourceId);
+                
+                if (ourTaskId && ourResourceId) {
+                  const pairKey = `${ourTaskId}-${ourResourceId}`;
+                  if (assignedPairs.has(pairKey)) {
+                    console.log(`Skipping duplicate assignment: resource ${ourResourceId} to task ${ourTaskId}`);
+                    continue;
+                  }
+                  
+                  try {
+                    await storage.addTaskResourceAssignment({
+                      taskId: ourTaskId,
+                      resourceId: ourResourceId,
+                    });
+                    assignedPairs.add(pairKey);
+                    console.log(`Assigned resource ${ourResourceId} to task ${ourTaskId}`);
+                  } catch (assignErr) {
+                    // Assignment might already exist or other error
+                    console.log(`Failed to assign resource ${ourResourceId} to task ${ourTaskId}:`, assignErr);
+                  }
+                }
+              }
+            } else {
+              console.log(`Failed to fetch resource assignments from any API variant`);
+            }
+          } else {
+            console.log(`Failed to fetch project team from any API variant`);
+            // Log more details for debugging
+            if (teamResponse) {
+              try {
+                const errText = await teamResponse.text();
+                console.log(`Team fetch error details: ${errText}`);
+              } catch (e) {
+                // Ignore
+              }
+            }
+          }
+        } catch (resourceErr) {
+          console.log("Error importing resources from Planner Premium:", resourceErr);
+          // Continue without failing the sync - resources are optional
+        }
+
         // Update project dates
         if (projectStartDate || projectEndDate) {
           await storage.updateProject(projectId, {
@@ -4287,7 +4533,8 @@ export async function registerRoutes(
 
         return res.json({ 
           synced: createdTasks.length,
-          message: `Successfully synced ${createdTasks.length} tasks from Planner Premium`
+          resourcesSynced,
+          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''} from Planner Premium`
         });
       }
 
