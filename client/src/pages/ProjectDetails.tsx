@@ -9336,6 +9336,25 @@ function StatusReportTab({
   const [recipientEmail, setRecipientEmail] = useState("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
+  const combinedMilestones = useMemo(() => {
+    const taskMilestones = tasks
+      .filter(t => t.isMilestone && !t.deletedAt)
+      .map(t => ({
+        id: t.id,
+        projectId: t.projectId,
+        title: t.name,
+        description: t.description || null,
+        dueDate: t.endDate || t.startDate || new Date().toISOString().split('T')[0],
+        status: t.status === 'Completed' ? 'Done' : t.status === 'In Progress' ? 'In Progress' : 'Not Started',
+        completed: t.status === 'Completed',
+        notes: t.notes || null,
+        createdAt: t.createdAt,
+        deletedAt: null,
+        deletedBy: null,
+      }));
+    return [...milestones, ...taskMilestones];
+  }, [milestones, tasks]);
+
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
@@ -9347,7 +9366,7 @@ function StatusReportTab({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={milestones}
+          milestones={combinedMilestones}
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
@@ -9402,7 +9421,7 @@ function StatusReportTab({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={milestones}
+          milestones={combinedMilestones}
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
@@ -9525,7 +9544,7 @@ function StatusReportTab({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={milestones}
+          milestones={combinedMilestones}
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
