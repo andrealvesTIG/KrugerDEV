@@ -2369,7 +2369,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   
   const makeEditableMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest(`/api/projects/${projectId}/make-editable`, { method: 'POST' });
+      return apiRequest("POST", `/api/projects/${projectId}/make-editable`);
     },
     onSuccess: () => {
       toast({ title: "Success", description: "Project is now editable. You can add, edit, and delete tasks." });
@@ -2384,7 +2384,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   
   const detachIntegrationMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest(`/api/projects/${projectId}/detach-integration`, { method: 'POST' });
+      return apiRequest("POST", `/api/projects/${projectId}/detach-integration`);
     },
     onSuccess: () => {
       toast({ title: "Success", description: "Project has been detached from the integration and is now a native FridayReport project." });
