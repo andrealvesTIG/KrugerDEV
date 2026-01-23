@@ -4063,12 +4063,14 @@ export async function registerRoutes(
           "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
           // Try with msdyn_percentcomplete instead (some environments use this)
           "msdyn_projecttaskid,msdyn_subject,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
-          // Simpler set with msdyn_progress
+          // Simpler set with msdyn_progress AND msdyn_wbsid for proper sequencing
+          "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,_msdyn_parenttask_value,statecode",
+          // Simpler set with msdyn_percentcomplete AND msdyn_wbsid for proper sequencing
+          "msdyn_projecttaskid,msdyn_subject,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,_msdyn_parenttask_value,statecode",
+          // Basic fields with msdyn_wbsid for sequencing
+          "msdyn_projecttaskid,msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,_msdyn_parenttask_value,statecode",
+          // Basic fields without msdyn_wbsid (fallback without sequencing)
           "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,_msdyn_parenttask_value,statecode",
-          // Simpler set with msdyn_percentcomplete
-          "msdyn_projecttaskid,msdyn_subject,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,_msdyn_parenttask_value,statecode",
-          // Basic fields without progress/outline
-          "msdyn_projecttaskid,msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,_msdyn_parenttask_value,statecode",
           // Minimal fallback with parent task for hierarchy
           "msdyn_projecttaskid,msdyn_subject,_msdyn_parenttask_value",
           // Absolute minimal
@@ -4441,11 +4443,18 @@ export async function registerRoutes(
             }
 
             // Try multiple API approaches to fetch resource assignments
+            // Different Dataverse schemas may use different field names or entities
             const assignmentApiUrls = [
               // Standard approach with project filter
               `${environmentUrl}/api/data/v9.2/msdyn_resourceassignments?$select=msdyn_resourceassignmentid,_msdyn_projecttaskid_value,_msdyn_bookableresourceid_value&$filter=_msdyn_projectid_value eq ${planId}`,
-              // Alternative: filter via task relationship using project
+              // Without project filter (will filter locally)
               `${environmentUrl}/api/data/v9.2/msdyn_resourceassignments?$select=msdyn_resourceassignmentid,_msdyn_projecttaskid_value,_msdyn_bookableresourceid_value`,
+              // Try with minimal fields (some schemas might not have all fields)
+              `${environmentUrl}/api/data/v9.2/msdyn_resourceassignments?$filter=_msdyn_projectid_value eq ${planId}`,
+              // Without any select (get all fields)
+              `${environmentUrl}/api/data/v9.2/msdyn_resourceassignments`,
+              // Try bookableresourcebookings entity (alternative for some schemas)
+              `${environmentUrl}/api/data/v9.2/bookableresourcebookings?$select=bookableresourcebookingid,_bookableresource_value&$filter=_msdyn_projecttask_value ne null`,
             ];
             
             let assignmentsResponse: Response | null = null;
@@ -4472,18 +4481,26 @@ export async function registerRoutes(
               const assignmentsData = await assignmentsResponse.json();
               let assignments = assignmentsData.value || [];
               
+              // Log sample assignment for debugging
+              if (assignments.length > 0) {
+                console.log("Sample assignment record:", JSON.stringify(assignments[0], null, 2));
+              }
+              
               // If we used the unfiltered query, filter manually to only include tasks in our project
               const projectTaskIds = new Set(Array.from(taskIdMap.keys()));
-              assignments = assignments.filter((a: any) => 
-                a._msdyn_projecttaskid_value && projectTaskIds.has(a._msdyn_projecttaskid_value)
-              );
+              assignments = assignments.filter((a: any) => {
+                // Support different field names for task ID
+                const taskId = a._msdyn_projecttaskid_value || a._msdyn_projecttask_value;
+                return taskId && projectTaskIds.has(taskId);
+              });
               
               console.log(`Planner Premium sync - Found ${assignments.length} relevant resource assignments`);
 
               // Apply assignments to tasks (with duplicate prevention)
               for (const assignment of assignments) {
-                const dvTaskId = assignment._msdyn_projecttaskid_value;
-                const dvResourceId = assignment._msdyn_bookableresourceid_value;
+                // Support different field names from different Dataverse schemas
+                const dvTaskId = assignment._msdyn_projecttaskid_value || assignment._msdyn_projecttask_value;
+                const dvResourceId = assignment._msdyn_bookableresourceid_value || assignment._bookableresource_value;
                 
                 if (!dvTaskId || !dvResourceId) continue;
                 
