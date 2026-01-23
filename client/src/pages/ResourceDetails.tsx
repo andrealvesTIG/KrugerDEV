@@ -141,8 +141,18 @@ export default function ResourceDetails() {
     }
   };
   
-  const allocations: ResourceAllocation[] = taskAssignments?.reduce((acc, assignment) => {
-    const existing = acc.find(a => a.projectId === assignment.projectId);
+  // Deduplicate task assignments by task name + project name combination
+  const uniqueTaskAssignments = taskAssignments?.reduce((acc, assignment) => {
+    const key = `${assignment.taskName}-${assignment.projectName}`;
+    if (!acc.some(a => `${a.taskName}-${a.projectName}` === key)) {
+      acc.push(assignment);
+    }
+    return acc;
+  }, [] as ResourceAssignment[]) || [];
+  
+  // Deduplicate allocations by project name (since same project may have been imported multiple times)
+  const allocations: ResourceAllocation[] = uniqueTaskAssignments.reduce((acc, assignment) => {
+    const existing = acc.find(a => a.projectName === assignment.projectName);
     if (existing) {
       existing.taskCount++;
       if (assignment.status === "Completed") existing.completedTasks++;
@@ -151,17 +161,17 @@ export default function ResourceDetails() {
         projectId: assignment.projectId,
         projectName: assignment.projectName,
         taskCount: 1,
-        totalHours: 0, // Hours not tracked at assignment level
+        totalHours: 0,
         completedTasks: assignment.status === "Completed" ? 1 : 0,
       });
     }
     return acc;
-  }, [] as ResourceAllocation[]) || [];
+  }, [] as ResourceAllocation[]);
   
   const stats = {
-    totalTasks: taskAssignments?.length || 0,
-    completedTasks: taskAssignments?.filter(t => t.status === "Completed").length || 0,
-    inProgressTasks: taskAssignments?.filter(t => t.status === "In Progress").length || 0,
+    totalTasks: uniqueTaskAssignments.length,
+    completedTasks: uniqueTaskAssignments.filter(t => t.status === "Completed").length,
+    inProgressTasks: uniqueTaskAssignments.filter(t => t.status === "In Progress").length,
     totalIssues: issueAssignments?.length || 0,
     openIssues: issueAssignments?.filter(i => i.status !== "Closed" && i.status !== "Resolved").length || 0,
     projectsCount: allocations.length,
@@ -525,7 +535,7 @@ export default function ResourceDetails() {
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : taskAssignments && taskAssignments.length > 0 ? (
+              ) : uniqueTaskAssignments.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -538,7 +548,7 @@ export default function ResourceDetails() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {taskAssignments.map((assignment) => (
+                    {uniqueTaskAssignments.map((assignment) => (
                       <TableRow key={assignment.taskId} data-testid={`row-assignment-${assignment.taskId}`}>
                         <TableCell className="font-medium">{assignment.taskName}</TableCell>
                         <TableCell>
