@@ -2365,7 +2365,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   
   const makeEditableMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest(`/api/projects/${projectId}/make-editable`, { method: 'POST' });
+      return apiRequest('POST', `/api/projects/${projectId}/make-editable`);
     },
     onSuccess: () => {
       toast({ title: "Success", description: "Project is now editable. You can add, edit, and delete tasks." });
