@@ -1031,7 +1031,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   // Dataverse (Planner Premium) state
   const [dataverseEnvUrl, setDataverseEnvUrl] = useState("");
   const [dataverseSearchTerm, setDataverseSearchTerm] = useState("");
-  const [selectedDataversePlanId, setSelectedDataversePlanId] = useState<string | null>(null);
+  const [selectedDataversePlanIds, setSelectedDataversePlanIds] = useState<Set<string>>(new Set());
 
   // Check Dataverse connection status
   const { data: dataverseStatus, refetch: refetchDataverseStatus } = useQuery<{ 
@@ -1082,19 +1082,23 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
 
   // Import from Dataverse mutation
   const importFromDataverse = useMutation({
-    mutationFn: async ({ planId, portfolioId }: { planId: string; portfolioId: number | null }) => {
-      const response = await apiRequest("POST", "/api/dataverse/import", {
-        planId,
-        organizationId,
-        portfolioId,
-      });
-      return response.json();
+    mutationFn: async ({ planIds, portfolioId }: { planIds: string[]; portfolioId: number | null }) => {
+      const results = [];
+      for (const planId of planIds) {
+        const response = await apiRequest("POST", "/api/dataverse/import", {
+          planId,
+          organizationId,
+          portfolioId,
+        });
+        results.push(await response.json());
+      }
+      return { count: planIds.length, results };
     },
     onSuccess: (data: any) => {
-      toast({ title: "Success", description: data.message || "Premium plan imported successfully" });
+      toast({ title: "Success", description: `${data.count} Premium plan${data.count > 1 ? 's' : ''} imported successfully` });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       onOpenChange(false);
-      setSelectedDataversePlanId(null);
+      setSelectedDataversePlanIds(new Set());
       setProjectSource("manual");
     },
     onError: (err: any) => {
@@ -1673,7 +1677,26 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Select Premium Plan to Import</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Select Premium Plans to Import</Label>
+                    {dataversePlans?.plans?.length ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (selectedDataversePlanIds.size === filteredDataversePlans.length) {
+                            setSelectedDataversePlanIds(new Set());
+                          } else {
+                            setSelectedDataversePlanIds(new Set(filteredDataversePlans.map(p => p.id)));
+                          }
+                        }}
+                        className="text-xs h-7"
+                        data-testid="button-select-all-plans"
+                      >
+                        {selectedDataversePlanIds.size === filteredDataversePlans.length ? "Deselect All" : "Select All"}
+                      </Button>
+                    ) : null}
+                  </div>
                   {isLoadingDataversePlans ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1701,33 +1724,67 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                         </div>
                       ) : (
                         <div className="grid gap-2 max-h-[200px] overflow-y-auto overflow-x-hidden">
-                          {filteredDataversePlans.map((plan) => (
-                            <div
-                              key={plan.id}
-                              className={cn(
-                                "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors hover-elevate overflow-hidden",
-                                selectedDataversePlanId === plan.id 
-                                  ? "border-purple-500 bg-purple-500/5" 
-                                  : "border-border hover:border-purple-500/50"
-                              )}
-                              onClick={() => setSelectedDataversePlanId(plan.id)}
-                              data-testid={`dataverse-plan-option-${plan.id}`}
-                            >
-                              <div className="relative shrink-0">
-                                <ClipboardList className="h-5 w-5 text-purple-600" />
-                                <Crown className="h-3 w-3 text-purple-500 absolute -top-1 -right-1" />
+                          {filteredDataversePlans.map((plan) => {
+                            const isSelected = selectedDataversePlanIds.has(plan.id);
+                            return (
+                              <div
+                                key={plan.id}
+                                className={cn(
+                                  "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors hover-elevate overflow-hidden",
+                                  isSelected 
+                                    ? "border-purple-500 bg-purple-500/5" 
+                                    : "border-border hover:border-purple-500/50"
+                                )}
+                                onClick={(e) => {
+                                  const newSet = new Set(selectedDataversePlanIds);
+                                  if (e.ctrlKey || e.metaKey) {
+                                    if (isSelected) {
+                                      newSet.delete(plan.id);
+                                    } else {
+                                      newSet.add(plan.id);
+                                    }
+                                  } else {
+                                    if (isSelected) {
+                                      newSet.delete(plan.id);
+                                    } else {
+                                      newSet.add(plan.id);
+                                    }
+                                  }
+                                  setSelectedDataversePlanIds(newSet);
+                                }}
+                                data-testid={`dataverse-plan-option-${plan.id}`}
+                              >
+                                <Checkbox 
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    const newSet = new Set(selectedDataversePlanIds);
+                                    if (checked) {
+                                      newSet.add(plan.id);
+                                    } else {
+                                      newSet.delete(plan.id);
+                                    }
+                                    setSelectedDataversePlanIds(newSet);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="shrink-0"
+                                  data-testid={`checkbox-plan-${plan.id}`}
+                                />
+                                <div className="relative shrink-0">
+                                  <ClipboardList className="h-5 w-5 text-purple-600" />
+                                  <Crown className="h-3 w-3 text-purple-500 absolute -top-1 -right-1" />
+                                </div>
+                                <div className="flex-1 min-w-0 overflow-hidden">
+                                  <p className="font-medium truncate">{plan.title}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Created {format(new Date(plan.createdDateTime), 'MMM d, yyyy')}
+                                  </p>
+                                </div>
+                                {isSelected && (
+                                  <CheckCircle className="h-5 w-5 text-purple-600 shrink-0" />
+                                )}
                               </div>
-                              <div className="flex-1 min-w-0 overflow-hidden">
-                                <p className="font-medium truncate">{plan.title}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  Created {format(new Date(plan.createdDateTime), 'MMM d, yyyy')}
-                                </p>
-                              </div>
-                              {selectedDataversePlanId === plan.id && (
-                                <CheckCircle className="h-5 w-5 text-purple-600 shrink-0" />
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1752,10 +1809,14 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                   </Select>
                 </div>
 
-                {selectedDataversePlanId && filteredDataversePlans.find(p => p.id === selectedDataversePlanId) && (
+                {selectedDataversePlanIds.size > 0 && (
                   <div className="p-3 bg-purple-50/50 dark:bg-purple-950/20 rounded-md">
                     <p className="text-sm">
-                      Importing <strong>{filteredDataversePlans.find(p => p.id === selectedDataversePlanId)?.title}</strong> will create a new project with all tasks from this Premium plan.
+                      {selectedDataversePlanIds.size === 1 ? (
+                        <>Importing <strong>{filteredDataversePlans.find(p => selectedDataversePlanIds.has(p.id))?.title}</strong> will create a new project with all tasks from this Premium plan.</>
+                      ) : (
+                        <>Importing <strong>{selectedDataversePlanIds.size} plans</strong> will create {selectedDataversePlanIds.size} new projects with all tasks from these Premium plans.</>
+                      )}
                     </p>
                   </div>
                 )}
@@ -1763,13 +1824,13 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                 <DialogFooter>
                   <Button 
                     onClick={() => {
-                      if (!selectedDataversePlanId) {
-                        toast({ title: "Select a Plan", description: "Please select a Premium plan to import", variant: "destructive" });
+                      if (selectedDataversePlanIds.size === 0) {
+                        toast({ title: "Select Plans", description: "Please select at least one Premium plan to import", variant: "destructive" });
                         return;
                       }
-                      importFromDataverse.mutate({ planId: selectedDataversePlanId, portfolioId: selectedPortfolioId });
+                      importFromDataverse.mutate({ planIds: Array.from(selectedDataversePlanIds), portfolioId: selectedPortfolioId });
                     }}
-                    disabled={!selectedDataversePlanId || importFromDataverse.isPending}
+                    disabled={selectedDataversePlanIds.size === 0 || importFromDataverse.isPending}
                     className="bg-purple-600 hover:bg-purple-700"
                     data-testid="button-import-dataverse"
                   >
@@ -1781,7 +1842,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
                     ) : (
                       <>
                         <Download className="mr-2 h-4 w-4" />
-                        Import Premium Plan
+                        Import {selectedDataversePlanIds.size > 1 ? `${selectedDataversePlanIds.size} Plans` : 'Premium Plan'}
                       </>
                     )}
                   </Button>
