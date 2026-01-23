@@ -367,13 +367,22 @@ export default function Resources() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setEditingResource(resource)} data-testid={`menu-edit-resource-${resource.id}`}>
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setEditingResource(resource);
+                            }} 
+                            data-testid={`menu-edit-resource-${resource.id}`}
+                          >
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 
-                            onClick={() => setDeleteResourceId(resource.id)} 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setDeleteResourceId(resource.id);
+                            }} 
                             className="text-red-600 focus:text-red-600"
                             data-testid={`menu-delete-resource-${resource.id}`}
                           >
