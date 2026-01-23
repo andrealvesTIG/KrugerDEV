@@ -2417,6 +2417,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const isPremiumPlan = projectSource === "planner_premium" || (projectSource === "planner" && isGuidPlanId);
   const isMsProjectImported = projectSource === "imported" && !!sourceFileUrl;
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const hasSyncedRef = useRef(false);
   
   // MS Project re-import state
@@ -2460,10 +2461,17 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       }
       if (!response.ok) {
         if (!silent) {
-          toast({ title: "Sync failed", description: data.message || "Unknown error", variant: "destructive" });
+          // Check if it's a Dataverse connection issue
+          if (response.status === 401 && data.message?.includes("Dataverse")) {
+            setSyncError("Not connected to Dataverse. Please reconnect.");
+          } else {
+            toast({ title: "Sync failed", description: data.message || "Unknown error", variant: "destructive" });
+          }
         }
       } else {
+        setSyncError(null);
         queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
         refetchTasks();
         if (!silent) {
           toast({ title: "Synced", description: data.message });
@@ -2812,57 +2820,74 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     >
       {/* Planner project banner */}
       {isPlannerProject && (
-        <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
-          <div className="flex items-center gap-3">
-            <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6" />
-            <div>
-              <span className="font-medium">Synced from {isPremiumPlan ? "Planner Premium" : "Microsoft Planner"}</span>
-              <p className="text-sm text-muted-foreground">Tasks are read-only. Edit in {isPremiumPlan ? "Project for the Web" : "Planner"} or make editable to enable editing here.</p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+            <div className="flex items-center gap-3">
+              <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6" />
+              <div>
+                <span className="font-medium">Synced from {isPremiumPlan ? "Planner Premium" : "Microsoft Planner"}</span>
+                <p className="text-sm text-muted-foreground">Tasks are read-only. Edit in {isPremiumPlan ? "Project for the Web" : "Planner"} or make editable to enable editing here.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <a 
+                href={(() => {
+                  if (!plannerPlanId) return "https://planner.cloud.microsoft";
+                  if (isPremiumPlan) {
+                    let url = `https://planner.cloud.microsoft/webui/premiumplan/${plannerPlanId}`;
+                    if (dataverseOrgId) {
+                      url += `/org/${dataverseOrgId}`;
+                    }
+                    if (dataverseTenantId) {
+                      url += `?tid=${dataverseTenantId}`;
+                    }
+                    return url;
+                  }
+                  return `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board`;
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary hover:underline flex items-center gap-1"
+              >
+                <ExternalLink className="h-3 w-3" />
+                {isPremiumPlan ? "Open in Project" : "Open in Planner"}
+              </a>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMakeEditableDialogOpen(true)}
+                data-testid="button-make-editable-planner"
+              >
+                <Pencil className="h-4 w-4 mr-2" />
+                Make Editable
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handlePlannerSync(false)} 
+                disabled={isSyncing}
+                data-testid="button-sync-planner"
+              >
+                <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
+                {isSyncing ? "Syncing..." : "Sync Now"}
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <a 
-              href={(() => {
-                if (!plannerPlanId) return "https://planner.cloud.microsoft";
-                if (isPremiumPlan) {
-                  let url = `https://planner.cloud.microsoft/webui/premiumplan/${plannerPlanId}`;
-                  if (dataverseOrgId) {
-                    url += `/org/${dataverseOrgId}`;
-                  }
-                  if (dataverseTenantId) {
-                    url += `?tid=${dataverseTenantId}`;
-                  }
-                  return url;
-                }
-                return `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board`;
-              })()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline flex items-center gap-1"
-            >
-              <ExternalLink className="h-3 w-3" />
-              {isPremiumPlan ? "Open in Project" : "Open in Planner"}
-            </a>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsMakeEditableDialogOpen(true)}
-              data-testid="button-make-editable-planner"
-            >
-              <Pencil className="h-4 w-4 mr-2" />
-              Make Editable
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => handlePlannerSync(false)} 
-              disabled={isSyncing}
-              data-testid="button-sync-planner"
-            >
-              <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
-              {isSyncing ? "Syncing..." : "Sync Now"}
-            </Button>
-          </div>
+          {syncError && (
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
+                <AlertCircle className="h-4 w-4" />
+                <span className="text-sm">{syncError}</span>
+              </div>
+              <a 
+                href="/integrations" 
+                className="text-sm text-red-700 dark:text-red-300 hover:underline flex items-center gap-1"
+              >
+                Go to Integrations
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          )}
         </div>
       )}
       {/* MS Project imported project banner */}
