@@ -50,7 +50,10 @@ export default function LessonsLearned() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const filteredLessons = lessons?.filter((lesson) => {
+  // Ensure lessons is an array before filtering
+  const lessonsArray = Array.isArray(lessons) ? lessons : [];
+  
+  const filteredLessons = lessonsArray.filter((lesson) => {
     const matchesSearch = !searchTerm || 
       lesson.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lesson.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -67,11 +70,11 @@ export default function LessonsLearned() {
   };
 
   const stats = {
-    total: lessons?.length || 0,
-    successes: lessons?.filter(l => l.type === "Success").length || 0,
-    improvements: lessons?.filter(l => l.type === "Improvement").length || 0,
-    challenges: lessons?.filter(l => l.type === "Challenge").length || 0,
-    bestPractices: lessons?.filter(l => l.type === "Best Practice").length || 0,
+    total: lessonsArray.length,
+    successes: lessonsArray.filter(l => l.type === "Success").length,
+    improvements: lessonsArray.filter(l => l.type === "Improvement").length,
+    challenges: lessonsArray.filter(l => l.type === "Challenge").length,
+    bestPractices: lessonsArray.filter(l => l.type === "Best Practice").length,
   };
 
   if (!currentOrganization) {
