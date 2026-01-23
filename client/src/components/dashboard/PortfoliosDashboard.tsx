@@ -37,10 +37,16 @@ export function PortfoliosDashboard() {
   const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
 
   const portfolios = useMemo(() => {
-    return (portfoliosData ?? []).filter(p => {
-      if (filters.portfolioId && p.id !== filters.portfolioId) return false;
-      return true;
-    });
+    return (portfoliosData ?? [])
+      .filter(p => {
+        if (filters.portfolioId && p.id !== filters.portfolioId) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
   }, [portfoliosData, filters.portfolioId]);
 
   const projects = useMemo(() => {

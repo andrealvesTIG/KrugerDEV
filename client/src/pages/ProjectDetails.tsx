@@ -32,7 +32,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -47,7 +47,7 @@ import { z } from "zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
 import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User } from "@shared/schema";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor, useDroppable, useDraggable } from "@dnd-kit/core";
@@ -1210,6 +1210,17 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="project-timesheet-blocked"
+                checked={project.timesheetBlocked || false}
+                onCheckedChange={(checked) => handleSelectChange('timesheetBlocked', checked === true)}
+                data-testid="checkbox-project-timesheet-blocked"
+              />
+              <Label htmlFor="project-timesheet-blocked" className="text-xs text-muted-foreground cursor-pointer">
+                Block timesheets for this project
+              </Label>
+            </div>
             </div>
           </div>
         </div>
@@ -1406,9 +1417,11 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
       </DialogContent>
     </Dialog>
     
-    <ProjectCommentsFeed projectId={project.id} />
-    <BillableStatusCommentLog projectId={project.id} />
-    <HealthStatusHistoryLog projectId={project.id} />
+    <div className="space-y-4">
+      <ProjectCommentsFeed projectId={project.id} />
+      <BillableStatusCommentLog projectId={project.id} />
+      <HealthStatusHistoryLog projectId={project.id} />
+    </div>
   </>
   );
 }
@@ -9295,16 +9308,195 @@ function StatusReportTab({
   changeRequests,
   documents
 }: StatusReportTabProps) {
+  const { toast } = useToast();
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const { pdf } = await import("@react-pdf/renderer");
+      const { ProjectStatusReportPDF } = await import("@/components/ProjectStatusReportPDF");
+      
+      const doc = (
+        <ProjectStatusReportPDF
+          project={project}
+          risks={risks}
+          issues={issues}
+          milestones={milestones}
+          financials={financials}
+          tasks={tasks}
+          changeRequests={changeRequests}
+          documents={documents}
+          executiveSummary={project.description || ""}
+        />
+      );
+      
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${project.name.replace(/[^a-z0-9]/gi, "_")}_Status_Report.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download Started",
+        description: "Your PDF report is being downloaded."
+      });
+    } catch (error) {
+      console.error("PDF generation error:", error);
+      toast({
+        title: "Download Failed",
+        description: "Could not generate the PDF. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!recipientEmail) {
+      toast({
+        title: "Email Required",
+        description: "Please enter a recipient email address.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsSendingEmail(true);
+    try {
+      const { pdf } = await import("@react-pdf/renderer");
+      const { ProjectStatusReportPDF } = await import("@/components/ProjectStatusReportPDF");
+      
+      const doc = (
+        <ProjectStatusReportPDF
+          project={project}
+          risks={risks}
+          issues={issues}
+          milestones={milestones}
+          financials={financials}
+          tasks={tasks}
+          changeRequests={changeRequests}
+          documents={documents}
+          executiveSummary={project.description || ""}
+        />
+      );
+      
+      const blob = await pdf(doc).toBlob();
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      
+      const pdfFileName = `${project.name.replace(/[^a-z0-9]/gi, "_")}_Status_Report.pdf`;
+      
+      await apiRequest("POST", `/api/projects/${project.id}/status-report/email`, {
+        recipientEmail,
+        executiveSummary: project.description || "",
+        pdfBase64: base64,
+        pdfFileName
+      });
+      
+      toast({
+        title: "Report Sent",
+        description: `Status report sent to ${recipientEmail}`
+      });
+      setShowEmailDialog(false);
+      setRecipientEmail("");
+    } catch (error: any) {
+      toast({
+        title: "Failed to Send",
+        description: error?.message || "Could not send the status report. Please check email settings.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Comprehensive Project Status Report
-        </CardTitle>
-        <CardDescription>
-          Complete overview of project status, progress, risks, issues, and financials
-        </CardDescription>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Comprehensive Project Status Report
+            </CardTitle>
+            <CardDescription>
+              Complete overview of project status, progress, risks, issues, and financials
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              data-testid="button-download-status-report"
+            >
+              {isGeneratingPdf ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Download PDF
+            </Button>
+            <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" data-testid="button-share-status-report">
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Share Status Report</DialogTitle>
+                  <DialogDescription>
+                    Send this status report as a PDF attachment via email.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="recipient-email">Recipient Email</Label>
+                    <Input
+                      id="recipient-email"
+                      type="email"
+                      placeholder="Enter email address"
+                      value={recipientEmail}
+                      onChange={(e) => setRecipientEmail(e.target.value)}
+                      data-testid="input-recipient-email"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSendEmail} 
+                    disabled={isSendingEmail}
+                    data-testid="button-send-status-report"
+                  >
+                    {isSendingEmail ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Mail className="h-4 w-4 mr-2" />
+                    )}
+                    Send Email
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <ProjectStatusReport

@@ -2170,11 +2170,10 @@ export async function registerRoutes(
           const inviterName = inviter 
             ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') || inviter.email || 'An administrator'
             : 'An administrator';
-          const appUrl = process.env.REPLIT_DEV_DOMAIN 
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-            : process.env.REPLIT_DOMAINS?.split(',')[0] 
+          const appUrl = process.env.APP_URL 
+            || (process.env.REPLIT_DOMAINS?.split(',')[0] 
               ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-              : 'https://fridayreport.ai';
+              : 'https://fridayreport.ai');
           
           if (org) {
             await sendOrganizationInviteEmail(
@@ -2251,11 +2250,10 @@ export async function registerRoutes(
       const inviterName = inviter 
         ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') || inviter.email || 'An administrator'
         : 'An administrator';
-      const appUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : process.env.REPLIT_DOMAINS?.split(',')[0] 
+      const appUrl = process.env.APP_URL 
+        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
           ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://fridayreport.ai';
+          : 'https://fridayreport.ai');
       
       if (org) {
         await sendOrganizationInviteEmail(
@@ -11764,16 +11762,42 @@ Return ONLY valid JSON.`;
 
       // Find the resource for this user
       const resources = await storage.getResources(organizationId);
-      const userResource = resources.find(r => r.userId === userId);
+      let userResource = resources.find(r => r.userId === userId);
+
+      // If no resource linked by userId, try to auto-link by email
+      if (!userResource) {
+        const user = await storage.getUser(userId);
+        if (user?.email) {
+          const resourceByEmail = resources.find(r => 
+            r.email?.toLowerCase() === user.email?.toLowerCase() && !r.userId
+          );
+          if (resourceByEmail) {
+            // Auto-link resource to user
+            await storage.updateResource(resourceByEmail.id, { userId });
+            userResource = { ...resourceByEmail, userId };
+            console.log(`Auto-linked resource ${resourceByEmail.id} to user ${userId} by email ${user.email}`);
+          }
+        }
+      }
 
       if (!userResource) {
         return res.json([]);
       }
 
       // Single optimized query with JOINs - replaces N+1 queries
+      // Returns { task, project }[] so project is already included
       const assignedTasks = await storage.getAssignedTasksForResource(userResource.id, organizationId);
 
-      res.json(assignedTasks);
+      // Filter out tasks where the task or project is blocked for timesheets
+      const filteredTasks = assignedTasks.filter(item => {
+        // Check if task itself is blocked
+        if (item.task.timesheetBlocked) return false;
+        // Check if the project is blocked
+        if (item.project.timesheetBlocked) return false;
+        return true;
+      });
+
+      res.json(filteredTasks);
     } catch (error) {
       console.error('Error getting assigned tasks:', error);
       res.status(500).json({ message: 'Failed to get assigned tasks' });
@@ -11794,7 +11818,23 @@ Return ONLY valid JSON.`;
       }
 
       const resources = await storage.getResources(organizationId);
-      const userResource = resources.find(r => r.userId === userId);
+      let userResource = resources.find(r => r.userId === userId);
+
+      // If no resource linked by userId, try to auto-link by email
+      if (!userResource) {
+        const user = await storage.getUser(userId);
+        if (user?.email) {
+          const resourceByEmail = resources.find(r => 
+            r.email?.toLowerCase() === user.email?.toLowerCase() && !r.userId
+          );
+          if (resourceByEmail) {
+            // Auto-link resource to user
+            await storage.updateResource(resourceByEmail.id, { userId });
+            userResource = { ...resourceByEmail, userId };
+            console.log(`Auto-linked resource ${resourceByEmail.id} to user ${userId} by email ${user.email}`);
+          }
+        }
+      }
 
       if (!userResource) {
         return res.status(404).json({ message: 'Resource not found' });
@@ -11840,6 +11880,17 @@ Return ONLY valid JSON.`;
       
       if (!isAssigned) {
         return res.status(403).json({ message: 'You are not assigned to this task' });
+      }
+
+      // Check if task or project is blocked for timesheet entries
+      const task = await storage.getTask(taskId);
+      if (task?.timesheetBlocked) {
+        return res.status(403).json({ message: 'Timesheet entries are blocked for this task' });
+      }
+      
+      const project = await storage.getProject(projectId);
+      if (project?.timesheetBlocked) {
+        return res.status(403).json({ message: 'Timesheet entries are blocked for this project' });
       }
 
       const entry = await storage.createTimesheetEntry({
@@ -11898,6 +11949,26 @@ Return ONLY valid JSON.`;
         return taskAssignmentCache[taskId];
       };
 
+      // Cache for checking if tasks/projects are blocked
+      const taskBlockedCache: Record<number, boolean> = {};
+      const projectBlockedCache: Record<number, boolean> = {};
+      
+      const isTaskOrProjectBlocked = async (taskId: number, projectId: number): Promise<boolean> => {
+        // Check task cache first
+        if (taskBlockedCache[taskId] === undefined) {
+          const task = await storage.getTask(taskId);
+          taskBlockedCache[taskId] = task?.timesheetBlocked || false;
+        }
+        if (taskBlockedCache[taskId]) return true;
+        
+        // Check project cache
+        if (projectBlockedCache[projectId] === undefined) {
+          const project = await storage.getProject(projectId);
+          projectBlockedCache[projectId] = project?.timesheetBlocked || false;
+        }
+        return projectBlockedCache[projectId];
+      };
+
       const results = [];
       for (const entry of entries) {
         // Validate hours for all entries
@@ -11919,6 +11990,12 @@ Return ONLY valid JSON.`;
             continue; // Skip non-editable entries
           }
           
+          // Check if task or project is blocked for updates too
+          const isBlocked = await isTaskOrProjectBlocked(existing.taskId, existing.projectId);
+          if (isBlocked) {
+            continue; // Skip blocked tasks/projects
+          }
+          
           const updated = await storage.updateTimesheetEntry(entry.id, {
             hours: String(hoursNum),
             notes: entry.notes,
@@ -11929,6 +12006,12 @@ Return ONLY valid JSON.`;
           const isAssigned = await validateTaskAssignment(entry.taskId);
           if (!isAssigned) {
             continue; // Skip tasks user isn't assigned to
+          }
+          
+          // Check if task or project is blocked
+          const isBlocked = await isTaskOrProjectBlocked(entry.taskId, entry.projectId);
+          if (isBlocked) {
+            continue; // Skip blocked tasks/projects
           }
           
           const created = await storage.createTimesheetEntry({
@@ -11974,6 +12057,17 @@ Return ONLY valid JSON.`;
 
       if (entry.status !== 'Draft') {
         return res.status(400).json({ message: 'Only draft entries can be edited' });
+      }
+
+      // Check if task or project is blocked for timesheet entries
+      const task = await storage.getTask(entry.taskId);
+      if (task?.timesheetBlocked) {
+        return res.status(403).json({ message: 'Timesheet entries are blocked for this task' });
+      }
+      
+      const project = await storage.getProject(entry.projectId);
+      if (project?.timesheetBlocked) {
+        return res.status(403).json({ message: 'Timesheet entries are blocked for this project' });
       }
 
       const { hours, notes } = req.body;

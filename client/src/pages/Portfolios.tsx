@@ -53,10 +53,16 @@ export default function Portfolios() {
     }
   });
 
-  const filteredPortfolios = portfolios?.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) || 
-    p.description?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredPortfolios = portfolios
+    ?.filter(p => 
+      p.name.toLowerCase().includes(search.toLowerCase()) || 
+      p.description?.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
 
   const getProjectCountForPortfolio = (portfolioId: number) => {
     return projects?.filter(p => p.portfolioId === portfolioId).length || 0;

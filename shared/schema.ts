@@ -199,6 +199,7 @@ export const projects = pgTable("projects", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
+  timesheetBlocked: boolean("timesheet_blocked").default(false), // Block timesheet entries against this project
 });
 
 // Billable Status Comments (Comment log for billable status field)
@@ -344,6 +345,7 @@ export const tasks = pgTable("tasks", {
   category: text("category"), // Task category
   labels: text("labels"), // Comma-separated labels
   notes: text("notes"),
+  timesheetBlocked: boolean("timesheet_blocked").default(false), // Block timesheet entries against this task
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
