@@ -4184,8 +4184,9 @@ export async function registerRoutes(
             // If email not in expanded data, try to fetch from bookableresources entity directly
             if (!memberEmail && bookableResourceId) {
               try {
+                // First try with just name and userid - these are the most reliable fields
                 const brResponse = await fetch(
-                  `${environmentUrl}/api/data/v9.2/bookableresources(${bookableResourceId})?$select=name,msdyn_primaryemail,emailaddress1,_userid_value`,
+                  `${environmentUrl}/api/data/v9.2/bookableresources(${bookableResourceId})?$select=name,_userid_value`,
                   {
                     headers: {
                       "Authorization": `Bearer ${token}`,
@@ -4198,10 +4199,9 @@ export async function registerRoutes(
                 if (brResponse.ok) {
                   const brData = await brResponse.json();
                   console.log(`Import: Bookable resource data for ${memberName}:`, JSON.stringify(brData));
-                  memberEmail = brData.msdyn_primaryemail || brData.emailaddress1;
                   
-                  // If still no email, try to fetch from Microsoft Graph using the userId
-                  if (!memberEmail && brData._userid_value) {
+                  // The userId field links to the Azure AD user - use it to fetch email from Graph
+                  if (brData._userid_value) {
                     console.log(`Import: No email in Dataverse, trying Graph API with userId ${brData._userid_value}`);
                     try {
                       // Get org-scoped Planner token for Graph API
@@ -4232,8 +4232,8 @@ export async function registerRoutes(
                     } catch (graphErr) {
                       console.log(`Import: Could not fetch email from Graph for ${memberName}:`, graphErr);
                     }
-                  } else if (!memberEmail) {
-                    console.log(`Import: No email and no userId in Dataverse for ${memberName}`);
+                  } else {
+                    console.log(`Import: No userId in Dataverse for ${memberName} - cannot lookup email`);
                   }
                   
                   if (memberEmail) {
@@ -4770,8 +4770,9 @@ export async function registerRoutes(
               // If email not in expanded data, try to fetch from bookableresources entity directly
               if (!memberEmail && bookableResourceId) {
                 try {
+                  // Only request name and userid - email fields may not exist in all Dataverse schemas
                   const brResponse = await fetch(
-                    `${environmentUrl}/api/data/v9.2/bookableresources(${bookableResourceId})?$select=name,msdyn_primaryemail,emailaddress1,_userid_value`,
+                    `${environmentUrl}/api/data/v9.2/bookableresources(${bookableResourceId})?$select=name,_userid_value`,
                     {
                       headers: {
                         "Authorization": `Bearer ${dataverseToken}`,
@@ -4784,11 +4785,10 @@ export async function registerRoutes(
                   if (brResponse.ok) {
                     const brData = await brResponse.json();
                     console.log(`Planner sync: Bookable resource data for ${memberName}:`, JSON.stringify(brData));
-                    memberEmail = brData.msdyn_primaryemail || brData.emailaddress1;
                     
-                    // If still no email, try to fetch from Microsoft Graph using the userId
-                    if (!memberEmail && brData._userid_value) {
-                      console.log(`Planner sync: No email in Dataverse, trying Graph API with userId ${brData._userid_value}`);
+                    // The userId field links to the Azure AD user - use it to fetch email from Graph
+                    if (brData._userid_value) {
+                      console.log(`Planner sync: Trying Graph API with userId ${brData._userid_value}`);
                       try {
                         // Get org-scoped Planner token for Graph API
                         const plannerIntegration = await getOrgIntegration(project.organizationId!, "planner");
@@ -4818,8 +4818,8 @@ export async function registerRoutes(
                       } catch (graphErr) {
                         console.log(`Planner sync: Could not fetch email from Graph for ${memberName}:`, graphErr);
                       }
-                    } else if (!memberEmail) {
-                      console.log(`Planner sync: No email and no userId in Dataverse for ${memberName}`);
+                    } else {
+                      console.log(`Planner sync: No userId in Dataverse for ${memberName} - cannot lookup email`);
                     }
                     
                     if (memberEmail) {
