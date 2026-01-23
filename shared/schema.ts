@@ -802,6 +802,89 @@ export const organizationIntegrations = pgTable("organization_integrations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Portfolio Scoring Criteria - organization-level scoring model configuration
+export const portfolioScoringCriteria = pgTable("portfolio_scoring_criteria", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(), // e.g., "Strategic Alignment", "ROI Potential", "Risk Level"
+  description: text("description"),
+  weight: integer("weight").notNull().default(1), // Weight for weighted scoring (1-10)
+  minScore: integer("min_score").notNull().default(1), // Minimum score value
+  maxScore: integer("max_score").notNull().default(5), // Maximum score value
+  scoreLabels: text("score_labels"), // JSON: {"1": "Very Low", "2": "Low", "3": "Medium", "4": "High", "5": "Very High"}
+  category: text("category"), // "Strategic", "Financial", "Risk", "Resource", "Technical"
+  isActive: boolean("is_active").default(true),
+  displayOrder: integer("display_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Project Scores - individual project scores against criteria
+export const projectScores = pgTable("project_scores", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  criteriaId: integer("criteria_id").references(() => portfolioScoringCriteria.id).notNull(),
+  score: integer("score").notNull(),
+  notes: text("notes"), // Justification for the score
+  scoredBy: varchar("scored_by").references(() => users.id),
+  scoredAt: timestamp("scored_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Resource Capacity Planning - track resource demand and capacity
+export const resourceCapacityPlanning = pgTable("resource_capacity_planning", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  resourceId: integer("resource_id").references(() => resources.id).notNull(),
+  periodStart: date("period_start").notNull(), // Start of planning period (weekly/monthly)
+  periodEnd: date("period_end").notNull(),
+  availableHours: numeric("available_hours").notNull(), // Total available hours in period
+  allocatedHours: numeric("allocated_hours").default("0"), // Hours allocated to projects
+  plannedHours: numeric("planned_hours").default("0"), // Hours planned but not confirmed
+  actualHours: numeric("actual_hours").default("0"), // Actual hours logged
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Benefits Realization - track planned vs realized business benefits
+export const projectBenefits = pgTable("project_benefits", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  name: text("name").notNull(), // Benefit name/description
+  category: text("category"), // "Cost Savings", "Revenue Growth", "Efficiency", "Quality", "Compliance", "Strategic"
+  measurementUnit: text("measurement_unit"), // "$", "%", "hours", "count", etc.
+  targetValue: numeric("target_value"), // Planned benefit value
+  actualValue: numeric("actual_value"), // Realized benefit value
+  targetDate: date("target_date"), // When benefit should be realized
+  actualDate: date("actual_date"), // When benefit was actually realized
+  status: text("status").default("Planned"), // "Planned", "Tracking", "Partially Realized", "Fully Realized", "Not Achieved"
+  owner: varchar("owner").references(() => users.id), // Who is responsible for realizing this benefit
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Decision Log - track important project decisions
+export const projectDecisions = pgTable("project_decisions", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  decisionDate: date("decision_date").notNull(),
+  decisionMaker: varchar("decision_maker").references(() => users.id),
+  stakeholders: text("stakeholders"), // JSON array of user IDs involved
+  alternatives: text("alternatives"), // JSON: alternatives considered
+  rationale: text("rationale"), // Why this decision was made
+  impact: text("impact"), // Expected impact
+  status: text("status").default("Pending"), // "Pending", "Approved", "Rejected", "Deferred"
+  priority: text("priority").default("Medium"), // "Low", "Medium", "High", "Critical"
+  category: text("category"), // "Technical", "Business", "Resource", "Scope", "Budget", "Schedule"
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // === RELATIONS ===
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({
@@ -1354,3 +1437,53 @@ export const insertProjectCustomFieldValueSchema = createInsertSchema(projectCus
 
 export type InsertProjectCustomFieldValue = z.infer<typeof insertProjectCustomFieldValueSchema>;
 export type ProjectCustomFieldValue = typeof projectCustomFieldValues.$inferSelect;
+
+// Portfolio Scoring Criteria schemas and types
+export const insertPortfolioScoringCriteriaSchema = createInsertSchema(portfolioScoringCriteria).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPortfolioScoringCriteria = z.infer<typeof insertPortfolioScoringCriteriaSchema>;
+export type PortfolioScoringCriteria = typeof portfolioScoringCriteria.$inferSelect;
+
+// Project Scores schemas and types
+export const insertProjectScoreSchema = createInsertSchema(projectScores).omit({
+  id: true,
+  scoredAt: true,
+  updatedAt: true,
+});
+
+export type InsertProjectScore = z.infer<typeof insertProjectScoreSchema>;
+export type ProjectScore = typeof projectScores.$inferSelect;
+
+// Resource Capacity Planning schemas and types
+export const insertResourceCapacityPlanningSchema = createInsertSchema(resourceCapacityPlanning).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertResourceCapacityPlanning = z.infer<typeof insertResourceCapacityPlanningSchema>;
+export type ResourceCapacityPlanning = typeof resourceCapacityPlanning.$inferSelect;
+
+// Project Benefits schemas and types
+export const insertProjectBenefitSchema = createInsertSchema(projectBenefits).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProjectBenefit = z.infer<typeof insertProjectBenefitSchema>;
+export type ProjectBenefit = typeof projectBenefits.$inferSelect;
+
+// Project Decisions schemas and types
+export const insertProjectDecisionSchema = createInsertSchema(projectDecisions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProjectDecision = z.infer<typeof insertProjectDecisionSchema>;
+export type ProjectDecision = typeof projectDecisions.$inferSelect;

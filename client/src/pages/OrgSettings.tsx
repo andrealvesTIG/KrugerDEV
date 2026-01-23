@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, Scale } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -31,6 +31,8 @@ import { ProjectOnlineImportWizard } from "@/components/ProjectOnlineImportWizar
 import { usePortfolios } from "@/hooks/use-portfolios";
 import IntegrationsPage from "@/pages/Integrations";
 import { BillingContent } from "@/pages/Billing";
+import { useScoringCriteria, useCreateScoringCriteria, useUpdateScoringCriteria, useDeleteScoringCriteria } from "@/hooks/use-scoring";
+import type { PortfolioScoringCriteria } from "@shared/schema";
 
 interface EnrichedMember extends OrganizationMember {
   user?: User;
@@ -103,6 +105,7 @@ const settingsTabs = [
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "intake", label: "Intake Workflow", icon: GitBranch },
   { value: "custom-fields", label: "Custom Fields", icon: FileText },
+  { value: "scoring-model", label: "Scoring Model", icon: Scale },
   { value: "members", label: "Team Members", icon: Users },
   { value: "recycle", label: "Recycle Bin", icon: Trash2 },
   { value: "demo", label: "Demo Data", icon: Sparkles },
@@ -205,6 +208,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </TabsContent>
         <TabsContent value="custom-fields" className="mt-0">
           <CustomFieldsSection organizationId={currentOrganization.id} />
+        </TabsContent>
+        <TabsContent value="scoring-model" className="mt-0">
+          <ScoringModelTab organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="members" className="mt-0">
           <MembersSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
@@ -1817,6 +1823,342 @@ function CustomFieldsSection({ organizationId }: { organizationId: number }) {
               onClick={() => deleteConfirmField && deleteFieldMutation.mutate(deleteConfirmField.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
+const SCORING_CATEGORIES = ["Strategic", "Financial", "Risk", "Resource", "Technical"] as const;
+
+function ScoringModelTab({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingCriteria, setEditingCriteria] = useState<PortfolioScoringCriteria | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [weight, setWeight] = useState(5);
+  const [minScore, setMinScore] = useState(1);
+  const [maxScore, setMaxScore] = useState(5);
+  const [category, setCategory] = useState<string>("");
+  const [deleteConfirmCriteria, setDeleteConfirmCriteria] = useState<PortfolioScoringCriteria | null>(null);
+
+  const { data: scoringCriteria, isLoading } = useScoringCriteria(organizationId);
+  const createMutation = useCreateScoringCriteria();
+  const updateMutation = useUpdateScoringCriteria();
+  const deleteMutation = useDeleteScoringCriteria();
+
+  const totalWeight = useMemo(() => {
+    return scoringCriteria?.reduce((sum, c) => sum + (c.weight || 0), 0) || 0;
+  }, [scoringCriteria]);
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingCriteria(null);
+    setName("");
+    setDescription("");
+    setWeight(5);
+    setMinScore(1);
+    setMaxScore(5);
+    setCategory("");
+  };
+
+  const openCreateDialog = () => {
+    closeDialog();
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (criteria: PortfolioScoringCriteria) => {
+    setEditingCriteria(criteria);
+    setName(criteria.name);
+    setDescription(criteria.description || "");
+    setWeight(criteria.weight);
+    setMinScore(criteria.minScore);
+    setMaxScore(criteria.maxScore);
+    setCategory(criteria.category || "");
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (!name.trim()) return;
+    
+    const data = {
+      name: name.trim(),
+      description: description.trim() || undefined,
+      weight,
+      minScore,
+      maxScore,
+      category: category || undefined,
+      organizationId,
+    };
+
+    if (editingCriteria) {
+      updateMutation.mutate(
+        { organizationId, criteriaId: editingCriteria.id, data },
+        {
+          onSuccess: () => {
+            toast({ title: "Success", description: "Scoring criterion updated" });
+            closeDialog();
+          },
+          onError: (error: Error) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+          }
+        }
+      );
+    } else {
+      createMutation.mutate(
+        { organizationId, data },
+        {
+          onSuccess: () => {
+            toast({ title: "Success", description: "Scoring criterion created" });
+            closeDialog();
+          },
+          onError: (error: Error) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+          }
+        }
+      );
+    }
+  };
+
+  const handleDelete = () => {
+    if (!deleteConfirmCriteria) return;
+    
+    deleteMutation.mutate(
+      { organizationId, criteriaId: deleteConfirmCriteria.id },
+      {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Scoring criterion deleted" });
+          setDeleteConfirmCriteria(null);
+        },
+        onError: (error: Error) => {
+          toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+      }
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Scale className="h-5 w-5" />
+              Scoring Model
+            </CardTitle>
+            <CardDescription>
+              Define scoring criteria used to evaluate and prioritize projects in portfolios
+            </CardDescription>
+          </div>
+          <Button onClick={openCreateDialog} data-testid="button-add-criterion">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Criterion
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {scoringCriteria && scoringCriteria.length > 0 ? (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Weight</TableHead>
+                  <TableHead>Score Range</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {scoringCriteria.map((criteria) => (
+                  <TableRow key={criteria.id} data-testid={`row-criterion-${criteria.id}`}>
+                    <TableCell>
+                      <div>
+                        <span className="font-medium">{criteria.name}</span>
+                        {criteria.description && (
+                          <p className="text-sm text-muted-foreground truncate max-w-[250px]">
+                            {criteria.description}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {criteria.category ? (
+                        <Badge variant="secondary">{criteria.category}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{criteria.weight}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">
+                        {criteria.minScore} - {criteria.maxScore}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={() => openEditDialog(criteria)}
+                          data-testid={`button-edit-criterion-${criteria.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={() => setDeleteConfirmCriteria(criteria)}
+                          data-testid={`button-delete-criterion-${criteria.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="mt-4 flex items-center justify-end gap-2 text-sm" data-testid="text-total-weight">
+              <span className="text-muted-foreground">Total Weight:</span>
+              <Badge variant="default">{totalWeight}</Badge>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <Scale className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>No scoring criteria defined yet</p>
+            <p className="text-sm">Create scoring criteria to evaluate and compare projects</p>
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={isDialogOpen} onOpenChange={(open) => !open && closeDialog()}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{editingCriteria ? "Edit Scoring Criterion" : "Add Scoring Criterion"}</DialogTitle>
+            <DialogDescription>
+              Define a criterion for evaluating projects in your portfolios
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Name *</Label>
+              <Input 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+                placeholder="e.g., Strategic Alignment, ROI Potential"
+                data-testid="input-criterion-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea 
+                value={description} 
+                onChange={(e) => setDescription(e.target.value)} 
+                placeholder="Optional description of this criterion"
+                data-testid="input-criterion-description"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger data-testid="select-criterion-category">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCORING_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Weight (1-10)</Label>
+              <Input 
+                type="number"
+                min={1}
+                max={10}
+                value={weight} 
+                onChange={(e) => setWeight(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))} 
+                data-testid="input-criterion-weight"
+              />
+              <p className="text-xs text-muted-foreground">Higher weight means greater importance in overall scoring</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Min Score</Label>
+                <Input 
+                  type="number"
+                  min={0}
+                  value={minScore} 
+                  onChange={(e) => setMinScore(parseInt(e.target.value) || 1)} 
+                  data-testid="input-criterion-min-score"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Max Score</Label>
+                <Input 
+                  type="number"
+                  min={1}
+                  value={maxScore} 
+                  onChange={(e) => setMaxScore(parseInt(e.target.value) || 5)} 
+                  data-testid="input-criterion-max-score"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog} data-testid="button-cancel-criterion">
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={!name.trim() || createMutation.isPending || updateMutation.isPending}
+              data-testid="button-save-criterion"
+            >
+              {(createMutation.isPending || updateMutation.isPending) && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              {editingCriteria ? "Save Changes" : "Add Criterion"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteConfirmCriteria} onOpenChange={(open) => !open && setDeleteConfirmCriteria(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Scoring Criterion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteConfirmCriteria?.name}"? This may affect project scores that use this criterion.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-criterion">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-criterion"
+            >
+              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

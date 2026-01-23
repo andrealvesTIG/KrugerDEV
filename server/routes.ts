@@ -2946,6 +2946,306 @@ export async function registerRoutes(
     }
   });
 
+  // --- Portfolio Scoring Criteria ---
+  
+  // Get scoring criteria for organization
+  app.get('/api/organizations/:id/scoring-criteria', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const criteria = await storage.getScoringCriteria(orgId);
+      res.json(criteria);
+    } catch (err) {
+      console.error('Failed to get scoring criteria:', err);
+      res.status(500).json({ message: 'Failed to get scoring criteria' });
+    }
+  });
+  
+  // Create scoring criterion
+  app.post('/api/organizations/:id/scoring-criteria', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAdminAccess(userId, orgId)) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const criterion = await storage.createScoringCriteria({
+        ...req.body,
+        organizationId: orgId
+      });
+      res.status(201).json(criterion);
+    } catch (err) {
+      console.error('Failed to create scoring criterion:', err);
+      res.status(500).json({ message: 'Failed to create scoring criterion' });
+    }
+  });
+  
+  // Update scoring criterion
+  app.put('/api/organizations/:id/scoring-criteria/:criteriaId', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const criteriaId = Number(req.params.criteriaId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAdminAccess(userId, orgId)) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const criterion = await storage.updateScoringCriteria(criteriaId, req.body);
+      res.json(criterion);
+    } catch (err) {
+      console.error('Failed to update scoring criterion:', err);
+      res.status(500).json({ message: 'Failed to update scoring criterion' });
+    }
+  });
+  
+  // Delete scoring criterion
+  app.delete('/api/organizations/:id/scoring-criteria/:criteriaId', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const criteriaId = Number(req.params.criteriaId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAdminAccess(userId, orgId)) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      await storage.deleteScoringCriteria(criteriaId);
+      res.status(204).send();
+    } catch (err) {
+      console.error('Failed to delete scoring criterion:', err);
+      res.status(500).json({ message: 'Failed to delete scoring criterion' });
+    }
+  });
+  
+  // --- Project Scores ---
+  
+  // Get project scores
+  app.get('/api/projects/:id/scores', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const scores = await storage.getProjectScores(projectId);
+      res.json(scores);
+    } catch (err) {
+      console.error('Failed to get project scores:', err);
+      res.status(500).json({ message: 'Failed to get project scores' });
+    }
+  });
+  
+  // Upsert project score
+  app.post('/api/projects/:id/scores', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const score = await storage.upsertProjectScore({
+        ...req.body,
+        projectId,
+        scoredBy: userId
+      });
+      res.status(201).json(score);
+    } catch (err) {
+      console.error('Failed to save project score:', err);
+      res.status(500).json({ message: 'Failed to save project score' });
+    }
+  });
+  
+  // --- Project Benefits ---
+  
+  // Get project benefits
+  app.get('/api/projects/:id/benefits', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const benefits = await storage.getProjectBenefits(projectId);
+      res.json(benefits);
+    } catch (err) {
+      console.error('Failed to get project benefits:', err);
+      res.status(500).json({ message: 'Failed to get project benefits' });
+    }
+  });
+  
+  // Create project benefit
+  app.post('/api/projects/:id/benefits', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const benefit = await storage.createProjectBenefit({
+        ...req.body,
+        projectId
+      });
+      res.status(201).json(benefit);
+    } catch (err) {
+      console.error('Failed to create project benefit:', err);
+      res.status(500).json({ message: 'Failed to create project benefit' });
+    }
+  });
+  
+  // Update project benefit
+  app.put('/api/projects/:id/benefits/:benefitId', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const benefitId = Number(req.params.benefitId);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const benefit = await storage.updateProjectBenefit(benefitId, req.body);
+      res.json(benefit);
+    } catch (err) {
+      console.error('Failed to update project benefit:', err);
+      res.status(500).json({ message: 'Failed to update project benefit' });
+    }
+  });
+  
+  // Delete project benefit
+  app.delete('/api/projects/:id/benefits/:benefitId', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const benefitId = Number(req.params.benefitId);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.deleteProjectBenefit(benefitId);
+      res.status(204).send();
+    } catch (err) {
+      console.error('Failed to delete project benefit:', err);
+      res.status(500).json({ message: 'Failed to delete project benefit' });
+    }
+  });
+  
+  // --- Project Decisions ---
+  
+  // Get project decisions
+  app.get('/api/projects/:id/decisions', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const decisions = await storage.getProjectDecisions(projectId);
+      res.json(decisions);
+    } catch (err) {
+      console.error('Failed to get project decisions:', err);
+      res.status(500).json({ message: 'Failed to get project decisions' });
+    }
+  });
+  
+  // Create project decision
+  app.post('/api/projects/:id/decisions', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const decision = await storage.createProjectDecision({
+        ...req.body,
+        projectId,
+        createdBy: userId
+      });
+      res.status(201).json(decision);
+    } catch (err) {
+      console.error('Failed to create project decision:', err);
+      res.status(500).json({ message: 'Failed to create project decision' });
+    }
+  });
+  
+  // Update project decision
+  app.put('/api/projects/:id/decisions/:decisionId', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const decisionId = Number(req.params.decisionId);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const decision = await storage.updateProjectDecision(decisionId, req.body);
+      res.json(decision);
+    } catch (err) {
+      console.error('Failed to update project decision:', err);
+      res.status(500).json({ message: 'Failed to update project decision' });
+    }
+  });
+  
+  // Delete project decision
+  app.delete('/api/projects/:id/decisions/:decisionId', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const decisionId = Number(req.params.decisionId);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.deleteProjectDecision(decisionId);
+      res.status(204).send();
+    } catch (err) {
+      console.error('Failed to delete project decision:', err);
+      res.status(500).json({ message: 'Failed to delete project decision' });
+    }
+  });
+
   // --- External Shares (Cross-organization sharing) ---
   
   // Get all external shares for the current user

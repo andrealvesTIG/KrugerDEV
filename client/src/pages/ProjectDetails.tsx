@@ -15,6 +15,8 @@ import { useProjectComments, useCreateProjectComment, useDeleteProjectComment } 
 import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hooks/use-billable-status-comments";
 import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
+import { useProjectScores, useUpsertProjectScore, useScoringCriteria } from "@/hooks/use-scoring";
+import { useProjectBenefits, useCreateProjectBenefit, useUpdateProjectBenefit, useDeleteProjectBenefit, useProjectDecisions, useCreateProjectDecision, useUpdateProjectDecision, useDeleteProjectDecision } from "@/hooks/use-benefits";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
@@ -32,7 +34,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Unlink, Settings2 } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Unlink, Settings2, Trophy, TrendingUp, FileCheck } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -421,6 +423,9 @@ export default function ProjectDetails() {
           <TabsTrigger value="documents" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-documents">Documents</TabsTrigger>
           <TabsTrigger value="status-report" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-status-report">Status Report</TabsTrigger>
           <TabsTrigger value="custom-view" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-custom-view">Custom View</TabsTrigger>
+          <TabsTrigger value="scoring" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-scoring">Scoring</TabsTrigger>
+          <TabsTrigger value="benefits" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-benefits">Benefits</TabsTrigger>
+          <TabsTrigger value="decisions" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-decisions">Decisions</TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
@@ -458,6 +463,15 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="custom-view">
             <CustomViewTab project={project} onUpdate={updateProject} />
+          </TabsContent>
+          <TabsContent value="scoring">
+            <ScoringTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="benefits">
+            <BenefitsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="decisions">
+            <DecisionsTab projectId={project.id} />
           </TabsContent>
         </div>
       </Tabs>
@@ -10429,6 +10443,867 @@ function StatusReportTab({
           executiveSummary={project.description || ""}
         />
       </CardContent>
+    </Card>
+  );
+}
+
+const BENEFIT_CATEGORIES = ["Cost Savings", "Revenue Growth", "Efficiency", "Quality", "Compliance", "Strategic"];
+const BENEFIT_STATUSES = ["Expected", "Tracking", "Realized", "At Risk", "Not Realized"];
+const DECISION_CATEGORIES = ["Technical", "Business", "Resource", "Scope", "Budget", "Schedule"];
+const DECISION_STATUSES = ["Pending", "Approved", "Rejected", "Deferred"];
+
+function ScoringTab({ projectId }: { projectId: number }) {
+  const { currentOrganization } = useOrganization();
+  const { data: criteria, isLoading: criteriaLoading } = useScoringCriteria(currentOrganization?.id);
+  const { data: scores, isLoading: scoresLoading } = useProjectScores(projectId);
+  const upsertScore = useUpsertProjectScore();
+  const { toast } = useToast();
+
+  const [localScores, setLocalScores] = useState<Record<number, number>>({});
+  const [localNotes, setLocalNotes] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    if (scores) {
+      const scoreMap: Record<number, number> = {};
+      const notesMap: Record<number, string> = {};
+      scores.forEach((s) => {
+        scoreMap[s.criteriaId] = s.score;
+        notesMap[s.criteriaId] = s.notes || "";
+      });
+      setLocalScores(scoreMap);
+      setLocalNotes(notesMap);
+    }
+  }, [scores]);
+
+  const handleScoreChange = (criteriaId: number, score: number) => {
+    setLocalScores((prev) => ({ ...prev, [criteriaId]: score }));
+  };
+
+  const handleNotesChange = (criteriaId: number, notes: string) => {
+    setLocalNotes((prev) => ({ ...prev, [criteriaId]: notes }));
+  };
+
+  const handleSaveScore = (criteriaId: number) => {
+    const score = localScores[criteriaId];
+    if (score === undefined) return;
+    
+    upsertScore.mutate(
+      { projectId, data: { criteriaId, score, notes: localNotes[criteriaId] || null } },
+      {
+        onSuccess: () => {
+          toast({ title: "Score Saved", description: "Project score has been updated" });
+        },
+        onError: () => {
+          toast({ title: "Error", description: "Failed to save score", variant: "destructive" });
+        },
+      }
+    );
+  };
+
+  const totalWeightedScore = useMemo(() => {
+    if (!criteria || criteria.length === 0) return 0;
+    let totalWeight = 0;
+    let weightedSum = 0;
+    
+    criteria.forEach((c) => {
+      const score = localScores[c.id];
+      if (score !== undefined) {
+        weightedSum += score * (c.weight || 1);
+        totalWeight += c.weight || 1;
+      }
+    });
+    
+    return totalWeight > 0 ? (weightedSum / totalWeight).toFixed(2) : 0;
+  }, [criteria, localScores]);
+
+  const maxPossibleScore = useMemo(() => {
+    if (!criteria || criteria.length === 0) return 5;
+    return Math.max(...criteria.map((c) => c.maxScore || 5));
+  }, [criteria]);
+
+  if (criteriaLoading || scoresLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!criteria || criteria.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-5 w-5" />
+            Project Scoring
+          </CardTitle>
+          <CardDescription>Score this project against organizational criteria</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">
+            No scoring criteria defined for this organization.
+            <p className="text-sm mt-2">Contact your organization admin to set up scoring criteria in Organization Settings.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5" />
+              Project Scoring
+            </CardTitle>
+            <CardDescription>Score this project against organizational criteria</CardDescription>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Weighted Score</p>
+              <p className="text-2xl font-bold" data-testid="text-total-weighted-score">{totalWeightedScore} / {maxPossibleScore}</p>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {criteria.filter((c) => c.isActive).map((criterion) => {
+          const currentScore = localScores[criterion.id];
+          const minScore = criterion.minScore || 1;
+          const maxScore = criterion.maxScore || 5;
+          
+          return (
+            <div key={criterion.id} className="border rounded-lg p-4 space-y-3" data-testid={`scoring-criterion-${criterion.id}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium">{criterion.name}</h4>
+                    <Badge variant="outline" className="text-xs">Weight: {criterion.weight}</Badge>
+                    {criterion.category && <Badge variant="secondary" className="text-xs">{criterion.category}</Badge>}
+                  </div>
+                  {criterion.description && (
+                    <p className="text-sm text-muted-foreground mt-1">{criterion.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold w-12 text-center" data-testid={`score-value-${criterion.id}`}>
+                    {currentScore ?? "-"}
+                  </span>
+                  <span className="text-sm text-muted-foreground">/ {maxScore}</span>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-muted-foreground w-6">{minScore}</span>
+                <Slider
+                  min={minScore}
+                  max={maxScore}
+                  step={1}
+                  value={[currentScore ?? minScore]}
+                  onValueChange={(v) => handleScoreChange(criterion.id, v[0])}
+                  className="flex-1"
+                  data-testid={`slider-score-${criterion.id}`}
+                />
+                <span className="text-xs text-muted-foreground w-6">{maxScore}</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Notes/justification for this score..."
+                  value={localNotes[criterion.id] || ""}
+                  onChange={(e) => handleNotesChange(criterion.id, e.target.value)}
+                  className="flex-1"
+                  data-testid={`input-score-notes-${criterion.id}`}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => handleSaveScore(criterion.id)}
+                  disabled={upsertScore.isPending || currentScore === undefined}
+                  data-testid={`button-save-score-${criterion.id}`}
+                >
+                  {upsertScore.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BenefitsTab({ projectId }: { projectId: number }) {
+  const { data: benefits, isLoading } = useProjectBenefits(projectId);
+  const createBenefit = useCreateProjectBenefit();
+  const updateBenefit = useUpdateProjectBenefit();
+  const deleteBenefit = useDeleteProjectBenefit();
+  const { toast } = useToast();
+  
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingBenefit, setEditingBenefit] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    category: "Cost Savings",
+    status: "Expected",
+    measurementUnit: "$",
+    targetValue: "",
+    actualValue: "",
+    targetDate: "",
+    notes: "",
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      category: "Cost Savings",
+      status: "Expected",
+      measurementUnit: "$",
+      targetValue: "",
+      actualValue: "",
+      targetDate: "",
+      notes: "",
+    });
+    setEditingBenefit(null);
+  };
+
+  const handleSubmit = () => {
+    if (!formData.name.trim()) {
+      toast({ title: "Error", description: "Benefit name is required", variant: "destructive" });
+      return;
+    }
+
+    const data = {
+      ...formData,
+      targetValue: formData.targetValue ? formData.targetValue : null,
+      actualValue: formData.actualValue ? formData.actualValue : null,
+      targetDate: formData.targetDate || null,
+    };
+
+    if (editingBenefit) {
+      updateBenefit.mutate(
+        { projectId, benefitId: editingBenefit.id, data },
+        {
+          onSuccess: () => {
+            toast({ title: "Success", description: "Benefit updated" });
+            setIsDialogOpen(false);
+            resetForm();
+          },
+        }
+      );
+    } else {
+      createBenefit.mutate(
+        { projectId, data },
+        {
+          onSuccess: () => {
+            toast({ title: "Success", description: "Benefit added" });
+            setIsDialogOpen(false);
+            resetForm();
+          },
+        }
+      );
+    }
+  };
+
+  const handleEdit = (benefit: any) => {
+    setEditingBenefit(benefit);
+    setFormData({
+      name: benefit.name || "",
+      category: benefit.category || "Cost Savings",
+      status: benefit.status || "Expected",
+      measurementUnit: benefit.measurementUnit || "$",
+      targetValue: benefit.targetValue?.toString() || "",
+      actualValue: benefit.actualValue?.toString() || "",
+      targetDate: benefit.targetDate || "",
+      notes: benefit.notes || "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (deleteId !== null) {
+      deleteBenefit.mutate(
+        { projectId, benefitId: deleteId },
+        {
+          onSuccess: () => {
+            toast({ title: "Deleted", description: "Benefit removed" });
+            setDeleteId(null);
+          },
+        }
+      );
+    }
+  };
+
+  const realizationPercentage = useMemo(() => {
+    if (!benefits || benefits.length === 0) return 0;
+    const realized = benefits.filter((b) => b.status === "Realized").length;
+    return Math.round((realized / benefits.length) * 100);
+  }, [benefits]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Realized": return "bg-emerald-100 text-emerald-800";
+      case "Tracking": return "bg-blue-100 text-blue-800";
+      case "Expected": return "bg-slate-100 text-slate-800";
+      case "At Risk": return "bg-amber-100 text-amber-800";
+      case "Not Realized": return "bg-rose-100 text-rose-800";
+      default: return "bg-slate-100 text-slate-800";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Benefits Realization
+          </CardTitle>
+          <CardDescription>Track planned vs realized business benefits</CardDescription>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-sm text-muted-foreground">Realization</p>
+            <div className="flex items-center gap-2">
+              <Progress value={realizationPercentage} className="w-24 h-2" />
+              <span className="font-medium" data-testid="text-realization-percentage">{realizationPercentage}%</span>
+            </div>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-benefit">
+                <Plus className="h-4 w-4 mr-2" /> Add Benefit
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{editingBenefit ? "Edit Benefit" : "Add Benefit"}</DialogTitle>
+                <DialogDescription>Track expected business benefits from this project</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Benefit Name *</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g., Reduced processing time"
+                    data-testid="input-benefit-name"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
+                      <SelectTrigger data-testid="select-benefit-category">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BENEFIT_CATEGORIES.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                      <SelectTrigger data-testid="select-benefit-status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BENEFIT_STATUSES.map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Unit</Label>
+                    <Select value={formData.measurementUnit} onValueChange={(v) => setFormData({ ...formData, measurementUnit: v })}>
+                      <SelectTrigger data-testid="select-benefit-unit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="$">$</SelectItem>
+                        <SelectItem value="%">%</SelectItem>
+                        <SelectItem value="hours">hours</SelectItem>
+                        <SelectItem value="count">count</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Target Value</Label>
+                    <Input
+                      type="number"
+                      value={formData.targetValue}
+                      onChange={(e) => setFormData({ ...formData, targetValue: e.target.value })}
+                      placeholder="0"
+                      data-testid="input-benefit-target"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Actual Value</Label>
+                    <Input
+                      type="number"
+                      value={formData.actualValue}
+                      onChange={(e) => setFormData({ ...formData, actualValue: e.target.value })}
+                      placeholder="0"
+                      data-testid="input-benefit-actual"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Target Date</Label>
+                  <Input
+                    type="date"
+                    value={formData.targetDate}
+                    onChange={(e) => setFormData({ ...formData, targetDate: e.target.value })}
+                    data-testid="input-benefit-target-date"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Additional notes..."
+                    rows={2}
+                    data-testid="input-benefit-notes"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
+                <Button onClick={handleSubmit} disabled={createBenefit.isPending || updateBenefit.isPending} data-testid="button-save-benefit">
+                  {(createBenefit.isPending || updateBenefit.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingBenefit ? "Update" : "Add"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!benefits || benefits.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No benefits defined yet. Click "Add Benefit" to track expected business value.
+          </div>
+        ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 border-b">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium">Name</th>
+                  <th className="text-left px-3 py-2 font-medium">Category</th>
+                  <th className="text-left px-3 py-2 font-medium">Status</th>
+                  <th className="text-right px-3 py-2 font-medium">Target Value</th>
+                  <th className="text-right px-3 py-2 font-medium">Actual Value</th>
+                  <th className="text-left px-3 py-2 font-medium">Target Date</th>
+                  <th className="w-16 px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {benefits.map((benefit) => (
+                  <tr key={benefit.id} className="border-b hover:bg-muted/30" data-testid={`benefit-row-${benefit.id}`}>
+                    <td className="px-3 py-2 font-medium">{benefit.name}</td>
+                    <td className="px-3 py-2">
+                      <Badge variant="outline">{benefit.category || "-"}</Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge className={getStatusColor(benefit.status || "")}>{benefit.status || "-"}</Badge>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {benefit.targetValue ? `${benefit.measurementUnit || ""}${Number(benefit.targetValue).toLocaleString()}` : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {benefit.actualValue ? `${benefit.measurementUnit || ""}${Number(benefit.actualValue).toLocaleString()}` : "-"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {benefit.targetDate ? format(parseISO(benefit.targetDate), "MMM d, yyyy") : "-"}
+                    </td>
+                    <td className="px-2 py-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" data-testid={`button-benefit-menu-${benefit.id}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(benefit)} data-testid={`button-edit-benefit-${benefit.id}`}>
+                            <Pencil className="h-4 w-4 mr-2" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeleteId(benefit.id)} className="text-destructive" data-testid={`button-delete-benefit-${benefit.id}`}>
+                            <Trash2 className="h-4 w-4 mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+      
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Benefit</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this benefit? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
+function DecisionsTab({ projectId }: { projectId: number }) {
+  const { data: decisions, isLoading } = useProjectDecisions(projectId);
+  const createDecision = useCreateProjectDecision();
+  const updateDecision = useUpdateProjectDecision();
+  const deleteDecision = useDeleteProjectDecision();
+  const { toast } = useToast();
+  
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingDecision, setEditingDecision] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    category: "Technical",
+    status: "Pending",
+    decisionDate: format(new Date(), "yyyy-MM-dd"),
+    rationale: "",
+    impact: "",
+    stakeholders: "",
+  });
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      description: "",
+      category: "Technical",
+      status: "Pending",
+      decisionDate: format(new Date(), "yyyy-MM-dd"),
+      rationale: "",
+      impact: "",
+      stakeholders: "",
+    });
+    setEditingDecision(null);
+  };
+
+  const handleSubmit = () => {
+    if (!formData.title.trim()) {
+      toast({ title: "Error", description: "Decision title is required", variant: "destructive" });
+      return;
+    }
+    if (!formData.decisionDate) {
+      toast({ title: "Error", description: "Decision date is required", variant: "destructive" });
+      return;
+    }
+
+    const data = {
+      ...formData,
+      stakeholders: formData.stakeholders || null,
+    };
+
+    if (editingDecision) {
+      updateDecision.mutate(
+        { projectId, decisionId: editingDecision.id, data },
+        {
+          onSuccess: () => {
+            toast({ title: "Success", description: "Decision updated" });
+            setIsDialogOpen(false);
+            resetForm();
+          },
+        }
+      );
+    } else {
+      createDecision.mutate(
+        { projectId, data },
+        {
+          onSuccess: () => {
+            toast({ title: "Success", description: "Decision added" });
+            setIsDialogOpen(false);
+            resetForm();
+          },
+        }
+      );
+    }
+  };
+
+  const handleEdit = (decision: any) => {
+    setEditingDecision(decision);
+    setFormData({
+      title: decision.title || "",
+      description: decision.description || "",
+      category: decision.category || "Technical",
+      status: decision.status || "Pending",
+      decisionDate: decision.decisionDate || format(new Date(), "yyyy-MM-dd"),
+      rationale: decision.rationale || "",
+      impact: decision.impact || "",
+      stakeholders: decision.stakeholders || "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (deleteId !== null) {
+      deleteDecision.mutate(
+        { projectId, decisionId: deleteId },
+        {
+          onSuccess: () => {
+            toast({ title: "Deleted", description: "Decision removed" });
+            setDeleteId(null);
+          },
+        }
+      );
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Approved": return "bg-emerald-100 text-emerald-800";
+      case "Pending": return "bg-amber-100 text-amber-800";
+      case "Rejected": return "bg-rose-100 text-rose-800";
+      case "Deferred": return "bg-slate-100 text-slate-800";
+      default: return "bg-slate-100 text-slate-800";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <FileCheck className="h-5 w-5" />
+            Decision Log
+          </CardTitle>
+          <CardDescription>Track important project decisions and their outcomes</CardDescription>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-decision">
+              <Plus className="h-4 w-4 mr-2" /> Add Decision
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editingDecision ? "Edit Decision" : "Add Decision"}</DialogTitle>
+              <DialogDescription>Record important project decisions</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="e.g., Adopt microservices architecture"
+                  data-testid="input-decision-title"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Describe the decision in detail..."
+                  rows={2}
+                  data-testid="input-decision-description"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
+                    <SelectTrigger data-testid="select-decision-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DECISION_CATEGORIES.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                    <SelectTrigger data-testid="select-decision-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DECISION_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Decision Date *</Label>
+                <Input
+                  type="date"
+                  value={formData.decisionDate}
+                  onChange={(e) => setFormData({ ...formData, decisionDate: e.target.value })}
+                  data-testid="input-decision-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Rationale</Label>
+                <Textarea
+                  value={formData.rationale}
+                  onChange={(e) => setFormData({ ...formData, rationale: e.target.value })}
+                  placeholder="Why was this decision made?"
+                  rows={2}
+                  data-testid="input-decision-rationale"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Expected Impact</Label>
+                <Textarea
+                  value={formData.impact}
+                  onChange={(e) => setFormData({ ...formData, impact: e.target.value })}
+                  placeholder="What is the expected outcome?"
+                  rows={2}
+                  data-testid="input-decision-impact"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Deciders/Stakeholders</Label>
+                <Input
+                  value={formData.stakeholders}
+                  onChange={(e) => setFormData({ ...formData, stakeholders: e.target.value })}
+                  placeholder="e.g., John Smith, Jane Doe"
+                  data-testid="input-decision-stakeholders"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
+              <Button onClick={handleSubmit} disabled={createDecision.isPending || updateDecision.isPending} data-testid="button-save-decision">
+                {(createDecision.isPending || updateDecision.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingDecision ? "Update" : "Add"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {!decisions || decisions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No decisions logged yet. Click "Add Decision" to record important project decisions.
+          </div>
+        ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 border-b">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium">Title</th>
+                  <th className="text-left px-3 py-2 font-medium">Category</th>
+                  <th className="text-left px-3 py-2 font-medium">Status</th>
+                  <th className="text-left px-3 py-2 font-medium">Date</th>
+                  <th className="text-left px-3 py-2 font-medium">Deciders</th>
+                  <th className="w-16 px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {decisions.map((decision) => (
+                  <tr key={decision.id} className="border-b hover:bg-muted/30" data-testid={`decision-row-${decision.id}`}>
+                    <td className="px-3 py-2">
+                      <div className="font-medium">{decision.title}</div>
+                      {decision.description && (
+                        <div className="text-xs text-muted-foreground truncate max-w-xs">{decision.description}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge variant="outline">{decision.category || "-"}</Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge className={getStatusColor(decision.status || "")}>{decision.status || "-"}</Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      {decision.decisionDate ? format(parseISO(decision.decisionDate), "MMM d, yyyy") : "-"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="text-sm text-muted-foreground">{decision.stakeholders || "-"}</span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" data-testid={`button-decision-menu-${decision.id}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(decision)} data-testid={`button-edit-decision-${decision.id}`}>
+                            <Pencil className="h-4 w-4 mr-2" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeleteId(decision.id)} className="text-destructive" data-testid={`button-delete-decision-${decision.id}`}>
+                            <Trash2 className="h-4 w-4 mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+      
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Decision</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this decision? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
