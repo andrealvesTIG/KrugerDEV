@@ -1406,9 +1406,11 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
       </DialogContent>
     </Dialog>
     
-    <ProjectCommentsFeed projectId={project.id} />
-    <BillableStatusCommentLog projectId={project.id} />
-    <HealthStatusHistoryLog projectId={project.id} />
+    <div className="space-y-4">
+      <ProjectCommentsFeed projectId={project.id} />
+      <BillableStatusCommentLog projectId={project.id} />
+      <HealthStatusHistoryLog projectId={project.id} />
+    </div>
   </>
   );
 }
