@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 
 // Microsoft 365 icon component using official CDN
 function MsIcon({ app }: { app: string }) {
@@ -38,7 +37,7 @@ const MICROSOFT_APPS: AppItem[] = [
   { id: "excel", name: "Excel", icon: <MsIcon app="excel" />, href: "https://www.office.com/launch/excel", external: true, color: "bg-[#217346]" },
   { id: "powerpoint", name: "PowerPoint", icon: <MsIcon app="powerpoint" />, href: "https://www.office.com/launch/powerpoint", external: true, color: "bg-[#B7472A]" },
   { id: "onenote", name: "OneNote", icon: <MsIcon app="onenote" />, href: "https://www.onenote.com", external: true, color: "bg-[#7719AA]" },
-  { id: "planner", name: "Planner", icon: <MsIcon app="planner" />, href: "https://tasks.office.com", external: true, color: "bg-[#31752F]" },
+  { id: "planner", name: "Planner", icon: <img src="https://res.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/planner_48x1.svg" alt="Planner" className="h-6 w-6" />, href: "https://tasks.office.com", external: true, color: "bg-[#31752F]" },
 ];
 
 export function WaffleMenu({ 
@@ -89,10 +88,7 @@ export function WaffleMenu({
                 className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-muted/80 transition-colors group"
                 data-testid={`waffle-ms-${app.id}`}
               >
-                <div className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-md text-white",
-                  app.color || "bg-gray-500"
-                )}>
+                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white">
                   {app.icon}
                 </div>
                 <span className="text-xs text-center text-muted-foreground group-hover:text-foreground truncate w-full">
