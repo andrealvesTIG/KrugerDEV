@@ -4176,10 +4176,65 @@ export async function registerRoutes(
           // Process each team member
           for (const member of teamMembers) {
             const memberName = member.msdyn_bookableresourceid?.name || member.msdyn_name;
-            const memberEmail = member.msdyn_bookableresourceid?.msdyn_primaryemail || member.msdyn_bookableresourceid?.emailaddress1;
+            let memberEmail = member.msdyn_bookableresourceid?.msdyn_primaryemail || member.msdyn_bookableresourceid?.emailaddress1;
             const bookableResourceId = member._msdyn_bookableresourceid_value;
 
             if (!memberName) continue;
+
+            // If email not in expanded data, try to fetch from bookableresources entity directly
+            if (!memberEmail && bookableResourceId) {
+              try {
+                const brResponse = await fetch(
+                  `${environmentUrl}/api/data/v9.2/bookableresources(${bookableResourceId})?$select=name,msdyn_primaryemail,emailaddress1,_userid_value`,
+                  {
+                    headers: {
+                      "Authorization": `Bearer ${token}`,
+                      "Content-Type": "application/json",
+                      "OData-MaxVersion": "4.0",
+                      "OData-Version": "4.0",
+                    },
+                  }
+                );
+                if (brResponse.ok) {
+                  const brData = await brResponse.json();
+                  memberEmail = brData.msdyn_primaryemail || brData.emailaddress1;
+                  
+                  // If still no email, try to fetch from Microsoft Graph using the userId
+                  if (!memberEmail && brData._userid_value) {
+                    try {
+                      // Get org-scoped Planner token for Graph API
+                      const plannerIntegration = await getOrgIntegration(Number(organizationId), "planner");
+                      const graphToken = plannerIntegration?.accessToken || req.session.plannerAccessToken;
+                      
+                      if (graphToken) {
+                        const graphResponse = await fetch(
+                          `https://graph.microsoft.com/v1.0/users/${brData._userid_value}?$select=mail,userPrincipalName`,
+                          {
+                            headers: {
+                              "Authorization": `Bearer ${graphToken}`,
+                              "Content-Type": "application/json",
+                            },
+                          }
+                        );
+                        if (graphResponse.ok) {
+                          const graphData = await graphResponse.json();
+                          memberEmail = graphData.mail || graphData.userPrincipalName;
+                          console.log(`Import: Fetched email from Graph for ${memberName}: ${memberEmail}`);
+                        }
+                      }
+                    } catch (graphErr) {
+                      console.log(`Import: Could not fetch email from Graph for ${memberName}`);
+                    }
+                  }
+                  
+                  if (memberEmail) {
+                    console.log(`Import: Fetched email for ${memberName}: ${memberEmail}`);
+                  }
+                }
+              } catch (brErr) {
+                console.log(`Import: Could not fetch bookable resource details for ${memberName}`);
+              }
+            }
 
             // Try to match existing resource by name or email
             let matchedResource = resourcesByName.get(memberName.toLowerCase());
@@ -4191,6 +4246,15 @@ export async function registerRoutes(
               if (bookableResourceId) {
                 bookableResourceMap.set(bookableResourceId, matchedResource.id);
               }
+              // Update existing resource with email if it was missing
+              if (memberEmail && !matchedResource.email) {
+                try {
+                  await storage.updateResource(matchedResource.id, { email: memberEmail });
+                  console.log(`Import: Updated resource ${memberName} with email: ${memberEmail}`);
+                } catch (updateErr) {
+                  console.log(`Import: Could not update email for ${memberName}`);
+                }
+              }
               console.log(`Import: Matched resource: ${memberName} (ID: ${matchedResource.id})`);
             } else {
               // Create new resource in resource pool
@@ -4198,7 +4262,7 @@ export async function registerRoutes(
                 const newResource = await storage.createResource({
                   organizationId: project.organizationId!,
                   displayName: memberName,
-                  email: memberEmail,
+                  email: memberEmail || null,
                   title: 'Team Member',
                   resourceType: 'Employee',
                   availability: 100,
@@ -4213,7 +4277,7 @@ export async function registerRoutes(
                 }
 
                 resourcesImported++;
-                console.log(`Import: Created resource: ${memberName} (ID: ${newResource.id})`);
+                console.log(`Import: Created resource: ${memberName} (ID: ${newResource.id}, Email: ${memberEmail || 'none'})`);
               } catch (createErr) {
                 console.log(`Import: Failed to create resource ${memberName}:`, createErr);
               }
@@ -4687,9 +4751,64 @@ export async function registerRoutes(
               }
               
               // Get email from multiple possible fields (different Dataverse schemas)
-              const memberEmail = bookableResource?.msdyn_primaryemail || 
+              let memberEmail = bookableResource?.msdyn_primaryemail || 
                                   bookableResource?.emailaddress1 || 
                                   null;
+              
+              // If email not in expanded data, try to fetch from bookableresources entity directly
+              if (!memberEmail && bookableResourceId) {
+                try {
+                  const brResponse = await fetch(
+                    `${environmentUrl}/api/data/v9.2/bookableresources(${bookableResourceId})?$select=name,msdyn_primaryemail,emailaddress1,_userid_value`,
+                    {
+                      headers: {
+                        "Authorization": `Bearer ${dataverseToken}`,
+                        "Content-Type": "application/json",
+                        "OData-MaxVersion": "4.0",
+                        "OData-Version": "4.0",
+                      },
+                    }
+                  );
+                  if (brResponse.ok) {
+                    const brData = await brResponse.json();
+                    memberEmail = brData.msdyn_primaryemail || brData.emailaddress1;
+                    
+                    // If still no email, try to fetch from Microsoft Graph using the userId
+                    if (!memberEmail && brData._userid_value) {
+                      try {
+                        // Get org-scoped Planner token for Graph API
+                        const plannerIntegration = await getOrgIntegration(project.organizationId!, "planner");
+                        const graphToken = plannerIntegration?.accessToken || req.session.plannerAccessToken;
+                        
+                        if (graphToken) {
+                          const graphResponse = await fetch(
+                            `https://graph.microsoft.com/v1.0/users/${brData._userid_value}?$select=mail,userPrincipalName`,
+                            {
+                              headers: {
+                                "Authorization": `Bearer ${graphToken}`,
+                                "Content-Type": "application/json",
+                              },
+                            }
+                          );
+                          if (graphResponse.ok) {
+                            const graphData = await graphResponse.json();
+                            memberEmail = graphData.mail || graphData.userPrincipalName;
+                            console.log(`Planner sync: Fetched email from Graph for ${memberName}: ${memberEmail}`);
+                          }
+                        }
+                      } catch (graphErr) {
+                        console.log(`Planner sync: Could not fetch email from Graph for ${memberName}`);
+                      }
+                    }
+                    
+                    if (memberEmail) {
+                      console.log(`Planner sync: Fetched email for ${memberName}: ${memberEmail}`);
+                    }
+                  }
+                } catch (brErr) {
+                  console.log(`Planner sync: Could not fetch bookable resource details for ${memberName}`);
+                }
+              }
               
               // Try to match with existing resource first
               let matchedResource: typeof existingResources[0] | undefined;
@@ -4709,6 +4828,15 @@ export async function registerRoutes(
                 if (bookableResourceId) {
                   bookableResourceMap.set(bookableResourceId, matchedResource.id);
                 }
+                // Update existing resource with email if it was missing
+                if (memberEmail && !matchedResource.email) {
+                  try {
+                    await storage.updateResource(matchedResource.id, { email: memberEmail });
+                    console.log(`Planner sync: Updated resource ${memberName} with email: ${memberEmail}`);
+                  } catch (updateErr) {
+                    console.log(`Planner sync: Could not update email for ${memberName}`);
+                  }
+                }
                 console.log(`Matched resource: ${memberName} (ID: ${matchedResource.id})`);
               } else if (project.organizationId) {
                 // Create new resource in resource pool
@@ -4716,7 +4844,7 @@ export async function registerRoutes(
                   const newResource = await storage.createResource({
                     organizationId: project.organizationId,
                     displayName: memberName,
-                    email: memberEmail,
+                    email: memberEmail || null,
                     title: 'Team Member',
                     resourceType: 'Employee',
                     availability: 100,
