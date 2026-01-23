@@ -2810,15 +2810,22 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               <Pencil className="h-4 w-4 mr-2" />
               Make Editable
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsDetachIntegrationDialogOpen(true)}
-              data-testid="button-detach-integration-planner"
-            >
-              <Unlink className="h-4 w-4 mr-2" />
-              Detach
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDetachIntegrationDialogOpen(true)}
+                  data-testid="button-detach-integration-planner"
+                >
+                  <Unlink className="h-4 w-4 mr-2" />
+                  Detach
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Remove the link to {isPremiumPlan ? "Project" : "Planner"} and make this a native FridayReport project</p>
+              </TooltipContent>
+            </Tooltip>
             <Button 
               variant="outline" 
               size="sm" 
