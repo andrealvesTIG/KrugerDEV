@@ -204,11 +204,13 @@ export default function Resources() {
   );
 
   const handleDelete = async () => {
-    if (deleteResourceId && currentOrganization) {
+    const idToDelete = deleteResourceId;
+    const orgId = currentOrganization?.id;
+    if (idToDelete && orgId) {
+      setDeleteResourceId(null);
       try {
-        await deleteResource.mutateAsync({ id: deleteResourceId, organizationId: currentOrganization.id });
+        await deleteResource.mutateAsync({ id: idToDelete, organizationId: orgId });
         toast({ title: "Success", description: "Resource deleted" });
-        setDeleteResourceId(null);
       } catch (err) {
         toast({ title: "Error", description: "Failed to delete resource", variant: "destructive" });
       }
@@ -433,8 +435,7 @@ export default function Resources() {
             <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction 
               type="button"
-              onClick={(e) => {
-                e.preventDefault();
+              onClick={() => {
                 handleDelete();
               }} 
               className="bg-red-600 hover:bg-red-700" 
