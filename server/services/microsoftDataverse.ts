@@ -9,6 +9,7 @@ declare module "express-session" {
     dataverseRefreshToken?: string;
     dataverseTokenExpiry?: number;
     dataverseEnvironmentUrl?: string;
+    dataverseReturnUrl?: string;
   }
 }
 
