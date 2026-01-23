@@ -3979,10 +3979,16 @@ function TaskNameCell({
           />
         ) : (
           <span 
-            className="truncate cursor-text hover:bg-muted/50 px-0.5 rounded"
+            className={cn(
+              "truncate cursor-text hover:bg-muted/50 px-0.5 rounded flex items-center gap-1",
+              task.progress === 100 && "line-through text-muted-foreground"
+            )}
             onClick={handleStartEdit}
             data-testid={`task-name-${task.id}`}
           >
+            {task.progress === 100 && (
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+            )}
             {task.name}
           </span>
         )}
