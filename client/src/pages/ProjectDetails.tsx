@@ -4412,8 +4412,22 @@ function ProjectGanttTaskRowMeta({
               >
                 {hasChildren ? (
                   <span className="text-muted-foreground/70 italic truncate w-full">Summary</span>
+                ) : assignedNames ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="truncate w-full">{assignedNames}</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[300px]">
+                      <div className="space-y-1">
+                        <p className="font-medium text-xs">Assigned Resources:</p>
+                        {assignedNames.split(', ').map((name, idx) => (
+                          <p key={idx} className="text-xs">{name}</p>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
                 ) : (
-                  <span className="truncate w-full">{assignedNames}</span>
+                  <span className="truncate w-full text-muted-foreground/50">—</span>
                 )}
               </div>
               <Dialog open={isEditingResources} onOpenChange={setIsEditingResources}>
