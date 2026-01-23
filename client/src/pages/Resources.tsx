@@ -318,15 +318,18 @@ export default function Resources() {
                     className="group"
                     data-testid={`row-resource-${resource.id}`}
                   >
-                    <TableCell 
-                      className="font-medium cursor-pointer hover-elevate"
-                      onClick={() => window.location.href = `/resources/${resource.id}`}
-                    >
+                    <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
                           {resource.displayName.charAt(0).toUpperCase()}
                         </div>
-                        {resource.displayName}
+                        <span 
+                          className="cursor-pointer hover:text-primary hover:underline"
+                          onClick={() => window.location.href = `/resources/${resource.id}`}
+                          data-testid={`link-resource-name-${resource.id}`}
+                        >
+                          {resource.displayName}
+                        </span>
                         <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
                       </div>
                     </TableCell>
