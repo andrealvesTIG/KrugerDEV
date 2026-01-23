@@ -11,7 +11,7 @@ import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPerc
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, organizationCustomFields, projectCustomFieldValues, insertOrganizationCustomFieldSchema, insertProjectCustomFieldValueSchema } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -2807,6 +2807,139 @@ export async function registerRoutes(
     } catch (err) {
       console.error('Failed to reject access request:', err);
       res.status(500).json({ message: 'Failed to reject access request' });
+    }
+  });
+
+  // --- Organization Custom Fields ---
+  
+  // Get all custom fields for an organization
+  app.get('/api/organizations/:id/custom-fields', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const fields = await db.select().from(organizationCustomFields)
+        .where(and(
+          eq(organizationCustomFields.organizationId, orgId),
+          eq(organizationCustomFields.isActive, true)
+        ))
+        .orderBy(organizationCustomFields.displayOrder);
+      
+      res.json(fields);
+    } catch (err) {
+      console.error('Failed to get custom fields:', err);
+      res.status(500).json({ message: 'Failed to get custom fields' });
+    }
+  });
+  
+  // Create a custom field for an organization
+  app.post('/api/organizations/:id/custom-fields', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
+      // Check if user is admin or owner
+      const member = await storage.getOrganizationMember(orgId, userId);
+      if (!member || !['owner', 'admin'].includes(member.role)) {
+        return res.status(403).json({ message: 'Only admins and owners can create custom fields' });
+      }
+      
+      const parsed = insertOrganizationCustomFieldSchema.parse({
+        ...req.body,
+        organizationId: orgId
+      });
+      
+      const [field] = await db.insert(organizationCustomFields).values(parsed).returning();
+      
+      res.status(201).json(field);
+    } catch (err) {
+      console.error('Failed to create custom field:', err);
+      res.status(500).json({ message: 'Failed to create custom field' });
+    }
+  });
+  
+  // Update a custom field
+  app.put('/api/organizations/:id/custom-fields/:fieldId', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const fieldId = Number(req.params.fieldId);
+      const userId = getUserIdFromRequest(req);
+      
+      // Check if user is admin or owner
+      const member = await storage.getOrganizationMember(orgId, userId);
+      if (!member || !['owner', 'admin'].includes(member.role)) {
+        return res.status(403).json({ message: 'Only admins and owners can update custom fields' });
+      }
+      
+      // Verify field belongs to this organization
+      const [existingField] = await db.select().from(organizationCustomFields)
+        .where(and(
+          eq(organizationCustomFields.id, fieldId),
+          eq(organizationCustomFields.organizationId, orgId)
+        ));
+      
+      if (!existingField) {
+        return res.status(404).json({ message: 'Custom field not found' });
+      }
+      
+      const { name, fieldType, options, required, description, displayOrder, isActive } = req.body;
+      
+      const [updated] = await db.update(organizationCustomFields)
+        .set({
+          ...(name !== undefined && { name }),
+          ...(fieldType !== undefined && { fieldType }),
+          ...(options !== undefined && { options }),
+          ...(required !== undefined && { required }),
+          ...(description !== undefined && { description }),
+          ...(displayOrder !== undefined && { displayOrder }),
+          ...(isActive !== undefined && { isActive }),
+          updatedAt: new Date()
+        })
+        .where(eq(organizationCustomFields.id, fieldId))
+        .returning();
+      
+      res.json(updated);
+    } catch (err) {
+      console.error('Failed to update custom field:', err);
+      res.status(500).json({ message: 'Failed to update custom field' });
+    }
+  });
+  
+  // Delete a custom field (soft delete by setting isActive to false)
+  app.delete('/api/organizations/:id/custom-fields/:fieldId', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const fieldId = Number(req.params.fieldId);
+      const userId = getUserIdFromRequest(req);
+      
+      // Check if user is admin or owner
+      const member = await storage.getOrganizationMember(orgId, userId);
+      if (!member || !['owner', 'admin'].includes(member.role)) {
+        return res.status(403).json({ message: 'Only admins and owners can delete custom fields' });
+      }
+      
+      // Soft delete by setting isActive to false
+      await db.update(organizationCustomFields)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(and(
+          eq(organizationCustomFields.id, fieldId),
+          eq(organizationCustomFields.organizationId, orgId)
+        ));
+      
+      res.status(204).send();
+    } catch (err) {
+      console.error('Failed to delete custom field:', err);
+      res.status(500).json({ message: 'Failed to delete custom field' });
     }
   });
 
