@@ -260,6 +260,7 @@ export default function Tasks() {
       assignee: "",
       baselineStartDate: null as string | null,
       baselineEndDate: null as string | null,
+      timesheetBlocked: false,
     }
   });
 
@@ -303,6 +304,7 @@ export default function Tasks() {
       assignee: task.assignee || "",
       baselineStartDate: task.baselineStartDate || null,
       baselineEndDate: task.baselineEndDate || null,
+      timesheetBlocked: task.timesheetBlocked || false,
     });
     setIsDialogOpen(true);
   };
@@ -324,6 +326,7 @@ export default function Tasks() {
       assignee: "",
       baselineStartDate: null,
       baselineEndDate: null,
+      timesheetBlocked: false,
     });
     setIsDialogOpen(true);
   };
@@ -794,6 +797,25 @@ export default function Tasks() {
                   taskName={editingTask?.name || form.watch("name")}
                   onInviteAssigned={() => { inviteAssignedRef.current = true; }}
                 />
+                
+                <div className="flex items-center space-x-2 pt-2">
+                  <Controller
+                    control={form.control}
+                    name="timesheetBlocked"
+                    render={({ field }) => (
+                      <Checkbox
+                        id="timesheetBlocked"
+                        checked={field.value || false}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-timesheet-blocked"
+                      />
+                    )}
+                  />
+                  <Label htmlFor="timesheetBlocked" className="text-sm cursor-pointer">
+                    Block timesheet entries for this task
+                  </Label>
+                </div>
+                
                 <DialogFooter className="flex items-center gap-2">
                   {editingTask && (
                     <Button 
