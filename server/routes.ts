@@ -4332,6 +4332,10 @@ export async function registerRoutes(
         const existingTasks = await storage.getTasksByProject(projectId);
         
         // Delete all existing tasks for this project (full sync)
+        // First delete task resource assignments to avoid FK constraint violations
+        for (const task of existingTasks) {
+          await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, task.id));
+        }
         for (const task of existingTasks) {
           await storage.deleteTask(task.id);
         }
@@ -4778,6 +4782,10 @@ export async function registerRoutes(
       const existingTasks = await storage.getTasksByProject(projectId);
       
       // Delete all existing tasks for this project (full sync)
+      // First delete task resource assignments to avoid FK constraint violations
+      for (const task of existingTasks) {
+        await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, task.id));
+      }
       for (const task of existingTasks) {
         await storage.deleteTask(task.id);
       }
