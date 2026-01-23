@@ -1,31 +1,17 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  Briefcase, 
-  FolderKanban, 
-  CheckSquare, 
-  CircleDot, 
-  Calendar, 
-  Users, 
-  FileInput, 
-  Clock,
-  BookOpen,
-  Settings,
-  ArrowRight
-} from "lucide-react";
-import { 
-  SiMicrosoftteams, 
-  SiMicrosoftoutlook, 
-  SiMicrosoftonedrive, 
-  SiMicrosoftsharepoint, 
-  SiMicrosoftword, 
-  SiMicrosoftexcel, 
-  SiMicrosoftpowerpoint, 
-  SiMicrosoftonenote
-} from "react-icons/si";
+
+// Microsoft 365 icon component using official CDN
+function MsIcon({ app }: { app: string }) {
+  return (
+    <img 
+      src={`https://res.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/${app}_48x1.svg`}
+      alt={app}
+      className="h-6 w-6"
+    />
+  );
+}
 
 interface WaffleMenuProps {
   enabledModules?: string[];
@@ -43,53 +29,28 @@ interface AppItem {
   color?: string;
 }
 
-const INTERNAL_APPS: AppItem[] = [
-  { id: "dashboard", name: "Dashboard", icon: <LayoutDashboard className="h-6 w-6" />, href: "/", color: "bg-orange-500" },
-  { id: "portfolios", name: "Portfolios", icon: <Briefcase className="h-6 w-6" />, href: "/portfolios", color: "bg-blue-600" },
-  { id: "projects", name: "Projects", icon: <FolderKanban className="h-6 w-6" />, href: "/projects", color: "bg-green-600" },
-  { id: "tasks", name: "Tasks", icon: <CheckSquare className="h-6 w-6" />, href: "/tasks", color: "bg-purple-600" },
-  { id: "issues", name: "Issues", icon: <CircleDot className="h-6 w-6" />, href: "/issues", color: "bg-red-500" },
-  { id: "timesheets", name: "Timesheets", icon: <Clock className="h-6 w-6" />, href: "/timesheets", color: "bg-teal-600" },
-  { id: "resources", name: "Resources", icon: <Users className="h-6 w-6" />, href: "/resources", color: "bg-indigo-600" },
-  { id: "intakes", name: "Intakes", icon: <FileInput className="h-6 w-6" />, href: "/intakes", color: "bg-amber-600" },
-  { id: "calendar", name: "Calendar", icon: <Calendar className="h-6 w-6" />, href: "/calendar", color: "bg-cyan-600" },
-  { id: "user-guide", name: "User Guide", icon: <BookOpen className="h-6 w-6" />, href: "/user-guide", color: "bg-slate-600" },
-  { id: "integrations", name: "Integrations", icon: <Settings className="h-6 w-6" />, href: "/integrations", color: "bg-gray-600" },
-];
-
 const MICROSOFT_APPS: AppItem[] = [
-  { id: "teams", name: "Teams", icon: <SiMicrosoftteams className="h-6 w-6" />, href: "https://teams.microsoft.com", external: true, color: "bg-[#464EB8]" },
-  { id: "outlook", name: "Outlook", icon: <SiMicrosoftoutlook className="h-6 w-6" />, href: "https://outlook.office.com", external: true, color: "bg-[#0078D4]" },
-  { id: "onedrive", name: "OneDrive", icon: <SiMicrosoftonedrive className="h-6 w-6" />, href: "https://onedrive.live.com", external: true, color: "bg-[#0078D4]" },
-  { id: "sharepoint", name: "SharePoint", icon: <SiMicrosoftsharepoint className="h-6 w-6" />, href: "https://www.office.com/launch/sharepoint", external: true, color: "bg-[#038387]" },
-  { id: "word", name: "Word", icon: <SiMicrosoftword className="h-6 w-6" />, href: "https://www.office.com/launch/word", external: true, color: "bg-[#2B579A]" },
-  { id: "excel", name: "Excel", icon: <SiMicrosoftexcel className="h-6 w-6" />, href: "https://www.office.com/launch/excel", external: true, color: "bg-[#217346]" },
-  { id: "powerpoint", name: "PowerPoint", icon: <SiMicrosoftpowerpoint className="h-6 w-6" />, href: "https://www.office.com/launch/powerpoint", external: true, color: "bg-[#B7472A]" },
-  { id: "onenote", name: "OneNote", icon: <SiMicrosoftonenote className="h-6 w-6" />, href: "https://www.onenote.com", external: true, color: "bg-[#7719AA]" },
-  { id: "planner", name: "Planner", icon: <img src="https://res.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/planner_48x1.svg" alt="Planner" className="h-6 w-6" />, href: "https://tasks.office.com", external: true, color: "bg-[#31752F]" },
+  { id: "teams", name: "Teams", icon: <MsIcon app="teams" />, href: "https://teams.microsoft.com", external: true, color: "bg-[#464EB8]" },
+  { id: "outlook", name: "Outlook", icon: <MsIcon app="outlook" />, href: "https://outlook.office.com", external: true, color: "bg-[#0078D4]" },
+  { id: "onedrive", name: "OneDrive", icon: <MsIcon app="onedrive" />, href: "https://onedrive.live.com", external: true, color: "bg-[#0078D4]" },
+  { id: "sharepoint", name: "SharePoint", icon: <MsIcon app="sharepoint" />, href: "https://www.office.com/launch/sharepoint", external: true, color: "bg-[#038387]" },
+  { id: "word", name: "Word", icon: <MsIcon app="word" />, href: "https://www.office.com/launch/word", external: true, color: "bg-[#2B579A]" },
+  { id: "excel", name: "Excel", icon: <MsIcon app="excel" />, href: "https://www.office.com/launch/excel", external: true, color: "bg-[#217346]" },
+  { id: "powerpoint", name: "PowerPoint", icon: <MsIcon app="powerpoint" />, href: "https://www.office.com/launch/powerpoint", external: true, color: "bg-[#B7472A]" },
+  { id: "onenote", name: "OneNote", icon: <MsIcon app="onenote" />, href: "https://www.onenote.com", external: true, color: "bg-[#7719AA]" },
+  { id: "planner", name: "Planner", icon: <MsIcon app="planner" />, href: "https://tasks.office.com", external: true, color: "bg-[#31752F]" },
 ];
 
 export function WaffleMenu({ 
-  enabledModules, 
-  isMicrosoftConnected = false,
   onNavigate 
 }: WaffleMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [, setLocation] = useLocation();
 
-  const handleNavigation = (href: string, external?: boolean) => {
+  const handleNavigation = (href: string) => {
     setIsOpen(false);
-    if (external) {
-      window.open(href, '_blank');
-    } else {
-      setLocation(href);
-    }
+    window.open(href, '_blank');
     onNavigate?.();
   };
-
-  const filteredInternalApps = enabledModules 
-    ? INTERNAL_APPS.filter(app => enabledModules.includes(app.id) || app.id === "integrations")
-    : INTERNAL_APPS;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -124,7 +85,7 @@ export function WaffleMenu({
             {MICROSOFT_APPS.map((app) => (
               <button
                 key={app.id}
-                onClick={() => handleNavigation(app.href!, app.external)}
+                onClick={() => handleNavigation(app.href!)}
                 className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-muted/80 transition-colors group"
                 data-testid={`waffle-ms-${app.id}`}
               >
