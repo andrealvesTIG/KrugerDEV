@@ -1210,17 +1210,6 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="project-timesheet-blocked"
-                checked={project.timesheetBlocked || false}
-                onCheckedChange={(checked) => handleSelectChange('timesheetBlocked', checked === true)}
-                data-testid="checkbox-project-timesheet-blocked"
-              />
-              <Label htmlFor="project-timesheet-blocked" className="text-xs text-muted-foreground cursor-pointer">
-                Block timesheets for this project
-              </Label>
-            </div>
             </div>
           </div>
         </div>
@@ -1320,6 +1309,17 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 className="h-8 text-sm"
               />
             </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="project-timesheet-blocked"
+              checked={project.timesheetBlocked || false}
+              onCheckedChange={(checked) => handleSelectChange('timesheetBlocked', checked === true)}
+              data-testid="checkbox-project-timesheet-blocked"
+            />
+            <Label htmlFor="project-timesheet-blocked" className="text-xs text-muted-foreground cursor-pointer">
+              Block timesheet entries
+            </Label>
           </div>
           <div>
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Description</Label>
@@ -2563,6 +2563,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       assignee: "",
       baselineStartDate: null as string | null,
       baselineEndDate: null as string | null,
+      timesheetBlocked: false,
     }
   });
   
@@ -2661,6 +2662,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       assignee: task.assignee || "",
       baselineStartDate: task.baselineStartDate || null,
       baselineEndDate: task.baselineEndDate || null,
+      timesheetBlocked: task.timesheetBlocked || false,
     });
     setIsDialogOpen(true);
   };
@@ -2683,6 +2685,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       assignee: "",
       baselineStartDate: null,
       baselineEndDate: null,
+      timesheetBlocked: false,
     });
     setIsDialogOpen(true);
   };
@@ -2701,6 +2704,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       isMilestone: isMilestone,
       baselineStartDate: data.baselineStartDate || null,
       baselineEndDate: data.baselineEndDate || null,
+      timesheetBlocked: data.timesheetBlocked || false,
     };
 
     if (editingTask) {
@@ -3130,6 +3134,23 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                       <Label htmlFor="isMilestone" className="text-sm font-normal cursor-pointer flex items-center gap-2">
                         <MilestoneIcon className="h-4 w-4 text-primary" />
                         Mark as Milestone
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Controller 
+                        control={form.control} 
+                        name="timesheetBlocked" 
+                        render={({field}) => (
+                          <Checkbox 
+                            id="task-timesheet-blocked" 
+                            checked={field.value || false}
+                            onCheckedChange={(checked) => field.onChange(checked === true)}
+                            data-testid="checkbox-task-timesheet-blocked"
+                          />
+                        )}
+                      />
+                      <Label htmlFor="task-timesheet-blocked" className="text-sm font-normal cursor-pointer">
+                        Block timesheet entries
                       </Label>
                     </div>
                   </TabsContent>
