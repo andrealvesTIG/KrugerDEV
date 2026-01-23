@@ -708,6 +708,190 @@ export default function SignInPage() {
         </div>
       </section>
 
+      {/* Security, Compliance & Trust Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-900/50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <Badge variant="secondary" className="mb-4 bg-green-500/10 text-green-400 border-green-500/20">
+              Enterprise-Grade Security
+            </Badge>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              Security, Compliance & Trust
+            </h2>
+            <p className="text-lg text-slate-400 max-w-3xl mx-auto">
+              Your data security is our highest priority. FridayReport.AI is built on Microsoft Azure with enterprise-grade 
+              security controls, comprehensive compliance certifications, and industry best practices to protect your projects 
+              and sensitive information.
+            </p>
+          </div>
+
+          {/* Security Badges Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-16">
+            {[
+              { name: "SOC 2 Type II", desc: "Audited security controls", icon: Shield },
+              { name: "ISO 27001", desc: "Information security certified", icon: Shield },
+              { name: "GDPR", desc: "EU data protection aligned", icon: Shield },
+              { name: "CCPA", desc: "California privacy compliant", icon: Shield },
+              { name: "NIST CSF", desc: "Framework aligned", icon: Shield },
+            ].map((badge, i) => (
+              <div key={i} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700 text-center hover:border-green-500/30 transition-colors">
+                <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <badge.icon className="h-5 w-5 text-green-400" />
+                </div>
+                <p className="text-white font-semibold text-sm">{badge.name}</p>
+                <p className="text-slate-400 text-xs mt-1">{badge.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Security Subsections Grid */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Azure Cloud Security */}
+            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center mb-4">
+                <svg className="h-6 w-6 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5.483 21.3H24L14.025 4.013l-3.038 8.347 5.836 6.938L5.483 21.3zM13.23 2.7L6.105 8.677 0 19.253h5.505l7.725-16.553z"/>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Microsoft Azure Infrastructure</h3>
+              <ul className="space-y-2">
+                {[
+                  "Microsoft Defender for Cloud protection",
+                  "Azure Active Directory (Entra ID)",
+                  "Role-Based Access Control (RBAC)",
+                  "Zero Trust security model",
+                  "Network isolation & DDoS protection"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Data Protection */}
+            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center mb-4">
+                <Shield className="h-6 w-6 text-purple-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Data Protection & Encryption</h3>
+              <ul className="space-y-2">
+                {[
+                  "AES-256 encryption at rest",
+                  "TLS 1.2+ encryption in transit",
+                  "Azure Key Vault for key management",
+                  "Secrets management & credential isolation",
+                  "Secure data handling protocols"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-purple-400 flex-shrink-0 mt-0.5" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Backup & Resilience */}
+            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+              <div className="w-12 h-12 rounded-xl bg-teal-500/10 flex items-center justify-center mb-4">
+                <TrendingUp className="h-6 w-6 text-teal-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Backup & Business Continuity</h3>
+              <ul className="space-y-2">
+                {[
+                  "Automated Azure backups",
+                  "Geo-redundant storage (GRS)",
+                  "Multi-region redundancy & failover",
+                  "Disaster recovery planning",
+                  "99.9%+ uptime design goal"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-teal-400 flex-shrink-0 mt-0.5" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Access Controls */}
+            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+              <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center mb-4">
+                <Users className="h-6 w-6 text-orange-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Access Controls & Permissions</h3>
+              <ul className="space-y-2">
+                {[
+                  "Principle of least privilege",
+                  "Multi-factor authentication (MFA)",
+                  "Comprehensive audit logging",
+                  "Security monitoring & alerting",
+                  "Tenant isolation per organization"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-orange-400 flex-shrink-0 mt-0.5" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Compliance Certifications */}
+            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-4">
+                <FileCheck className="h-6 w-6 text-indigo-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Compliance & Certifications</h3>
+              <ul className="space-y-2">
+                {[
+                  "SOC 2 Type II certified",
+                  "ISO/IEC 27001, 27017 & 27018 aligned",
+                  "GDPR & CCPA compliant",
+                  "NIST Cybersecurity Framework",
+                  "CSA STAR (Cloud Security Alliance)"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Security Practices */}
+            <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700">
+              <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center mb-4">
+                <Zap className="h-6 w-6 text-red-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-3">Continuous Security</h3>
+              <ul className="space-y-2">
+                {[
+                  "Regular security assessments",
+                  "Penetration testing",
+                  "Vulnerability scanning",
+                  "Security awareness training",
+                  "Incident response procedures"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-slate-300 text-sm">
+                    <CheckCircle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Trust Statement */}
+          <div className="mt-12 text-center p-8 rounded-2xl bg-gradient-to-r from-green-500/5 via-blue-500/5 to-purple-500/5 border border-slate-700">
+            <p className="text-slate-300 text-lg max-w-3xl mx-auto">
+              <span className="text-white font-semibold">Your trust is our foundation.</span>{" "}
+              We continuously invest in security, compliance, and privacy to ensure your project data 
+              is protected with the same rigor used by Fortune 500 companies.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* FAQ Section */}
       <section className="py-20 px-4 bg-slate-800/30">
         <div className="max-w-4xl mx-auto">
