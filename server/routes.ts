@@ -3753,42 +3753,66 @@ export async function registerRoutes(
       // Fetch tasks from Dataverse - try with extended fields first, fall back to minimal
       let dataverseTasks: any[] = [];
       
-      // Extended fields for richer import (includes both msdyn_progress and msdyn_percentcomplete for compatibility)
-      const extendedFields = "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode";
-      const minimalFields = "msdyn_projecttaskid,msdyn_subject";
+      // Field sets for import (includes msdyn_displaysequence for proper task ordering)
+      const importFieldSets = [
+        // Extended fields with displaysequence
+        "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_displaysequence,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
+        // Simpler set with displaysequence
+        "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_displaysequence,_msdyn_parenttask_value,statecode",
+        // Minimal with displaysequence
+        "msdyn_projecttaskid,msdyn_subject,msdyn_displaysequence,_msdyn_parenttask_value",
+        // Absolute minimal without displaysequence
+        "msdyn_projecttaskid,msdyn_subject,_msdyn_parenttask_value",
+        "msdyn_projecttaskid,msdyn_subject"
+      ];
       
-      // Try extended fields first
-      let tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${extendedFields}&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
+      // Try with orderby first, then without
+      const importOrderByClauses = ["&$orderby=msdyn_displaysequence asc", ""];
       
-      let tasksResponse = await fetch(tasksApiUrl, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "OData-MaxVersion": "4.0",
-          "OData-Version": "4.0",
-        },
-      });
-
-      if (!tasksResponse.ok) {
-        // Fall back to minimal fields if extended fails
-        console.log("Extended task fields failed, falling back to minimal fields");
-        tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${minimalFields}&$filter=_msdyn_project_value eq ${planId}`;
-        tasksResponse = await fetch(tasksApiUrl, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-            "OData-MaxVersion": "4.0",
-            "OData-Version": "4.0",
-          },
-        });
-        
-        if (!tasksResponse.ok) {
-          throw new Error(`Failed to fetch tasks: ${tasksResponse.status}`);
+      let tasksResponse: Response | null = null;
+      let successfulFetch = false;
+      
+      // Try each field set with ordering first, then without ordering
+      for (let oi = 0; oi < importOrderByClauses.length && !successfulFetch; oi++) {
+        for (let fi = 0; fi < importFieldSets.length && !successfulFetch; fi++) {
+          const orderBy = importOrderByClauses[oi];
+          const fields = importFieldSets[fi];
+          const tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${fields}&$filter=_msdyn_project_value eq ${planId}${orderBy}`;
+          
+          tasksResponse = await fetch(tasksApiUrl, {
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "OData-MaxVersion": "4.0",
+              "OData-Version": "4.0",
+            },
+          });
+          
+          if (tasksResponse.ok) {
+            console.log(`Import: Successfully fetched tasks using field set ${fi}${oi === 0 ? ' with displaysequence ordering' : ' without ordering'}`);
+            successfulFetch = true;
+            break;
+          } else {
+            console.log(`Import: Field set ${fi} with orderBy[${oi}] failed (status ${tasksResponse.status}), trying next...`);
+          }
         }
+      }
+      
+      if (!tasksResponse || !tasksResponse.ok) {
+        throw new Error(`Failed to fetch tasks after trying all field sets: ${tasksResponse?.status || 'unknown'}`);
       }
 
       const tasksData = await tasksResponse.json();
       dataverseTasks = tasksData.value || [];
+      
+      // Sort tasks by displaysequence to preserve the row order from Planner
+      dataverseTasks = dataverseTasks.sort((a: any, b: any) => {
+        const seqA = a.msdyn_displaysequence ?? Infinity;
+        const seqB = b.msdyn_displaysequence ?? Infinity;
+        return seqA - seqB;
+      });
+      
+      console.log(`Import: Sorted ${dataverseTasks.length} tasks by displaysequence for proper row ordering`);
 
       // Calculate project dates from tasks using available schedule data
       const today = new Date().toISOString().split('T')[0];
@@ -4059,17 +4083,17 @@ export async function registerRoutes(
         // Try different field combinations as Dataverse environments may have different schemas
         // Note: msdyn_progress stores decimal (0-1), msdyn_percentcomplete stores percentage (0-100)
         const fieldSets = [
-          // Full Project for the Web schema with msdyn_progress
-          "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
+          // Full Project for the Web schema with msdyn_progress and msdyn_displaysequence for ordering
+          "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_displaysequence,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
           // Try with msdyn_percentcomplete instead (some environments use this)
-          "msdyn_projecttaskid,msdyn_subject,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
-          // Simpler set with msdyn_progress AND msdyn_wbsid for proper sequencing
-          "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,_msdyn_parenttask_value,statecode",
-          // Simpler set with msdyn_percentcomplete AND msdyn_wbsid for proper sequencing
-          "msdyn_projecttaskid,msdyn_subject,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,_msdyn_parenttask_value,statecode",
-          // Basic fields with msdyn_wbsid for sequencing
-          "msdyn_projecttaskid,msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_wbsid,_msdyn_parenttask_value,statecode",
-          // Basic fields without msdyn_wbsid (fallback without sequencing)
+          "msdyn_projecttaskid,msdyn_subject,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_displaysequence,msdyn_outlinelevel,msdyn_priority,msdyn_description,_msdyn_parenttask_value,statecode",
+          // Simpler set with msdyn_progress AND msdyn_displaysequence for proper sequencing
+          "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_displaysequence,_msdyn_parenttask_value,statecode",
+          // Simpler set with msdyn_percentcomplete AND msdyn_displaysequence for proper sequencing
+          "msdyn_projecttaskid,msdyn_subject,msdyn_percentcomplete,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_displaysequence,_msdyn_parenttask_value,statecode",
+          // Basic fields with msdyn_displaysequence for sequencing
+          "msdyn_projecttaskid,msdyn_subject,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,msdyn_displaysequence,_msdyn_parenttask_value,statecode",
+          // Basic fields without msdyn_displaysequence (fallback without sequencing)
           "msdyn_projecttaskid,msdyn_subject,msdyn_progress,msdyn_scheduledstart,msdyn_scheduledend,msdyn_duration,_msdyn_parenttask_value,statecode",
           // Minimal fallback with parent task for hierarchy
           "msdyn_projecttaskid,msdyn_subject,_msdyn_parenttask_value",
@@ -4077,8 +4101,8 @@ export async function registerRoutes(
           "msdyn_projecttaskid,msdyn_subject"
         ];
         
-        // Try with $orderby first, then without (some environments don't support ordering by msdyn_wbsid)
-        const orderByClauses = ["&$orderby=msdyn_wbsid asc", ""];
+        // Try with $orderby first, then without (some environments don't support ordering by msdyn_displaysequence)
+        const orderByClauses = ["&$orderby=msdyn_displaysequence asc", ""];
         
         let tasksResponse: Response | null = null;
         let fieldSetIndex = 0;
@@ -4131,30 +4155,15 @@ export async function registerRoutes(
           console.log("Dataverse sync - First task sample:", JSON.stringify(dataverseTasks[0], null, 2));
         }
 
-        // Sort tasks by WBS ID to preserve sequence/indexing from the plan
-        // WBS IDs are in format like "1", "1.1", "1.2", "2", "2.1", etc.
-        const parseWbsId = (wbs: string | null | undefined): number[] => {
-          if (!wbs) return [Infinity];
-          return wbs.split('.').map(part => parseInt(part, 10) || 0);
-        };
+        // Sort tasks by displaysequence to preserve the row order from Planner
+        // msdyn_displaysequence is a decimal number (e.g., 1.0, 2.0, 3.5)
+        dataverseTasks = dataverseTasks.sort((a: any, b: any) => {
+          const seqA = a.msdyn_displaysequence ?? Infinity;
+          const seqB = b.msdyn_displaysequence ?? Infinity;
+          return seqA - seqB;
+        });
         
-        const compareWbs = (a: string | null | undefined, b: string | null | undefined): number => {
-          const partsA = parseWbsId(a);
-          const partsB = parseWbsId(b);
-          const maxLen = Math.max(partsA.length, partsB.length);
-          for (let i = 0; i < maxLen; i++) {
-            const numA = partsA[i] || 0;
-            const numB = partsB[i] || 0;
-            if (numA !== numB) return numA - numB;
-          }
-          return 0;
-        };
-        
-        dataverseTasks = dataverseTasks.sort((a: any, b: any) => 
-          compareWbs(a.msdyn_wbsid, b.msdyn_wbsid)
-        );
-        
-        console.log(`Sorted ${dataverseTasks.length} tasks by WBS ID for proper sequencing`);
+        console.log(`Sorted ${dataverseTasks.length} tasks by displaysequence for proper row ordering`);
 
         // Get existing tasks for this project
         const existingTasks = await storage.getTasksByProject(projectId);
