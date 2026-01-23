@@ -313,15 +313,13 @@ export default function Resources() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="group cursor-pointer hover-elevate"
-                    onClick={(e) => {
-                      // Don't navigate if clicking on action menu
-                      if ((e.target as HTMLElement).closest('[data-radix-dropdown-menu-trigger]')) return;
-                      window.location.href = `/resources/${resource.id}`;
-                    }}
+                    className="group"
                     data-testid={`row-resource-${resource.id}`}
                   >
-                    <TableCell className="font-medium">
+                    <TableCell 
+                      className="font-medium cursor-pointer hover-elevate"
+                      onClick={() => window.location.href = `/resources/${resource.id}`}
+                    >
                       <div className="flex items-center gap-2">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
                           {resource.displayName.charAt(0).toUpperCase()}
