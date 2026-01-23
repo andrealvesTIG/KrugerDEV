@@ -3246,6 +3246,113 @@ export async function registerRoutes(
     }
   });
 
+  // --- Lessons Learned ---
+  
+  // Get lessons learned for a project
+  app.get('/api/projects/:id/lessons-learned', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const lessons = await storage.getLessonsLearned(projectId);
+      res.json(lessons);
+    } catch (err) {
+      console.error('Failed to get lessons learned:', err);
+      res.status(500).json({ message: 'Failed to get lessons learned' });
+    }
+  });
+  
+  // Get all lessons learned for an organization
+  app.get('/api/organizations/:id/lessons-learned', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const lessons = await storage.getLessonsLearnedByOrganization(orgId);
+      res.json(lessons);
+    } catch (err) {
+      console.error('Failed to get organization lessons learned:', err);
+      res.status(500).json({ message: 'Failed to get lessons learned' });
+    }
+  });
+  
+  // Create a lesson learned
+  app.post('/api/projects/:id/lessons-learned', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const lesson = await storage.createLessonLearned({
+        ...req.body,
+        projectId,
+        organizationId: project.organizationId,
+        createdBy: userId
+      });
+      res.status(201).json(lesson);
+    } catch (err) {
+      console.error('Failed to create lesson learned:', err);
+      res.status(500).json({ message: 'Failed to create lesson learned' });
+    }
+  });
+  
+  // Update a lesson learned
+  app.put('/api/projects/:id/lessons-learned/:lessonId', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const lessonId = Number(req.params.lessonId);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const lesson = await storage.updateLessonLearned(lessonId, req.body);
+      res.json(lesson);
+    } catch (err) {
+      console.error('Failed to update lesson learned:', err);
+      res.status(500).json({ message: 'Failed to update lesson learned' });
+    }
+  });
+  
+  // Delete a lesson learned
+  app.delete('/api/projects/:id/lessons-learned/:lessonId', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const lessonId = Number(req.params.lessonId);
+      const userId = getUserIdFromRequest(req);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (!project.organizationId || !await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.deleteLessonLearned(lessonId);
+      res.status(204).send();
+    } catch (err) {
+      console.error('Failed to delete lesson learned:', err);
+      res.status(500).json({ message: 'Failed to delete lesson learned' });
+    }
+  });
+
   // --- External Shares (Cross-organization sharing) ---
   
   // Get all external shares for the current user

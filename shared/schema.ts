@@ -885,6 +885,36 @@ export const projectDecisions = pgTable("project_decisions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Lessons Learned - captures project insights for future reference
+export const lessonsLearned = pgTable("lessons_learned", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").default("General"), // "Technical", "Process", "Communication", "Resource", "Risk", "Stakeholder", "General"
+  type: text("type").default("Improvement"), // "Success", "Improvement", "Challenge", "Best Practice"
+  impact: text("impact"), // "Low", "Medium", "High"
+  phase: text("phase"), // Project phase when lesson was identified
+  recommendation: text("recommendation"), // Actionable recommendation
+  outcome: text("outcome"), // What happened as a result
+  tags: text("tags"), // JSON array of tags for searchability
+  attachments: text("attachments"), // JSON array of document references
+  isShared: boolean("is_shared").default(false), // Can be viewed across organization
+  status: text("status").default("Draft"), // "Draft", "Reviewed", "Approved", "Archived"
+  identifiedDate: date("identified_date"),
+  identifiedBy: varchar("identified_by").references(() => users.id),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertLessonLearnedSchema = createInsertSchema(lessonsLearned).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertLessonLearned = z.infer<typeof insertLessonLearnedSchema>;
+export type LessonLearned = typeof lessonsLearned.$inferSelect;
+
 // === RELATIONS ===
 
 export const organizationsRelations = relations(organizations, ({ one, many }) => ({

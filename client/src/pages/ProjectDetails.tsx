@@ -17,6 +17,7 @@ import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useProjectScores, useUpsertProjectScore, useScoringCriteria } from "@/hooks/use-scoring";
 import { useProjectBenefits, useCreateProjectBenefit, useUpdateProjectBenefit, useDeleteProjectBenefit, useProjectDecisions, useCreateProjectDecision, useUpdateProjectDecision, useDeleteProjectDecision } from "@/hooks/use-benefits";
+import { useLessonsLearned, useCreateLessonLearned, useUpdateLessonLearned, useDeleteLessonLearned } from "@/hooks/use-lessons-learned";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
@@ -34,7 +35,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, MoreHorizontal, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Unlink, Settings2, Trophy, TrendingUp, FileCheck } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, MoreHorizontal, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Unlink, Settings2, Trophy, TrendingUp, FileCheck, Lightbulb } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -425,7 +426,7 @@ export default function ProjectDetails() {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className={`rounded-lg px-3 py-2 font-medium ${['change-requests', 'documents', 'custom-view', 'scoring', 'benefits', 'decisions'].includes(activeTab) ? 'bg-primary text-primary-foreground shadow-md' : ''}`}
+                className={`rounded-lg px-3 py-2 font-medium ${['change-requests', 'documents', 'custom-view', 'scoring', 'benefits', 'decisions', 'lessons-learned'].includes(activeTab) ? 'bg-primary text-primary-foreground shadow-md' : ''}`}
                 data-testid="button-more-tabs"
               >
                 <MoreHorizontal className="h-4 w-4" />
@@ -457,6 +458,10 @@ export default function ProjectDetails() {
               <DropdownMenuItem onClick={() => setActiveTab('decisions')} data-testid="menu-tab-decisions">
                 <FileCheck className="h-4 w-4 mr-2" />
                 Decisions
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('lessons-learned')} data-testid="menu-tab-lessons-learned">
+                <Lightbulb className="h-4 w-4 mr-2" />
+                Lessons Learned
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -506,6 +511,9 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="decisions">
             <DecisionsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="lessons-learned">
+            <LessonsLearnedTab projectId={project.id} organizationId={project.organizationId ?? undefined} />
           </TabsContent>
         </div>
       </Tabs>
@@ -11333,6 +11341,391 @@ function DecisionsTab({ projectId }: { projectId: number }) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
+function LessonsLearnedTab({ projectId, organizationId }: { projectId: number; organizationId?: number }) {
+  const { data: lessons, isLoading } = useLessonsLearned(projectId);
+  const createLesson = useCreateLessonLearned();
+  const updateLesson = useUpdateLessonLearned();
+  const deleteLesson = useDeleteLessonLearned();
+  const { toast } = useToast();
+  
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    category: "General",
+    type: "Improvement",
+    impact: "Medium",
+    phase: "",
+    recommendation: "",
+    outcome: "",
+    isShared: false,
+    status: "Draft",
+  });
+
+  const categories = ["Technical", "Process", "Communication", "Resource", "Risk", "Stakeholder", "General"];
+  const types = ["Success", "Improvement", "Challenge", "Best Practice"];
+  const statuses = ["Draft", "Reviewed", "Approved", "Archived"];
+  const impacts = ["Low", "Medium", "High"];
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      description: "",
+      category: "General",
+      type: "Improvement",
+      impact: "Medium",
+      phase: "",
+      recommendation: "",
+      outcome: "",
+      isShared: false,
+      status: "Draft",
+    });
+    setEditingLesson(null);
+  };
+
+  const handleSubmit = () => {
+    if (!formData.title.trim()) {
+      toast({ title: "Error", description: "Lesson title is required", variant: "destructive" });
+      return;
+    }
+
+    const data = {
+      ...formData,
+    };
+
+    if (editingLesson) {
+      updateLesson.mutate(
+        { projectId, lessonId: editingLesson.id, data },
+        {
+          onSuccess: () => {
+            toast({ title: "Success", description: "Lesson updated" });
+            setIsDialogOpen(false);
+            resetForm();
+          },
+        }
+      );
+    } else {
+      createLesson.mutate(
+        { projectId, data },
+        {
+          onSuccess: () => {
+            toast({ title: "Success", description: "Lesson added" });
+            setIsDialogOpen(false);
+            resetForm();
+          },
+        }
+      );
+    }
+  };
+
+  const handleEdit = (lesson: any) => {
+    setEditingLesson(lesson);
+    setFormData({
+      title: lesson.title || "",
+      description: lesson.description || "",
+      category: lesson.category || "General",
+      type: lesson.type || "Improvement",
+      impact: lesson.impact || "Medium",
+      phase: lesson.phase || "",
+      recommendation: lesson.recommendation || "",
+      outcome: lesson.outcome || "",
+      isShared: lesson.isShared || false,
+      status: lesson.status || "Draft",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (deleteId !== null) {
+      deleteLesson.mutate(
+        { projectId, lessonId: deleteId, organizationId },
+        {
+          onSuccess: () => {
+            toast({ title: "Deleted", description: "Lesson removed" });
+            setDeleteId(null);
+          },
+        }
+      );
+    }
+  };
+
+  const getTypeVariant = (type: string): "default" | "secondary" | "destructive" | "outline" => {
+    switch (type) {
+      case "Success": return "default";
+      case "Challenge": return "destructive";
+      case "Improvement": return "secondary";
+      case "Best Practice": return "outline";
+      default: return "secondary";
+    }
+  };
+
+  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+    switch (status) {
+      case "Approved": return "default";
+      case "Reviewed": return "secondary";
+      case "Draft": return "outline";
+      case "Archived": return "secondary";
+      default: return "outline";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Lightbulb className="h-5 w-5" />
+            Lessons Learned
+          </CardTitle>
+          <CardDescription>Capture insights and knowledge from this project</CardDescription>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-lesson">
+              <Plus className="h-4 w-4 mr-2" /> Add Lesson
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingLesson ? "Edit Lesson" : "Add Lesson"}</DialogTitle>
+              <DialogDescription>Record project insights for future reference</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="Enter lesson title"
+                  data-testid="input-lesson-title"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Describe the lesson learned"
+                  rows={3}
+                  data-testid="input-lesson-description"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
+                    <SelectTrigger data-testid="select-lesson-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v })}>
+                    <SelectTrigger data-testid="select-lesson-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {types.map((t) => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Impact</Label>
+                  <Select value={formData.impact} onValueChange={(v) => setFormData({ ...formData, impact: v })}>
+                    <SelectTrigger data-testid="select-lesson-impact">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {impacts.map((i) => (
+                        <SelectItem key={i} value={i}>{i}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                    <SelectTrigger data-testid="select-lesson-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statuses.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Phase</Label>
+                <Input
+                  value={formData.phase}
+                  onChange={(e) => setFormData({ ...formData, phase: e.target.value })}
+                  placeholder="Project phase (e.g., Planning, Execution)"
+                  data-testid="input-lesson-phase"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Recommendation</Label>
+                <Textarea
+                  value={formData.recommendation}
+                  onChange={(e) => setFormData({ ...formData, recommendation: e.target.value })}
+                  placeholder="Actionable recommendation for future projects"
+                  rows={2}
+                  data-testid="input-lesson-recommendation"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Outcome</Label>
+                <Textarea
+                  value={formData.outcome}
+                  onChange={(e) => setFormData({ ...formData, outcome: e.target.value })}
+                  placeholder="What happened as a result"
+                  rows={2}
+                  data-testid="input-lesson-outcome"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isShared"
+                  checked={formData.isShared}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isShared: !!checked })}
+                  data-testid="checkbox-lesson-shared"
+                />
+                <Label htmlFor="isShared" className="text-sm font-normal cursor-pointer">
+                  Share across organization
+                </Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }} data-testid="button-cancel-lesson">
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={createLesson.isPending || updateLesson.isPending} data-testid="button-save-lesson">
+                {(createLesson.isPending || updateLesson.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingLesson ? "Update" : "Add"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {!lessons || lessons.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground" data-testid="empty-lessons-state">
+            <Lightbulb className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No lessons learned yet</p>
+            <p className="text-sm">Start capturing insights from this project</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" data-testid="lessons-table">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left px-3 py-2 font-medium">Title</th>
+                  <th className="text-left px-3 py-2 font-medium">Category</th>
+                  <th className="text-left px-3 py-2 font-medium">Type</th>
+                  <th className="text-left px-3 py-2 font-medium">Impact</th>
+                  <th className="text-left px-3 py-2 font-medium">Status</th>
+                  <th className="px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {lessons.map((lesson) => (
+                  <tr key={lesson.id} className="border-b hover:bg-muted/50" data-testid={`lesson-row-${lesson.id}`}>
+                    <td className="px-3 py-2">
+                      <div>
+                        <span className="font-medium">{lesson.title}</span>
+                        {lesson.isShared && (
+                          <Badge variant="outline" className="ml-2 text-xs">Shared</Badge>
+                        )}
+                        {lesson.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{lesson.description}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="text-sm">{lesson.category || "-"}</span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge variant={getTypeVariant(lesson.type || "")} className="text-xs">
+                        {lesson.type || "-"}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="text-sm">{lesson.impact || "-"}</span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge variant={getStatusVariant(lesson.status || "")} className="text-xs">
+                        {lesson.status || "Draft"}
+                      </Badge>
+                    </td>
+                    <td className="px-2 py-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" data-testid={`button-lesson-menu-${lesson.id}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(lesson)} data-testid={`button-edit-lesson-${lesson.id}`}>
+                            <Pencil className="h-4 w-4 mr-2" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeleteId(lesson.id)} className="text-destructive" data-testid={`button-delete-lesson-${lesson.id}`}>
+                            <Trash2 className="h-4 w-4 mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+      
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Lesson</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this lesson? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-lesson">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="button-confirm-delete-lesson">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

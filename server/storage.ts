@@ -8,7 +8,7 @@ import {
   changeRequests, projectDocuments, projectComments, notifications, statusReportHistory, healthStatusHistory,
   billingTransactions, timesheetEntries, billableStatusComments, projectViews,
   magicLinkTokens,
-  portfolioScoringCriteria, projectScores, projectBenefits, projectDecisions,
+  portfolioScoringCriteria, projectScores, projectBenefits, projectDecisions, lessonsLearned,
   type User, type UpsertUser,
   type BillingTransaction, type InsertBillingTransaction,
   type Organization, type InsertOrganization,
@@ -51,7 +51,8 @@ import {
   type PortfolioScoringCriteria, type InsertPortfolioScoringCriteria,
   type ProjectScore, type InsertProjectScore,
   type ProjectBenefit, type InsertProjectBenefit,
-  type ProjectDecision, type InsertProjectDecision
+  type ProjectDecision, type InsertProjectDecision,
+  type LessonLearned, type InsertLessonLearned
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
@@ -373,6 +374,13 @@ export interface IStorage {
   createProjectDecision(data: InsertProjectDecision): Promise<ProjectDecision>;
   updateProjectDecision(id: number, data: Partial<InsertProjectDecision>): Promise<ProjectDecision>;
   deleteProjectDecision(id: number): Promise<void>;
+
+  // Lessons Learned
+  getLessonsLearned(projectId: number): Promise<LessonLearned[]>;
+  getLessonsLearnedByOrganization(organizationId: number): Promise<LessonLearned[]>;
+  createLessonLearned(data: InsertLessonLearned): Promise<LessonLearned>;
+  updateLessonLearned(id: number, data: Partial<InsertLessonLearned>): Promise<LessonLearned>;
+  deleteLessonLearned(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3077,6 +3085,36 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProjectDecision(id: number): Promise<void> {
     await db.delete(projectDecisions).where(eq(projectDecisions.id, id));
+  }
+
+  // Lessons Learned
+  async getLessonsLearned(projectId: number): Promise<LessonLearned[]> {
+    return await db.select().from(lessonsLearned)
+      .where(eq(lessonsLearned.projectId, projectId))
+      .orderBy(desc(lessonsLearned.createdAt));
+  }
+
+  async getLessonsLearnedByOrganization(organizationId: number): Promise<LessonLearned[]> {
+    return await db.select().from(lessonsLearned)
+      .where(eq(lessonsLearned.organizationId, organizationId))
+      .orderBy(desc(lessonsLearned.createdAt));
+  }
+
+  async createLessonLearned(data: InsertLessonLearned): Promise<LessonLearned> {
+    const [created] = await db.insert(lessonsLearned).values(data).returning();
+    return created;
+  }
+
+  async updateLessonLearned(id: number, data: Partial<InsertLessonLearned>): Promise<LessonLearned> {
+    const [updated] = await db.update(lessonsLearned)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lessonsLearned.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteLessonLearned(id: number): Promise<void> {
+    await db.delete(lessonsLearned).where(eq(lessonsLearned.id, id));
   }
 }
 
