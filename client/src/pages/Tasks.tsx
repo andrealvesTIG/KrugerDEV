@@ -11,6 +11,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
+import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1378,8 +1379,40 @@ function GanttTaskRow({
         </div>
       )}
       {visibleColumns.includes('assignee') && (
-        <div className="w-32 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate">
-          {assignedNames}
+        <div className="w-32 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center">
+          {taskAssignments && taskAssignments.length > 0 ? (
+            <div className="flex -space-x-1.5">
+              {taskAssignments.slice(0, 3).map((a) => (
+                <MicrosoftContactCard
+                  key={a.id}
+                  displayName={a.resource.displayName}
+                  email={a.resource.email}
+                  title={a.resource.title}
+                  department={a.resource.department}
+                  phone={a.resource.phone}
+                  photoUrl={a.resource.photoUrl}
+                  side="top"
+                >
+                  <div 
+                    className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-background cursor-pointer hover:bg-primary/20 transition-colors hover:z-10"
+                    title={a.resource.displayName}
+                  >
+                    {a.resource.displayName.charAt(0).toUpperCase()}
+                  </div>
+                </MicrosoftContactCard>
+              ))}
+              {taskAssignments.length > 3 && (
+                <div 
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground text-[10px] font-medium border border-background"
+                  title={taskAssignments.slice(3).map(a => a.resource.displayName).join(", ")}
+                >
+                  +{taskAssignments.length - 3}
+                </div>
+              )}
+            </div>
+          ) : (
+            <span>—</span>
+          )}
         </div>
       )}
       {visibleColumns.includes('resources') && (
@@ -1390,7 +1423,29 @@ function GanttTaskRow({
               onClick={(e) => { e.stopPropagation(); }}
               data-testid={`resources-cell-${task.id}`}
             >
-              <span className="truncate block">{assignedNames}</span>
+              {taskAssignments && taskAssignments.length > 0 ? (
+                <div className="flex -space-x-1.5">
+                  {taskAssignments.slice(0, 3).map((a) => (
+                    <div 
+                      key={a.id}
+                      className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-background"
+                      title={a.resource.displayName}
+                    >
+                      {a.resource.displayName.charAt(0).toUpperCase()}
+                    </div>
+                  ))}
+                  {taskAssignments.length > 3 && (
+                    <div 
+                      className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground text-[10px] font-medium border border-background"
+                      title={taskAssignments.slice(3).map(a => a.resource.displayName).join(", ")}
+                    >
+                      +{taskAssignments.length - 3}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <span>—</span>
+              )}
             </div>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
@@ -2091,8 +2146,37 @@ function DraggableTaskCard({
             {getProjectName(task.projectId)}
           </Link>
           {taskAssignments && taskAssignments.length > 0 && (
-            <div className="text-xs text-muted-foreground mt-2">
-              Assigned: {taskAssignments.map(a => a.resource.displayName).join(", ")}
+            <div className="flex items-center gap-1 mt-2">
+              <span className="text-xs text-muted-foreground">Assigned:</span>
+              <div className="flex -space-x-1.5">
+                {taskAssignments.slice(0, 3).map((a) => (
+                  <MicrosoftContactCard
+                    key={a.id}
+                    displayName={a.resource.displayName}
+                    email={a.resource.email}
+                    title={a.resource.title}
+                    department={a.resource.department}
+                    phone={a.resource.phone}
+                    photoUrl={a.resource.photoUrl}
+                    side="top"
+                  >
+                    <div 
+                      className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-background cursor-pointer hover:bg-primary/20 transition-colors hover:z-10"
+                      title={a.resource.displayName}
+                    >
+                      {a.resource.displayName.charAt(0).toUpperCase()}
+                    </div>
+                  </MicrosoftContactCard>
+                ))}
+                {taskAssignments.length > 3 && (
+                  <div 
+                    className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground text-[10px] font-medium border border-background"
+                    title={taskAssignments.slice(3).map(a => a.resource.displayName).join(", ")}
+                  >
+                    +{taskAssignments.length - 3}
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <div className="flex items-center justify-between mt-3">

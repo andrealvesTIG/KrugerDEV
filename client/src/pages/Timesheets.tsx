@@ -12,6 +12,7 @@ import {
   useRejectTimesheetEntry,
   type TimesheetEntryWithDetails 
 } from "@/hooks/use-timesheets";
+import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -606,9 +607,19 @@ function ApprovalTab() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
-                    {resource?.displayName?.charAt(0) || "?"}
-                  </div>
+                  <MicrosoftContactCard
+                    displayName={resource?.displayName || "Unknown"}
+                    email={resource?.email}
+                    title={resource?.title}
+                    department={resource?.department}
+                    phone={resource?.phone}
+                    photoUrl={resource?.photoUrl}
+                    side="right"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold cursor-pointer hover:bg-primary/20 transition-colors">
+                      {resource?.displayName?.charAt(0) || "?"}
+                    </div>
+                  </MicrosoftContactCard>
                   <div>
                     <CardTitle className="text-lg">{resource?.displayName || "Unknown"}</CardTitle>
                     <p className="text-sm text-muted-foreground">{totalHours.toFixed(1)} hours pending</p>

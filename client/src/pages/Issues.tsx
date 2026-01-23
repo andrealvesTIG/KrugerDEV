@@ -5,6 +5,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
 import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
+import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,8 +32,40 @@ function IssueResourceDisplay({ issueId }: { issueId: number }) {
   if (isLoading) return <span className="text-muted-foreground">Loading...</span>;
   if (!assignments || assignments.length === 0) return null;
   
-  const names = assignments.map(a => a.resource.displayName).join(", ");
-  return <span>Assigned: {names}</span>;
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-muted-foreground mr-1">Assigned:</span>
+      <div className="flex -space-x-1.5">
+        {assignments.slice(0, 3).map((a) => (
+          <MicrosoftContactCard
+            key={a.id}
+            displayName={a.resource.displayName}
+            email={a.resource.email}
+            title={a.resource.title}
+            department={a.resource.department}
+            phone={a.resource.phone}
+            photoUrl={a.resource.photoUrl}
+            side="top"
+          >
+            <div 
+              className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold border-2 border-background cursor-pointer hover:bg-primary/20 transition-colors hover:z-10"
+              title={a.resource.displayName}
+            >
+              {a.resource.displayName.charAt(0).toUpperCase()}
+            </div>
+          </MicrosoftContactCard>
+        ))}
+        {assignments.length > 3 && (
+          <div 
+            className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-muted-foreground text-xs font-medium border-2 border-background"
+            title={assignments.slice(3).map(a => a.resource.displayName).join(", ")}
+          >
+            +{assignments.length - 3}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const priorityColors = {
