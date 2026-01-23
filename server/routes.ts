@@ -3607,6 +3607,19 @@ export async function registerRoutes(
       const sortedBuckets = [...buckets].sort((a, b) => (a.orderHint || '').localeCompare(b.orderHint || ''));
       const bucketIndexMap = new Map(sortedBuckets.map((b, i) => [b.id, i + 1]));
 
+      // Sort tasks by orderHint to preserve Planner's display order
+      // orderHint is a string that determines the order of tasks in Planner
+      const sortedPlannerTasks = [...plannerTasks].sort((a: any, b: any) => {
+        // First sort by bucket order, then by task orderHint within each bucket
+        const bucketOrderA = a.bucketId ? bucketIndexMap.get(a.bucketId) || 999 : 999;
+        const bucketOrderB = b.bucketId ? bucketIndexMap.get(b.bucketId) || 999 : 999;
+        if (bucketOrderA !== bucketOrderB) {
+          return bucketOrderA - bucketOrderB;
+        }
+        // Within same bucket, sort by orderHint
+        return (a.orderHint || '').localeCompare(b.orderHint || '');
+      });
+
       // Create tasks from Planner tasks
       let taskIndex = 0;
       const createdTasks: any[] = [];
@@ -3615,7 +3628,7 @@ export async function registerRoutes(
       const defaultStartDate = projectStartDate || new Date().toISOString().split('T')[0];
       const defaultEndDate = projectEndDate || defaultStartDate;
 
-      for (const plannerTask of plannerTasks) {
+      for (const plannerTask of sortedPlannerTasks) {
         taskIndex++;
         const bucketName = plannerTask.bucketId ? bucketMap.get(plannerTask.bucketId) || null : null;
         const bucketOrder = plannerTask.bucketId ? bucketIndexMap.get(plannerTask.bucketId) || 1 : 1;
