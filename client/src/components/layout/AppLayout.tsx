@@ -77,35 +77,28 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             {organizations.length > 0 && (
               <div className="hidden md:flex items-center gap-2">
                 {isCollapsed && <div className="h-5 w-px bg-border" />}
-                {organizations.length === 1 ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-organization-name">
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                    data-testid="dropdown-organization"
+                  >
                     <Building2 className="h-4 w-4" />
-                    <span>{currentOrganization?.name}</span>
-                  </div>
-                ) : (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger 
-                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
-                      data-testid="dropdown-organization"
-                    >
-                      <Building2 className="h-4 w-4" />
-                      <span>{currentOrganization?.name || 'Select organization'}</span>
-                      <ChevronDown className="h-3 w-3" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      {organizations.map(org => (
-                        <DropdownMenuItem
-                          key={org.id}
-                          onClick={() => setCurrentOrganization(org)}
-                          className={currentOrganization?.id === org.id ? 'bg-accent' : ''}
-                          data-testid={`dropdown-item-org-${org.id}`}
-                        >
-                          {org.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                    <span>{currentOrganization?.name || 'Select organization'}</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {organizations.map(org => (
+                      <DropdownMenuItem
+                        key={org.id}
+                        onClick={() => setCurrentOrganization(org)}
+                        className={currentOrganization?.id === org.id ? 'bg-accent' : ''}
+                        data-testid={`dropdown-item-org-${org.id}`}
+                      >
+                        {org.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             )}
           </div>
