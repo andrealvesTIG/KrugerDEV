@@ -99,7 +99,31 @@ export default function TermsOfService() {
         </section>
         
         <section>
-          <h2 className="text-xl font-semibold mb-3">11. Contact Information</h2>
+          <h2 className="text-xl font-semibold mb-3">11. Termination</h2>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">11.1 Termination for Cause</h3>
+          <p className="text-muted-foreground mb-4">
+            In addition to any other remedies it may have, either party may terminate these Terms, if (i) the other party breaches these Terms and fails to cure such breach within thirty (30) days of its receipt of a written notice identifying the breach in reasonable detail (or ten (10) days in the case of non-payment), or (ii) subject to applicable law, upon the other party's liquidation, commencement of dissolution proceedings or assignment of substantially all of its assets for the benefit of creditors.
+          </p>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">11.2 Termination for Convenience</h3>
+          <p className="text-muted-foreground mb-4">
+            In addition to the right to terminate for cause, (a) for paid subscriptions, we may terminate these Terms for convenience by providing you at least thirty (30) days' prior written notice; and (b) for unpaid accounts only, either party may terminate these Terms, effective immediately, by providing the other party written notice. For paid subscriptions, you will pay in full for the Service up to and including the last day on which the Service is provided.
+          </p>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">11.3 Effect of Termination</h3>
+          <p className="text-muted-foreground mb-4">
+            Upon expiration or termination of the Terms for any reason: (1) all of your rights under these Terms will immediately terminate and you will immediately cease all access to and use of the Platform; (2) you acknowledge and agree that your access to the Services may be automatically terminated, all passwords and individual accounts removed, and all information that has been uploaded into FridayReport.AI's systems by you may be destroyed; and (3) you may retain copies of your data that you exported prior to termination.
+          </p>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">11.4 Inactivity</h3>
+          <p className="text-muted-foreground mb-4">
+            For non-paying customers, if there is no activity in your account for six (6) months or more, FridayReport.AI reserves the right to deactivate your account, delete data from your account and/or restrict access to certain functionality in your account, at FridayReport.AI's sole discretion.
+          </p>
+        </section>
+        
+        <section>
+          <h2 className="text-xl font-semibold mb-3">12. Contact Information</h2>
           <p className="text-muted-foreground">
             If you have any questions about these Terms of Service, please contact us at support@fridayreport.ai.
           </p>
