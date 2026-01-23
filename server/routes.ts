@@ -7368,8 +7368,20 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const primary = await storage.getResource(primaryId);
       const secondary = await storage.getResource(secondaryId);
       
-      if (!primary || !secondary) {
-        return res.status(404).json({ message: "One or both resources not found" });
+      // If secondary already deleted (by another merge), treat as no-op success
+      if (!secondary) {
+        if (!primary) {
+          return res.status(404).json({ message: "Primary resource not found" });
+        }
+        return res.json({ 
+          message: `Resource already merged or deleted`,
+          resource: primary,
+          skipped: true
+        });
+      }
+      
+      if (!primary) {
+        return res.status(404).json({ message: "Primary resource not found" });
       }
       
       if (primary.organizationId !== organizationId || secondary.organizationId !== organizationId) {

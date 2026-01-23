@@ -1751,7 +1751,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Resources
+  // Track sync locks per organization to prevent race conditions
+  private syncLocks: Map<number, Promise<void>> = new Map();
+  
   async syncOrganizationMembersAsResources(organizationId: number): Promise<void> {
+    // If a sync is already in progress for this org, wait for it
+    const existingLock = this.syncLocks.get(organizationId);
+    if (existingLock) {
+      await existingLock;
+      return; // After waiting, another sync has completed, no need to run again
+    }
+    
+    // Create a new lock
+    const syncPromise = this.doSyncOrganizationMembersAsResources(organizationId);
+    this.syncLocks.set(organizationId, syncPromise);
+    
+    try {
+      await syncPromise;
+    } finally {
+      this.syncLocks.delete(organizationId);
+    }
+  }
+  
+  private async doSyncOrganizationMembersAsResources(organizationId: number): Promise<void> {
     // Get all org members with their user info
     const members = await db.select({
       userId: organizationMembers.userId,
