@@ -137,7 +137,9 @@ export function PlannerPremiumBulkImportWizard({
   const connectMutation = useMutation({
     mutationFn: async (envUrl: string) => {
       await apiRequest("POST", "/api/dataverse/set-environment", { environmentUrl: envUrl });
-      const response = await apiRequest("POST", "/api/dataverse/connect", {});
+      const response = await apiRequest("POST", "/api/dataverse/connect", {
+        returnUrl: "/projects"
+      });
       return response.json();
     },
     onSuccess: (data: any) => {

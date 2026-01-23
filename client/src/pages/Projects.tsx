@@ -1067,7 +1067,9 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   // Connect to Dataverse mutation
   const connectDataverse = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/dataverse/connect");
+      const response = await apiRequest("POST", "/api/dataverse/connect", {
+        returnUrl: "/projects"
+      });
       return response.json();
     },
     onSuccess: (data: { authUrl: string }) => {
