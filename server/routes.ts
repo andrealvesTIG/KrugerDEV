@@ -11,7 +11,7 @@ import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPerc
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -7386,6 +7386,56 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const resource = await storage.getResource(Number(req.params.id));
     if (!resource) return res.status(404).json({ message: "Resource not found" });
     res.json(resource);
+  });
+
+  // Get task assignments for a resource
+  app.get('/api/resources/:id/task-assignments', async (req, res) => {
+    try {
+      const resourceId = Number(req.params.id);
+      const assignments = await db.select({
+        taskId: taskResourceAssignments.taskId,
+        taskName: tasks.name,
+        projectId: tasks.projectId,
+        projectName: projects.name,
+        status: tasks.status,
+        progress: tasks.progress,
+        startDate: tasks.startDate,
+        endDate: tasks.endDate,
+        assignedHours: taskResourceAssignments.assignedHours,
+      })
+        .from(taskResourceAssignments)
+        .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .where(eq(taskResourceAssignments.resourceId, resourceId));
+      res.json(assignments);
+    } catch (err) {
+      console.error("Error fetching task assignments:", err);
+      res.status(500).json({ message: "Failed to fetch task assignments" });
+    }
+  });
+
+  // Get issue assignments for a resource
+  app.get('/api/resources/:id/issue-assignments', async (req, res) => {
+    try {
+      const resourceId = Number(req.params.id);
+      const assignments = await db.select({
+        issueId: issueResourceAssignments.issueId,
+        issueTitle: issues.title,
+        projectId: issues.projectId,
+        projectName: projects.name,
+        status: issues.status,
+        priority: issues.priority,
+        dueDate: issues.dueDate,
+      })
+        .from(issueResourceAssignments)
+        .innerJoin(issues, eq(issueResourceAssignments.issueId, issues.id))
+        .innerJoin(projects, eq(issues.projectId, projects.id))
+        .where(eq(issueResourceAssignments.resourceId, resourceId));
+      res.json(assignments);
+    } catch (err) {
+      console.error("Error fetching issue assignments:", err);
+      res.status(500).json({ message: "Failed to fetch issue assignments" });
+    }
   });
 
   // Create a resource

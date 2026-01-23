@@ -28,6 +28,7 @@ import OrgSettings from "@/pages/OrgSettings";
 import Profile from "@/pages/Profile";
 import UserGuide from "@/pages/UserGuide";
 import Resources from "@/pages/Resources";
+import ResourceDetails from "@/pages/ResourceDetails";
 import ProjectIntakes from "@/pages/ProjectIntakes";
 import IntakeDetails from "@/pages/IntakeDetails";
 import Integrations from "@/pages/Integrations";
@@ -159,6 +160,9 @@ function Router() {
         <GuardedRoute path="/issues" component={Issues} moduleKey="issues" />
         <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />
         <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
+        <Route path="/resources/:id">
+          <ModuleGuard moduleKey="resources"><ResourceDetails /></ModuleGuard>
+        </Route>
         <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
         <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
         <Route path="/billing" component={Billing} />

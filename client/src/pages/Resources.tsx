@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import ExcelJS from "exceljs";
@@ -312,7 +313,12 @@ export default function Resources() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="group"
+                    className="group cursor-pointer hover-elevate"
+                    onClick={(e) => {
+                      // Don't navigate if clicking on action menu
+                      if ((e.target as HTMLElement).closest('[data-radix-dropdown-menu-trigger]')) return;
+                      window.location.href = `/resources/${resource.id}`;
+                    }}
                     data-testid={`row-resource-${resource.id}`}
                   >
                     <TableCell className="font-medium">
@@ -321,6 +327,7 @@ export default function Resources() {
                           {resource.displayName.charAt(0).toUpperCase()}
                         </div>
                         {resource.displayName}
+                        <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
