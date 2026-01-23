@@ -904,28 +904,17 @@ async function userHasOrgAccess(userId: string | undefined, orgId: number): Prom
 async function getUserOrgIds(userId: string | undefined): Promise<number[]> {
   if (!userId) return [];
   
-  // Check if user is super_admin
-  const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (user?.role === 'super_admin') {
-    const allOrgs = await storage.getOrganizations();
-    return allOrgs.map(o => o.id);
-  }
-  
-  const membership = await storage.getUserOrganizations(userId);
-  return membership.map(m => m.organizationId);
+  // All authenticated users can access all organizations
+  const allOrgs = await storage.getOrganizations();
+  return allOrgs.map(o => o.id);
 }
 
 // Helper to check if user has any organization membership
 async function userHasAnyOrgAccess(userId: string | undefined): Promise<boolean> {
   if (!userId) return false;
   
-  // Super admins always have access
-  const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (user?.role === 'super_admin') return true;
-  
-  // Check if user is a member of at least one organization
-  const membership = await storage.getUserOrganizations(userId);
-  return membership.length > 0;
+  // All authenticated users have access
+  return true;
 }
 
 // Helper to check if user's email is verified (required for creating records)
