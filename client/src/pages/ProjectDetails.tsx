@@ -2388,9 +2388,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     },
     onSuccess: () => {
       toast({ title: "Success", description: "Project has been detached from the integration and is now a native FridayReport project." });
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+      // Invalidate all project-related queries to refresh parent component
+      queryClient.invalidateQueries({ queryKey: ['/api/projects/:id', projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       setIsDetachIntegrationDialogOpen(false);
+      // Force page reload to ensure clean state
+      window.location.reload();
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to detach project from integration", variant: "destructive" });
