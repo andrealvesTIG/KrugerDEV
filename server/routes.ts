@@ -2181,11 +2181,10 @@ export async function registerRoutes(
           const inviterName = inviter 
             ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') || inviter.email || 'An administrator'
             : 'An administrator';
-          const appUrl = process.env.REPLIT_DEV_DOMAIN 
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-            : process.env.REPLIT_DOMAINS?.split(',')[0] 
+          const appUrl = process.env.APP_URL 
+            || (process.env.REPLIT_DOMAINS?.split(',')[0] 
               ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-              : 'https://fridayreport.ai';
+              : 'https://fridayreport.ai');
           
           if (org) {
             await sendOrganizationInviteEmail(
@@ -2262,11 +2261,10 @@ export async function registerRoutes(
       const inviterName = inviter 
         ? [inviter.firstName, inviter.lastName].filter(Boolean).join(' ') || inviter.email || 'An administrator'
         : 'An administrator';
-      const appUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : process.env.REPLIT_DOMAINS?.split(',')[0] 
+      const appUrl = process.env.APP_URL 
+        || (process.env.REPLIT_DOMAINS?.split(',')[0] 
           ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-          : 'https://fridayreport.ai';
+          : 'https://fridayreport.ai');
       
       if (org) {
         await sendOrganizationInviteEmail(
