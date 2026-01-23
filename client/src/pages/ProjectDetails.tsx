@@ -981,6 +981,247 @@ function HealthStatusHistoryLog({ projectId }: { projectId: number }) {
   );
 }
 
+// Custom Fields Display Component for Project Details
+interface ProjectCustomField {
+  id: number;
+  organizationId: number;
+  name: string;
+  fieldType: string;
+  options: string[] | null;
+  required: boolean;
+  description: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  value: {
+    id: number;
+    textValue: string | null;
+    numberValue: string | null;
+    dateValue: string | null;
+    booleanValue: boolean | null;
+  } | null;
+}
+
+function CustomFieldsDisplay({ projectId, organizationId }: { projectId: number; organizationId: number | null }) {
+  const { toast } = useToast();
+  const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const { data: customFields, isLoading } = useQuery<ProjectCustomField[]>({
+    queryKey: ['/api/projects', projectId, 'custom-fields'],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/custom-fields`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!organizationId
+  });
+
+  const updateValueMutation = useMutation({
+    mutationFn: async ({ fieldId, value, fieldType }: { fieldId: number; value: string; fieldType: string }) => {
+      const payload: Record<string, unknown> = { fieldId };
+      
+      if (fieldType === 'text' || fieldType === 'url' || fieldType === 'select') {
+        payload.textValue = value || null;
+      } else if (fieldType === 'number') {
+        payload.numberValue = value ? parseFloat(value) : null;
+      } else if (fieldType === 'date') {
+        payload.dateValue = value || null;
+      } else if (fieldType === 'checkbox') {
+        payload.booleanValue = value === 'true';
+      }
+      
+      return apiRequest("PUT", `/api/projects/${projectId}/custom-fields`, payload);
+    },
+    onSuccess: () => {
+      toast({ title: "Custom field updated" });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'custom-fields'] });
+      setEditingFieldId(null);
+      setEditValue("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const getDisplayValue = (field: ProjectCustomField): string => {
+    if (!field.value) return "";
+    
+    switch (field.fieldType) {
+      case 'text':
+      case 'url':
+      case 'select':
+        return field.value.textValue || "";
+      case 'number':
+        return field.value.numberValue || "";
+      case 'date':
+        return field.value.dateValue ? format(new Date(field.value.dateValue), 'MMM d, yyyy') : "";
+      case 'checkbox':
+        return field.value.booleanValue ? "Yes" : "No";
+      default:
+        return "";
+    }
+  };
+
+  const startEdit = (field: ProjectCustomField) => {
+    setEditingFieldId(field.id);
+    if (field.fieldType === 'checkbox') {
+      setEditValue(field.value?.booleanValue ? 'true' : 'false');
+    } else if (field.fieldType === 'date') {
+      setEditValue(field.value?.dateValue || "");
+    } else if (field.fieldType === 'number') {
+      setEditValue(field.value?.numberValue || "");
+    } else {
+      setEditValue(field.value?.textValue || "");
+    }
+  };
+
+  const handleSave = (field: ProjectCustomField) => {
+    updateValueMutation.mutate({ 
+      fieldId: field.id, 
+      value: editValue, 
+      fieldType: field.fieldType 
+    });
+  };
+
+  if (!organizationId) return null;
+  
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="mt-3 pt-3 border-t border-border">
+        <div className="flex items-center gap-2 text-muted-foreground text-xs">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Loading custom fields...
+        </div>
+      </div>
+    );
+  }
+  
+  // No custom fields defined
+  if (!customFields || customFields.length === 0) return null;
+
+  // Show first 2 fields by default, rest in expanded view
+  const visibleFields = isExpanded ? customFields : customFields.slice(0, 2);
+  const hasMore = customFields.length > 2;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border" data-testid="custom-fields-section">
+      <div className="flex items-center justify-between mb-2">
+        <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Custom Fields</Label>
+        {hasMore && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-5 text-xs px-1"
+            onClick={() => setIsExpanded(!isExpanded)}
+            data-testid="button-toggle-custom-fields"
+          >
+            {isExpanded ? `Show less` : `+${customFields.length - 2} more`}
+          </Button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+        {visibleFields.map((field) => (
+          <div key={field.id} className="min-w-0">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground truncate block" title={field.name}>
+              {field.name}
+              {field.required && <span className="text-destructive ml-0.5">*</span>}
+            </Label>
+            {editingFieldId === field.id ? (
+              <div className="flex items-center gap-1">
+                {field.fieldType === 'select' && field.options ? (
+                  <Select value={editValue} onValueChange={setEditValue}>
+                    <SelectTrigger className="h-7 text-xs flex-1" data-testid={`select-custom-field-${field.id}`}>
+                      <SelectValue placeholder="Select..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {field.options.map((opt) => (
+                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : field.fieldType === 'checkbox' ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Checkbox 
+                      checked={editValue === 'true'}
+                      onCheckedChange={(checked) => setEditValue(checked ? 'true' : 'false')}
+                      data-testid={`checkbox-custom-field-${field.id}`}
+                    />
+                  </div>
+                ) : field.fieldType === 'date' ? (
+                  <Input 
+                    type="date" 
+                    value={editValue} 
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="h-7 text-xs flex-1"
+                    data-testid={`input-custom-field-${field.id}`}
+                  />
+                ) : field.fieldType === 'number' ? (
+                  <Input 
+                    type="number" 
+                    value={editValue} 
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="h-7 text-xs flex-1"
+                    data-testid={`input-custom-field-${field.id}`}
+                  />
+                ) : (
+                  <Input 
+                    value={editValue} 
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="h-7 text-xs flex-1"
+                    data-testid={`input-custom-field-${field.id}`}
+                  />
+                )}
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  className="h-6 w-6"
+                  onClick={() => handleSave(field)}
+                  disabled={updateValueMutation.isPending}
+                  data-testid={`button-save-custom-field-${field.id}`}
+                >
+                  <Check className="h-3 w-3" />
+                </Button>
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  className="h-6 w-6"
+                  onClick={() => { setEditingFieldId(null); setEditValue(""); }}
+                  data-testid={`button-cancel-custom-field-${field.id}`}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <p 
+                className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors truncate"
+                onClick={() => startEdit(field)}
+                title={getDisplayValue(field) || 'Click to set'}
+                data-testid={`custom-field-${field.id}`}
+              >
+                {field.fieldType === 'url' && field.value?.textValue ? (
+                  <a 
+                    href={field.value.textValue} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {field.value.textValue}
+                  </a>
+                ) : (
+                  getDisplayValue(field) || <span className="text-muted-foreground italic">Not set</span>
+                )}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any }) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
@@ -1332,6 +1573,9 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               </p>
             )}
           </div>
+          
+          {/* Custom Fields Section */}
+          <CustomFieldsDisplay projectId={project.id} organizationId={project.organizationId} />
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
           {((project as any).createdByName || project.createdAt) && (
