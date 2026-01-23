@@ -9688,35 +9688,124 @@ const CUSTOM_VIEW_FIELDS = [
   { id: 'timesheetBlocked', label: 'Timesheet Blocked', type: 'checkbox', group: 'Settings' },
 ];
 
-const CUSTOM_VIEW_STORAGE_KEY = 'project-custom-view-fields';
+const CUSTOM_VIEW_STORAGE_KEY = 'project-custom-view-layout';
+
+interface CustomSection {
+  id: string;
+  name: string;
+  columns: 1 | 2 | 3 | 4;
+  fields: string[];
+}
+
+interface CustomViewLayout {
+  sections: CustomSection[];
+}
+
+const DEFAULT_LAYOUT: CustomViewLayout = {
+  sections: [
+    { id: 'section-1', name: 'Overview', columns: 3, fields: ['name', 'status', 'health', 'priority'] },
+    { id: 'section-2', name: 'Schedule', columns: 2, fields: ['startDate', 'endDate', 'completionPercentage'] },
+    { id: 'section-3', name: 'Budget', columns: 2, fields: ['budget', 'actualCost'] },
+  ]
+};
 
 function CustomViewTab({ project, onUpdate }: { project: Project; onUpdate: (data: Partial<Project>) => void }) {
   const { toast } = useToast();
   const [isConfiguring, setIsConfiguring] = useState(false);
-  const [selectedFields, setSelectedFields] = useState<string[]>(() => {
+  const [layout, setLayout] = useState<CustomViewLayout>(() => {
     const stored = localStorage.getItem(CUSTOM_VIEW_STORAGE_KEY);
     if (stored) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (parsed && Array.isArray(parsed.sections)) {
+          const validatedSections = parsed.sections.filter((s: any) => 
+            s && typeof s.id === 'string' && typeof s.name === 'string' && Array.isArray(s.fields)
+          ).map((s: any) => ({
+            ...s,
+            columns: [1, 2, 3, 4].includes(s.columns) ? s.columns : 2,
+            fields: s.fields.filter((f: any) => typeof f === 'string')
+          }));
+          return { sections: validatedSections };
+        }
+        return DEFAULT_LAYOUT;
       } catch {
-        return ['name', 'status', 'health', 'startDate', 'endDate', 'budget', 'completionPercentage'];
+        return DEFAULT_LAYOUT;
       }
     }
-    return ['name', 'status', 'health', 'startDate', 'endDate', 'budget', 'completionPercentage'];
+    return DEFAULT_LAYOUT;
   });
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
+  const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
+  const [sectionNameValue, setSectionNameValue] = useState("");
+  const [addingFieldToSection, setAddingFieldToSection] = useState<string | null>(null);
 
-  const saveFieldSelection = (fields: string[]) => {
-    setSelectedFields(fields);
-    localStorage.setItem(CUSTOM_VIEW_STORAGE_KEY, JSON.stringify(fields));
+  const saveLayout = (newLayout: CustomViewLayout) => {
+    setLayout(newLayout);
+    localStorage.setItem(CUSTOM_VIEW_STORAGE_KEY, JSON.stringify(newLayout));
   };
 
-  const toggleField = (fieldId: string) => {
-    const newFields = selectedFields.includes(fieldId)
-      ? selectedFields.filter(f => f !== fieldId)
-      : [...selectedFields, fieldId];
-    saveFieldSelection(newFields);
+  const addSection = () => {
+    const newSection: CustomSection = {
+      id: `section-${Date.now()}`,
+      name: 'New Section',
+      columns: 2,
+      fields: []
+    };
+    saveLayout({ ...layout, sections: [...layout.sections, newSection] });
+    toast({ title: "Section added" });
+  };
+
+  const removeSection = (sectionId: string) => {
+    saveLayout({ ...layout, sections: layout.sections.filter(s => s.id !== sectionId) });
+    toast({ title: "Section removed" });
+  };
+
+  const updateSectionName = (sectionId: string, name: string) => {
+    saveLayout({
+      ...layout,
+      sections: layout.sections.map(s => s.id === sectionId ? { ...s, name } : s)
+    });
+    setEditingSectionName(null);
+    setSectionNameValue("");
+  };
+
+  const updateSectionColumns = (sectionId: string, columns: 1 | 2 | 3 | 4) => {
+    saveLayout({
+      ...layout,
+      sections: layout.sections.map(s => s.id === sectionId ? { ...s, columns } : s)
+    });
+  };
+
+  const addFieldToSection = (sectionId: string, fieldId: string) => {
+    const allUsedFields = layout.sections.flatMap(s => s.fields);
+    if (allUsedFields.includes(fieldId)) return;
+    
+    saveLayout({
+      ...layout,
+      sections: layout.sections.map(s => 
+        s.id === sectionId ? { ...s, fields: [...s.fields, fieldId] } : s
+      )
+    });
+    setAddingFieldToSection(null);
+  };
+
+  const removeFieldFromSection = (sectionId: string, fieldId: string) => {
+    saveLayout({
+      ...layout,
+      sections: layout.sections.map(s => 
+        s.id === sectionId ? { ...s, fields: s.fields.filter(f => f !== fieldId) } : s
+      )
+    });
+  };
+
+  const moveSection = (sectionId: string, direction: 'up' | 'down') => {
+    const idx = layout.sections.findIndex(s => s.id === sectionId);
+    if ((direction === 'up' && idx === 0) || (direction === 'down' && idx === layout.sections.length - 1)) return;
+    const newSections = [...layout.sections];
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    [newSections[idx], newSections[swapIdx]] = [newSections[swapIdx], newSections[idx]];
+    saveLayout({ ...layout, sections: newSections });
   };
 
   const startEditing = (fieldId: string, value: any) => {
@@ -9768,20 +9857,115 @@ function CustomViewTab({ project, onUpdate }: { project: Project; onUpdate: (dat
     }
   };
 
-  const groupedFields = useMemo(() => {
+  const usedFieldIds = useMemo(() => {
+    return new Set(layout.sections.flatMap(s => s.fields));
+  }, [layout]);
+
+  const availableFields = useMemo(() => {
+    return CUSTOM_VIEW_FIELDS.filter(f => !usedFieldIds.has(f.id));
+  }, [usedFieldIds]);
+
+  const groupedAvailableFields = useMemo(() => {
     const groups: Record<string, typeof CUSTOM_VIEW_FIELDS> = {};
-    CUSTOM_VIEW_FIELDS.forEach(field => {
+    availableFields.forEach(field => {
       if (!groups[field.group]) groups[field.group] = [];
       groups[field.group].push(field);
     });
     return groups;
-  }, []);
+  }, [availableFields]);
 
-  const activeFields = useMemo(() => {
-    return selectedFields
-      .map(id => CUSTOM_VIEW_FIELDS.find(f => f.id === id))
-      .filter(Boolean) as typeof CUSTOM_VIEW_FIELDS;
-  }, [selectedFields]);
+  const getColumnClass = (columns: number) => {
+    switch (columns) {
+      case 1: return 'grid-cols-1';
+      case 2: return 'grid-cols-1 md:grid-cols-2';
+      case 3: return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+      case 4: return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4';
+      default: return 'grid-cols-1 md:grid-cols-2';
+    }
+  };
+
+  const renderFieldEditor = (field: typeof CUSTOM_VIEW_FIELDS[0]) => {
+    if (editingField !== field.id) {
+      return (
+        <p 
+          className="mt-1 text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors"
+          onClick={() => startEditing(field.id, getFieldValue(field.id))}
+          data-testid={`field-value-${field.id}`}
+        >
+          {formatDisplayValue(field.id, field.type)}
+        </p>
+      );
+    }
+
+    return (
+      <div className="mt-1 flex items-center gap-2">
+        {field.type === 'select' ? (
+          <Select value={editValue} onValueChange={setEditValue}>
+            <SelectTrigger className="h-8 text-sm flex-1">
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {field.options?.map(opt => (
+                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : field.type === 'textarea' ? (
+          <Textarea 
+            value={editValue} 
+            onChange={(e) => setEditValue(e.target.value)}
+            className="text-sm flex-1 min-h-[60px]"
+          />
+        ) : field.type === 'checkbox' ? (
+          <div className="flex items-center gap-2 flex-1">
+            <Checkbox 
+              checked={editValue === 'true'}
+              onCheckedChange={(checked) => setEditValue(checked ? 'true' : 'false')}
+            />
+            <span className="text-sm">{editValue === 'true' ? 'Yes' : 'No'}</span>
+          </div>
+        ) : field.type === 'date' ? (
+          <Input 
+            type="date" 
+            value={editValue} 
+            onChange={(e) => setEditValue(e.target.value)}
+            className="h-8 text-sm flex-1"
+          />
+        ) : field.type === 'number' || field.type === 'currency' || field.type === 'percentage' ? (
+          <Input 
+            type="number" 
+            value={editValue} 
+            onChange={(e) => setEditValue(e.target.value)}
+            className="h-8 text-sm flex-1"
+          />
+        ) : (
+          <Input 
+            value={editValue} 
+            onChange={(e) => setEditValue(e.target.value)}
+            className="h-8 text-sm flex-1"
+          />
+        )}
+        <Button 
+          size="icon" 
+          variant="ghost" 
+          className="h-7 w-7"
+          onClick={() => saveEdit(field.id, field.type)}
+          data-testid={`button-save-field-${field.id}`}
+        >
+          <Check className="h-3 w-3" />
+        </Button>
+        <Button 
+          size="icon" 
+          variant="ghost" 
+          className="h-7 w-7"
+          onClick={cancelEdit}
+          data-testid={`button-cancel-field-${field.id}`}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <Card>
@@ -9789,7 +9973,7 @@ function CustomViewTab({ project, onUpdate }: { project: Project; onUpdate: (dat
         <div>
           <CardTitle className="text-lg">Custom View</CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Personalized view with your selected project fields
+            Flexible layout with custom sections and columns
           </p>
         </div>
         <Button 
@@ -9799,135 +9983,214 @@ function CustomViewTab({ project, onUpdate }: { project: Project; onUpdate: (dat
           data-testid="button-configure-custom-view"
         >
           <Settings2 className="h-4 w-4 mr-2" />
-          {isConfiguring ? "Done" : "Configure"}
+          {isConfiguring ? "Done" : "Configure Layout"}
         </Button>
       </CardHeader>
-      <CardContent>
-        {isConfiguring ? (
-          <div className="space-y-4">
+      <CardContent className="space-y-6">
+        {isConfiguring && (
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg mb-4">
             <p className="text-sm text-muted-foreground">
-              Select the fields you want to display in your custom view:
+              Add sections, choose columns, and assign fields to customize your view
             </p>
-            {Object.entries(groupedFields).map(([group, fields]) => (
-              <div key={group}>
-                <h4 className="font-medium text-sm mb-2">{group}</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {fields.map(field => (
-                    <div 
-                      key={field.id}
-                      className={cn(
-                        "flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors",
-                        selectedFields.includes(field.id) 
-                          ? "bg-primary/10 border-primary" 
-                          : "hover:bg-muted/50"
-                      )}
-                      onClick={() => toggleField(field.id)}
-                      data-testid={`checkbox-field-${field.id}`}
-                    >
-                      <Checkbox 
-                        checked={selectedFields.includes(field.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        onCheckedChange={() => toggleField(field.id)}
-                      />
-                      <span className="text-sm">{field.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+            <Button size="sm" onClick={addSection} data-testid="button-add-section">
+              <Plus className="h-4 w-4 mr-1" />
+              Add Section
+            </Button>
           </div>
-        ) : activeFields.length === 0 ? (
+        )}
+
+        {layout.sections.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Settings2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No fields selected</p>
-            <p className="text-sm mt-1">Click "Configure" to choose which fields to display</p>
+            <p>No sections configured</p>
+            <p className="text-sm mt-1">Click "Configure Layout" to create sections and add fields</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {activeFields.map(field => (
-              <div key={field.id} className="border rounded-lg p-3">
-                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {field.label}
-                </Label>
-                {editingField === field.id ? (
-                  <div className="mt-1 flex items-center gap-2">
-                    {field.type === 'select' ? (
-                      <Select value={editValue} onValueChange={setEditValue}>
-                        <SelectTrigger className="h-8 text-sm flex-1">
-                          <SelectValue placeholder="Select..." />
+          layout.sections.map((section, sectionIndex) => {
+            const sectionFields = section.fields
+              .map(id => CUSTOM_VIEW_FIELDS.find(f => f.id === id))
+              .filter(Boolean) as typeof CUSTOM_VIEW_FIELDS;
+
+            return (
+              <div key={section.id} className="border rounded-lg" data-testid={`section-${section.id}`}>
+                <div className="flex items-center justify-between gap-2 p-3 border-b bg-muted/30">
+                  {editingSectionName === section.id ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input 
+                        value={sectionNameValue}
+                        onChange={(e) => setSectionNameValue(e.target.value)}
+                        className="h-8 max-w-[200px]"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') updateSectionName(section.id, sectionNameValue);
+                          if (e.key === 'Escape') { setEditingSectionName(null); setSectionNameValue(""); }
+                        }}
+                      />
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateSectionName(section.id, sectionNameValue)}>
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditingSectionName(null); setSectionNameValue(""); }}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <h3 
+                      className={cn(
+                        "font-semibold text-sm",
+                        isConfiguring && "cursor-pointer hover:text-primary"
+                      )}
+                      onClick={() => {
+                        if (isConfiguring) {
+                          setEditingSectionName(section.id);
+                          setSectionNameValue(section.name);
+                        }
+                      }}
+                    >
+                      {section.name}
+                      {isConfiguring && <Pencil className="h-3 w-3 ml-2 inline opacity-50" />}
+                    </h3>
+                  )}
+
+                  {isConfiguring && (
+                    <div className="flex items-center gap-2">
+                      <Select 
+                        value={section.columns.toString()} 
+                        onValueChange={(v) => updateSectionColumns(section.id, parseInt(v) as 1 | 2 | 3 | 4)}
+                      >
+                        <SelectTrigger className="h-8 w-[100px]">
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {field.options?.map(opt => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                          ))}
+                          <SelectItem value="1">1 Column</SelectItem>
+                          <SelectItem value="2">2 Columns</SelectItem>
+                          <SelectItem value="3">3 Columns</SelectItem>
+                          <SelectItem value="4">4 Columns</SelectItem>
                         </SelectContent>
                       </Select>
-                    ) : field.type === 'textarea' ? (
-                      <Textarea 
-                        value={editValue} 
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="text-sm flex-1 min-h-[60px]"
-                      />
-                    ) : field.type === 'checkbox' ? (
-                      <div className="flex items-center gap-2 flex-1">
-                        <Checkbox 
-                          checked={editValue === 'true'}
-                          onCheckedChange={(checked) => setEditValue(checked ? 'true' : 'false')}
-                        />
-                        <span className="text-sm">{editValue === 'true' ? 'Yes' : 'No'}</span>
+
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-7 w-7"
+                          disabled={sectionIndex === 0}
+                          onClick={() => moveSection(section.id, 'up')}
+                          data-testid={`button-move-section-up-${section.id}`}
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-7 w-7"
+                          disabled={sectionIndex === layout.sections.length - 1}
+                          onClick={() => moveSection(section.id, 'down')}
+                          data-testid={`button-move-section-down-${section.id}`}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
                       </div>
-                    ) : field.type === 'date' ? (
-                      <Input 
-                        type="date" 
-                        value={editValue} 
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="h-8 text-sm flex-1"
-                      />
-                    ) : field.type === 'number' || field.type === 'currency' || field.type === 'percentage' ? (
-                      <Input 
-                        type="number" 
-                        value={editValue} 
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="h-8 text-sm flex-1"
-                      />
-                    ) : (
-                      <Input 
-                        value={editValue} 
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="h-8 text-sm flex-1"
-                      />
-                    )}
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      className="h-7 w-7"
-                      onClick={() => saveEdit(field.id, field.type)}
-                      data-testid={`button-save-field-${field.id}`}
-                    >
-                      <Check className="h-3 w-3" />
-                    </Button>
-                    <Button 
-                      size="icon" 
-                      variant="ghost" 
-                      className="h-7 w-7"
-                      onClick={cancelEdit}
-                      data-testid={`button-cancel-field-${field.id}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <p 
-                    className="mt-1 text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors"
-                    onClick={() => startEditing(field.id, getFieldValue(field.id))}
-                    data-testid={`field-value-${field.id}`}
-                  >
-                    {formatDisplayValue(field.id, field.type)}
-                  </p>
-                )}
+
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => removeSection(section.id)}
+                        data-testid={`button-remove-section-${section.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className={cn("p-4 grid gap-4", getColumnClass(section.columns))}>
+                  {sectionFields.length === 0 && !isConfiguring ? (
+                    <p className="text-sm text-muted-foreground col-span-full text-center py-4">
+                      No fields in this section
+                    </p>
+                  ) : (
+                    sectionFields.map(field => (
+                      <div key={field.id} className="border rounded-lg p-3 relative group">
+                        {isConfiguring && (
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-5 w-5 absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                            onClick={() => removeFieldFromSection(section.id, field.id)}
+                            data-testid={`button-remove-field-${field.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                        <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {field.label}
+                        </Label>
+                        {renderFieldEditor(field)}
+                      </div>
+                    ))
+                  )}
+
+                  {isConfiguring && (
+                    <div className="col-span-full">
+                      {addingFieldToSection === section.id ? (
+                        <div className="border-2 border-dashed rounded-lg p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Add Field</span>
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-6 w-6"
+                              onClick={() => setAddingFieldToSection(null)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          {availableFields.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">All fields have been added</p>
+                          ) : (
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                              {Object.entries(groupedAvailableFields).map(([group, fields]) => (
+                                <div key={group}>
+                                  <p className="text-xs font-medium text-muted-foreground mb-1">{group}</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {fields.map(field => (
+                                      <Button
+                                        key={field.id}
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 text-xs"
+                                        onClick={() => addFieldToSection(section.id, field.id)}
+                                        data-testid={`button-add-field-${field.id}-to-${section.id}`}
+                                      >
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        {field.label}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full border-dashed"
+                          onClick={() => setAddingFieldToSection(section.id)}
+                          data-testid={`button-open-add-field-${section.id}`}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Field to Section
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })
         )}
       </CardContent>
     </Card>
