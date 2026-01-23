@@ -32,7 +32,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Unlink } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -2364,6 +2364,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   // Make Editable state (convert imported/planner to native tasks)
   const [isMakeEditableDialogOpen, setIsMakeEditableDialogOpen] = useState(false);
   
+  // Detach Integration state (fully removes integration link)
+  const [isDetachIntegrationDialogOpen, setIsDetachIntegrationDialogOpen] = useState(false);
+  
   const makeEditableMutation = useMutation({
     mutationFn: async () => {
       return apiRequest(`/api/projects/${projectId}/make-editable`, { method: 'POST' });
@@ -2376,6 +2379,21 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to convert project", variant: "destructive" });
+    }
+  });
+  
+  const detachIntegrationMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/projects/${projectId}/detach-integration`, { method: 'POST' });
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Project has been detached from the integration and is now a native FridayReport project." });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+      setIsDetachIntegrationDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to detach project from integration", variant: "destructive" });
     }
   });
   
@@ -2792,6 +2810,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               <Pencil className="h-4 w-4 mr-2" />
               Make Editable
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDetachIntegrationDialogOpen(true)}
+              data-testid="button-detach-integration-planner"
+            >
+              <Unlink className="h-4 w-4 mr-2" />
+              Detach
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 
@@ -2983,6 +3010,48 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <>
                   <Pencil className="mr-2 h-4 w-4" />
                   Make Editable
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Detach Integration Dialog */}
+      <AlertDialog open={isDetachIntegrationDialogOpen} onOpenChange={setIsDetachIntegrationDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Unlink className="h-5 w-5" />
+              Detach from Integration
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                This will completely detach the project from {isPremiumPlan ? "Microsoft Project" : "Microsoft Planner"} and make it a native FridayReport project.
+              </p>
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 text-amber-800 dark:text-amber-200 text-sm">
+                <strong>Important:</strong> After detaching, the link to {isPremiumPlan ? "Project" : "Planner"} will be permanently removed. You will no longer be able to sync or view the original plan.
+              </div>
+              <p className="text-sm">
+                This action cannot be undone. Are you sure you want to continue?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={detachIntegrationMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => detachIntegrationMutation.mutate()}
+              disabled={detachIntegrationMutation.isPending}
+            >
+              {detachIntegrationMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Detaching...
+                </>
+              ) : (
+                <>
+                  <Unlink className="mr-2 h-4 w-4" />
+                  Detach
                 </>
               )}
             </AlertDialogAction>

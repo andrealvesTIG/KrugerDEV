@@ -4550,6 +4550,70 @@ export async function registerRoutes(
     }
   });
 
+  // Detach project from integration (fully removes integration link)
+  app.post('/api/projects/:id/detach-integration', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      // Check user has access to this project's organization
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied to this project" });
+      }
+      
+      // Only allow detachment for integration projects
+      if (project.source !== "planner" && project.source !== "planner_premium") {
+        return res.status(400).json({ message: "Project is not linked to an integration" });
+      }
+      
+      const previousSource = project.source;
+      const previousPlanId = project.plannerPlanId;
+      
+      // Fully detach from integration - clear all integration fields
+      const updated = await storage.updateProject(projectId, {
+        source: "manual",
+        plannerPlanId: null,
+        dataverseOrgId: null,
+        dataverseTenantId: null,
+      });
+      
+      // Log the detachment
+      const user = await storage.getUser(userId);
+      await storage.createProjectChangeLog({
+        projectId,
+        changedBy: userId,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'updated',
+        changeSummary: `Detached from ${previousSource === 'planner_premium' ? 'Planner Premium' : 'Microsoft Planner'} integration`,
+        previousValues: JSON.stringify({ 
+          source: previousSource, 
+          plannerPlanId: previousPlanId 
+        }),
+        newValues: JSON.stringify({ 
+          source: "manual", 
+          plannerPlanId: null 
+        }),
+      });
+      
+      res.json({ 
+        message: "Project detached from integration successfully. It is now a native FridayReport project.",
+        project: updated 
+      });
+    } catch (err) {
+      console.error("Error detaching project from integration:", err);
+      res.status(500).json({ message: "Error detaching project from integration" });
+    }
+  });
+
   // Project History
   app.get(api.projects.getHistory.path, async (req, res) => {
     try {
