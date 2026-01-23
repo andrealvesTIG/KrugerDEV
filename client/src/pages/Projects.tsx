@@ -16,7 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -2135,6 +2135,7 @@ function ProjectsGridView({
   onExitFullscreen?: () => void;
 }) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
   const [columnOrder, setColumnOrder] = useState<string[]>(getStoredColumnOrder);
   const [selectedProjects, setSelectedProjects] = useState<Set<number>>(new Set());
@@ -2781,9 +2782,13 @@ function ProjectsGridView({
                   <TableRow 
                     key={project.id} 
                     data-testid={`grid-row-${project.id}`}
-                    className={cn(selectedProjects.has(project.id) && "bg-muted/50")}
+                    className={cn(
+                      selectedProjects.has(project.id) && "bg-muted/50",
+                      "cursor-pointer hover:bg-muted/30 transition-colors"
+                    )}
+                    onClick={() => setLocation(`/projects/${project.id}`)}
                   >
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox 
                         checked={selectedProjects.has(project.id)}
                         onCheckedChange={() => toggleSelectProject(project.id)}
@@ -2805,7 +2810,7 @@ function ProjectsGridView({
                         </TableCell>
                       );
                     })}
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button size="icon" variant="ghost" data-testid={`grid-menu-${project.id}`}>
