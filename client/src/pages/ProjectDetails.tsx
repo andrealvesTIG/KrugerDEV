@@ -1192,7 +1192,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 value={project.billableStatus || "N/A"} 
                 onValueChange={(v) => handleSelectChange('billableStatus', v)}
               >
-                <SelectTrigger className="mt-1" data-testid="select-billable-status">
+                <SelectTrigger className="mt-1 h-[30px] text-xs" data-testid="select-billable-status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
