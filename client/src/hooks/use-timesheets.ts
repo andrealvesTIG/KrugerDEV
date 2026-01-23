@@ -38,8 +38,9 @@ export function useAssignedTasks(organizationId: number | null, userId: string |
   return useQuery<{ task: Task; project: Project }[]>({
     queryKey: ["/api/timesheets/assigned-tasks", organizationId, userId],
     enabled: !!organizationId && !!userId,
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes - assignments don't change often
-    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
+    staleTime: 0, // Always refetch to get latest blocking status
+    gcTime: 1000 * 60 * 5, // Keep in cache for 5 minutes
+    refetchOnMount: true, // Refetch when component mounts
     queryFn: async () => {
       const response = await fetch(`/api/timesheets/assigned-tasks?organizationId=${organizationId}`);
       if (!response.ok) throw new Error("Failed to fetch assigned tasks");
