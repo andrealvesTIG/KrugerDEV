@@ -4009,10 +4009,173 @@ export async function registerRoutes(
         await storage.updateTask(taskId, { outlineLevel: level });
       }
 
+      // Import resources and assignments from Planner Premium
+      let resourcesImported = 0;
+      try {
+        // Fetch existing resources for matching
+        const existingResources = await storage.getResources(project.organizationId!);
+        const resourcesByName = new Map(existingResources.map(r => [r.displayName.toLowerCase(), r]));
+        const resourcesByEmail = new Map(existingResources.filter(r => r.email).map(r => [r.email!.toLowerCase(), r]));
+        const bookableResourceMap = new Map<string, number>(); // Maps Dataverse bookableResourceId to our resourceId
+        const assignedPairs = new Set<string>(); // Track assigned resource-task pairs to prevent duplicates
+
+        // Try multiple API approaches to fetch team members
+        const teamApiUrls = [
+          `${environmentUrl}/api/data/v9.2/msdyn_projectteams?$select=msdyn_projectteamid,msdyn_name,_msdyn_bookableresourceid_value&$expand=msdyn_bookableresourceid($select=name,msdyn_primaryemail,emailaddress1)&$filter=_msdyn_project_value eq ${planId}`,
+          `${environmentUrl}/api/data/v9.2/msdyn_projectteams?$select=msdyn_projectteamid,msdyn_name,_msdyn_bookableresourceid_value&$expand=msdyn_bookableresourceid($select=name)&$filter=_msdyn_project_value eq ${planId}`,
+          `${environmentUrl}/api/data/v9.2/msdyn_projectteams?$select=msdyn_projectteamid,msdyn_name,_msdyn_bookableresourceid_value&$filter=_msdyn_project_value eq ${planId}`,
+        ];
+
+        let teamResponse: Response | null = null;
+        let teamFetched = false;
+        let teamApiUrlIndex = -1;
+
+        for (let i = 0; i < teamApiUrls.length; i++) {
+          teamResponse = await fetch(teamApiUrls[i], {
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "OData-MaxVersion": "4.0",
+              "OData-Version": "4.0",
+            },
+          });
+          if (teamResponse.ok) {
+            teamFetched = true;
+            teamApiUrlIndex = i;
+            break;
+          }
+          console.log(`Import: Team API attempt ${i + 1} failed (status ${teamResponse.status}), trying next...`);
+        }
+
+        if (teamResponse && teamFetched) {
+          const teamData = await teamResponse.json();
+          const teamMembers = teamData.value || [];
+          console.log(`Import: Found ${teamMembers.length} team members (using API variant ${teamApiUrlIndex + 1})`);
+
+          // Process each team member
+          for (const member of teamMembers) {
+            const memberName = member.msdyn_bookableresourceid?.name || member.msdyn_name;
+            const memberEmail = member.msdyn_bookableresourceid?.msdyn_primaryemail || member.msdyn_bookableresourceid?.emailaddress1;
+            const bookableResourceId = member._msdyn_bookableresourceid_value;
+
+            if (!memberName) continue;
+
+            // Try to match existing resource by name or email
+            let matchedResource = resourcesByName.get(memberName.toLowerCase());
+            if (!matchedResource && memberEmail) {
+              matchedResource = resourcesByEmail.get(memberEmail.toLowerCase());
+            }
+
+            if (matchedResource) {
+              if (bookableResourceId) {
+                bookableResourceMap.set(bookableResourceId, matchedResource.id);
+              }
+              console.log(`Import: Matched resource: ${memberName} (ID: ${matchedResource.id})`);
+            } else {
+              // Create new resource in resource pool
+              try {
+                const newResource = await storage.createResource({
+                  organizationId: project.organizationId!,
+                  displayName: memberName,
+                  email: memberEmail,
+                  title: 'Team Member',
+                  resourceType: 'Employee',
+                  availability: 100,
+                });
+
+                if (bookableResourceId) {
+                  bookableResourceMap.set(bookableResourceId, newResource.id);
+                }
+                resourcesByName.set(memberName.toLowerCase(), newResource);
+                if (memberEmail) {
+                  resourcesByEmail.set(memberEmail.toLowerCase(), newResource);
+                }
+
+                resourcesImported++;
+                console.log(`Import: Created resource: ${memberName} (ID: ${newResource.id})`);
+              } catch (createErr) {
+                console.log(`Import: Failed to create resource ${memberName}:`, createErr);
+              }
+            }
+          }
+
+          // Fetch and apply resource assignments
+          const assignmentApiUrls = [
+            `${environmentUrl}/api/data/v9.2/msdyn_resourceassignments?$filter=_msdyn_projectid_value eq ${planId}`,
+            `${environmentUrl}/api/data/v9.2/msdyn_resourceassignments`,
+          ];
+
+          let assignmentsResponse: Response | null = null;
+          let assignmentsFetched = false;
+
+          for (let i = 0; i < assignmentApiUrls.length; i++) {
+            assignmentsResponse = await fetch(assignmentApiUrls[i], {
+              headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0",
+              },
+            });
+            if (assignmentsResponse.ok) {
+              console.log(`Import: Successfully fetched resource assignments using API variant ${i + 1}`);
+              assignmentsFetched = true;
+              break;
+            }
+            console.log(`Import: Assignments API attempt ${i + 1} failed (status ${assignmentsResponse.status}), trying next...`);
+          }
+
+          if (assignmentsResponse && assignmentsFetched) {
+            const assignmentsData = await assignmentsResponse.json();
+            let assignments = assignmentsData.value || [];
+
+            // Filter to only include tasks in our project
+            const projectTaskIds = new Set(Array.from(taskIdMap.keys()));
+            assignments = assignments.filter((a: any) => {
+              const taskId = a._msdyn_projecttaskid_value || a._msdyn_projecttask_value || a._msdyn_taskid_value;
+              return taskId && projectTaskIds.has(taskId);
+            });
+
+            console.log(`Import: Found ${assignments.length} relevant resource assignments`);
+
+            // Apply assignments to tasks
+            for (const assignment of assignments) {
+              const dvTaskId = assignment._msdyn_projecttaskid_value || assignment._msdyn_projecttask_value || assignment._msdyn_taskid_value;
+              const dvResourceId = assignment._msdyn_bookableresourceid_value || assignment._bookableresource_value;
+
+              if (!dvTaskId || !dvResourceId) continue;
+
+              const ourTaskId = taskIdMap.get(dvTaskId);
+              const ourResourceId = bookableResourceMap.get(dvResourceId);
+
+              if (ourTaskId && ourResourceId) {
+                const pairKey = `${ourTaskId}-${ourResourceId}`;
+                if (assignedPairs.has(pairKey)) continue;
+
+                try {
+                  await storage.addTaskResourceAssignment({
+                    taskId: ourTaskId,
+                    resourceId: ourResourceId,
+                  });
+                  assignedPairs.add(pairKey);
+                  console.log(`Import: Assigned resource ${ourResourceId} to task ${ourTaskId}`);
+                } catch (assignErr) {
+                  console.log(`Import: Failed to assign resource ${ourResourceId} to task ${ourTaskId}:`, assignErr);
+                }
+              }
+            }
+          }
+        }
+      } catch (resourceErr) {
+        console.log("Import: Error importing resources from Planner Premium:", resourceErr);
+        // Continue without failing the import - resources are optional
+      }
+
       res.status(201).json({ 
         project,
         tasksCreated: createdTasks.length,
-        message: `Successfully imported "${plan.msdyn_subject || project.name}" with ${createdTasks.length} tasks from Planner Premium`
+        resourcesImported,
+        message: `Successfully imported "${plan.msdyn_subject || project.name}" with ${createdTasks.length} tasks${resourcesImported > 0 ? ` and ${resourcesImported} new resources` : ''} from Planner Premium`
       });
     } catch (err: any) {
       console.error("Dataverse import error:", err);
@@ -4498,8 +4661,8 @@ export async function registerRoutes(
               // If we used the unfiltered query, filter manually to only include tasks in our project
               const projectTaskIds = new Set(Array.from(taskIdMap.keys()));
               assignments = assignments.filter((a: any) => {
-                // Support different field names for task ID
-                const taskId = a._msdyn_projecttaskid_value || a._msdyn_projecttask_value;
+                // Support different field names for task ID across different Dataverse schemas
+                const taskId = a._msdyn_projecttaskid_value || a._msdyn_projecttask_value || a._msdyn_taskid_value;
                 return taskId && projectTaskIds.has(taskId);
               });
               
@@ -4508,7 +4671,7 @@ export async function registerRoutes(
               // Apply assignments to tasks (with duplicate prevention)
               for (const assignment of assignments) {
                 // Support different field names from different Dataverse schemas
-                const dvTaskId = assignment._msdyn_projecttaskid_value || assignment._msdyn_projecttask_value;
+                const dvTaskId = assignment._msdyn_projecttaskid_value || assignment._msdyn_projecttask_value || assignment._msdyn_taskid_value;
                 const dvResourceId = assignment._msdyn_bookableresourceid_value || assignment._bookableresource_value;
                 
                 if (!dvTaskId || !dvResourceId) continue;
