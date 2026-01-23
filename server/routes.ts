@@ -11800,7 +11800,20 @@ Return ONLY valid JSON.`;
       // Single optimized query with JOINs - replaces N+1 queries
       const assignedTasks = await storage.getAssignedTasksForResource(userResource.id, organizationId);
 
-      res.json(assignedTasks);
+      // Filter out tasks where the task or project is blocked for timesheets
+      const filteredTasks = [];
+      for (const task of assignedTasks) {
+        // Check if task itself is blocked
+        if (task.timesheetBlocked) continue;
+        
+        // Check if the project is blocked
+        const project = await storage.getProject(task.projectId);
+        if (project?.timesheetBlocked) continue;
+        
+        filteredTasks.push(task);
+      }
+
+      res.json(filteredTasks);
     } catch (error) {
       console.error('Error getting assigned tasks:', error);
       res.status(500).json({ message: 'Failed to get assigned tasks' });
