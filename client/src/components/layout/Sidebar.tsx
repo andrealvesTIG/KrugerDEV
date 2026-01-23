@@ -8,6 +8,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { WaffleMenu } from "@/components/WaffleMenu";
 import type { SidebarStructure, SidebarGroup, SidebarItem } from "@shared/schema";
 
 const EMOJI_MAP: Record<string, string> = {
@@ -280,17 +281,19 @@ export function Sidebar() {
       {/* Logo Area with Waffle Menu */}
       <div className={cn("flex h-20 items-center", isCollapsed ? "justify-center px-2" : "px-4")}>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-slate-800 transition-colors flex-shrink-0 group"
-            data-testid="button-waffle-menu"
-          >
-            <div className="grid grid-cols-3 gap-1">
-              {[...Array(9)].map((_, i) => (
-                <div key={i} className="w-1.5 h-1.5 rounded-sm bg-slate-400 group-hover:bg-white transition-colors" />
-              ))}
-            </div>
-          </button>
+          <WaffleMenu 
+            enabledModules={(() => {
+              const structure = currentOrganization?.sidebarStructure as SidebarStructure | undefined;
+              if (!structure || !Array.isArray(structure)) return undefined;
+              return structure.flatMap(g => 
+                g.items
+                  .filter((i): i is { type: "module"; key: string; hidden?: boolean } => i.type === "module" && !i.hidden)
+                  .map(i => i.key)
+              );
+            })()}
+            isMicrosoftConnected={!!currentOrganization}
+            onNavigate={() => setIsMobileOpen(false)}
+          />
           {!isCollapsed && (
             <>
               <img 
