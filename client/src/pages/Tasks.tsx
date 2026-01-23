@@ -492,7 +492,7 @@ export default function Tasks() {
             <span className="hidden sm:inline">My Assignments</span>
             {myAssignmentsOnly && myResourceId && (
               <Badge variant="secondary" className="text-xs">
-                {myTaskIds.size}
+                {tasks.length}
               </Badge>
             )}
           </Button>
