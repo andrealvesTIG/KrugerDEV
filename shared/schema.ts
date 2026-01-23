@@ -169,6 +169,7 @@ export const projects = pgTable("projects", {
   businessOwnerId: varchar("business_owner_id").references(() => users.id), // Product/Business Owner
   technicalLeadId: varchar("technical_lead_id").references(() => users.id), // Technical Lead
   completionPercentage: integer("completion_percentage").default(0),
+  completionOverridden: boolean("completion_overridden").default(false), // True if user manually set completion percentage
   health: text("health").default("Green"), // Green, Yellow, Red
   healthReason: text("health_reason"), // Reason for health status change
   healthReasonUpdatedAt: timestamp("health_reason_updated_at"), // When health reason was last updated

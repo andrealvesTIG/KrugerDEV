@@ -1014,15 +1014,12 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
     };
   }, [tasks]);
   
-  // User has overridden if they've explicitly set a value that differs from calculated
-  // Note: stored value of 0 vs calculated 0 is not considered an override
+  // User has overridden if they've explicitly set the override flag
   const storedValue = project.completionPercentage;
-  const isOverridden = storedValue !== null && 
-                       storedValue !== undefined && 
-                       storedValue !== calculatedCompletion;
+  const isOverridden = project.completionOverridden === true;
   
-  // Display value: use stored value if set, otherwise calculated
-  const displayCompletion = storedValue ?? calculatedCompletion;
+  // Display value: use stored value only if override flag is set, otherwise show calculated
+  const displayCompletion = isOverridden ? (storedValue ?? 0) : calculatedCompletion;
   
   const [editValues, setEditValues] = useState({
     name: project.name || "",
@@ -1069,13 +1066,43 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
   // Reset completion to calculated value from tasks
   const resetToCalculated = () => {
     setEditValues(prev => ({ ...prev, completionPercentage: calculatedCompletion }));
-    autoSave('completionPercentage', calculatedCompletion);
+    // Save with override flag set to false
+    onUpdate({ 
+      id: project.id, 
+      completionPercentage: calculatedCompletion,
+      completionOverridden: false
+    }, {
+      onSuccess: () => {
+        toast({ title: "Reset to calculated value" });
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to reset completion", variant: "destructive" });
+      }
+    });
   };
 
   const handleFieldBlur = (field: string) => {
     const value = editValues[field as keyof typeof editValues];
-    if (value !== project[field]) {
-      autoSave(field, value);
+    if (value !== project[field as keyof typeof project]) {
+      // For completion percentage, also set the override flag
+      if (field === 'completionPercentage') {
+        onUpdate({ 
+          id: project.id, 
+          completionPercentage: Number(value),
+          completionOverridden: true
+        }, {
+          onSuccess: () => {
+            toast({ title: "Saved" });
+            queryClient.invalidateQueries({ queryKey: ['/api/projects', project.id] });
+          },
+          onError: () => {
+            toast({ title: "Error", description: "Failed to save changes", variant: "destructive" });
+          }
+        });
+      } else {
+        autoSave(field, value);
+      }
     }
     setEditingField(null);
   };
