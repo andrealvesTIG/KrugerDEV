@@ -65,6 +65,16 @@ export default function Resources() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Auto-open merge dialog when navigating from import wizard
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("openMerge") === "true") {
+      setIsMergeDialogOpen(true);
+      // Clean up the URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   const handleExportToExcel = async () => {
     if (!resources || resources.length === 0) {
       toast({ title: "No data", description: "There are no resources to export", variant: "destructive" });

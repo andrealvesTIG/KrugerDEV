@@ -142,6 +142,11 @@ export default function Integrations() {
   // Planner Premium (Dataverse) integration states
   const [showPlannerPremiumWizard, setShowPlannerPremiumWizard] = useState(false);
   
+  // Navigate to Resources page and open merge wizard
+  const handleOpenMergeWizard = useCallback(() => {
+    navigate("/resources?openMerge=true");
+  }, [navigate]);
+  
   // Auto-open Planner Premium wizard after OAuth redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1510,6 +1515,7 @@ export default function Integrations() {
         onOpenChange={setShowPlannerPremiumWizard}
         organizationId={currentOrganization?.id || 0}
         portfolios={portfolios || []}
+        onOpenMergeWizard={handleOpenMergeWizard}
       />
     </div>
   );

@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, AlertCircle, Rocket, FolderOpen, Search, RefreshCw, ExternalLink, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Rocket, FolderOpen, Search, RefreshCw, ExternalLink, XCircle, GitMerge, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -19,6 +19,12 @@ interface PlannerPremiumBulkImportWizardProps {
   onOpenChange: (open: boolean) => void;
   organizationId: number;
   portfolios: { id: number; name: string }[];
+  onOpenMergeWizard?: () => void;
+}
+
+interface DuplicateGroup {
+  resources: { id: number; displayName: string; email?: string }[];
+  matchType: string;
 }
 
 interface DataversePlan {
@@ -50,7 +56,8 @@ export function PlannerPremiumBulkImportWizard({
   open, 
   onOpenChange, 
   organizationId,
-  portfolios 
+  portfolios,
+  onOpenMergeWizard
 }: PlannerPremiumBulkImportWizardProps) {
   const [step, setStep] = useState<WizardStep>("connect");
   const [selectedPlans, setSelectedPlans] = useState<string[]>([]);
@@ -58,6 +65,7 @@ export function PlannerPremiumBulkImportWizard({
   const [environmentUrl, setEnvironmentUrl] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [importProgress, setImportProgress] = useState<ImportProgress[]>([]);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const { toast } = useToast();
 
   const { data: status, refetch: refetchStatus } = useQuery<DataverseStatus>({
@@ -200,14 +208,26 @@ export function PlannerPremiumBulkImportWizard({
       
       return results;
     },
-    onSuccess: (results) => {
+    onSuccess: async (results) => {
       const successCount = results.filter(r => r.status === 'success').length;
       const errorCount = results.filter(r => r.status === 'error').length;
       
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resources"] });
       
       setStep("complete");
+      
+      // Check for duplicate resources after import
+      try {
+        const res = await fetch(`/api/resources/duplicates?organizationId=${organizationId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDuplicateGroups(data.duplicateGroups || []);
+        }
+      } catch (err) {
+        console.error("Error checking for duplicates:", err);
+      }
       
       if (successCount > 0) {
         toast({ 
@@ -551,6 +571,38 @@ export function PlannerPremiumBulkImportWizard({
                   ))}
                 </div>
               </ScrollArea>
+              
+              {duplicateGroups.length > 0 && (
+                <div className="w-full mt-4 p-4 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800">
+                  <div className="flex items-start gap-3">
+                    <Users className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-medium text-amber-800 dark:text-amber-200">
+                        Potential Duplicate Resources Found
+                      </p>
+                      <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                        We found {duplicateGroups.length} group(s) of resources that may be duplicates. 
+                        Would you like to review and merge them?
+                      </p>
+                      {onOpenMergeWizard && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="mt-3 border-amber-300 dark:border-amber-700"
+                          onClick={() => {
+                            onOpenChange(false);
+                            onOpenMergeWizard();
+                          }}
+                          data-testid="button-open-merge-wizard"
+                        >
+                          <GitMerge className="mr-2 h-4 w-4" />
+                          Review & Merge Duplicates
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
