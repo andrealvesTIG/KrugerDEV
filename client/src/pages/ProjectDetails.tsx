@@ -1214,7 +1214,7 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               <Checkbox
                 id="project-timesheet-blocked"
                 checked={project.timesheetBlocked || false}
-                onCheckedChange={(checked) => handleSelectChange('timesheetBlocked', checked)}
+                onCheckedChange={(checked) => handleSelectChange('timesheetBlocked', checked === true)}
                 data-testid="checkbox-project-timesheet-blocked"
               />
               <Label htmlFor="project-timesheet-blocked" className="text-xs text-muted-foreground cursor-pointer">

@@ -11853,6 +11853,17 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'You are not assigned to this task' });
       }
 
+      // Check if task or project is blocked for timesheet entries
+      const task = await storage.getTask(taskId);
+      if (task?.timesheetBlocked) {
+        return res.status(403).json({ message: 'Timesheet entries are blocked for this task' });
+      }
+      
+      const project = await storage.getProject(projectId);
+      if (project?.timesheetBlocked) {
+        return res.status(403).json({ message: 'Timesheet entries are blocked for this project' });
+      }
+
       const entry = await storage.createTimesheetEntry({
         organizationId,
         userId,
@@ -11909,6 +11920,26 @@ Return ONLY valid JSON.`;
         return taskAssignmentCache[taskId];
       };
 
+      // Cache for checking if tasks/projects are blocked
+      const taskBlockedCache: Record<number, boolean> = {};
+      const projectBlockedCache: Record<number, boolean> = {};
+      
+      const isTaskOrProjectBlocked = async (taskId: number, projectId: number): Promise<boolean> => {
+        // Check task cache first
+        if (taskBlockedCache[taskId] === undefined) {
+          const task = await storage.getTask(taskId);
+          taskBlockedCache[taskId] = task?.timesheetBlocked || false;
+        }
+        if (taskBlockedCache[taskId]) return true;
+        
+        // Check project cache
+        if (projectBlockedCache[projectId] === undefined) {
+          const project = await storage.getProject(projectId);
+          projectBlockedCache[projectId] = project?.timesheetBlocked || false;
+        }
+        return projectBlockedCache[projectId];
+      };
+
       const results = [];
       for (const entry of entries) {
         // Validate hours for all entries
@@ -11930,6 +11961,12 @@ Return ONLY valid JSON.`;
             continue; // Skip non-editable entries
           }
           
+          // Check if task or project is blocked for updates too
+          const isBlocked = await isTaskOrProjectBlocked(existing.taskId, existing.projectId);
+          if (isBlocked) {
+            continue; // Skip blocked tasks/projects
+          }
+          
           const updated = await storage.updateTimesheetEntry(entry.id, {
             hours: String(hoursNum),
             notes: entry.notes,
@@ -11940,6 +11977,12 @@ Return ONLY valid JSON.`;
           const isAssigned = await validateTaskAssignment(entry.taskId);
           if (!isAssigned) {
             continue; // Skip tasks user isn't assigned to
+          }
+          
+          // Check if task or project is blocked
+          const isBlocked = await isTaskOrProjectBlocked(entry.taskId, entry.projectId);
+          if (isBlocked) {
+            continue; // Skip blocked tasks/projects
           }
           
           const created = await storage.createTimesheetEntry({
@@ -11985,6 +12028,17 @@ Return ONLY valid JSON.`;
 
       if (entry.status !== 'Draft') {
         return res.status(400).json({ message: 'Only draft entries can be edited' });
+      }
+
+      // Check if task or project is blocked for timesheet entries
+      const task = await storage.getTask(entry.taskId);
+      if (task?.timesheetBlocked) {
+        return res.status(403).json({ message: 'Timesheet entries are blocked for this task' });
+      }
+      
+      const project = await storage.getProject(entry.projectId);
+      if (project?.timesheetBlocked) {
+        return res.status(403).json({ message: 'Timesheet entries are blocked for this project' });
       }
 
       const { hours, notes } = req.body;
