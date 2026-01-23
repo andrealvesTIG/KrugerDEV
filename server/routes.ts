@@ -4075,43 +4075,50 @@ export async function registerRoutes(
           "msdyn_projecttaskid,msdyn_subject"
         ];
         
-        let tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${fieldSets[0]}&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
+        // Try with $orderby first, then without (some environments don't support ordering by msdyn_wbsid)
+        const orderByClauses = ["&$orderby=msdyn_wbsid asc", ""];
         
-        let tasksResponse = await fetch(tasksApiUrl, {
-          headers: {
-            "Authorization": `Bearer ${dataverseToken}`,
-            "Content-Type": "application/json",
-            "OData-MaxVersion": "4.0",
-            "OData-Version": "4.0",
-          },
-        });
-
-        // Try progressively simpler field sets if the full set fails
+        let tasksResponse: Response | null = null;
         let fieldSetIndex = 0;
-        while (!tasksResponse.ok && fieldSetIndex < fieldSets.length - 1) {
-          fieldSetIndex++;
-          console.log(`Field set ${fieldSetIndex - 1} failed (status ${tasksResponse.status}), trying field set ${fieldSetIndex}`);
-          // Always include $orderby=msdyn_wbsid asc to preserve task sequence/indexing
-          tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${fieldSets[fieldSetIndex]}&$filter=_msdyn_project_value eq ${planId}&$orderby=msdyn_wbsid asc`;
-          tasksResponse = await fetch(tasksApiUrl, {
-            headers: {
-              "Authorization": `Bearer ${dataverseToken}`,
-              "Content-Type": "application/json",
-              "OData-MaxVersion": "4.0",
-              "OData-Version": "4.0",
-            },
-          });
+        let orderByIndex = 0;
+        let successfulFetch = false;
+        
+        // Try each field set with ordering first, then without ordering
+        for (let oi = 0; oi < orderByClauses.length && !successfulFetch; oi++) {
+          for (let fi = 0; fi < fieldSets.length && !successfulFetch; fi++) {
+            const orderBy = orderByClauses[oi];
+            const fields = fieldSets[fi];
+            const tasksApiUrl = `${environmentUrl}/api/data/v9.2/msdyn_projecttasks?$select=${fields}&$filter=_msdyn_project_value eq ${planId}${orderBy}`;
+            
+            tasksResponse = await fetch(tasksApiUrl, {
+              headers: {
+                "Authorization": `Bearer ${dataverseToken}`,
+                "Content-Type": "application/json",
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0",
+              },
+            });
+            
+            if (tasksResponse.ok) {
+              fieldSetIndex = fi;
+              orderByIndex = oi;
+              successfulFetch = true;
+              break;
+            } else {
+              console.log(`Field set ${fi} with orderBy[${oi}] failed (status ${tasksResponse.status}), trying next...`);
+            }
+          }
         }
         
-        if (!tasksResponse.ok) {
-          if (tasksResponse.status === 401) {
+        if (!tasksResponse || !tasksResponse.ok) {
+          if (tasksResponse?.status === 401) {
             delete req.session.dataverseAccessToken;
             return res.status(401).json({ message: "Session expired. Please reconnect to Dataverse." });
           }
-          throw new Error(`Failed to fetch tasks after trying all field sets: ${tasksResponse.status}`);
+          throw new Error(`Failed to fetch tasks after trying all field sets: ${tasksResponse?.status || 'unknown'}`);
         }
         
-        console.log(`Successfully fetched tasks using field set ${fieldSetIndex}: ${fieldSets[fieldSetIndex]}`);
+        console.log(`Successfully fetched tasks using field set ${fieldSetIndex}${orderByIndex === 0 ? ' with WBS ordering' : ' without ordering'}: ${fieldSets[fieldSetIndex]}`);
 
         const tasksData = await tasksResponse.json();
         let dataverseTasks = tasksData.value || [];
