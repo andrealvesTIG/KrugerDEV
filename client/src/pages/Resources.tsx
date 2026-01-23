@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink } from "lucide-react";
+import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -323,13 +324,23 @@ export default function Resources() {
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
                           {resource.displayName.charAt(0).toUpperCase()}
                         </div>
-                        <span 
-                          className="cursor-pointer hover:text-primary hover:underline"
-                          onClick={() => window.location.href = `/resources/${resource.id}`}
-                          data-testid={`link-resource-name-${resource.id}`}
+                        <MicrosoftContactCard
+                          displayName={resource.displayName}
+                          email={resource.email}
+                          title={resource.title}
+                          department={resource.department}
+                          phone={resource.phone}
+                          photoUrl={resource.photoUrl}
+                          side="right"
                         >
-                          {resource.displayName}
-                        </span>
+                          <span 
+                            className="cursor-pointer hover:text-primary hover:underline"
+                            onClick={() => window.location.href = `/resources/${resource.id}`}
+                            data-testid={`link-resource-name-${resource.id}`}
+                          >
+                            {resource.displayName}
+                          </span>
+                        </MicrosoftContactCard>
                         <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
                       </div>
                     </TableCell>
