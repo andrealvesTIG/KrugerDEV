@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { MessageCircle, Users, Video, Phone, Mail, Send, Clock, Calendar, ChevronRight } from "lucide-react";
 import { SiLinkedin } from "react-icons/si";
 import { cn } from "@/lib/utils";
+import { useOrganization } from "@/hooks/use-organization";
 
 interface MicrosoftContactCardProps {
   displayName: string;
@@ -31,6 +32,33 @@ export function MicrosoftContactCard({
   align = "center",
 }: MicrosoftContactCardProps) {
   const [quickMessage, setQuickMessage] = useState("");
+  const [livePhotoUrl, setLivePhotoUrl] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const { currentOrganization } = useOrganization();
+
+  // Fetch Microsoft 365 profile photo when card opens
+  useEffect(() => {
+    if (isOpen && email && currentOrganization?.id && !livePhotoUrl && !photoUrl) {
+      const fetchPhoto = async () => {
+        try {
+          const response = await fetch(
+            `/api/microsoft/user-photo?organizationId=${currentOrganization.id}&email=${encodeURIComponent(email)}`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            if (data.photoUrl) {
+              setLivePhotoUrl(data.photoUrl);
+            }
+          }
+        } catch (error) {
+          // Silently fail - fallback to initials
+        }
+      };
+      fetchPhoto();
+    }
+  }, [isOpen, email, currentOrganization?.id, livePhotoUrl, photoUrl]);
+
+  const effectivePhotoUrl = livePhotoUrl || photoUrl;
 
   const getInitials = (name: string) => {
     const parts = name.split(' ');
@@ -89,7 +117,7 @@ export function MicrosoftContactCard({
   });
 
   return (
-    <HoverCard openDelay={200} closeDelay={150}>
+    <HoverCard openDelay={200} closeDelay={150} open={isOpen} onOpenChange={setIsOpen}>
       <HoverCardTrigger asChild>
         <div className="inline-block cursor-pointer">
           {children}
@@ -105,8 +133,8 @@ export function MicrosoftContactCard({
           <div className="flex items-start gap-3 mb-4">
             <div className="relative">
               <Avatar className="h-16 w-16 border-2 border-amber-400">
-                {photoUrl ? (
-                  <AvatarImage src={photoUrl} alt={displayName} />
+                {effectivePhotoUrl ? (
+                  <AvatarImage src={effectivePhotoUrl} alt={displayName} />
                 ) : null}
                 <AvatarFallback className="bg-amber-100 text-amber-800 text-xl font-semibold">
                   {getInitials(displayName)}

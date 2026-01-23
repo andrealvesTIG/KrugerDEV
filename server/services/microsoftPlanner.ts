@@ -708,6 +708,48 @@ export async function setupPlannerRoutes(app: Express) {
       res.status(500).json({ message: "Failed to fetch Planner plan" });
     }
   });
+
+  // Endpoint to fetch Microsoft 365 profile photo by email
+  app.get("/api/microsoft/user-photo", async (req, res) => {
+    const organizationId = parseInt(req.query.organizationId as string);
+    const email = req.query.email as string;
+
+    if (!organizationId || !email) {
+      return res.status(400).json({ message: "Missing organizationId or email" });
+    }
+
+    try {
+      const integration = await getOrgIntegration(organizationId, "planner");
+      if (!integration?.accessToken) {
+        return res.status(404).json({ photoUrl: null, message: "Not connected to Microsoft" });
+      }
+
+      // Fetch user photo from Microsoft Graph
+      const photoResponse = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(email)}/photo/$value`,
+        {
+          headers: {
+            Authorization: `Bearer ${integration.accessToken}`,
+          },
+        }
+      );
+
+      if (!photoResponse.ok) {
+        return res.status(404).json({ photoUrl: null });
+      }
+
+      // Convert to base64 data URL
+      const arrayBuffer = await photoResponse.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      const contentType = photoResponse.headers.get('content-type') || 'image/jpeg';
+      const dataUrl = `data:${contentType};base64,${base64}`;
+
+      res.json({ photoUrl: dataUrl });
+    } catch (error) {
+      console.error("Error fetching Microsoft user photo:", error);
+      res.status(404).json({ photoUrl: null });
+    }
+  });
 }
 
 export function mapPlannerPriorityToProjectPriority(plannerPriority: number): string {
