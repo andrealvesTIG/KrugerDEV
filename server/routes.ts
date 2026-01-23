@@ -4197,10 +4197,12 @@ export async function registerRoutes(
                 );
                 if (brResponse.ok) {
                   const brData = await brResponse.json();
+                  console.log(`Import: Bookable resource data for ${memberName}:`, JSON.stringify(brData));
                   memberEmail = brData.msdyn_primaryemail || brData.emailaddress1;
                   
                   // If still no email, try to fetch from Microsoft Graph using the userId
                   if (!memberEmail && brData._userid_value) {
+                    console.log(`Import: No email in Dataverse, trying Graph API with userId ${brData._userid_value}`);
                     try {
                       // Get org-scoped Planner token for Graph API
                       const plannerIntegration = await getOrgIntegration(Number(organizationId), "planner");
@@ -4220,16 +4222,26 @@ export async function registerRoutes(
                           const graphData = await graphResponse.json();
                           memberEmail = graphData.mail || graphData.userPrincipalName;
                           console.log(`Import: Fetched email from Graph for ${memberName}: ${memberEmail}`);
+                        } else {
+                          const errorText = await graphResponse.text();
+                          console.log(`Import: Graph API failed for ${memberName}: ${graphResponse.status} - ${errorText}`);
                         }
+                      } else {
+                        console.log(`Import: No Graph token available for ${memberName}`);
                       }
                     } catch (graphErr) {
-                      console.log(`Import: Could not fetch email from Graph for ${memberName}`);
+                      console.log(`Import: Could not fetch email from Graph for ${memberName}:`, graphErr);
                     }
+                  } else if (!memberEmail) {
+                    console.log(`Import: No email and no userId in Dataverse for ${memberName}`);
                   }
                   
                   if (memberEmail) {
                     console.log(`Import: Fetched email for ${memberName}: ${memberEmail}`);
                   }
+                } else {
+                  const errorText = await brResponse.text();
+                  console.log(`Import: Bookable resource fetch failed for ${memberName}: ${brResponse.status} - ${errorText}`);
                 }
               } catch (brErr) {
                 console.log(`Import: Could not fetch bookable resource details for ${memberName}`);
@@ -4771,10 +4783,12 @@ export async function registerRoutes(
                   );
                   if (brResponse.ok) {
                     const brData = await brResponse.json();
+                    console.log(`Planner sync: Bookable resource data for ${memberName}:`, JSON.stringify(brData));
                     memberEmail = brData.msdyn_primaryemail || brData.emailaddress1;
                     
                     // If still no email, try to fetch from Microsoft Graph using the userId
                     if (!memberEmail && brData._userid_value) {
+                      console.log(`Planner sync: No email in Dataverse, trying Graph API with userId ${brData._userid_value}`);
                       try {
                         // Get org-scoped Planner token for Graph API
                         const plannerIntegration = await getOrgIntegration(project.organizationId!, "planner");
@@ -4794,19 +4808,29 @@ export async function registerRoutes(
                             const graphData = await graphResponse.json();
                             memberEmail = graphData.mail || graphData.userPrincipalName;
                             console.log(`Planner sync: Fetched email from Graph for ${memberName}: ${memberEmail}`);
+                          } else {
+                            const errorText = await graphResponse.text();
+                            console.log(`Planner sync: Graph API failed for ${memberName}: ${graphResponse.status} - ${errorText}`);
                           }
+                        } else {
+                          console.log(`Planner sync: No Graph token available for ${memberName}`);
                         }
                       } catch (graphErr) {
-                        console.log(`Planner sync: Could not fetch email from Graph for ${memberName}`);
+                        console.log(`Planner sync: Could not fetch email from Graph for ${memberName}:`, graphErr);
                       }
+                    } else if (!memberEmail) {
+                      console.log(`Planner sync: No email and no userId in Dataverse for ${memberName}`);
                     }
                     
                     if (memberEmail) {
                       console.log(`Planner sync: Fetched email for ${memberName}: ${memberEmail}`);
                     }
+                  } else {
+                    const errorText = await brResponse.text();
+                    console.log(`Planner sync: Bookable resource fetch failed for ${memberName}: ${brResponse.status} - ${errorText}`);
                   }
                 } catch (brErr) {
-                  console.log(`Planner sync: Could not fetch bookable resource details for ${memberName}`);
+                  console.log(`Planner sync: Could not fetch bookable resource details for ${memberName}:`, brErr);
                 }
               }
               
