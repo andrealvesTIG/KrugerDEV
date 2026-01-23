@@ -42,7 +42,6 @@ import VerifySignInPage from "@/pages/VerifySignInPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import ResourceInvitePage from "@/pages/ResourceInvitePage";
 import OnboardingPage from "@/pages/OnboardingPage";
-import LessonsLearned from "@/pages/LessonsLearned";
 import Embed from "@/pages/Embed";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyStatement from "@/pages/PrivacyStatement";
@@ -161,7 +160,6 @@ function Router() {
         <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />
         <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
         <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
-        <GuardedRoute path="/lessons-learned" component={LessonsLearned} moduleKey="lessons-learned" />
         <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
         <Route path="/billing" component={Billing} />
         <Route path="/admin" component={Admin} />

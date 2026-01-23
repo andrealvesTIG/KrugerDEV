@@ -16,7 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project } from "@shared/schema";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -41,7 +41,7 @@ import ExcelJS from "exceljs";
 import { ViewsDropdown } from "@/components/ViewsDropdown";
 import { useColumnState, sortData, type SortDirection, type ColumnSort } from "@/hooks/use-column-state";
 
-const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing"];
+const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
 
 export default function Projects() {
   const { currentOrganization, memberships } = useOrganization();
@@ -2135,7 +2135,6 @@ function ProjectsGridView({
   onExitFullscreen?: () => void;
 }) {
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
   const [columnOrder, setColumnOrder] = useState<string[]>(getStoredColumnOrder);
   const [selectedProjects, setSelectedProjects] = useState<Set<number>>(new Set());
@@ -2402,7 +2401,7 @@ function ProjectsGridView({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing"].map(status => (
+              {["Initiation", "Planning", "Execution", "Monitoring", "Closing"].map(status => (
                 <SelectItem key={status} value={status}>{status}</SelectItem>
               ))}
             </SelectContent>
@@ -2782,13 +2781,9 @@ function ProjectsGridView({
                   <TableRow 
                     key={project.id} 
                     data-testid={`grid-row-${project.id}`}
-                    className={cn(
-                      selectedProjects.has(project.id) && "bg-muted/50",
-                      "cursor-pointer hover:bg-muted/30 transition-colors"
-                    )}
-                    onClick={() => setLocation(`/projects/${project.id}`)}
+                    className={cn(selectedProjects.has(project.id) && "bg-muted/50")}
                   >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell>
                       <Checkbox 
                         checked={selectedProjects.has(project.id)}
                         onCheckedChange={() => toggleSelectProject(project.id)}
@@ -2810,7 +2805,7 @@ function ProjectsGridView({
                         </TableCell>
                       );
                     })}
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button size="icon" variant="ghost" data-testid={`grid-menu-${project.id}`}>

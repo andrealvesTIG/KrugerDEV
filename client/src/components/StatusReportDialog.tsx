@@ -46,31 +46,6 @@ export function StatusReportDialog({
   const [recipientEmail, setRecipientEmail] = useState("");
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Combine dedicated milestones with tasks marked as milestones
-  const taskMilestones = tasks
-    .filter(t => t.isMilestone)
-    .map(t => ({
-      id: t.id,
-      projectId: t.projectId,
-      name: t.name,
-      dueDate: t.endDate,
-      status: t.status === 'completed' ? 'completed' as const : 
-              t.status === 'in_progress' ? 'in_progress' as const : 'pending' as const,
-      description: t.description,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-      isFromTask: true
-    }));
-  
-  const combinedMilestones = [
-    ...milestones.map(m => ({ ...m, isFromTask: false })),
-    ...taskMilestones
-  ].sort((a, b) => {
-    const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-    const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
-    return dateA - dateB;
-  });
-
   const emailMutation = useMutation({
     mutationFn: async () => {
       const doc = (
@@ -78,7 +53,7 @@ export function StatusReportDialog({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={combinedMilestones}
+          milestones={milestones}
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
@@ -126,7 +101,7 @@ export function StatusReportDialog({
           project={project}
           risks={risks}
           issues={issues}
-          milestones={combinedMilestones}
+          milestones={milestones}
           financials={financials}
           tasks={tasks}
           changeRequests={changeRequests}
@@ -208,7 +183,7 @@ export function StatusReportDialog({
                 project={project}
                 risks={risks}
                 issues={issues}
-                milestones={combinedMilestones}
+                milestones={milestones}
                 financials={financials}
                 tasks={tasks}
                 changeRequests={changeRequests}

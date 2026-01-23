@@ -290,13 +290,13 @@ export function ProjectStatusReport({
                   key={m.id}
                   className="absolute top-1/2 -translate-y-1/2 z-20"
                   style={{ left: `${m.position}%` }}
-                  title={m.title}
                 >
-                  <Flag 
+                  <div 
                     className={cn(
-                      "h-4 w-4",
-                      m.isComplete ? "text-green-500" : m.isAtRisk ? "text-red-500" : "text-yellow-500"
+                      "w-4 h-4 rounded-full border-2 border-background",
+                      m.isComplete ? "bg-green-500" : m.isAtRisk ? "bg-red-500" : "bg-yellow-500"
                     )}
+                    title={m.title}
                   />
                 </div>
               ))}
@@ -308,10 +308,10 @@ export function ProjectStatusReport({
                   <div className="w-3 h-3 bg-primary rounded" /> Completed
                 </span>
                 <span className="flex items-center gap-1">
-                  <div className="w-0.5 h-3 bg-red-500" /> Today
+                  <div className="w-3 h-3 bg-primary/30 rounded" /> Elapsed Time
                 </span>
                 <span className="flex items-center gap-1">
-                  <Flag className="h-3 w-3 text-yellow-500" /> Milestone
+                  <div className="w-0.5 h-3 bg-red-500" /> Today
                 </span>
               </div>
               <span>{project.completionPercentage || 0}% Complete</span>
