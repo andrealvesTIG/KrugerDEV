@@ -1210,6 +1210,17 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="project-timesheet-blocked"
+                checked={project.timesheetBlocked || false}
+                onCheckedChange={(checked) => handleSelectChange('timesheetBlocked', checked)}
+                data-testid="checkbox-project-timesheet-blocked"
+              />
+              <Label htmlFor="project-timesheet-blocked" className="text-xs text-muted-foreground cursor-pointer">
+                Block timesheets for this project
+              </Label>
+            </div>
             </div>
           </div>
         </div>
