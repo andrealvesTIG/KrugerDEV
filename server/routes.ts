@@ -12433,11 +12433,12 @@ Return ONLY valid JSON.`;
       if (!userResource) {
         const user = await storage.getUser(userId);
         if (user?.email) {
+          // Find resource by matching email (even if linked to different user)
           const resourceByEmail = resources.find(r => 
-            r.email?.toLowerCase() === user.email?.toLowerCase() && !r.userId
+            r.email?.toLowerCase() === user.email?.toLowerCase()
           );
           if (resourceByEmail) {
-            // Auto-link resource to user
+            // Auto-link or re-link resource to current user
             await storage.updateResource(resourceByEmail.id, { userId });
             userResource = { ...resourceByEmail, userId };
             console.log(`Auto-linked resource ${resourceByEmail.id} to user ${userId} by email ${user.email}`);
@@ -12489,11 +12490,12 @@ Return ONLY valid JSON.`;
       if (!userResource) {
         const user = await storage.getUser(userId);
         if (user?.email) {
+          // Find resource by matching email (even if linked to different user)
           const resourceByEmail = resources.find(r => 
-            r.email?.toLowerCase() === user.email?.toLowerCase() && !r.userId
+            r.email?.toLowerCase() === user.email?.toLowerCase()
           );
           if (resourceByEmail) {
-            // Auto-link resource to user
+            // Auto-link or re-link resource to current user
             await storage.updateResource(resourceByEmail.id, { userId });
             userResource = { ...resourceByEmail, userId };
             console.log(`Auto-linked resource ${resourceByEmail.id} to user ${userId} by email ${user.email}`);
