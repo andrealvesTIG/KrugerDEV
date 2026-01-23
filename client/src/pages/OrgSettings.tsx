@@ -102,6 +102,7 @@ const settingsTabs = [
   { value: "billing", label: "Billing", icon: Zap },
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "intake", label: "Intake Workflow", icon: GitBranch },
+  { value: "custom-fields", label: "Custom Fields", icon: FileText },
   { value: "members", label: "Team Members", icon: Users },
   { value: "recycle", label: "Recycle Bin", icon: Trash2 },
   { value: "demo", label: "Demo Data", icon: Sparkles },
@@ -201,6 +202,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </TabsContent>
         <TabsContent value="intake" className="mt-0">
           <IntakeWorkflowSection organizationId={currentOrganization.id} />
+        </TabsContent>
+        <TabsContent value="custom-fields" className="mt-0">
+          <CustomFieldsSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="members" className="mt-0">
           <MembersSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
@@ -1488,6 +1492,337 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Custom Fields Section
+interface CustomField {
+  id: number;
+  organizationId: number;
+  name: string;
+  fieldType: string;
+  options: string[] | null;
+  required: boolean;
+  description: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function CustomFieldsSection({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingField, setEditingField] = useState<CustomField | null>(null);
+  const [name, setName] = useState("");
+  const [fieldType, setFieldType] = useState("text");
+  const [options, setOptions] = useState("");
+  const [required, setRequired] = useState(false);
+  const [description, setDescription] = useState("");
+  const [deleteConfirmField, setDeleteConfirmField] = useState<CustomField | null>(null);
+
+  const { data: customFields, isLoading } = useQuery<CustomField[]>({
+    queryKey: ['/api/organizations', organizationId, 'custom-fields'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${organizationId}/custom-fields`);
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  const createFieldMutation = useMutation({
+    mutationFn: async (data: { name: string; fieldType: string; options?: string[]; required: boolean; description?: string }) => {
+      return apiRequest("POST", `/api/organizations/${organizationId}/custom-fields`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Custom field created" });
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'custom-fields'] });
+      closeDialog();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const updateFieldMutation = useMutation({
+    mutationFn: async ({ fieldId, data }: { fieldId: number; data: Partial<CustomField> }) => {
+      return apiRequest("PUT", `/api/organizations/${organizationId}/custom-fields/${fieldId}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Custom field updated" });
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'custom-fields'] });
+      closeDialog();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const deleteFieldMutation = useMutation({
+    mutationFn: async (fieldId: number) => {
+      return apiRequest("DELETE", `/api/organizations/${organizationId}/custom-fields/${fieldId}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Custom field deleted" });
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'custom-fields'] });
+      setDeleteConfirmField(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingField(null);
+    setName("");
+    setFieldType("text");
+    setOptions("");
+    setRequired(false);
+    setDescription("");
+  };
+
+  const openCreateDialog = () => {
+    closeDialog();
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (field: CustomField) => {
+    setEditingField(field);
+    setName(field.name);
+    setFieldType(field.fieldType);
+    setOptions(field.options?.join(", ") || "");
+    setRequired(field.required);
+    setDescription(field.description || "");
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    const data = {
+      name,
+      fieldType,
+      options: fieldType === "select" ? options.split(",").map(o => o.trim()).filter(Boolean) : undefined,
+      required,
+      description: description || undefined
+    };
+
+    if (editingField) {
+      updateFieldMutation.mutate({ fieldId: editingField.id, data });
+    } else {
+      createFieldMutation.mutate(data);
+    }
+  };
+
+  const getFieldTypeLabel = (type: string) => {
+    switch (type) {
+      case 'text': return 'Text';
+      case 'number': return 'Number';
+      case 'date': return 'Date';
+      case 'select': return 'Dropdown';
+      case 'checkbox': return 'Checkbox';
+      case 'url': return 'URL';
+      default: return type;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Custom Fields
+            </CardTitle>
+            <CardDescription>
+              Define custom fields that appear on all projects in this organization
+            </CardDescription>
+          </div>
+          <Button onClick={openCreateDialog} data-testid="button-add-custom-field">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Field
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {customFields && customFields.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Required</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {customFields.map((field) => (
+                <TableRow key={field.id}>
+                  <TableCell className="font-medium">{field.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{getFieldTypeLabel(field.fieldType)}</Badge>
+                    {field.fieldType === 'select' && field.options && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        ({field.options.length} options)
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {field.required ? (
+                      <Badge variant="default">Required</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">Optional</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                    {field.description || "-"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        onClick={() => openEditDialog(field)}
+                        data-testid={`button-edit-field-${field.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        onClick={() => setDeleteConfirmField(field)}
+                        data-testid={`button-delete-field-${field.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>No custom fields defined yet</p>
+            <p className="text-sm">Create custom fields to add additional information to your projects</p>
+          </div>
+        )}
+      </CardContent>
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => !open && closeDialog()}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{editingField ? "Edit Custom Field" : "Create Custom Field"}</DialogTitle>
+            <DialogDescription>
+              Custom fields allow you to track additional information on projects
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Field Name *</Label>
+              <Input 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+                placeholder="e.g., Client Name, Contract Number"
+                data-testid="input-field-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Field Type *</Label>
+              <Select value={fieldType} onValueChange={setFieldType}>
+                <SelectTrigger data-testid="select-field-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">Text</SelectItem>
+                  <SelectItem value="number">Number</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="select">Dropdown</SelectItem>
+                  <SelectItem value="checkbox">Checkbox</SelectItem>
+                  <SelectItem value="url">URL</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {fieldType === "select" && (
+              <div className="space-y-2">
+                <Label>Options (comma-separated)</Label>
+                <Input 
+                  value={options} 
+                  onChange={(e) => setOptions(e.target.value)} 
+                  placeholder="Option 1, Option 2, Option 3"
+                  data-testid="input-field-options"
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea 
+                value={description} 
+                onChange={(e) => setDescription(e.target.value)} 
+                placeholder="Optional description for this field"
+                data-testid="input-field-description"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                id="required" 
+                checked={required} 
+                onCheckedChange={(checked) => setRequired(checked === true)}
+                data-testid="checkbox-field-required"
+              />
+              <Label htmlFor="required" className="cursor-pointer">Required field</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={!name.trim() || createFieldMutation.isPending || updateFieldMutation.isPending}
+              data-testid="button-save-field"
+            >
+              {(createFieldMutation.isPending || updateFieldMutation.isPending) && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              {editingField ? "Save Changes" : "Create Field"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmField} onOpenChange={(open) => !open && setDeleteConfirmField(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Custom Field</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the field "{deleteConfirmField?.name}"? This will also remove all values stored for this field on projects.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirmField && deleteFieldMutation.mutate(deleteConfirmField.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
   );
 }
 
