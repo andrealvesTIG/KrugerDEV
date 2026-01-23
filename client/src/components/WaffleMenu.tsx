@@ -116,16 +116,16 @@ export function WaffleMenu({
       >
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-foreground">Apps</h3>
+            <h3 className="text-lg font-semibold text-foreground">Microsoft 365</h3>
           </div>
           
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {filteredInternalApps.map((app) => (
+          <div className="grid grid-cols-3 gap-2">
+            {MICROSOFT_APPS.map((app) => (
               <button
                 key={app.id}
                 onClick={() => handleNavigation(app.href!, app.external)}
                 className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-muted/80 transition-colors group"
-                data-testid={`waffle-app-${app.id}`}
+                data-testid={`waffle-ms-${app.id}`}
               >
                 <div className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-md text-white",
@@ -139,45 +139,6 @@ export function WaffleMenu({
               </button>
             ))}
           </div>
-
-          {isMicrosoftConnected && (
-            <>
-              <div className="border-t pt-4 mb-2">
-                <h4 className="text-sm font-medium text-muted-foreground mb-3">Microsoft 365</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {MICROSOFT_APPS.map((app) => (
-                    <button
-                      key={app.id}
-                      onClick={() => handleNavigation(app.href!, app.external)}
-                      className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-muted/80 transition-colors group"
-                      data-testid={`waffle-ms-${app.id}`}
-                    >
-                      <div className={cn(
-                        "flex h-10 w-10 items-center justify-center rounded-md text-white",
-                        app.color || "bg-gray-500"
-                      )}>
-                        {app.icon}
-                      </div>
-                      <span className="text-xs text-center text-muted-foreground group-hover:text-foreground truncate w-full">
-                        {app.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="border-t bg-muted/30">
-          <button
-            onClick={() => handleNavigation('/integrations')}
-            className="w-full px-4 py-3 flex items-center justify-between text-sm text-primary hover:bg-muted/50 transition-colors"
-            data-testid="waffle-explore-apps"
-          >
-            <span>Explore all your Apps</span>
-            <ArrowRight className="h-4 w-4" />
-          </button>
         </div>
       </PopoverContent>
     </Popover>
