@@ -11798,20 +11798,17 @@ Return ONLY valid JSON.`;
       }
 
       // Single optimized query with JOINs - replaces N+1 queries
+      // Returns { task, project }[] so project is already included
       const assignedTasks = await storage.getAssignedTasksForResource(userResource.id, organizationId);
 
       // Filter out tasks where the task or project is blocked for timesheets
-      const filteredTasks = [];
-      for (const task of assignedTasks) {
+      const filteredTasks = assignedTasks.filter(item => {
         // Check if task itself is blocked
-        if (task.timesheetBlocked) continue;
-        
+        if (item.task.timesheetBlocked) return false;
         // Check if the project is blocked
-        const project = await storage.getProject(task.projectId);
-        if (project?.timesheetBlocked) continue;
-        
-        filteredTasks.push(task);
-      }
+        if (item.project.timesheetBlocked) return false;
+        return true;
+      });
 
       res.json(filteredTasks);
     } catch (error) {
