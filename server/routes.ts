@@ -7220,88 +7220,6 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  // Get a single resource
-  app.get('/api/resources/:id', async (req, res) => {
-    const resource = await storage.getResource(Number(req.params.id));
-    if (!resource) return res.status(404).json({ message: "Resource not found" });
-    res.json(resource);
-  });
-
-  // Create a resource
-  app.post('/api/resources', async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      
-      // Require email verification before creating
-      const emailCheck = await requireEmailVerified(userId);
-      if (!emailCheck.verified) {
-        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
-      }
-      
-      // Check credit limit before creation
-      if (userId) {
-        const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
-        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.RESOURCES);
-        if (!limitCheck.allowed) {
-          return res.status(403).json({ 
-            message: limitCheck.error || "Credits limit reached. Please upgrade your plan.",
-            limitExceeded: true,
-            resourceType: "resources"
-          });
-        }
-      }
-      
-      const { organizationId, displayName, email, title, department, skills, hourlyRate, isActive, notes } = req.body;
-      if (!organizationId || !displayName) {
-        return res.status(400).json({ message: "organizationId and displayName are required" });
-      }
-      const resource = await storage.createResource({
-        organizationId,
-        displayName,
-        email,
-        title,
-        department,
-        skills,
-        hourlyRate,
-        isActive,
-        notes
-      });
-      
-      // Record usage after successful creation
-      if (userId) {
-        const { recordResourceUsage, METER_CODES } = await import("./services/billing");
-        await recordResourceUsage(userId, METER_CODES.RESOURCES, resource.id, 1, organizationId);
-      }
-      
-      res.status(201).json(resource);
-    } catch (err) {
-      res.status(500).json({ message: "Error creating resource" });
-    }
-  });
-
-  // Update a resource
-  app.put('/api/resources/:id', async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const existing = await storage.getResource(id);
-      if (!existing) return res.status(404).json({ message: "Resource not found" });
-      
-      const updated = await storage.updateResource(id, req.body);
-      res.json(updated);
-    } catch (err) {
-      res.status(500).json({ message: "Error updating resource" });
-    }
-  });
-
-  // Delete a resource
-  app.delete('/api/resources/:id', async (req, res) => {
-    const id = Number(req.params.id);
-    const existing = await storage.getResource(id);
-    if (!existing) return res.status(404).json({ message: "Resource not found" });
-    await storage.deleteResource(id);
-    res.status(204).send();
-  });
-
   // Find potential duplicate resources for matching and merging
   app.get('/api/resources/duplicates', async (req, res) => {
     try {
@@ -7406,6 +7324,88 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       console.error("Error merging resources:", err);
       res.status(500).json({ message: "Failed to merge resources", error: err?.message });
     }
+  });
+
+  // Get a single resource
+  app.get('/api/resources/:id', async (req, res) => {
+    const resource = await storage.getResource(Number(req.params.id));
+    if (!resource) return res.status(404).json({ message: "Resource not found" });
+    res.json(resource);
+  });
+
+  // Create a resource
+  app.post('/api/resources', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      
+      // Require email verification before creating
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      
+      // Check credit limit before creation
+      if (userId) {
+        const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
+        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.RESOURCES);
+        if (!limitCheck.allowed) {
+          return res.status(403).json({ 
+            message: limitCheck.error || "Credits limit reached. Please upgrade your plan.",
+            limitExceeded: true,
+            resourceType: "resources"
+          });
+        }
+      }
+      
+      const { organizationId, displayName, email, title, department, skills, hourlyRate, isActive, notes } = req.body;
+      if (!organizationId || !displayName) {
+        return res.status(400).json({ message: "organizationId and displayName are required" });
+      }
+      const resource = await storage.createResource({
+        organizationId,
+        displayName,
+        email,
+        title,
+        department,
+        skills,
+        hourlyRate,
+        isActive,
+        notes
+      });
+      
+      // Record usage after successful creation
+      if (userId) {
+        const { recordResourceUsage, METER_CODES } = await import("./services/billing");
+        await recordResourceUsage(userId, METER_CODES.RESOURCES, resource.id, 1, organizationId);
+      }
+      
+      res.status(201).json(resource);
+    } catch (err) {
+      res.status(500).json({ message: "Error creating resource" });
+    }
+  });
+
+  // Update a resource
+  app.put('/api/resources/:id', async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = await storage.getResource(id);
+      if (!existing) return res.status(404).json({ message: "Resource not found" });
+      
+      const updated = await storage.updateResource(id, req.body);
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: "Error updating resource" });
+    }
+  });
+
+  // Delete a resource
+  app.delete('/api/resources/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = await storage.getResource(id);
+    if (!existing) return res.status(404).json({ message: "Resource not found" });
+    await storage.deleteResource(id);
+    res.status(204).send();
   });
 
   // Create a resource with invitation - creates resource, org invite, and sends magic link email
