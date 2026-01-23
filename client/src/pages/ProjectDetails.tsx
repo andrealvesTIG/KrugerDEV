@@ -34,9 +34,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Unlink, Settings2, Trophy, TrendingUp, FileCheck } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, MoreHorizontal, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Unlink, Settings2, Trophy, TrendingUp, FileCheck } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -414,18 +414,52 @@ export default function ProjectDetails() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl flex-wrap gap-1 h-auto">
-          <TabsTrigger value="summary" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-summary">Project Summary</TabsTrigger>
+          <TabsTrigger value="summary" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-summary">Summary</TabsTrigger>
           <TabsTrigger value="tasks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="risks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-risks">Risks Log</TabsTrigger>
+          <TabsTrigger value="risks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-risks">Risks</TabsTrigger>
           <TabsTrigger value="issues" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-issues">Issues</TabsTrigger>
           <TabsTrigger value="financials" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-financials">Financials</TabsTrigger>
-          <TabsTrigger value="change-requests" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-change-requests">Change Requests</TabsTrigger>
-          <TabsTrigger value="documents" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-documents">Documents</TabsTrigger>
           <TabsTrigger value="status-report" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-status-report">Status Report</TabsTrigger>
-          <TabsTrigger value="custom-view" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-custom-view">Custom View</TabsTrigger>
-          <TabsTrigger value="scoring" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-scoring">Scoring</TabsTrigger>
-          <TabsTrigger value="benefits" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-benefits">Benefits</TabsTrigger>
-          <TabsTrigger value="decisions" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-decisions">Decisions</TabsTrigger>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={`rounded-lg px-3 py-2 font-medium ${['change-requests', 'documents', 'custom-view', 'scoring', 'benefits', 'decisions'].includes(activeTab) ? 'bg-primary text-primary-foreground shadow-md' : ''}`}
+                data-testid="button-more-tabs"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="ml-1">More</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setActiveTab('change-requests')} data-testid="menu-tab-change-requests">
+                <FileText className="h-4 w-4 mr-2" />
+                Change Requests
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('documents')} data-testid="menu-tab-documents">
+                <FileText className="h-4 w-4 mr-2" />
+                Documents
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('custom-view')} data-testid="menu-tab-custom-view">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Custom View
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setActiveTab('scoring')} data-testid="menu-tab-scoring">
+                <Trophy className="h-4 w-4 mr-2" />
+                Scoring
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('benefits')} data-testid="menu-tab-benefits">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Benefits
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('decisions')} data-testid="menu-tab-decisions">
+                <FileCheck className="h-4 w-4 mr-2" />
+                Decisions
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
