@@ -14,17 +14,18 @@ import {
   Clock,
   BookOpen,
   Settings,
-  ArrowRight,
-  Mail,
-  Video,
-  FileText,
-  Grid3X3,
-  Table2,
-  Notebook,
-  HardDrive,
-  Share2,
-  ListTodo
+  ArrowRight
 } from "lucide-react";
+import { 
+  SiMicrosoftteams, 
+  SiMicrosoftoutlook, 
+  SiMicrosoftonedrive, 
+  SiMicrosoftsharepoint, 
+  SiMicrosoftword, 
+  SiMicrosoftexcel, 
+  SiMicrosoftpowerpoint, 
+  SiMicrosoftonenote
+} from "react-icons/si";
 
 interface WaffleMenuProps {
   enabledModules?: string[];
@@ -57,15 +58,15 @@ const INTERNAL_APPS: AppItem[] = [
 ];
 
 const MICROSOFT_APPS: AppItem[] = [
-  { id: "teams", name: "Teams", icon: <Video className="h-6 w-6" />, href: "https://teams.microsoft.com", external: true, color: "bg-[#464EB8]" },
-  { id: "outlook", name: "Outlook", icon: <Mail className="h-6 w-6" />, href: "https://outlook.office.com", external: true, color: "bg-[#0078D4]" },
-  { id: "onedrive", name: "OneDrive", icon: <HardDrive className="h-6 w-6" />, href: "https://onedrive.live.com", external: true, color: "bg-[#0078D4]" },
-  { id: "sharepoint", name: "SharePoint", icon: <Share2 className="h-6 w-6" />, href: "https://www.office.com/launch/sharepoint", external: true, color: "bg-[#038387]" },
-  { id: "word", name: "Word", icon: <FileText className="h-6 w-6" />, href: "https://www.office.com/launch/word", external: true, color: "bg-[#2B579A]" },
-  { id: "excel", name: "Excel", icon: <Table2 className="h-6 w-6" />, href: "https://www.office.com/launch/excel", external: true, color: "bg-[#217346]" },
-  { id: "powerpoint", name: "PowerPoint", icon: <Grid3X3 className="h-6 w-6" />, href: "https://www.office.com/launch/powerpoint", external: true, color: "bg-[#B7472A]" },
-  { id: "onenote", name: "OneNote", icon: <Notebook className="h-6 w-6" />, href: "https://www.onenote.com", external: true, color: "bg-[#7719AA]" },
-  { id: "planner", name: "Planner", icon: <ListTodo className="h-6 w-6" />, href: "https://tasks.office.com", external: true, color: "bg-[#31752F]" },
+  { id: "teams", name: "Teams", icon: <SiMicrosoftteams className="h-6 w-6" />, href: "https://teams.microsoft.com", external: true, color: "bg-[#464EB8]" },
+  { id: "outlook", name: "Outlook", icon: <SiMicrosoftoutlook className="h-6 w-6" />, href: "https://outlook.office.com", external: true, color: "bg-[#0078D4]" },
+  { id: "onedrive", name: "OneDrive", icon: <SiMicrosoftonedrive className="h-6 w-6" />, href: "https://onedrive.live.com", external: true, color: "bg-[#0078D4]" },
+  { id: "sharepoint", name: "SharePoint", icon: <SiMicrosoftsharepoint className="h-6 w-6" />, href: "https://www.office.com/launch/sharepoint", external: true, color: "bg-[#038387]" },
+  { id: "word", name: "Word", icon: <SiMicrosoftword className="h-6 w-6" />, href: "https://www.office.com/launch/word", external: true, color: "bg-[#2B579A]" },
+  { id: "excel", name: "Excel", icon: <SiMicrosoftexcel className="h-6 w-6" />, href: "https://www.office.com/launch/excel", external: true, color: "bg-[#217346]" },
+  { id: "powerpoint", name: "PowerPoint", icon: <SiMicrosoftpowerpoint className="h-6 w-6" />, href: "https://www.office.com/launch/powerpoint", external: true, color: "bg-[#B7472A]" },
+  { id: "onenote", name: "OneNote", icon: <SiMicrosoftonenote className="h-6 w-6" />, href: "https://www.onenote.com", external: true, color: "bg-[#7719AA]" },
+  { id: "planner", name: "Planner", icon: <img src="https://res.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/planner_48x1.svg" alt="Planner" className="h-6 w-6" />, href: "https://tasks.office.com", external: true, color: "bg-[#31752F]" },
 ];
 
 export function WaffleMenu({ 
