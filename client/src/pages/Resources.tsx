@@ -11,7 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import ExcelJS from "exceljs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm } from "react-hook-form";
@@ -58,8 +60,10 @@ export default function Resources() {
   const [deleteResourceId, setDeleteResourceId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const handleExportToExcel = async () => {
     if (!resources || resources.length === 0) {
@@ -234,6 +238,15 @@ export default function Resources() {
             <Download className="mr-2 h-4 w-4" />
             Export
           </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setIsMergeDialogOpen(true)}
+            disabled={!resources || resources.length < 2}
+            data-testid="button-merge-resources"
+          >
+            <GitMerge className="mr-2 h-4 w-4" />
+            Match & Merge
+          </Button>
           <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-resource">
             <Plus className="mr-2 h-4 w-4" />
             Add Resource
@@ -400,6 +413,16 @@ export default function Resources() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <MergeResourcesDialog
+        open={isMergeDialogOpen}
+        onOpenChange={setIsMergeDialogOpen}
+        organizationId={currentOrganization?.id}
+        onMergeComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
+          toast({ title: "Success", description: "Resources merged successfully" });
+        }}
+      />
     </div>
   );
 }
@@ -615,6 +638,169 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface MergeResourcesDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  organizationId: number | undefined;
+  onMergeComplete: () => void;
+}
+
+interface DuplicateGroup {
+  resources: Resource[];
+  matchType: string;
+}
+
+function MergeResourcesDialog({ open, onOpenChange, organizationId, onMergeComplete }: MergeResourcesDialogProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedPrimary, setSelectedPrimary] = useState<{ [groupIndex: number]: number }>({});
+
+  const { data: duplicatesData, isLoading, refetch } = useQuery<{ duplicateGroups: DuplicateGroup[] }>({
+    queryKey: ['/api/resources/duplicates', organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/resources/duplicates?organizationId=${organizationId}`);
+      if (!res.ok) throw new Error('Failed to fetch duplicates');
+      return res.json();
+    },
+    enabled: !!organizationId && open,
+  });
+
+  const mergeMutation = useMutation({
+    mutationFn: async ({ primaryId, secondaryId }: { primaryId: number; secondaryId: number }) => {
+      return apiRequest('POST', '/api/resources/merge', { primaryId, secondaryId, organizationId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
+    },
+  });
+
+  const handleMergeGroup = async (groupIndex: number, resources: Resource[]) => {
+    const primaryId = selectedPrimary[groupIndex] || resources[0].id;
+    const secondaryResources = resources.filter(r => r.id !== primaryId);
+    
+    try {
+      for (const secondary of secondaryResources) {
+        await mergeMutation.mutateAsync({ primaryId, secondaryId: secondary.id });
+      }
+      toast({ title: "Merged", description: `Merged ${secondaryResources.length} duplicate(s) into primary resource` });
+      onMergeComplete();
+      setSelectedPrimary({});
+      refetch();
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to merge resources", variant: "destructive" });
+    }
+  };
+
+  const duplicateGroups = duplicatesData?.duplicateGroups || [];
+
+  useEffect(() => {
+    if (open) {
+      setSelectedPrimary({});
+    }
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GitMerge className="h-5 w-5" />
+            Match & Merge Duplicates
+          </DialogTitle>
+        </DialogHeader>
+        
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          </div>
+        ) : duplicateGroups.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Check className="mx-auto h-12 w-12 text-green-500 mb-4" />
+            <p className="font-medium text-foreground">No duplicates found</p>
+            <p className="text-sm mt-1">All resources appear to be unique.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <p className="text-sm text-muted-foreground">
+              Found {duplicateGroups.length} group(s) of potential duplicates. Select the primary resource to keep for each group, then merge.
+            </p>
+            
+            {duplicateGroups.map((group, groupIndex) => (
+              <Card key={groupIndex} className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {group.matchType === 'email' ? 'Email Match' : 'Name Match'}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      {group.resources.length} resources
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handleMergeGroup(groupIndex, group.resources)}
+                    disabled={mergeMutation.isPending}
+                    data-testid={`button-merge-group-${groupIndex}`}
+                  >
+                    <GitMerge className="h-4 w-4 mr-1" />
+                    Merge
+                  </Button>
+                </div>
+                
+                <div className="space-y-2">
+                  {group.resources.map((resource, idx) => {
+                    const isPrimary = (selectedPrimary[groupIndex] || group.resources[0].id) === resource.id;
+                    return (
+                      <div
+                        key={resource.id}
+                        className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                          isPrimary 
+                            ? 'border-primary bg-primary/5' 
+                            : 'border-border hover:border-muted-foreground/50'
+                        }`}
+                        onClick={() => setSelectedPrimary(prev => ({ ...prev, [groupIndex]: resource.id }))}
+                        data-testid={`resource-option-${resource.id}`}
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold shrink-0">
+                          {resource.displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{resource.displayName}</div>
+                          <div className="text-sm text-muted-foreground truncate">
+                            {resource.email || 'No email'} {resource.title && `• ${resource.title}`}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isPrimary ? (
+                            <Badge variant="default" className="bg-primary">
+                              Keep
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-muted-foreground">
+                              <ArrowRight className="h-3 w-3 mr-1" />
+                              Merge into primary
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-close-merge">
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

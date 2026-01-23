@@ -218,6 +218,7 @@ export interface IStorage {
   createResource(resource: InsertResource): Promise<Resource>;
   updateResource(id: number, updates: UpdateResourceRequest): Promise<Resource>;
   deleteResource(id: number): Promise<void>;
+  mergeResources(primaryId: number, secondaryId: number): Promise<Resource>;
 
   // Task Resource Assignments
   getTaskResourceAssignments(taskId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
@@ -1879,6 +1880,95 @@ export class DatabaseStorage implements IStorage {
     await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, id));
     // Then delete the resource
     await db.delete(resources).where(eq(resources.id, id));
+  }
+
+  async mergeResources(primaryId: number, secondaryId: number): Promise<Resource> {
+    const primary = await this.getResource(primaryId);
+    const secondary = await this.getResource(secondaryId);
+    
+    if (!primary || !secondary) {
+      throw new Error("One or both resources not found");
+    }
+    
+    // Re-point all task assignments from secondary to primary
+    // First, get existing primary assignments to avoid duplicates
+    const existingTaskAssignments = await db.select()
+      .from(taskResourceAssignments)
+      .where(eq(taskResourceAssignments.resourceId, primaryId));
+    const existingTaskIds = new Set(existingTaskAssignments.map(a => a.taskId));
+    
+    // Get secondary's task assignments
+    const secondaryTaskAssignments = await db.select()
+      .from(taskResourceAssignments)
+      .where(eq(taskResourceAssignments.resourceId, secondaryId));
+    
+    // Transfer non-duplicate task assignments
+    for (const assignment of secondaryTaskAssignments) {
+      if (!existingTaskIds.has(assignment.taskId)) {
+        await db.update(taskResourceAssignments)
+          .set({ resourceId: primaryId })
+          .where(and(
+            eq(taskResourceAssignments.taskId, assignment.taskId),
+            eq(taskResourceAssignments.resourceId, secondaryId)
+          ));
+      } else {
+        // Delete duplicate assignment
+        await db.delete(taskResourceAssignments)
+          .where(and(
+            eq(taskResourceAssignments.taskId, assignment.taskId),
+            eq(taskResourceAssignments.resourceId, secondaryId)
+          ));
+      }
+    }
+    
+    // Re-point all issue/risk assignments from secondary to primary
+    const existingIssueAssignments = await db.select()
+      .from(issueResourceAssignments)
+      .where(eq(issueResourceAssignments.resourceId, primaryId));
+    const existingIssueIds = new Set(existingIssueAssignments.map(a => a.issueId));
+    
+    const secondaryIssueAssignments = await db.select()
+      .from(issueResourceAssignments)
+      .where(eq(issueResourceAssignments.resourceId, secondaryId));
+    
+    for (const assignment of secondaryIssueAssignments) {
+      if (!existingIssueIds.has(assignment.issueId)) {
+        await db.update(issueResourceAssignments)
+          .set({ resourceId: primaryId })
+          .where(and(
+            eq(issueResourceAssignments.issueId, assignment.issueId),
+            eq(issueResourceAssignments.resourceId, secondaryId)
+          ));
+      } else {
+        await db.delete(issueResourceAssignments)
+          .where(and(
+            eq(issueResourceAssignments.issueId, assignment.issueId),
+            eq(issueResourceAssignments.resourceId, secondaryId)
+          ));
+      }
+    }
+    
+    // Merge data fields if primary is missing them
+    const updates: Partial<Resource> = {};
+    if (!primary.email && secondary.email) updates.email = secondary.email;
+    if (!primary.title && secondary.title) updates.title = secondary.title;
+    if (!primary.department && secondary.department) updates.department = secondary.department;
+    if (!primary.skills && secondary.skills) updates.skills = secondary.skills;
+    if (!primary.hourlyRate && secondary.hourlyRate) updates.hourlyRate = secondary.hourlyRate;
+    if (!primary.notes && secondary.notes) updates.notes = secondary.notes;
+    if (!primary.userId && secondary.userId) updates.userId = secondary.userId;
+    
+    // Update primary if needed
+    if (Object.keys(updates).length > 0) {
+      await db.update(resources).set(updates).where(eq(resources.id, primaryId));
+    }
+    
+    // Delete the secondary resource
+    await db.delete(resources).where(eq(resources.id, secondaryId));
+    
+    // Return the updated primary
+    const [updated] = await db.select().from(resources).where(eq(resources.id, primaryId));
+    return updated;
   }
 
   // Task Resource Assignments

@@ -7302,6 +7302,112 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.status(204).send();
   });
 
+  // Find potential duplicate resources for matching and merging
+  app.get('/api/resources/duplicates', async (req, res) => {
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) {
+        return res.status(400).json({ message: "Organization ID is required" });
+      }
+      
+      const allResources = await storage.getResources(organizationId);
+      
+      // Find potential duplicates by name similarity or email match
+      const duplicateGroups: { resources: typeof allResources; matchType: string }[] = [];
+      const processedIds = new Set<number>();
+      
+      for (let i = 0; i < allResources.length; i++) {
+        if (processedIds.has(allResources[i].id)) continue;
+        
+        const resource = allResources[i];
+        const matches: typeof allResources = [resource];
+        
+        for (let j = i + 1; j < allResources.length; j++) {
+          if (processedIds.has(allResources[j].id)) continue;
+          
+          const other = allResources[j];
+          let matchType = '';
+          
+          // Check exact email match
+          if (resource.email && other.email && 
+              resource.email.toLowerCase() === other.email.toLowerCase()) {
+            matchType = 'email';
+          }
+          // Check exact name match (case-insensitive)
+          else if (resource.displayName.toLowerCase() === other.displayName.toLowerCase()) {
+            matchType = 'exact_name';
+          }
+          // Check similar names (first word or initials match)
+          else {
+            const nameParts1 = resource.displayName.toLowerCase().split(/\s+/);
+            const nameParts2 = other.displayName.toLowerCase().split(/\s+/);
+            
+            // First name matches
+            if (nameParts1[0] === nameParts2[0] && nameParts1[0].length > 2) {
+              // Last name also starts the same way
+              if (nameParts1.length > 1 && nameParts2.length > 1 &&
+                  nameParts1[nameParts1.length - 1].charAt(0) === nameParts2[nameParts2.length - 1].charAt(0)) {
+                matchType = 'similar_name';
+              }
+            }
+          }
+          
+          if (matchType) {
+            matches.push(other);
+            processedIds.add(other.id);
+          }
+        }
+        
+        if (matches.length > 1) {
+          processedIds.add(resource.id);
+          duplicateGroups.push({
+            resources: matches,
+            matchType: matches.some(m => m.email && resource.email && 
+              m.email.toLowerCase() === resource.email.toLowerCase()) ? 'email' : 'name'
+          });
+        }
+      }
+      
+      res.json({ duplicateGroups });
+    } catch (err: any) {
+      console.error("Error finding duplicates:", err);
+      res.status(500).json({ message: "Failed to find duplicates", error: err?.message });
+    }
+  });
+
+  // Merge two resources - keep primary, transfer assignments from secondary, delete secondary
+  app.post('/api/resources/merge', async (req, res) => {
+    try {
+      const { primaryId, secondaryId, organizationId } = req.body;
+      
+      if (!primaryId || !secondaryId || !organizationId) {
+        return res.status(400).json({ message: "Primary ID, Secondary ID, and Organization ID are required" });
+      }
+      
+      const primary = await storage.getResource(primaryId);
+      const secondary = await storage.getResource(secondaryId);
+      
+      if (!primary || !secondary) {
+        return res.status(404).json({ message: "One or both resources not found" });
+      }
+      
+      if (primary.organizationId !== organizationId || secondary.organizationId !== organizationId) {
+        return res.status(403).json({ message: "Resources must belong to the specified organization" });
+      }
+      
+      // Merge by re-pointing assignments and optionally merging data
+      const merged = await storage.mergeResources(primaryId, secondaryId);
+      
+      res.json({ 
+        message: `Merged "${secondary.displayName}" into "${primary.displayName}"`,
+        resource: merged
+      });
+    } catch (err: any) {
+      console.error("Error merging resources:", err);
+      res.status(500).json({ message: "Failed to merge resources", error: err?.message });
+    }
+  });
+
   // Create a resource with invitation - creates resource, org invite, and sends magic link email
   app.post('/api/resources/invite', async (req, res) => {
     try {
