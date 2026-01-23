@@ -1771,14 +1771,31 @@ export class DatabaseStorage implements IStorage {
         isNull(resources.deletedAt)
       ));
 
-    // Build lookup sets for existing resources
+    // Build lookup maps for existing resources
     const existingByUserId = new Set(existingResources.filter(r => r.userId).map(r => r.userId));
-    const existingByEmail = new Set(existingResources.filter(r => r.email).map(r => r.email?.toLowerCase()));
+    const existingByEmail = new Map(existingResources.filter(r => r.email).map(r => [r.email?.toLowerCase(), r]));
 
-    // Only insert resources for members that don't have one yet
+    // Link existing resources to org members by email (if not already linked by userId)
+    // This is less aggressive than auto-creating - it only links, doesn't create
     for (const member of members) {
-      // Skip if already exists by userId or email
+      // Skip if already linked by userId
       if (existingByUserId.has(member.userId)) continue;
+      
+      // Try to link an existing resource by email match
+      if (member.email) {
+        const matchingResource = existingByEmail.get(member.email.toLowerCase());
+        if (matchingResource && !matchingResource.userId) {
+          // Link this resource to the user
+          await db.update(resources)
+            .set({ userId: member.userId })
+            .where(eq(resources.id, matchingResource.id));
+          existingByUserId.add(member.userId);
+          continue;
+        }
+      }
+      
+      // Only auto-create a resource if this is the first sync for this member
+      // (no resource exists with this userId AND no resource with matching email)
       if (member.email && existingByEmail.has(member.email.toLowerCase())) continue;
 
       const displayName = [member.firstName, member.lastName].filter(Boolean).join(' ') || member.email || member.userId;
@@ -1792,7 +1809,7 @@ export class DatabaseStorage implements IStorage {
       
       // Add to lookup sets to prevent duplicates within this sync
       existingByUserId.add(member.userId);
-      if (member.email) existingByEmail.add(member.email.toLowerCase());
+      if (member.email) existingByEmail.set(member.email.toLowerCase(), { id: 0 } as any);
     }
   }
 
@@ -1961,6 +1978,12 @@ export class DatabaseStorage implements IStorage {
     // Update primary if needed
     if (Object.keys(updates).length > 0) {
       await db.update(resources).set(updates).where(eq(resources.id, primaryId));
+    }
+    
+    // Before deleting, clear the secondary's userId to prevent auto-sync from recreating it
+    // This happens when both resources have different userIds (same person, different accounts)
+    if (secondary.userId) {
+      await db.update(resources).set({ userId: null }).where(eq(resources.id, secondaryId));
     }
     
     // Delete the secondary resource
