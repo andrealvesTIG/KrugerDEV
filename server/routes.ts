@@ -4354,15 +4354,15 @@ export async function registerRoutes(
               ? await storage.getResources(project.organizationId)
               : [];
             
-            // Create a map of existing resources by email and name for matching
+            // Create a map of existing resources by email and displayName for matching
             const resourcesByEmail = new Map<string, typeof existingResources[0]>();
             const resourcesByName = new Map<string, typeof existingResources[0]>();
             for (const res of existingResources) {
               if (res.email) {
                 resourcesByEmail.set(res.email.toLowerCase(), res);
               }
-              if (res.name) {
-                resourcesByName.set(res.name.toLowerCase(), res);
+              if (res.displayName) {
+                resourcesByName.set(res.displayName.toLowerCase(), res);
               }
             }
 
@@ -4393,7 +4393,7 @@ export async function registerRoutes(
                 matchedResource = resourcesByEmail.get(memberEmail.toLowerCase());
               }
               
-              // Then try matching by exact name
+              // Then try matching by exact displayName
               if (!matchedResource && memberName) {
                 matchedResource = resourcesByName.get(memberName.toLowerCase());
               }
@@ -4409,10 +4409,10 @@ export async function registerRoutes(
                 try {
                   const newResource = await storage.createResource({
                     organizationId: project.organizationId,
-                    name: memberName,
+                    displayName: memberName,
                     email: memberEmail,
-                    role: 'Team Member',
-                    type: 'Human',
+                    title: 'Team Member',
+                    resourceType: 'Employee',
                     availability: 100,
                   });
                   
