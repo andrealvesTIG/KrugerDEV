@@ -2849,7 +2849,8 @@ export async function registerRoutes(
       }
       
       // Check if user is admin or owner
-      const member = await storage.getOrganizationMember(orgId, userId);
+      const members = await storage.getOrganizationMembers(orgId);
+      const member = members.find(m => m.userId === userId);
       if (!member || !['owner', 'admin'].includes(member.role)) {
         return res.status(403).json({ message: 'Only admins and owners can create custom fields' });
       }
@@ -2876,7 +2877,8 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       
       // Check if user is admin or owner
-      const member = await storage.getOrganizationMember(orgId, userId);
+      const members = await storage.getOrganizationMembers(orgId);
+      const member = members.find(m => m.userId === userId);
       if (!member || !['owner', 'admin'].includes(member.role)) {
         return res.status(403).json({ message: 'Only admins and owners can update custom fields' });
       }
@@ -2923,7 +2925,8 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       
       // Check if user is admin or owner
-      const member = await storage.getOrganizationMember(orgId, userId);
+      const members = await storage.getOrganizationMembers(orgId);
+      const member = members.find(m => m.userId === userId);
       if (!member || !['owner', 'admin'].includes(member.role)) {
         return res.status(403).json({ message: 'Only admins and owners can delete custom fields' });
       }
