@@ -7701,7 +7701,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         progress: tasks.progress,
         startDate: tasks.startDate,
         endDate: tasks.endDate,
-        assignedHours: taskResourceAssignments.assignedHours,
+        allocationPercentage: taskResourceAssignments.allocationPercentage,
       })
         .from(taskResourceAssignments)
         .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
@@ -7725,7 +7725,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         projectName: projects.name,
         status: issues.status,
         priority: issues.priority,
-        dueDate: issues.dueDate,
+        dueDate: issues.targetResolutionDate,
       })
         .from(issueResourceAssignments)
         .innerJoin(issues, eq(issueResourceAssignments.issueId, issues.id))

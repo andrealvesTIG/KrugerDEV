@@ -55,7 +55,7 @@ type ResourceAssignment = {
   progress: number;
   startDate: string | null;
   endDate: string | null;
-  assignedHours: number | null;
+  allocationPercentage: number | null;
 };
 
 type ResourceIssueAssignment = {
@@ -145,14 +145,13 @@ export default function ResourceDetails() {
     const existing = acc.find(a => a.projectId === assignment.projectId);
     if (existing) {
       existing.taskCount++;
-      existing.totalHours += assignment.assignedHours || 0;
       if (assignment.status === "Completed") existing.completedTasks++;
     } else {
       acc.push({
         projectId: assignment.projectId,
         projectName: assignment.projectName,
         taskCount: 1,
-        totalHours: assignment.assignedHours || 0,
+        totalHours: 0, // Hours not tracked at assignment level
         completedTasks: assignment.status === "Completed" ? 1 : 0,
       });
     }
@@ -535,7 +534,7 @@ export default function ResourceDetails() {
                       <TableHead>Status</TableHead>
                       <TableHead>Progress</TableHead>
                       <TableHead>Due Date</TableHead>
-                      <TableHead className="text-right">Hours</TableHead>
+                      <TableHead className="text-right">Allocation</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -561,7 +560,7 @@ export default function ResourceDetails() {
                         <TableCell>
                           {assignment.endDate ? format(new Date(assignment.endDate), "MMM d, yyyy") : "—"}
                         </TableCell>
-                        <TableCell className="text-right">{assignment.assignedHours || "—"}</TableCell>
+                        <TableCell className="text-right">{assignment.allocationPercentage ? `${assignment.allocationPercentage}%` : "100%"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
