@@ -422,7 +422,7 @@ export default function ProjectDetails() {
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
-            <ProjectSummaryTab project={project} onUpdate={updateProject} />
+            <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
             <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} />
@@ -980,7 +980,7 @@ function HealthStatusHistoryLog({ projectId }: { projectId: number }) {
   );
 }
 
-function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any }) {
+function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdate: any; tasks: Task[] }) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { data: resources } = useResources(currentOrganization?.id ?? null);
@@ -993,11 +993,42 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
   const [showHealthReasonDialog, setShowHealthReasonDialog] = useState(false);
   const [pendingHealth, setPendingHealth] = useState<string | null>(null);
   const [healthReason, setHealthReason] = useState(project.healthReason || "");
+  
+  // Calculate completion percentage from tasks (leaf tasks only - those without children)
+  const { calculatedCompletion, leafTaskCount } = useMemo(() => {
+    if (!tasks || tasks.length === 0) return { calculatedCompletion: 0, leafTaskCount: 0 };
+    
+    // Find parent task IDs to identify leaf tasks
+    const parentIds = new Set(tasks.filter(t => t.parentId).map(t => t.parentId));
+    const leafTasks = tasks.filter(t => !parentIds.has(t.id));
+    
+    if (leafTasks.length === 0) return { calculatedCompletion: 0, leafTaskCount: 0 };
+    
+    const totalProgress = leafTasks.reduce((sum, task) => {
+      const progress = task.progress ?? 0;
+      return sum + Math.max(0, Math.min(100, progress)); // Clamp between 0-100
+    }, 0);
+    return { 
+      calculatedCompletion: Math.round(totalProgress / leafTasks.length),
+      leafTaskCount: leafTasks.length 
+    };
+  }, [tasks]);
+  
+  // User has overridden if they've explicitly set a value that differs from calculated
+  // Note: stored value of 0 vs calculated 0 is not considered an override
+  const storedValue = project.completionPercentage;
+  const isOverridden = storedValue !== null && 
+                       storedValue !== undefined && 
+                       storedValue !== calculatedCompletion;
+  
+  // Display value: use stored value if set, otherwise calculated
+  const displayCompletion = storedValue ?? calculatedCompletion;
+  
   const [editValues, setEditValues] = useState({
     name: project.name || "",
     description: project.description || "",
     budget: project.budget || "0",
-    completionPercentage: project.completionPercentage || 0,
+    completionPercentage: displayCompletion,
   });
   
   useEffect(() => {
@@ -1016,9 +1047,9 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
       name: project.name || "",
       description: project.description || "",
       budget: project.budget || "0",
-      completionPercentage: project.completionPercentage || 0,
+      completionPercentage: displayCompletion,
     });
-  }, [project]);
+  }, [project, displayCompletion]);
 
   const autoSave = (field: string, value: any) => {
     onUpdate({ 
@@ -1033,6 +1064,12 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
         toast({ title: "Error", description: "Failed to save changes", variant: "destructive" });
       }
     });
+  };
+
+  // Reset completion to calculated value from tasks
+  const resetToCalculated = () => {
+    setEditValues(prev => ({ ...prev, completionPercentage: calculatedCompletion }));
+    autoSave('completionPercentage', calculatedCompletion);
   };
 
   const handleFieldBlur = (field: string) => {
@@ -1265,11 +1302,39 @@ function ProjectSummaryTab({ project, onUpdate }: { project: any; onUpdate: any 
               )}
             </div>
             <div>
-              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Completion</Label>
+              <div className="flex items-center gap-1">
+                <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Completion</Label>
+                {leafTaskCount > 0 && !isOverridden && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-[9px] text-muted-foreground/70 cursor-help">(from tasks)</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Calculated from {leafTaskCount} task(s)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {isOverridden && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button 
+                        onClick={resetToCalculated}
+                        className="text-[9px] text-primary hover:underline cursor-pointer"
+                        data-testid="button-reset-completion"
+                      >
+                        (reset to {calculatedCompletion}%)
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Click to reset to calculated value from tasks</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
               {editingField === 'completionPercentage' ? (
                 <Input type="number" min="0" max="100" value={editValues.completionPercentage} onChange={(e) => setEditValues(prev => ({ ...prev, completionPercentage: Number(e.target.value) }))} onBlur={() => handleFieldBlur('completionPercentage')} onKeyDown={(e) => e.key === 'Enter' && handleFieldBlur('completionPercentage')} autoFocus className="h-8 text-sm" data-testid="input-project-completion" />
               ) : (
-                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{project.completionPercentage}%</p>
+                <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{displayCompletion}%</p>
               )}
             </div>
           </div>
