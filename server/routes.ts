@@ -3658,13 +3658,121 @@ export async function registerRoutes(
           isCritical: false,
         });
 
-        createdTasks.push(task);
+        createdTasks.push({ task, plannerTaskId: plannerTask.id, assignments: plannerTask.assignments });
+      }
+
+      // Import resources and assignments from Planner
+      let resourcesImported = 0;
+      try {
+        // Collect all unique user IDs from task assignments
+        const userIdSet = new Set<string>();
+        for (const { assignments } of createdTasks) {
+          if (assignments) {
+            for (const userId of Object.keys(assignments)) {
+              userIdSet.add(userId);
+            }
+          }
+        }
+
+        if (userIdSet.size > 0) {
+          console.log(`Planner import: Found ${userIdSet.size} assigned users`);
+          
+          // Fetch existing resources for matching
+          const existingResources = await storage.getResources(Number(organizationId));
+          const resourcesByEmail = new Map(existingResources.filter(r => r.email).map(r => [r.email!.toLowerCase(), r]));
+          const resourcesByName = new Map(existingResources.map(r => [r.displayName.toLowerCase(), r]));
+          const userResourceMap = new Map<string, number>(); // Maps Graph userId to our resourceId
+          const assignedPairs = new Set<string>(); // Track assigned pairs
+
+          // Fetch user details from Microsoft Graph (batch request for efficiency)
+          const userIds = Array.from(userIdSet);
+          for (const msUserId of userIds) {
+            try {
+              const userResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${msUserId}?$select=id,displayName,mail,userPrincipalName`, {
+                headers: {
+                  "Authorization": `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+              });
+
+              if (userResponse.ok) {
+                const userData = await userResponse.json();
+                const userName = userData.displayName || 'Unknown User';
+                const userEmail = userData.mail || userData.userPrincipalName || null;
+                
+                console.log(`Planner import: User ${msUserId} - Name: ${userName}, Email: ${userEmail}`);
+
+                // Try to match existing resource by email first, then by name
+                let matchedResource = userEmail ? resourcesByEmail.get(userEmail.toLowerCase()) : null;
+                if (!matchedResource) {
+                  matchedResource = resourcesByName.get(userName.toLowerCase());
+                }
+
+                if (matchedResource) {
+                  userResourceMap.set(msUserId, matchedResource.id);
+                  console.log(`Planner import: Matched resource: ${userName} (ID: ${matchedResource.id})`);
+                } else {
+                  // Create new resource
+                  const newResource = await storage.createResource({
+                    organizationId: Number(organizationId),
+                    displayName: userName,
+                    email: userEmail,
+                    title: 'Team Member',
+                    resourceType: 'Employee',
+                    availability: 100,
+                  });
+
+                  userResourceMap.set(msUserId, newResource.id);
+                  if (userEmail) {
+                    resourcesByEmail.set(userEmail.toLowerCase(), newResource);
+                  }
+                  resourcesByName.set(userName.toLowerCase(), newResource);
+
+                  resourcesImported++;
+                  console.log(`Planner import: Created resource: ${userName} (ID: ${newResource.id}, Email: ${userEmail})`);
+                }
+              } else {
+                console.log(`Planner import: Failed to fetch user ${msUserId}: ${userResponse.status}`);
+              }
+            } catch (userErr) {
+              console.log(`Planner import: Error fetching user ${msUserId}:`, userErr);
+            }
+          }
+
+          // Create task resource assignments
+          for (const { task, assignments } of createdTasks) {
+            if (assignments) {
+              for (const userId of Object.keys(assignments)) {
+                const resourceId = userResourceMap.get(userId);
+                if (resourceId) {
+                  const pairKey = `${task.id}-${resourceId}`;
+                  if (assignedPairs.has(pairKey)) continue;
+
+                  try {
+                    await storage.addTaskResourceAssignment({
+                      taskId: task.id,
+                      resourceId: resourceId,
+                    });
+                    assignedPairs.add(pairKey);
+                    console.log(`Planner import: Assigned resource ${resourceId} to task ${task.id}`);
+                  } catch (assignErr) {
+                    console.log(`Planner import: Failed to assign resource:`, assignErr);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (resourceErr) {
+        console.log("Planner import: Error importing resources:", resourceErr);
+        // Continue without failing - resources are optional
       }
 
       res.status(201).json({ 
         project,
         tasksCreated: createdTasks.length,
-        message: `Successfully imported "${plan.title}" with ${createdTasks.length} tasks`
+        resourcesImported,
+        message: `Successfully imported "${plan.title}" with ${createdTasks.length} tasks${resourcesImported > 0 ? ` and ${resourcesImported} new resources` : ''}`
       });
     } catch (err: any) {
       console.error("Planner import error:", err);
