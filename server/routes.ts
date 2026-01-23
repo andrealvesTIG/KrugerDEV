@@ -7230,6 +7230,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       const allResources = await storage.getResources(organizationId);
       
+      // Normalize string for comparison (remove accents, lowercase)
+      const normalize = (str: string): string => {
+        return str
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '') // Remove accents
+          .replace(/[^a-z0-9\s]/g, ' ')    // Replace special chars with space
+          .trim();
+      };
+      
+      // Extract name parts from email (e.g., "john.doe@email.com" -> ["john", "doe"])
+      const extractNameFromEmail = (email: string): string[] => {
+        const localPart = email.split('@')[0];
+        return localPart.split(/[._-]/).filter(p => p.length > 1);
+      };
+      
       // Find potential duplicates by name similarity or email match
       const duplicateGroups: { resources: typeof allResources; matchType: string }[] = [];
       const processedIds = new Set<number>();
@@ -7239,11 +7255,24 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         
         const resource = allResources[i];
         const matches: typeof allResources = [resource];
+        const normalizedName1 = normalize(resource.displayName);
+        const nameParts1 = normalizedName1.split(/\s+/).filter(p => p.length > 1);
+        
+        // Also check if displayName looks like an email
+        const emailNameParts1 = resource.displayName.includes('@') 
+          ? extractNameFromEmail(resource.displayName) 
+          : [];
         
         for (let j = i + 1; j < allResources.length; j++) {
           if (processedIds.has(allResources[j].id)) continue;
           
           const other = allResources[j];
+          const normalizedName2 = normalize(other.displayName);
+          const nameParts2 = normalizedName2.split(/\s+/).filter(p => p.length > 1);
+          const emailNameParts2 = other.displayName.includes('@') 
+            ? extractNameFromEmail(other.displayName) 
+            : [];
+          
           let matchType = '';
           
           // Check exact email match
@@ -7251,20 +7280,46 @@ Format your response as a numbered list with clear, concise strategies. Do not i
               resource.email.toLowerCase() === other.email.toLowerCase()) {
             matchType = 'email';
           }
-          // Check exact name match (case-insensitive)
-          else if (resource.displayName.toLowerCase() === other.displayName.toLowerCase()) {
+          // Check exact normalized name match
+          else if (normalizedName1 === normalizedName2) {
             matchType = 'exact_name';
           }
-          // Check similar names (first word or initials match)
-          else {
-            const nameParts1 = resource.displayName.toLowerCase().split(/\s+/);
-            const nameParts2 = other.displayName.toLowerCase().split(/\s+/);
-            
-            // First name matches
+          // Check if one's email matches other's name parts
+          else if (resource.email && nameParts2.length >= 2) {
+            const emailParts = extractNameFromEmail(resource.email);
+            if (emailParts.length >= 2 && 
+                emailParts[0] === nameParts2[0] && 
+                emailParts[1].startsWith(nameParts2[1].charAt(0))) {
+              matchType = 'email_to_name';
+            }
+          }
+          else if (other.email && nameParts1.length >= 2) {
+            const emailParts = extractNameFromEmail(other.email);
+            if (emailParts.length >= 2 && 
+                emailParts[0] === nameParts1[0] && 
+                emailParts[1].startsWith(nameParts1[1].charAt(0))) {
+              matchType = 'email_to_name';
+            }
+          }
+          // Check if displayName is an email that matches the other's name
+          else if (emailNameParts1.length >= 2 && nameParts2.length >= 2) {
+            if (emailNameParts1[0] === nameParts2[0] && 
+                emailNameParts1[1].startsWith(nameParts2[1].charAt(0))) {
+              matchType = 'email_name_match';
+            }
+          }
+          else if (emailNameParts2.length >= 2 && nameParts1.length >= 2) {
+            if (emailNameParts2[0] === nameParts1[0] && 
+                emailNameParts2[1].startsWith(nameParts1[1].charAt(0))) {
+              matchType = 'email_name_match';
+            }
+          }
+          // Check similar names (first name matches + last name starts same)
+          else if (nameParts1.length >= 2 && nameParts2.length >= 2) {
             if (nameParts1[0] === nameParts2[0] && nameParts1[0].length > 2) {
-              // Last name also starts the same way
-              if (nameParts1.length > 1 && nameParts2.length > 1 &&
-                  nameParts1[nameParts1.length - 1].charAt(0) === nameParts2[nameParts2.length - 1].charAt(0)) {
+              const lastName1 = nameParts1[nameParts1.length - 1];
+              const lastName2 = nameParts2[nameParts2.length - 1];
+              if (lastName1.charAt(0) === lastName2.charAt(0)) {
                 matchType = 'similar_name';
               }
             }
