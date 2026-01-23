@@ -2470,6 +2470,20 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       toast({ title: "Error", description: error.message || "Failed to convert project", variant: "destructive" });
     }
   });
+
+  // Dataverse reconnect mutation
+  const reconnectDataverseMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/dataverse/connect");
+      return response.json();
+    },
+    onSuccess: (data: { authUrl: string }) => {
+      window.location.href = data.authUrl;
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to reconnect to Dataverse", variant: "destructive" });
+    },
+  });
   
   // Planner sync handler - not memoized, called manually
   const handlePlannerSync = async (silent = false) => {
@@ -2906,13 +2920,35 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <AlertCircle className="h-4 w-4" />
                 <span className="text-sm">{syncError}</span>
               </div>
-              <a 
-                href="/integrations" 
-                className="text-sm text-red-700 dark:text-red-300 hover:underline flex items-center gap-1"
-              >
-                Go to Integrations
-                <ExternalLink className="h-3 w-3" />
-              </a>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => reconnectDataverseMutation.mutate()}
+                  disabled={reconnectDataverseMutation.isPending}
+                  className="text-red-700 dark:text-red-300 border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/30"
+                  data-testid="button-reconnect-dataverse"
+                >
+                  {reconnectDataverseMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-3 w-3" />
+                      Reconnect
+                    </>
+                  )}
+                </Button>
+                <a 
+                  href="/integrations" 
+                  className="text-sm text-red-700 dark:text-red-300 hover:underline flex items-center gap-1"
+                >
+                  Go to Integrations
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
             </div>
           )}
         </div>
