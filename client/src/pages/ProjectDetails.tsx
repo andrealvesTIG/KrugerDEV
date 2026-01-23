@@ -2474,7 +2474,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   // Dataverse reconnect mutation
   const reconnectDataverseMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/dataverse/connect");
+      const response = await apiRequest("POST", "/api/dataverse/connect", {
+        returnUrl: `/projects/${projectId}`
+      });
       return response.json();
     },
     onSuccess: (data: { authUrl: string }) => {

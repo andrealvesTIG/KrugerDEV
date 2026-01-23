@@ -155,6 +155,12 @@ export async function setupDataverseRoutes(app: Express) {
       });
     }
 
+    // Save return URL if provided
+    const { returnUrl } = req.body;
+    if (returnUrl && typeof returnUrl === 'string' && returnUrl.startsWith('/')) {
+      req.session.dataverseReturnUrl = returnUrl;
+    }
+
     const state = generateSecureToken();
     req.session.dataverseOAuthState = state;
     
@@ -235,6 +241,10 @@ export async function setupDataverseRoutes(app: Express) {
         req.session.dataverseTokenExpiry = response.expiresOn.getTime();
       }
       
+      // Get return URL before clearing it
+      const returnUrl = req.session.dataverseReturnUrl;
+      delete req.session.dataverseReturnUrl;
+      
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) reject(err);
@@ -242,10 +252,21 @@ export async function setupDataverseRoutes(app: Express) {
         });
       });
 
-      res.redirect("/org-settings?tab=integrations&dataverseConnected=true");
+      // Redirect to return URL if provided, otherwise default
+      if (returnUrl && returnUrl.startsWith('/')) {
+        res.redirect(`${returnUrl}?dataverseConnected=true`);
+      } else {
+        res.redirect("/org-settings?tab=integrations&dataverseConnected=true");
+      }
     } catch (error) {
       console.error("Dataverse token error:", error);
-      res.redirect("/org-settings?tab=integrations&error=Failed to complete Dataverse authentication");
+      const returnUrl = req.session.dataverseReturnUrl;
+      delete req.session.dataverseReturnUrl;
+      if (returnUrl && returnUrl.startsWith('/')) {
+        res.redirect(`${returnUrl}?error=Failed to complete Dataverse authentication`);
+      } else {
+        res.redirect("/org-settings?tab=integrations&error=Failed to complete Dataverse authentication");
+      }
     }
   });
 
