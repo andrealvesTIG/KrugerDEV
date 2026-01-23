@@ -164,6 +164,28 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     }
   }
   
+  // Ensure lessons-learned module is in the menu group
+  const hasLessonsLearned = updatedStructure.some(g => 
+    g.items.some(item => item.type === "module" && item.key === "lessons-learned")
+  );
+  
+  if (!hasLessonsLearned) {
+    const menuGroup = updatedStructure.find(g => g.id === "menu");
+    if (menuGroup) {
+      updatedStructure = updatedStructure.map(g => {
+        if (g.id === "menu") {
+          // Add lessons-learned after calendar if it exists, otherwise at the end
+          const calendarIndex = g.items.findIndex(item => item.type === "module" && item.key === "calendar");
+          const insertIndex = calendarIndex >= 0 ? calendarIndex + 1 : g.items.length;
+          const newItems = [...g.items];
+          newItems.splice(insertIndex, 0, { type: "module" as const, key: "lessons-learned", hidden: false });
+          return { ...g, items: newItems };
+        }
+        return g;
+      });
+    }
+  }
+  
   // Ensure user-guide is in help group
   const helpGroup = updatedStructure.find(g => g.id === "help");
   const hasUserGuide = updatedStructure.some(g => 
