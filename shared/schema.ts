@@ -150,7 +150,7 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   projectCode: text("project_code"), // Unique project identifier (e.g., "PRJ-2025-001")
   description: text("description"),
-  status: text("status").notNull().default("Initiation"), // Initiation, Planning, Execution, Monitoring, Closing
+  status: text("status").notNull().default("Initiation"), // Initiation, Planning, Execution, Monitoring, Closing, Billing
   priority: text("priority").notNull().default("Medium"), // Low, Medium, High, Critical
   projectType: text("project_type"), // Internal, External, Strategic, Operational, Regulatory
   methodology: text("methodology"), // Waterfall, Agile, Hybrid, Scrum, Kanban

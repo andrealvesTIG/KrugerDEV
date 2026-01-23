@@ -68,6 +68,7 @@ const PROJECT_STAGES = [
   { value: "Execution", label: "Execution", description: "Active development" },
   { value: "Monitoring", label: "Monitoring", description: "Track & control" },
   { value: "Closing", label: "Closing", description: "Project completion" },
+  { value: "Billing", label: "Billing", description: "Financial/accounting completion" },
 ];
 
 function BusinessProcessFlow({ 
