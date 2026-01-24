@@ -5158,11 +5158,16 @@ export async function registerRoutes(
       const input = api.projects.update.input.parse(req.body);
       const sanitizedInput: Record<string, any> = {
         ...input,
-        startDate: input.startDate || null,
-        endDate: input.endDate || null,
         updatedAt: new Date(),
         updatedBy: userId || null,
       };
+      // Only update dates if explicitly provided in the request
+      if ('startDate' in input) {
+        sanitizedInput.startDate = input.startDate || null;
+      }
+      if ('endDate' in input) {
+        sanitizedInput.endDate = input.endDate || null;
+      }
       
       // If healthReason is provided or health changed, update the timestamp and record history
       const healthChanged = input.health && input.health !== existing.health;
