@@ -55,7 +55,8 @@ import {
   projectScoringCriteria, type ProjectScoringCriteria, type InsertProjectScoringCriteria,
   projectScores, type ProjectScore, type InsertProjectScore,
   projectBenefits, type ProjectBenefit, type InsertProjectBenefit,
-  projectDecisions, type ProjectDecision, type InsertProjectDecision
+  projectDecisions, type ProjectDecision, type InsertProjectDecision,
+  lessonsLearned, type LessonLearned, type InsertLessonLearned
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
@@ -3467,6 +3468,42 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProjectDecision(id: number): Promise<void> {
     await db.delete(projectDecisions).where(eq(projectDecisions.id, id));
+  }
+
+  // Lessons Learned
+  async getLessonsLearned(projectId: number): Promise<LessonLearned[]> {
+    return await db.select().from(lessonsLearned)
+      .where(eq(lessonsLearned.projectId, projectId))
+      .orderBy(desc(lessonsLearned.createdAt));
+  }
+
+  async getAllLessonsLearned(organizationId: number): Promise<LessonLearned[]> {
+    return await db.select().from(lessonsLearned)
+      .where(eq(lessonsLearned.organizationId, organizationId))
+      .orderBy(desc(lessonsLearned.createdAt));
+  }
+
+  async getLessonLearned(id: number): Promise<LessonLearned | undefined> {
+    const [lesson] = await db.select().from(lessonsLearned)
+      .where(eq(lessonsLearned.id, id));
+    return lesson;
+  }
+
+  async createLessonLearned(lesson: InsertLessonLearned): Promise<LessonLearned> {
+    const [created] = await db.insert(lessonsLearned).values(lesson).returning();
+    return created;
+  }
+
+  async updateLessonLearned(id: number, updates: Partial<InsertLessonLearned>): Promise<LessonLearned> {
+    const [updated] = await db.update(lessonsLearned)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(lessonsLearned.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteLessonLearned(id: number): Promise<void> {
+    await db.delete(lessonsLearned).where(eq(lessonsLearned.id, id));
   }
 }
 

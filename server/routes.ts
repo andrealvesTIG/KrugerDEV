@@ -14322,5 +14322,88 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ============================================
+  // LESSONS LEARNED ROUTES
+  // ============================================
+
+  // Get lessons learned for a specific project
+  app.get('/api/projects/:projectId/lessons-learned', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const lessons = await storage.getLessonsLearned(projectId);
+      res.json(lessons);
+    } catch (error) {
+      console.error('Error fetching lessons learned:', error);
+      res.status(500).json({ message: 'Failed to fetch lessons learned' });
+    }
+  });
+
+  // Get all lessons learned for an organization
+  app.get('/api/organizations/:organizationId/lessons-learned', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const organizationId = parseInt(req.params.organizationId);
+      const lessons = await storage.getAllLessonsLearned(organizationId);
+      res.json(lessons);
+    } catch (error) {
+      console.error('Error fetching all lessons learned:', error);
+      res.status(500).json({ message: 'Failed to fetch lessons learned' });
+    }
+  });
+
+  // Create a lesson learned
+  app.post('/api/projects/:projectId/lessons-learned', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const lesson = await storage.createLessonLearned({
+        ...req.body,
+        projectId,
+        createdBy: userId
+      });
+      res.status(201).json(lesson);
+    } catch (error) {
+      console.error('Error creating lesson learned:', error);
+      res.status(500).json({ message: 'Failed to create lesson learned' });
+    }
+  });
+
+  // Update a lesson learned
+  app.put('/api/lessons-learned/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const id = parseInt(req.params.id);
+      const lesson = await storage.updateLessonLearned(id, req.body);
+      res.json(lesson);
+    } catch (error) {
+      console.error('Error updating lesson learned:', error);
+      res.status(500).json({ message: 'Failed to update lesson learned' });
+    }
+  });
+
+  // Delete a lesson learned
+  app.delete('/api/lessons-learned/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteLessonLearned(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting lesson learned:', error);
+      res.status(500).json({ message: 'Failed to delete lesson learned' });
+    }
+  });
+
   return httpServer;
 }

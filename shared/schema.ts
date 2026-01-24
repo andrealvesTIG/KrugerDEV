@@ -1574,3 +1574,39 @@ export const insertProjectDecisionSchema = createInsertSchema(projectDecisions).
 
 export type InsertProjectDecision = z.infer<typeof insertProjectDecisionSchema>;
 export type ProjectDecision = typeof projectDecisions.$inferSelect;
+
+// Lessons Learned
+export const lessonsLearned = pgTable("lessons_learned", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category"), // Technical, Process, Communication, Risk, Resource, etc.
+  lessonType: text("lesson_type").default("Positive"), // Positive (what went well), Negative (what to avoid)
+  impact: text("impact"), // Low, Medium, High
+  phase: text("phase"), // Initiation, Planning, Execution, Monitoring, Closing
+  rootCause: text("root_cause"), // Root cause analysis
+  recommendation: text("recommendation"), // Actionable recommendations
+  actionsTaken: text("actions_taken"), // Actions already taken
+  applicability: text("applicability"), // Where this lesson can be applied
+  tags: text("tags").array(), // For filtering and searching
+  status: text("status").default("Draft"), // Draft, Under Review, Approved, Archived
+  dateIdentified: date("date_identified"),
+  identifiedBy: varchar("identified_by").references(() => users.id),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertLessonLearnedSchema = createInsertSchema(lessonsLearned).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  approvedAt: true,
+});
+
+export type InsertLessonLearned = z.infer<typeof insertLessonLearnedSchema>;
+export type LessonLearned = typeof lessonsLearned.$inferSelect;
