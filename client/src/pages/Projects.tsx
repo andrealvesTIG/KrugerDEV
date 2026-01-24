@@ -1135,6 +1135,8 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
       priority: "Medium",
       status: "Initiation",
       budget: "0",
+      startDate: "",
+      endDate: "",
       organizationId: organizationId || undefined,
     }
   });
