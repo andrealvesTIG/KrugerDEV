@@ -3,12 +3,7 @@ import type { CustomFieldDefinition, ProjectCustomFieldValue, InsertCustomFieldD
 
 export function useCustomFieldDefinitions(organizationId: number | undefined | null) {
   return useQuery<CustomFieldDefinition[]>({
-    queryKey: ['/api/organizations', organizationId, 'custom-fields'],
-    queryFn: async () => {
-      const res = await fetch(`/api/organizations/${organizationId}/custom-fields`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch custom field definitions");
-      return res.json();
-    },
+    queryKey: [`/api/organizations/${organizationId}/custom-fields`],
     enabled: !!organizationId,
   });
 }
@@ -27,7 +22,7 @@ export function useCreateCustomFieldDefinition() {
       return res.json() as Promise<CustomFieldDefinition>;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'custom-fields'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${variables.organizationId}/custom-fields`] });
     },
   });
 }
@@ -46,7 +41,7 @@ export function useUpdateCustomFieldDefinition() {
       return res.json() as Promise<CustomFieldDefinition>;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'custom-fields'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${variables.organizationId}/custom-fields`] });
     },
   });
 }
@@ -62,19 +57,14 @@ export function useDeleteCustomFieldDefinition() {
       if (!res.ok) throw new Error("Failed to delete custom field");
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'custom-fields'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${variables.organizationId}/custom-fields`] });
     },
   });
 }
 
 export function useProjectCustomFieldValues(projectId: number | undefined | null) {
   return useQuery<ProjectCustomFieldValue[]>({
-    queryKey: ['/api/projects', projectId, 'custom-field-values'],
-    queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}/custom-field-values`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch custom field values");
-      return res.json();
-    },
+    queryKey: [`/api/projects/${projectId}/custom-field-values`],
     enabled: !!projectId,
   });
 }
@@ -93,7 +83,7 @@ export function useUpdateProjectCustomFieldValue() {
       return res.json() as Promise<ProjectCustomFieldValue>;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'custom-field-values'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${variables.projectId}/custom-field-values`] });
     },
   });
 }
@@ -112,7 +102,7 @@ export function useBulkUpdateProjectCustomFieldValues() {
       return res.json() as Promise<ProjectCustomFieldValue[]>;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'custom-field-values'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${variables.projectId}/custom-field-values`] });
     },
   });
 }

@@ -1564,6 +1564,23 @@ function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: num
     setEditValue("");
   };
 
+  const parseMultiSelectValue = (value: string): string[] => {
+    if (!value) return [];
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value ? [value] : [];
+    }
+  };
+
+  const toggleMultiSelectOption = (opt: string) => {
+    const current = parseMultiSelectValue(editValue);
+    const updated = current.includes(opt)
+      ? current.filter(v => v !== opt)
+      : [...current, opt];
+    setEditValue(JSON.stringify(updated));
+  };
+
   const renderFieldInput = (field: CustomFieldDefinition) => {
     switch (field.fieldType) {
       case "checkbox":
@@ -1579,7 +1596,7 @@ function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: num
       case "select":
         return (
           <Select value={editValue} onValueChange={setEditValue}>
-            <SelectTrigger className="h-8" data-testid={`select-custom-field-${field.id}`}>
+            <SelectTrigger data-testid={`select-custom-field-${field.id}`}>
               <SelectValue placeholder="Select..." />
             </SelectTrigger>
             <SelectContent>
@@ -1589,13 +1606,29 @@ function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: num
             </SelectContent>
           </Select>
         );
+      case "multiselect":
+        const selectedValues = parseMultiSelectValue(editValue);
+        return (
+          <div className="flex flex-wrap gap-1" data-testid={`multiselect-custom-field-${field.id}`}>
+            {(field.options as string[] || []).map((opt) => (
+              <Badge
+                key={opt}
+                variant={selectedValues.includes(opt) ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => toggleMultiSelectOption(opt)}
+                data-testid={`option-${field.id}-${opt}`}
+              >
+                {opt}
+              </Badge>
+            ))}
+          </div>
+        );
       case "date":
         return (
           <Input
             type="date"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
-            className="h-8"
             data-testid={`input-custom-field-${field.id}`}
           />
         );
@@ -1605,7 +1638,6 @@ function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: num
             type="number"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
-            className="h-8"
             data-testid={`input-custom-field-${field.id}`}
           />
         );
@@ -1616,7 +1648,6 @@ function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: num
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             placeholder="https://..."
-            className="h-8"
             data-testid={`input-custom-field-${field.id}`}
           />
         );
@@ -1625,7 +1656,6 @@ function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: num
           <Input
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
-            className="h-8"
             data-testid={`input-custom-field-${field.id}`}
           />
         );
@@ -1634,22 +1664,31 @@ function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: num
 
   const renderFieldValue = (field: CustomFieldDefinition) => {
     const value = getFieldValue(field.id);
-    if (!value) return <span className="text-muted-foreground text-sm">Not set</span>;
+    if (!value) return <span className="text-muted-foreground text-sm" data-testid={`value-empty-${field.id}`}>Not set</span>;
 
     switch (field.fieldType) {
       case "checkbox":
-        return value === "true" ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />;
+        return value === "true" ? <Check className="h-4 w-4 text-green-600" data-testid={`value-check-${field.id}`} /> : <X className="h-4 w-4 text-muted-foreground" data-testid={`value-uncheck-${field.id}`} />;
       case "url":
         return (
-          <a href={value} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm flex items-center gap-1">
+          <a href={value} target="_blank" rel="noopener noreferrer" className="underline text-sm flex items-center gap-1" data-testid={`link-custom-field-${field.id}`}>
             {value.length > 30 ? value.substring(0, 30) + "..." : value}
             <ExternalLink className="h-3 w-3" />
           </a>
         );
+      case "multiselect":
+        const selected = parseMultiSelectValue(value);
+        return (
+          <div className="flex flex-wrap gap-1" data-testid={`value-multiselect-${field.id}`}>
+            {selected.map((v) => (
+              <Badge key={v} variant="secondary" className="text-xs">{v}</Badge>
+            ))}
+          </div>
+        );
       case "date":
-        return <span className="text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>;
+        return <span className="text-sm" data-testid={`value-date-${field.id}`}>{format(new Date(value), 'MMM d, yyyy')}</span>;
       default:
-        return <span className="text-sm">{value}</span>;
+        return <span className="text-sm" data-testid={`value-text-${field.id}`}>{value}</span>;
     }
   };
 
@@ -1657,7 +1696,7 @@ function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: num
     <Collapsible>
       <Card>
         <CardHeader className="py-3 px-4">
-          <CollapsibleTrigger className="w-full flex items-center justify-between hover:bg-muted/50 rounded -m-2 p-2">
+          <CollapsibleTrigger className="w-full flex items-center justify-between rounded -m-2 p-2 hover-elevate" data-testid="button-toggle-custom-fields">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Custom Fields
@@ -1678,21 +1717,21 @@ function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: num
                   {editingFieldId === field.id ? (
                     <div className="flex items-center gap-2">
                       {renderFieldInput(field)}
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleSave(field.id)} data-testid={`button-save-field-${field.id}`}>
+                      <Button size="icon" variant="ghost" onClick={() => handleSave(field.id)} data-testid={`button-save-field-${field.id}`}>
                         <Check className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleCancel} data-testid={`button-cancel-field-${field.id}`}>
+                      <Button size="icon" variant="ghost" onClick={handleCancel} data-testid={`button-cancel-field-${field.id}`}>
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
                   ) : (
                     <div
-                      className="flex items-center justify-between p-2 rounded cursor-pointer hover:bg-muted/50 min-h-[32px]"
+                      className="flex items-center justify-between p-2 rounded cursor-pointer hover-elevate min-h-[32px]"
                       onClick={() => handleEdit(field)}
-                      data-testid={`text-custom-field-${field.id}`}
+                      data-testid={`button-edit-field-${field.id}`}
                     >
                       {renderFieldValue(field)}
-                      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <Pencil className="h-3 w-3 text-muted-foreground" />
                     </div>
                   )}
                 </div>
