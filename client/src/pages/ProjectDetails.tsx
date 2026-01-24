@@ -144,7 +144,7 @@ function BusinessProcessFlow({
 export default function ProjectDetails() {
   const [, params] = useRoute("/projects/:id");
   const id = parseInt(params?.id || "0");
-  const { data: project, isLoading } = useProject(id);
+  const { data: project, isLoading, refetch: refetchProject } = useProject(id);
   const { data: financials } = useProjectFinancials(id);
   const { data: projectTasks } = useTasks(id);
   const { data: projectRisks } = useRisks(id);
@@ -2461,10 +2461,11 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     mutationFn: async () => {
       return apiRequest('POST', `/api/projects/${projectId}/make-editable`);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({ title: "Success", description: "Project detached successfully. You can now add, edit, and delete tasks." });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+      await refetchProject();
       setIsMakeEditableDialogOpen(false);
     },
     onError: (error: Error) => {
