@@ -18,12 +18,8 @@ export function useCreateScoringCriteria() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ organizationId, data }: { organizationId: number; data: Partial<InsertProjectScoringCriteria> }) => {
-      const result = await apiRequest(`/api/organizations/${organizationId}/scoring-criteria`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return result;
+      const res = await apiRequest('POST', `/api/organizations/${organizationId}/scoring-criteria`, data);
+      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'scoring-criteria'] });
@@ -35,12 +31,8 @@ export function useUpdateScoringCriteria() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, organizationId, data }: { id: number; organizationId: number; data: Partial<InsertProjectScoringCriteria> }) => {
-      const result = await apiRequest(`/api/scoring-criteria/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return result;
+      const res = await apiRequest('PUT', `/api/scoring-criteria/${id}`, data);
+      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'scoring-criteria'] });
@@ -52,7 +44,7 @@ export function useDeleteScoringCriteria() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, organizationId }: { id: number; organizationId: number }) => {
-      await apiRequest(`/api/scoring-criteria/${id}`, { method: 'DELETE' });
+      await apiRequest('DELETE', `/api/scoring-criteria/${id}`);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'scoring-criteria'] });
@@ -73,12 +65,8 @@ export function useSaveProjectScore() {
     mutationFn: async ({ projectId, criteriaId, score, justification }: { 
       projectId: number; criteriaId: number; score: number; justification?: string 
     }) => {
-      const result = await apiRequest(`/api/projects/${projectId}/scores`, {
-        method: 'POST',
-        body: JSON.stringify({ criteriaId, score, justification }),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return result;
+      const res = await apiRequest('POST', `/api/projects/${projectId}/scores`, { criteriaId, score, justification });
+      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'scores'] });
@@ -97,12 +85,8 @@ export function useCreateProjectBenefit() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertProjectBenefit> }) => {
-      const result = await apiRequest(`/api/projects/${projectId}/benefits`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return result;
+      const res = await apiRequest('POST', `/api/projects/${projectId}/benefits`, data);
+      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'benefits'] });
@@ -114,12 +98,8 @@ export function useUpdateProjectBenefit() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: Partial<InsertProjectBenefit> }) => {
-      const result = await apiRequest(`/api/project-benefits/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return result;
+      const res = await apiRequest('PUT', `/api/project-benefits/${id}`, data);
+      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'benefits'] });
@@ -131,7 +111,7 @@ export function useDeleteProjectBenefit() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
-      await apiRequest(`/api/project-benefits/${id}`, { method: 'DELETE' });
+      await apiRequest('DELETE', `/api/project-benefits/${id}`);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'benefits'] });
@@ -150,12 +130,8 @@ export function useCreateProjectDecision() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertProjectDecision> }) => {
-      const result = await apiRequest(`/api/projects/${projectId}/decisions`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return result;
+      const res = await apiRequest('POST', `/api/projects/${projectId}/decisions`, data);
+      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'decisions'] });
@@ -167,12 +143,8 @@ export function useUpdateProjectDecision() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: Partial<InsertProjectDecision> }) => {
-      const result = await apiRequest(`/api/project-decisions/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return result;
+      const res = await apiRequest('PUT', `/api/project-decisions/${id}`, data);
+      return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'decisions'] });
@@ -184,7 +156,7 @@ export function useDeleteProjectDecision() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
-      await apiRequest(`/api/project-decisions/${id}`, { method: 'DELETE' });
+      await apiRequest('DELETE', `/api/project-decisions/${id}`);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'decisions'] });
