@@ -244,7 +244,7 @@ export default function LessonsLearned() {
         <CardContent>
           <div className="space-y-4">
             {filteredLessons?.map(l => (
-              <Card key={l.id} className="p-4">
+              <Card key={l.id} className="p-4" data-testid={`card-lesson-${l.id}`}>
                 {editingId === l.id ? (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -254,12 +254,12 @@ export default function LessonsLearned() {
                       </div>
                       <div className="col-span-2">
                         <Label>Description</Label>
-                        <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+                        <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} data-testid="input-edit-lesson-description" />
                       </div>
                       <div>
                         <Label>Category</Label>
                         <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger data-testid="select-edit-lesson-category"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Process">Process</SelectItem>
                             <SelectItem value="Technical">Technical</SelectItem>
@@ -275,7 +275,7 @@ export default function LessonsLearned() {
                       <div>
                         <Label>Type</Label>
                         <Select value={form.lessonType} onValueChange={v => setForm(p => ({ ...p, lessonType: v }))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger data-testid="select-edit-lesson-type"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Positive">Positive (What Went Well)</SelectItem>
                             <SelectItem value="Negative">Negative (What to Improve)</SelectItem>
@@ -285,7 +285,7 @@ export default function LessonsLearned() {
                       <div>
                         <Label>Impact</Label>
                         <Select value={form.impact} onValueChange={v => setForm(p => ({ ...p, impact: v }))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger data-testid="select-edit-lesson-impact"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Low">Low</SelectItem>
                             <SelectItem value="Medium">Medium</SelectItem>
@@ -296,7 +296,7 @@ export default function LessonsLearned() {
                       <div>
                         <Label>Status</Label>
                         <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger data-testid="select-edit-lesson-status"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Draft">Draft</SelectItem>
                             <SelectItem value="Under Review">Under Review</SelectItem>
@@ -307,15 +307,15 @@ export default function LessonsLearned() {
                       </div>
                       <div className="col-span-2">
                         <Label>Root Cause</Label>
-                        <Textarea value={form.rootCause} onChange={e => setForm(p => ({ ...p, rootCause: e.target.value }))} />
+                        <Textarea value={form.rootCause} onChange={e => setForm(p => ({ ...p, rootCause: e.target.value }))} data-testid="input-edit-lesson-root-cause" />
                       </div>
                       <div className="col-span-2">
                         <Label>Recommendations</Label>
-                        <Textarea value={form.recommendations} onChange={e => setForm(p => ({ ...p, recommendations: e.target.value }))} />
+                        <Textarea value={form.recommendations} onChange={e => setForm(p => ({ ...p, recommendations: e.target.value }))} data-testid="input-edit-lesson-recommendations" />
                       </div>
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => { setEditingId(null); resetForm(); }}>Cancel</Button>
+                      <Button variant="outline" onClick={() => { setEditingId(null); resetForm(); }} data-testid="button-cancel-edit-lesson">Cancel</Button>
                       <Button onClick={() => handleUpdate(l)} disabled={!form.title} data-testid="button-save-edit-lesson">
                         Update
                       </Button>
