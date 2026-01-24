@@ -617,7 +617,11 @@ export function ProjectStatusReportPDF({
               </View>
               <View style={styles.timelineLegendItem}>
                 <View style={[styles.timelineLegendBox, { backgroundColor: "#93c5fd" }]} />
-                <Text style={styles.timelineLegendText}>Elapsed Time</Text>
+                <Text style={styles.timelineLegendText}>Time Passed</Text>
+              </View>
+              <View style={styles.timelineLegendItem}>
+                <View style={[styles.timelineLegendBox, { backgroundColor: "#f59e0b", width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 10, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: "#f59e0b" }]} />
+                <Text style={styles.timelineLegendText}>Milestone</Text>
               </View>
             </View>
             {majorMilestones.length > 0 && (
@@ -627,7 +631,7 @@ export function ProjectStatusReportPDF({
                   const color = status === "Complete" ? "#22c55e" : status === "At Risk" ? "#ef4444" : "#f59e0b";
                   return (
                     <View key={m.id} style={styles.milestoneDot}>
-                      <View style={[styles.milestoneDotCircle, { backgroundColor: color }]} />
+                      <View style={{ width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderBottomWidth: 8, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: color }} />
                       <Text style={styles.milestoneDotText}>{m.title.substring(0, 20)}</Text>
                     </View>
                   );
