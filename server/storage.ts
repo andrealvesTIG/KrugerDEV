@@ -46,7 +46,9 @@ import {
   type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
   type RecycleBinItem, type RecycleBinItemType,
   type ProjectView, type InsertProjectView, type UpdateProjectViewRequest,
-  userConsents, type UserConsent, type InsertUserConsent
+  userConsents, type UserConsent, type InsertUserConsent,
+  customFieldDefinitions, type CustomFieldDefinition, type InsertCustomFieldDefinition, type UpdateCustomFieldDefinitionRequest,
+  projectCustomFieldValues, type ProjectCustomFieldValue, type InsertProjectCustomFieldValue
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
@@ -345,6 +347,19 @@ export interface IStorage {
   revokeUserConsent(id: number): Promise<UserConsent>;
   getAllUserConsents(limit?: number, offset?: number): Promise<UserConsent[]>;
   getUserConsentStats(): Promise<{ consentType: string; version: string; count: number }[]>;
+
+  // Custom Field Definitions
+  getCustomFieldDefinitions(organizationId: number): Promise<CustomFieldDefinition[]>;
+  getCustomFieldDefinition(id: number): Promise<CustomFieldDefinition | undefined>;
+  createCustomFieldDefinition(field: InsertCustomFieldDefinition): Promise<CustomFieldDefinition>;
+  updateCustomFieldDefinition(id: number, updates: UpdateCustomFieldDefinitionRequest): Promise<CustomFieldDefinition>;
+  deleteCustomFieldDefinition(id: number): Promise<void>;
+
+  // Project Custom Field Values
+  getProjectCustomFieldValues(projectId: number): Promise<ProjectCustomFieldValue[]>;
+  getProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<ProjectCustomFieldValue | undefined>;
+  upsertProjectCustomFieldValue(value: InsertProjectCustomFieldValue): Promise<ProjectCustomFieldValue>;
+  deleteProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3077,6 +3092,78 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userConsents.revoked, false))
       .groupBy(userConsents.consentType, userConsents.version);
     return stats;
+  }
+
+  // Custom Field Definitions
+  async getCustomFieldDefinitions(organizationId: number): Promise<CustomFieldDefinition[]> {
+    return await db.select().from(customFieldDefinitions)
+      .where(and(
+        eq(customFieldDefinitions.organizationId, organizationId),
+        eq(customFieldDefinitions.isActive, true)
+      ))
+      .orderBy(asc(customFieldDefinitions.displayOrder), asc(customFieldDefinitions.name));
+  }
+
+  async getCustomFieldDefinition(id: number): Promise<CustomFieldDefinition | undefined> {
+    const [field] = await db.select().from(customFieldDefinitions)
+      .where(eq(customFieldDefinitions.id, id));
+    return field;
+  }
+
+  async createCustomFieldDefinition(field: InsertCustomFieldDefinition): Promise<CustomFieldDefinition> {
+    const [created] = await db.insert(customFieldDefinitions).values(field).returning();
+    return created;
+  }
+
+  async updateCustomFieldDefinition(id: number, updates: UpdateCustomFieldDefinitionRequest): Promise<CustomFieldDefinition> {
+    const [updated] = await db.update(customFieldDefinitions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(customFieldDefinitions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCustomFieldDefinition(id: number): Promise<void> {
+    await db.update(customFieldDefinitions)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(customFieldDefinitions.id, id));
+  }
+
+  // Project Custom Field Values
+  async getProjectCustomFieldValues(projectId: number): Promise<ProjectCustomFieldValue[]> {
+    return await db.select().from(projectCustomFieldValues)
+      .where(eq(projectCustomFieldValues.projectId, projectId));
+  }
+
+  async getProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<ProjectCustomFieldValue | undefined> {
+    const [value] = await db.select().from(projectCustomFieldValues)
+      .where(and(
+        eq(projectCustomFieldValues.projectId, projectId),
+        eq(projectCustomFieldValues.fieldDefinitionId, fieldDefinitionId)
+      ));
+    return value;
+  }
+
+  async upsertProjectCustomFieldValue(value: InsertProjectCustomFieldValue): Promise<ProjectCustomFieldValue> {
+    const existing = await this.getProjectCustomFieldValue(value.projectId, value.fieldDefinitionId);
+    if (existing) {
+      const [updated] = await db.update(projectCustomFieldValues)
+        .set({ value: value.value, updatedAt: new Date() })
+        .where(eq(projectCustomFieldValues.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(projectCustomFieldValues).values(value).returning();
+      return created;
+    }
+  }
+
+  async deleteProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<void> {
+    await db.delete(projectCustomFieldValues)
+      .where(and(
+        eq(projectCustomFieldValues.projectId, projectId),
+        eq(projectCustomFieldValues.fieldDefinitionId, fieldDefinitionId)
+      ));
   }
 }
 
