@@ -17,6 +17,7 @@ import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useCustomProjectTabs, useFullCustomTab } from "@/hooks/use-custom-tabs";
 import { useScoringCriteria, useCreateScoringCriteria, useDeleteScoringCriteria, useProjectScores, useSaveProjectScore, useProjectBenefits, useCreateProjectBenefit, useUpdateProjectBenefit, useDeleteProjectBenefit, useProjectDecisions, useCreateProjectDecision, useUpdateProjectDecision, useDeleteProjectDecision } from "@/hooks/use-project-features";
+import { useLessonsLearned, useCreateLessonLearned, useUpdateLessonLearned, useDeleteLessonLearned } from "@/hooks/use-lessons-learned";
 import type { CustomFieldDefinition, ProjectCustomFieldValue, CustomProjectTab, CustomTabSection, CustomTabField } from "@shared/schema";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
@@ -437,6 +438,7 @@ export default function ProjectDetails() {
                  activeTab === 'scoring' ? 'Scoring' :
                  activeTab === 'benefits' ? 'Benefits' :
                  activeTab === 'decisions' ? 'Decisions' :
+                 activeTab === 'lessons-learned' ? 'Lessons Learned' :
                  activeTab.startsWith('custom-') ? customTabs.find(t => `custom-${t.id}` === activeTab)?.name :
                  'More'}
                 <ChevronDown className="h-4 w-4" />
@@ -451,6 +453,9 @@ export default function ProjectDetails() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setActiveTab('decisions')} data-testid="menu-tab-decisions">
                 Decisions
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('lessons-learned')} data-testid="menu-tab-lessons-learned">
+                Lessons Learned
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setActiveTab('change-requests')} data-testid="menu-tab-change-requests">
                 Change Requests
@@ -493,6 +498,9 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="decisions">
             <DecisionsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="lessons-learned">
+            <LessonsLearnedTab projectId={project.id} organizationId={project.organizationId} />
           </TabsContent>
           <TabsContent value="change-requests">
             <ChangeRequestsTab projectId={project.id} />
@@ -10885,6 +10893,298 @@ function DecisionsTab({ projectId }: { projectId: number }) {
         {(!decisions || decisions.length === 0) && !showAdd && (
           <div className="text-center py-8 text-muted-foreground">
             No decisions logged yet. Click "Log Decision" to record a decision.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LessonsLearnedTab({ projectId, organizationId }: { projectId: number; organizationId: number }) {
+  const { data: lessons, isLoading } = useLessonsLearned(projectId);
+  const createLesson = useCreateLessonLearned();
+  const updateLesson = useUpdateLessonLearned();
+  const deleteLesson = useDeleteLessonLearned();
+  const { toast } = useToast();
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    category: 'Process',
+    lessonType: 'Positive',
+    impact: 'Medium',
+    phase: '',
+    rootCause: '',
+    recommendations: '',
+    status: 'Draft'
+  });
+
+  const handleAdd = async () => {
+    try {
+      await createLesson.mutateAsync({
+        projectId,
+        organizationId,
+        data: {
+          title: form.title,
+          description: form.description,
+          category: form.category,
+          lessonType: form.lessonType,
+          impact: form.impact,
+          phase: form.phase || null,
+          rootCause: form.rootCause || null,
+          recommendation: form.recommendations || null,
+          status: form.status,
+          organizationId
+        }
+      });
+      toast({ title: "Lesson learned added" });
+      setShowAdd(false);
+      resetForm();
+    } catch {
+      toast({ title: "Error", description: "Failed to add lesson learned", variant: "destructive" });
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingId) return;
+    try {
+      await updateLesson.mutateAsync({
+        id: editingId,
+        projectId,
+        organizationId,
+        data: {
+          title: form.title,
+          description: form.description,
+          category: form.category,
+          lessonType: form.lessonType,
+          impact: form.impact,
+          phase: form.phase || null,
+          rootCause: form.rootCause || null,
+          recommendation: form.recommendations || null,
+          status: form.status
+        }
+      });
+      toast({ title: "Lesson learned updated" });
+      setEditingId(null);
+      resetForm();
+    } catch {
+      toast({ title: "Error", description: "Failed to update lesson learned", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteLesson.mutateAsync({ id, projectId, organizationId });
+      toast({ title: "Lesson learned deleted" });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete lesson learned", variant: "destructive" });
+    }
+  };
+
+  const resetForm = () => {
+    setForm({
+      title: '',
+      description: '',
+      category: 'Process',
+      lessonType: 'Positive',
+      impact: 'Medium',
+      phase: '',
+      rootCause: '',
+      recommendations: '',
+      status: 'Draft'
+    });
+  };
+
+  const startEdit = (l: any) => {
+    setEditingId(l.id);
+    setForm({
+      title: l.title,
+      description: l.description || '',
+      category: l.category || 'Process',
+      lessonType: l.lessonType || 'Positive',
+      impact: l.impact || 'Medium',
+      phase: l.phase || '',
+      rootCause: l.rootCause || '',
+      recommendations: l.recommendation || '',
+      status: l.status || 'Draft'
+    });
+  };
+
+  const getTypeColor = (type: string) => {
+    return type === 'Positive' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Approved': return 'bg-green-100 text-green-800';
+      case 'Under Review': return 'bg-yellow-100 text-yellow-800';
+      case 'Archived': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-blue-100 text-blue-800';
+    }
+  };
+
+  const getImpactColor = (impact: string) => {
+    switch (impact) {
+      case 'High': return 'bg-red-100 text-red-800';
+      case 'Medium': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle>Lessons Learned</CardTitle>
+        <Button size="sm" onClick={() => { setShowAdd(true); setEditingId(null); resetForm(); }} data-testid="button-add-lesson">
+          <Plus className="h-4 w-4 mr-1" /> Add Lesson
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {(showAdd || editingId) && (
+          <Card className="mb-4 p-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label>Title</Label>
+                <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} data-testid="input-lesson-title" />
+              </div>
+              <div className="col-span-2">
+                <Label>Description</Label>
+                <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Describe the lesson learned..." />
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Process">Process</SelectItem>
+                    <SelectItem value="Technical">Technical</SelectItem>
+                    <SelectItem value="Communication">Communication</SelectItem>
+                    <SelectItem value="Resource">Resource</SelectItem>
+                    <SelectItem value="Risk Management">Risk Management</SelectItem>
+                    <SelectItem value="Stakeholder">Stakeholder</SelectItem>
+                    <SelectItem value="Vendor">Vendor</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Type</Label>
+                <Select value={form.lessonType} onValueChange={v => setForm(p => ({ ...p, lessonType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Positive">Positive (What Went Well)</SelectItem>
+                    <SelectItem value="Negative">Negative (What to Improve)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Impact</Label>
+                <Select value={form.impact} onValueChange={v => setForm(p => ({ ...p, impact: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Phase</Label>
+                <Select value={form.phase || ''} onValueChange={v => setForm(p => ({ ...p, phase: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select phase..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Initiation">Initiation</SelectItem>
+                    <SelectItem value="Planning">Planning</SelectItem>
+                    <SelectItem value="Execution">Execution</SelectItem>
+                    <SelectItem value="Monitoring">Monitoring & Control</SelectItem>
+                    <SelectItem value="Closure">Closure</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Label>Root Cause</Label>
+                <Textarea value={form.rootCause} onChange={e => setForm(p => ({ ...p, rootCause: e.target.value }))} placeholder="What was the underlying cause?" />
+              </div>
+              <div className="col-span-2">
+                <Label>Recommendations</Label>
+                <Textarea value={form.recommendations} onChange={e => setForm(p => ({ ...p, recommendations: e.target.value }))} placeholder="What should be done differently in the future?" />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Under Review">Under Review</SelectItem>
+                    <SelectItem value="Approved">Approved</SelectItem>
+                    <SelectItem value="Archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => { setShowAdd(false); setEditingId(null); resetForm(); }}>Cancel</Button>
+              <Button onClick={editingId ? handleUpdate : handleAdd} disabled={!form.title} data-testid="button-save-lesson">
+                {editingId ? 'Update' : 'Save'}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        <div className="space-y-3">
+          {lessons?.map(l => (
+            <Card key={l.id} className="p-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="font-medium">{l.title}</div>
+                  <div className="text-sm text-muted-foreground">{l.description}</div>
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    <Badge variant="secondary">{l.category}</Badge>
+                    <Badge className={getTypeColor(l.lessonType || '')}>{l.lessonType}</Badge>
+                    <Badge className={getImpactColor(l.impact || '')}>{l.impact} Impact</Badge>
+                    <Badge className={getStatusColor(l.status || '')}>{l.status}</Badge>
+                    {l.phase && <Badge variant="outline">{l.phase}</Badge>}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => startEdit(l)} data-testid={`button-edit-lesson-${l.id}`}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(l.id)} data-testid={`button-delete-lesson-${l.id}`}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              {(l.rootCause || l.recommendation) && (
+                <div className="mt-3 text-sm space-y-2">
+                  {l.rootCause && (
+                    <div>
+                      <span className="font-medium">Root Cause:</span> {l.rootCause}
+                    </div>
+                  )}
+                  {l.recommendation && (
+                    <div>
+                      <span className="font-medium">Recommendations:</span> {l.recommendation}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="mt-2 text-xs text-muted-foreground">
+                Added: {format(new Date(l.createdAt!), 'MMM d, yyyy')}
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {(!lessons || lessons.length === 0) && !showAdd && (
+          <div className="text-center py-8 text-muted-foreground">
+            No lessons learned yet. Click "Add Lesson" to document a lesson.
           </div>
         )}
       </CardContent>
