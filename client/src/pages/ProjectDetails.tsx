@@ -14,6 +14,8 @@ import { useProjectDocuments, useCreateProjectDocument, useUpdateProjectDocument
 import { useProjectComments, useCreateProjectComment, useDeleteProjectComment } from "@/hooks/use-project-comments";
 import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hooks/use-billable-status-comments";
 import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
+import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
+import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
@@ -1512,11 +1514,194 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
     </Dialog>
     
     <div className="space-y-4">
+      <ProjectCustomFieldsCard projectId={project.id} organizationId={currentOrganization?.id} />
       <ProjectCommentsFeed projectId={project.id} />
       <BillableStatusCommentLog projectId={project.id} />
       <HealthStatusHistoryLog projectId={project.id} />
     </div>
   </>
+  );
+}
+
+function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: number; organizationId: number | undefined }) {
+  const { toast } = useToast();
+  const { data: definitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
+  const { data: values = [], isLoading: valuesLoading } = useProjectCustomFieldValues(projectId);
+  const updateValue = useUpdateProjectCustomFieldValue();
+  const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+
+  if (!organizationId) return null;
+  if (definitionsLoading || valuesLoading) return null;
+  if (definitions.length === 0) return null;
+
+  const getFieldValue = (fieldId: number): string => {
+    const val = values.find(v => v.fieldDefinitionId === fieldId);
+    return val?.value || "";
+  };
+
+  const handleEdit = (field: CustomFieldDefinition) => {
+    setEditingFieldId(field.id);
+    setEditValue(getFieldValue(field.id));
+  };
+
+  const handleSave = async (fieldId: number) => {
+    try {
+      await updateValue.mutateAsync({
+        projectId,
+        fieldDefinitionId: fieldId,
+        value: editValue || null,
+      });
+      toast({ title: "Saved" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    }
+    setEditingFieldId(null);
+  };
+
+  const handleCancel = () => {
+    setEditingFieldId(null);
+    setEditValue("");
+  };
+
+  const renderFieldInput = (field: CustomFieldDefinition) => {
+    switch (field.fieldType) {
+      case "checkbox":
+        return (
+          <Checkbox
+            checked={editValue === "true"}
+            onCheckedChange={(checked) => {
+              setEditValue(checked ? "true" : "false");
+            }}
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+      case "select":
+        return (
+          <Select value={editValue} onValueChange={setEditValue}>
+            <SelectTrigger className="h-8" data-testid={`select-custom-field-${field.id}`}>
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {(field.options as string[] || []).map((opt) => (
+                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      case "date":
+        return (
+          <Input
+            type="date"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            className="h-8"
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+      case "number":
+        return (
+          <Input
+            type="number"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            className="h-8"
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+      case "url":
+        return (
+          <Input
+            type="url"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            placeholder="https://..."
+            className="h-8"
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+      default:
+        return (
+          <Input
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            className="h-8"
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+    }
+  };
+
+  const renderFieldValue = (field: CustomFieldDefinition) => {
+    const value = getFieldValue(field.id);
+    if (!value) return <span className="text-muted-foreground text-sm">Not set</span>;
+
+    switch (field.fieldType) {
+      case "checkbox":
+        return value === "true" ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />;
+      case "url":
+        return (
+          <a href={value} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm flex items-center gap-1">
+            {value.length > 30 ? value.substring(0, 30) + "..." : value}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        );
+      case "date":
+        return <span className="text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>;
+      default:
+        return <span className="text-sm">{value}</span>;
+    }
+  };
+
+  return (
+    <Collapsible>
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <CollapsibleTrigger className="w-full flex items-center justify-between hover:bg-muted/50 rounded -m-2 p-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Custom Fields
+              <Badge variant="secondary" className="text-xs">{definitions.length}</Badge>
+            </CardTitle>
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="pt-0 pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {definitions.map((field) => (
+                <div key={field.id} className="space-y-1" data-testid={`custom-field-${field.id}`}>
+                  <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                    {field.name}
+                    {field.isRequired && <span className="text-destructive">*</span>}
+                  </Label>
+                  {editingFieldId === field.id ? (
+                    <div className="flex items-center gap-2">
+                      {renderFieldInput(field)}
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleSave(field.id)} data-testid={`button-save-field-${field.id}`}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleCancel} data-testid={`button-cancel-field-${field.id}`}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center justify-between p-2 rounded cursor-pointer hover:bg-muted/50 min-h-[32px]"
+                      onClick={() => handleEdit(field)}
+                      data-testid={`text-custom-field-${field.id}`}
+                    >
+                      {renderFieldValue(field)}
+                      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
 
