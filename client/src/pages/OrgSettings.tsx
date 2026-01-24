@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -706,6 +706,7 @@ const availableModules = [
   { key: "tasks", name: "Tasks", icon: CheckSquare, description: "Task tracking" },
   { key: "issues", name: "Issues", icon: CircleDot, description: "Issue tracking" },
   { key: "timesheets", name: "Timesheets", icon: Clock, description: "Time tracking" },
+  { key: "lessons-learned", name: "Lessons Learned", icon: Lightbulb, description: "Document lessons from projects" },
   { key: "resources", name: "Resources", icon: Users, description: "Resource management" },
   { key: "calendar", name: "Calendar", icon: Calendar, description: "Calendar view" },
   { key: "user-guide", name: "User Guide", icon: BookOpen, description: "Help documentation" },
@@ -719,6 +720,7 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
   tasks: CheckSquare,
   issues: CircleDot,
   timesheets: Clock,
+  "lessons-learned": Lightbulb,
   resources: Users,
   calendar: Calendar,
   "user-guide": BookOpen,
