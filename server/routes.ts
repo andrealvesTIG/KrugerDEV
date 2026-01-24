@@ -13656,5 +13656,170 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ============================================
+  // CUSTOM FIELD DEFINITIONS ROUTES
+  // ============================================
+
+  // Get all custom field definitions for an organization
+  app.get('/api/organizations/:organizationId/custom-fields', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = parseInt(req.params.organizationId);
+      const fields = await storage.getCustomFieldDefinitions(organizationId);
+      res.json(fields);
+    } catch (error) {
+      console.error('Error fetching custom fields:', error);
+      res.status(500).json({ message: 'Failed to fetch custom fields' });
+    }
+  });
+
+  // Create a custom field definition
+  app.post('/api/organizations/:organizationId/custom-fields', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = parseInt(req.params.organizationId);
+      const field = await storage.createCustomFieldDefinition({
+        ...req.body,
+        organizationId
+      });
+      res.status(201).json(field);
+    } catch (error) {
+      console.error('Error creating custom field:', error);
+      res.status(500).json({ message: 'Failed to create custom field' });
+    }
+  });
+
+  // Update a custom field definition
+  app.put('/api/custom-fields/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = parseInt(req.params.id);
+      const field = await storage.updateCustomFieldDefinition(id, req.body);
+      res.json(field);
+    } catch (error) {
+      console.error('Error updating custom field:', error);
+      res.status(500).json({ message: 'Failed to update custom field' });
+    }
+  });
+
+  // Delete a custom field definition (soft delete)
+  app.delete('/api/custom-fields/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCustomFieldDefinition(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting custom field:', error);
+      res.status(500).json({ message: 'Failed to delete custom field' });
+    }
+  });
+
+  // ============================================
+  // PROJECT CUSTOM FIELD VALUES ROUTES
+  // ============================================
+
+  // Get all custom field values for a project
+  app.get('/api/projects/:projectId/custom-field-values', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const values = await storage.getProjectCustomFieldValues(projectId);
+      res.json(values);
+    } catch (error) {
+      console.error('Error fetching custom field values:', error);
+      res.status(500).json({ message: 'Failed to fetch custom field values' });
+    }
+  });
+
+  // Update/create a custom field value for a project
+  app.put('/api/projects/:projectId/custom-field-values/:fieldDefinitionId', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      const { value } = req.body;
+      
+      const fieldValue = await storage.upsertProjectCustomFieldValue({
+        projectId,
+        fieldDefinitionId,
+        value
+      });
+      res.json(fieldValue);
+    } catch (error) {
+      console.error('Error updating custom field value:', error);
+      res.status(500).json({ message: 'Failed to update custom field value' });
+    }
+  });
+
+  // Bulk update custom field values for a project
+  app.put('/api/projects/:projectId/custom-field-values', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const { values } = req.body; // Array of { fieldDefinitionId, value }
+      
+      const results = await Promise.all(
+        values.map((v: { fieldDefinitionId: number; value: string | null }) => 
+          storage.upsertProjectCustomFieldValue({
+            projectId,
+            fieldDefinitionId: v.fieldDefinitionId,
+            value: v.value
+          })
+        )
+      );
+      res.json(results);
+    } catch (error) {
+      console.error('Error updating custom field values:', error);
+      res.status(500).json({ message: 'Failed to update custom field values' });
+    }
+  });
+
+  // Delete a custom field value
+  app.delete('/api/projects/:projectId/custom-field-values/:fieldDefinitionId', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const projectId = parseInt(req.params.projectId);
+      const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      await storage.deleteProjectCustomFieldValue(projectId, fieldDefinitionId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting custom field value:', error);
+      res.status(500).json({ message: 'Failed to delete custom field value' });
+    }
+  });
+
   return httpServer;
 }
