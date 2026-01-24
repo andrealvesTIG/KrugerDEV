@@ -783,6 +783,28 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     }
   }
   
+  // Ensure lessons-learned module is in the menu group
+  const hasLessonsLearned = cleanedStructure.some(g => 
+    g.items.some(item => item.type === "module" && item.key === "lessons-learned")
+  );
+  
+  if (!hasLessonsLearned) {
+    const menuGroup = cleanedStructure.find(g => g.id === "menu");
+    if (menuGroup) {
+      cleanedStructure = cleanedStructure.map(g => {
+        if (g.id === "menu") {
+          // Add lessons-learned after timesheets if it exists, otherwise at the end
+          const timesheetsIndex = g.items.findIndex(item => item.type === "module" && item.key === "timesheets");
+          const insertIndex = timesheetsIndex >= 0 ? timesheetsIndex + 1 : g.items.length;
+          const newItems = [...g.items];
+          newItems.splice(insertIndex, 0, { type: "module" as const, key: "lessons-learned", hidden: false });
+          return { ...g, items: newItems };
+        }
+        return g;
+      });
+    }
+  }
+  
   // Ensure user-guide is in help group
   const helpGroup = cleanedStructure.find(g => g.id === "help");
   const hasUserGuide = cleanedStructure.some(g => 
@@ -3332,7 +3354,7 @@ function CustomFieldsSection({ organizationId }: { organizationId: number }) {
     setName(field.name);
     setFieldType(field.fieldType);
     setDescription(field.description || "");
-    setIsRequired(field.isRequired);
+    setIsRequired(field.isRequired ?? false);
     setOptions(field.options ? (field.options as string[]).join(", ") : "");
     setShowAddDialog(true);
   };
