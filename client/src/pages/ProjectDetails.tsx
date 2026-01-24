@@ -984,6 +984,215 @@ function HealthStatusHistoryLog({ projectId }: { projectId: number }) {
   );
 }
 
+function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: number; organizationId: number | undefined }) {
+  const { toast } = useToast();
+  const { data: definitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
+  const { data: values = [], isLoading: valuesLoading } = useProjectCustomFieldValues(projectId);
+  const updateValue = useUpdateProjectCustomFieldValue();
+  const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+
+  if (!organizationId) return null;
+  if (definitionsLoading || valuesLoading) return null;
+  if (definitions.length === 0) return null;
+
+  const getFieldValue = (fieldId: number): string => {
+    const val = values.find(v => v.fieldDefinitionId === fieldId);
+    return val?.value || "";
+  };
+
+  const handleEdit = (field: CustomFieldDefinition) => {
+    setEditingFieldId(field.id);
+    setEditValue(getFieldValue(field.id));
+  };
+
+  const handleSave = async (fieldId: number) => {
+    try {
+      await updateValue.mutateAsync({
+        projectId,
+        fieldDefinitionId: fieldId,
+        value: editValue || null,
+      });
+      toast({ title: "Saved" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    }
+    setEditingFieldId(null);
+  };
+
+  const handleCancel = () => {
+    setEditingFieldId(null);
+    setEditValue("");
+  };
+
+  const parseMultiSelectValue = (value: string): string[] => {
+    if (!value) return [];
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value ? [value] : [];
+    }
+  };
+
+  const toggleMultiSelectOption = (opt: string) => {
+    const current = parseMultiSelectValue(editValue);
+    const updated = current.includes(opt)
+      ? current.filter(v => v !== opt)
+      : [...current, opt];
+    setEditValue(JSON.stringify(updated));
+  };
+
+  const renderFieldInput = (field: CustomFieldDefinition) => {
+    switch (field.fieldType) {
+      case "checkbox":
+        return (
+          <Checkbox
+            checked={editValue === "true"}
+            onCheckedChange={(checked) => {
+              setEditValue(checked ? "true" : "false");
+            }}
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+      case "select":
+        return (
+          <Select value={editValue} onValueChange={setEditValue}>
+            <SelectTrigger data-testid={`select-custom-field-${field.id}`}>
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {(field.options as string[] || []).map((opt) => (
+                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      case "multiselect":
+        const selectedValues = parseMultiSelectValue(editValue);
+        return (
+          <div className="flex flex-wrap gap-1" data-testid={`multiselect-custom-field-${field.id}`}>
+            {(field.options as string[] || []).map((opt) => (
+              <Badge
+                key={opt}
+                variant={selectedValues.includes(opt) ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => toggleMultiSelectOption(opt)}
+                data-testid={`option-${field.id}-${opt}`}
+              >
+                {opt}
+              </Badge>
+            ))}
+          </div>
+        );
+      case "date":
+        return (
+          <Input
+            type="date"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+      case "number":
+        return (
+          <Input
+            type="number"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+      case "url":
+        return (
+          <Input
+            type="url"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            placeholder="https://..."
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+      default:
+        return (
+          <Input
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            data-testid={`input-custom-field-${field.id}`}
+          />
+        );
+    }
+  };
+
+  const renderFieldValue = (field: CustomFieldDefinition) => {
+    const value = getFieldValue(field.id);
+    if (!value) return <span className="text-muted-foreground text-sm" data-testid={`value-empty-${field.id}`}>Not set</span>;
+
+    switch (field.fieldType) {
+      case "checkbox":
+        return value === "true" ? <Check className="h-4 w-4 text-green-600" data-testid={`value-check-${field.id}`} /> : <X className="h-4 w-4 text-muted-foreground" data-testid={`value-uncheck-${field.id}`} />;
+      case "url":
+        return (
+          <a href={value} target="_blank" rel="noopener noreferrer" className="underline text-sm flex items-center gap-1" data-testid={`link-custom-field-${field.id}`}>
+            {value.length > 30 ? value.substring(0, 30) + "..." : value}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        );
+      case "multiselect":
+        const selected = parseMultiSelectValue(value);
+        return (
+          <div className="flex flex-wrap gap-1" data-testid={`value-multiselect-${field.id}`}>
+            {selected.map((v) => (
+              <Badge key={v} variant="secondary" className="text-xs">{v}</Badge>
+            ))}
+          </div>
+        );
+      case "date":
+        return <span className="text-sm" data-testid={`value-date-${field.id}`}>{format(new Date(value), 'MMM d, yyyy')}</span>;
+      default:
+        return <span className="text-sm" data-testid={`value-text-${field.id}`}>{value}</span>;
+    }
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-border" data-testid="section-custom-fields">
+      <div className="flex items-center gap-2 mb-3">
+        <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Custom Fields</Label>
+        <Badge variant="secondary" className="text-[10px]">{definitions.length}</Badge>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
+        {definitions.map((field) => (
+          <div key={field.id} className="space-y-1" data-testid={`custom-field-${field.id}`}>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+              {field.name}
+              {field.isRequired && <span className="text-destructive">*</span>}
+            </Label>
+            {editingFieldId === field.id ? (
+              <div className="flex items-center gap-2">
+                {renderFieldInput(field)}
+                <Button size="icon" variant="ghost" onClick={() => handleSave(field.id)} data-testid={`button-save-field-${field.id}`}>
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={handleCancel} data-testid={`button-cancel-field-${field.id}`}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                className="flex items-center justify-between p-1 rounded cursor-pointer hover-elevate min-h-[28px]"
+                onClick={() => handleEdit(field)}
+                data-testid={`button-edit-field-${field.id}`}
+              >
+                {renderFieldValue(field)}
+                <Pencil className="h-3 w-3 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdate: any; tasks: Task[] }) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
@@ -1440,6 +1649,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
             </span>
           )}
         </div>
+        <ProjectCustomFieldsSection projectId={project.id} organizationId={currentOrganization?.id} />
       </CardContent>
     </Card>
     
@@ -1514,233 +1724,11 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
     </Dialog>
     
     <div className="space-y-4">
-      <ProjectCustomFieldsCard projectId={project.id} organizationId={currentOrganization?.id} />
       <ProjectCommentsFeed projectId={project.id} />
       <BillableStatusCommentLog projectId={project.id} />
       <HealthStatusHistoryLog projectId={project.id} />
     </div>
   </>
-  );
-}
-
-function ProjectCustomFieldsCard({ projectId, organizationId }: { projectId: number; organizationId: number | undefined }) {
-  const { toast } = useToast();
-  const { data: definitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
-  const { data: values = [], isLoading: valuesLoading } = useProjectCustomFieldValues(projectId);
-  const updateValue = useUpdateProjectCustomFieldValue();
-  const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
-  const [editValue, setEditValue] = useState<string>("");
-
-  if (!organizationId) return null;
-  if (definitionsLoading || valuesLoading) return null;
-  if (definitions.length === 0) return null;
-
-  const getFieldValue = (fieldId: number): string => {
-    const val = values.find(v => v.fieldDefinitionId === fieldId);
-    return val?.value || "";
-  };
-
-  const handleEdit = (field: CustomFieldDefinition) => {
-    setEditingFieldId(field.id);
-    setEditValue(getFieldValue(field.id));
-  };
-
-  const handleSave = async (fieldId: number) => {
-    try {
-      await updateValue.mutateAsync({
-        projectId,
-        fieldDefinitionId: fieldId,
-        value: editValue || null,
-      });
-      toast({ title: "Saved" });
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
-    }
-    setEditingFieldId(null);
-  };
-
-  const handleCancel = () => {
-    setEditingFieldId(null);
-    setEditValue("");
-  };
-
-  const parseMultiSelectValue = (value: string): string[] => {
-    if (!value) return [];
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value ? [value] : [];
-    }
-  };
-
-  const toggleMultiSelectOption = (opt: string) => {
-    const current = parseMultiSelectValue(editValue);
-    const updated = current.includes(opt)
-      ? current.filter(v => v !== opt)
-      : [...current, opt];
-    setEditValue(JSON.stringify(updated));
-  };
-
-  const renderFieldInput = (field: CustomFieldDefinition) => {
-    switch (field.fieldType) {
-      case "checkbox":
-        return (
-          <Checkbox
-            checked={editValue === "true"}
-            onCheckedChange={(checked) => {
-              setEditValue(checked ? "true" : "false");
-            }}
-            data-testid={`input-custom-field-${field.id}`}
-          />
-        );
-      case "select":
-        return (
-          <Select value={editValue} onValueChange={setEditValue}>
-            <SelectTrigger data-testid={`select-custom-field-${field.id}`}>
-              <SelectValue placeholder="Select..." />
-            </SelectTrigger>
-            <SelectContent>
-              {(field.options as string[] || []).map((opt) => (
-                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
-      case "multiselect":
-        const selectedValues = parseMultiSelectValue(editValue);
-        return (
-          <div className="flex flex-wrap gap-1" data-testid={`multiselect-custom-field-${field.id}`}>
-            {(field.options as string[] || []).map((opt) => (
-              <Badge
-                key={opt}
-                variant={selectedValues.includes(opt) ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => toggleMultiSelectOption(opt)}
-                data-testid={`option-${field.id}-${opt}`}
-              >
-                {opt}
-              </Badge>
-            ))}
-          </div>
-        );
-      case "date":
-        return (
-          <Input
-            type="date"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            data-testid={`input-custom-field-${field.id}`}
-          />
-        );
-      case "number":
-        return (
-          <Input
-            type="number"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            data-testid={`input-custom-field-${field.id}`}
-          />
-        );
-      case "url":
-        return (
-          <Input
-            type="url"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            placeholder="https://..."
-            data-testid={`input-custom-field-${field.id}`}
-          />
-        );
-      default:
-        return (
-          <Input
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            data-testid={`input-custom-field-${field.id}`}
-          />
-        );
-    }
-  };
-
-  const renderFieldValue = (field: CustomFieldDefinition) => {
-    const value = getFieldValue(field.id);
-    if (!value) return <span className="text-muted-foreground text-sm" data-testid={`value-empty-${field.id}`}>Not set</span>;
-
-    switch (field.fieldType) {
-      case "checkbox":
-        return value === "true" ? <Check className="h-4 w-4 text-green-600" data-testid={`value-check-${field.id}`} /> : <X className="h-4 w-4 text-muted-foreground" data-testid={`value-uncheck-${field.id}`} />;
-      case "url":
-        return (
-          <a href={value} target="_blank" rel="noopener noreferrer" className="underline text-sm flex items-center gap-1" data-testid={`link-custom-field-${field.id}`}>
-            {value.length > 30 ? value.substring(0, 30) + "..." : value}
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        );
-      case "multiselect":
-        const selected = parseMultiSelectValue(value);
-        return (
-          <div className="flex flex-wrap gap-1" data-testid={`value-multiselect-${field.id}`}>
-            {selected.map((v) => (
-              <Badge key={v} variant="secondary" className="text-xs">{v}</Badge>
-            ))}
-          </div>
-        );
-      case "date":
-        return <span className="text-sm" data-testid={`value-date-${field.id}`}>{format(new Date(value), 'MMM d, yyyy')}</span>;
-      default:
-        return <span className="text-sm" data-testid={`value-text-${field.id}`}>{value}</span>;
-    }
-  };
-
-  return (
-    <Collapsible>
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CollapsibleTrigger className="w-full flex items-center justify-between rounded -m-2 p-2 hover-elevate" data-testid="button-toggle-custom-fields">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Custom Fields
-              <Badge variant="secondary" className="text-xs">{definitions.length}</Badge>
-            </CardTitle>
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent>
-          <CardContent className="pt-0 pb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {definitions.map((field) => (
-                <div key={field.id} className="space-y-1" data-testid={`custom-field-${field.id}`}>
-                  <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                    {field.name}
-                    {field.isRequired && <span className="text-destructive">*</span>}
-                  </Label>
-                  {editingFieldId === field.id ? (
-                    <div className="flex items-center gap-2">
-                      {renderFieldInput(field)}
-                      <Button size="icon" variant="ghost" onClick={() => handleSave(field.id)} data-testid={`button-save-field-${field.id}`}>
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={handleCancel} data-testid={`button-cancel-field-${field.id}`}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div
-                      className="flex items-center justify-between p-2 rounded cursor-pointer hover-elevate min-h-[32px]"
-                      onClick={() => handleEdit(field)}
-                      data-testid={`button-edit-field-${field.id}`}
-                    >
-                      {renderFieldValue(field)}
-                      <Pencil className="h-3 w-3 text-muted-foreground" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
   );
 }
 
