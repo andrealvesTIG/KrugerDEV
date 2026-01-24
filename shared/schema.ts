@@ -1311,3 +1311,49 @@ export type UserConsent = typeof userConsents.$inferSelect;
 // Current Terms/Privacy versions - used to check if user needs to re-accept
 export const CURRENT_TERMS_VERSION = "2026-01";
 export const CURRENT_PRIVACY_VERSION = "2026-01";
+
+// Custom Field Definitions - Define custom fields for projects per organization
+export const customFieldDefinitions = pgTable("custom_field_definitions", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  fieldType: text("field_type").notNull(), // 'text', 'number', 'date', 'select', 'multiselect', 'checkbox', 'url'
+  description: text("description"),
+  isRequired: boolean("is_required").default(false),
+  options: text("options").array(), // For select/multiselect types
+  defaultValue: text("default_value"),
+  displayOrder: integer("display_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldDefinitions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCustomFieldDefinition = z.infer<typeof insertCustomFieldDefinitionSchema>;
+export type CustomFieldDefinition = typeof customFieldDefinitions.$inferSelect;
+export type UpdateCustomFieldDefinitionRequest = Partial<InsertCustomFieldDefinition>;
+
+// Project Custom Field Values - Store values for custom fields per project
+export const projectCustomFieldValues = pgTable("project_custom_field_values", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  fieldDefinitionId: integer("field_definition_id").references(() => customFieldDefinitions.id).notNull(),
+  value: text("value"), // JSON string for complex types (multiselect arrays, etc.)
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProjectCustomFieldValueSchema = createInsertSchema(projectCustomFieldValues).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProjectCustomFieldValue = z.infer<typeof insertProjectCustomFieldValueSchema>;
+export type ProjectCustomFieldValue = typeof projectCustomFieldValues.$inferSelect;
+export type UpdateProjectCustomFieldValueRequest = Partial<InsertProjectCustomFieldValue>;
