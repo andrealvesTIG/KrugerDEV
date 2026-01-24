@@ -416,20 +416,45 @@ export default function ProjectDetails() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl flex-wrap gap-1 h-auto">
-          <TabsTrigger value="summary" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-summary">Project Summary</TabsTrigger>
+        <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto">
+          <TabsTrigger value="summary" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-summary">Summary</TabsTrigger>
           <TabsTrigger value="tasks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="risks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-risks">Risks Log</TabsTrigger>
+          <TabsTrigger value="risks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-risks">Risks</TabsTrigger>
           <TabsTrigger value="issues" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-issues">Issues</TabsTrigger>
           <TabsTrigger value="financials" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-financials">Financials</TabsTrigger>
-          <TabsTrigger value="change-requests" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-change-requests">Change Requests</TabsTrigger>
-          <TabsTrigger value="documents" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-documents">Documents</TabsTrigger>
-          <TabsTrigger value="status-report" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-status-report">Status Report</TabsTrigger>
-          {customTabs.map((tab) => (
-            <TabsTrigger key={tab.id} value={`custom-${tab.id}`} className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid={`tab-custom-${tab.id}`}>
-              {tab.name}
-            </TabsTrigger>
-          ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant={['change-requests', 'documents', 'status-report', ...customTabs.map(t => `custom-${t.id}`)].includes(activeTab) ? 'default' : 'ghost'} 
+                size="sm" 
+                className="rounded-lg px-4 py-2 font-medium gap-1"
+                data-testid="button-more-tabs"
+              >
+                {activeTab === 'change-requests' ? 'Change Requests' : 
+                 activeTab === 'documents' ? 'Documents' : 
+                 activeTab === 'status-report' ? 'Status Report' :
+                 activeTab.startsWith('custom-') ? customTabs.find(t => `custom-${t.id}` === activeTab)?.name :
+                 'More'}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setActiveTab('change-requests')} data-testid="menu-tab-change-requests">
+                Change Requests
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('documents')} data-testid="menu-tab-documents">
+                Documents
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('status-report')} data-testid="menu-tab-status-report">
+                Status Report
+              </DropdownMenuItem>
+              {customTabs.map((tab) => (
+                <DropdownMenuItem key={tab.id} onClick={() => setActiveTab(`custom-${tab.id}`)} data-testid={`menu-tab-custom-${tab.id}`}>
+                  {tab.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
