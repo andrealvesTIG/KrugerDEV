@@ -491,7 +491,7 @@ export default function ProjectDetails() {
             <FinancialsTab projectId={project.id} />
           </TabsContent>
           <TabsContent value="scoring">
-            <ScoringTab projectId={project.id} organizationId={project.organizationId} />
+            {project.organizationId && <ScoringTab projectId={project.id} organizationId={project.organizationId} />}
           </TabsContent>
           <TabsContent value="benefits">
             <BenefitsTab projectId={project.id} />
@@ -500,7 +500,7 @@ export default function ProjectDetails() {
             <DecisionsTab projectId={project.id} />
           </TabsContent>
           <TabsContent value="lessons-learned">
-            <LessonsLearnedTab projectId={project.id} organizationId={project.organizationId} />
+            {project.organizationId && <LessonsLearnedTab projectId={project.id} organizationId={project.organizationId} />}
           </TabsContent>
           <TabsContent value="change-requests">
             <ChangeRequestsTab projectId={project.id} />
@@ -1894,7 +1894,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
             <Checkbox
               id="project-timesheet-blocked"
               checked={project.timesheetBlocked || false}
-              onCheckedChange={(checked) => handleSelectChange('timesheetBlocked', checked === true)}
+              onCheckedChange={(checked) => autoSave('timesheetBlocked', checked === true)}
               data-testid="checkbox-project-timesheet-blocked"
             />
             <Label htmlFor="project-timesheet-blocked" className="text-xs text-muted-foreground cursor-pointer">
@@ -2954,7 +2954,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       queryClient.invalidateQueries({ queryKey: [api.projects.get.path, projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'history'] });
-      await refetchProject();
+      await refetchTasks();
       setIsMakeEditableDialogOpen(false);
     },
     onError: (error: Error) => {
@@ -4681,7 +4681,7 @@ function SortableTaskRow({
 
   return (
     <div ref={setNodeRef} style={style as React.CSSProperties}>
-      {children({ listeners: listeners || {}, attributes: attributes || {} })}
+      {children({ listeners: listeners || {}, attributes: (attributes || {}) as unknown as Record<string, unknown> })}
     </div>
   );
 }
@@ -5776,6 +5776,7 @@ function ProjectGanttView({
 }) {
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
+  const deleteTask = useDeleteTask();
   const { toast } = useToast();
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
@@ -6419,7 +6420,7 @@ function ProjectGanttView({
   }, [tasks, collapsedTasks]);
 
   // Calculate project summary task (aggregated from all tasks)
-  const projectSummaryTask = useMemo((): Task | null => {
+  const projectSummaryTask = useMemo((): Partial<Task> & { id: number; projectId: number; name: string } | null => {
     if (!tasks || tasks.length === 0) return null;
     
     // Find earliest start date and latest end date
@@ -6465,8 +6466,8 @@ function ProjectGanttView({
       wbs: '0',
       taskType: null,
       priority: 'Medium',
-      startDate: earliestStart,
-      endDate: latestEnd,
+      startDate: earliestStart || '',
+      endDate: latestEnd || '',
       baselineStartDate: null,
       baselineEndDate: null,
       actualStartDate: null,
@@ -6493,7 +6494,7 @@ function ProjectGanttView({
       category: null,
       labels: null,
       notes: null,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(),
       deletedAt: null,
       deletedBy: null,
       isDemo: false,
@@ -7309,7 +7310,7 @@ function ProjectGanttView({
                           </div>
                         );
                       }
-                      if (colId === 'duration') {
+                      if (colId === 'durationDays') {
                         return (
                           <div key={colId} style={{ width: `${colWidth}px` }} className="flex-shrink-0 border-r px-1 flex items-center">
                             <span className="text-[11px]">{projectSummaryTask.durationDays ? `${projectSummaryTask.durationDays}d` : '—'}</span>
