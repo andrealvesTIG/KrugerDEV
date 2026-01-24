@@ -5264,10 +5264,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Project is already editable" });
       }
       
-      // Convert to manual (editable) mode - keep source file info for reference
+      // Convert to manual (editable) mode - clear integration links to fully detach
       const updated = await storage.updateProject(projectId, {
         source: "manual",
-        // Keep plannerPlanId, sourceFileName, sourceFileUrl for historical reference
+        plannerPlanId: null,
+        dataverseOrgId: null,
+        dataverseTenantId: null,
+        // Keep sourceFileName and sourceFileUrl for historical reference only
       });
       
       // Log the conversion

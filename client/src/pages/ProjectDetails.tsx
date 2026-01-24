@@ -2462,13 +2462,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       return apiRequest('POST', `/api/projects/${projectId}/make-editable`);
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "Project is now editable. You can add, edit, and delete tasks." });
+      toast({ title: "Success", description: "Project detached successfully. You can now add, edit, and delete tasks." });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
       setIsMakeEditableDialogOpen(false);
     },
     onError: (error: Error) => {
-      toast({ title: "Error", description: error.message || "Failed to convert project", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to detach project", variant: "destructive" });
     }
   });
 
@@ -2900,15 +2900,22 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <ExternalLink className="h-3 w-3" />
                 {isPremiumPlan ? "Open in Project" : "Open in Planner"}
               </a>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsMakeEditableDialogOpen(true)}
-                data-testid="button-make-editable-planner"
-              >
-                <Pencil className="h-4 w-4 mr-2" />
-                Make Editable
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsMakeEditableDialogOpen(true)}
+                    data-testid="button-make-editable-planner"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Detach & Edit
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  <p>Detach this project from {isPremiumPlan ? "Project for the Web" : "Planner"} and make it fully editable. This removes the sync link but keeps all tasks and data.</p>
+                </TooltipContent>
+              </Tooltip>
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -2973,15 +2980,22 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsMakeEditableDialogOpen(true)}
-              data-testid="button-make-editable"
-            >
-              <Pencil className="h-4 w-4 mr-2" />
-              Make Editable
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsMakeEditableDialogOpen(true)}
+                  data-testid="button-make-editable"
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Detach & Edit
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p>Detach this project from the imported file and make it fully editable. This removes the import link but keeps all tasks and data.</p>
+              </TooltipContent>
+            </Tooltip>
             <Button
               variant="outline"
               size="sm"
@@ -3103,20 +3117,20 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
         </DialogContent>
       </Dialog>
 
-      {/* Make Editable Confirmation Dialog */}
+      {/* Detach & Edit Confirmation Dialog */}
       <AlertDialog open={isMakeEditableDialogOpen} onOpenChange={setIsMakeEditableDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Pencil className="h-5 w-5" />
-              Make Schedule Editable
+              Detach & Make Editable
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               <p>
-                Converting this project to editable mode will allow you to add, edit, and delete tasks directly in the app.
+                Detaching this project will disconnect it from the original source system and allow you to add, edit, and delete tasks directly in the app.
               </p>
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 text-amber-800 dark:text-amber-200 text-sm">
-                <strong>Important:</strong> After conversion, re-importing or syncing from the original source will no longer be available. The source file reference will be kept for historical purposes.
+                <strong>Important:</strong> After detaching, the link to the original source will be removed. Re-importing or syncing will no longer be available. All your tasks and project data will be preserved.
               </div>
               <p className="text-sm">
                 This action cannot be undone. Are you sure you want to continue?
@@ -3132,12 +3146,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               {makeEditableMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Converting...
+                  Detaching...
                 </>
               ) : (
                 <>
                   <Pencil className="mr-2 h-4 w-4" />
-                  Make Editable
+                  Detach & Edit
                 </>
               )}
             </AlertDialogAction>
