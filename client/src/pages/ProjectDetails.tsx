@@ -47,6 +47,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
 import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User } from "@shared/schema";
+import { api } from "@shared/routes";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -2463,8 +2464,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     },
     onSuccess: async () => {
       toast({ title: "Success", description: "Project detached successfully. You can now add, edit, and delete tasks." });
-      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
+      queryClient.invalidateQueries({ queryKey: [api.projects.get.path, projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'history'] });
       await refetchProject();
       setIsMakeEditableDialogOpen(false);
     },
