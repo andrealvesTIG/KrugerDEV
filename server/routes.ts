@@ -13821,5 +13821,267 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ============================================
+  // CUSTOM PROJECT TABS ROUTES
+  // ============================================
+
+  // Get all custom tabs for an organization
+  app.get('/api/organizations/:organizationId/custom-tabs', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = parseInt(req.params.organizationId);
+      const tabs = await storage.getCustomProjectTabs(organizationId);
+      res.json(tabs);
+    } catch (error) {
+      console.error('Error fetching custom tabs:', error);
+      res.status(500).json({ message: 'Failed to fetch custom tabs' });
+    }
+  });
+
+  // Get a single custom tab with sections and fields
+  app.get('/api/custom-tabs/:id/full', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = parseInt(req.params.id);
+      const fullTab = await storage.getFullCustomProjectTab(id);
+      if (!fullTab) {
+        return res.status(404).json({ message: 'Tab not found' });
+      }
+      res.json(fullTab);
+    } catch (error) {
+      console.error('Error fetching custom tab:', error);
+      res.status(500).json({ message: 'Failed to fetch custom tab' });
+    }
+  });
+
+  // Create a custom tab
+  app.post('/api/organizations/:organizationId/custom-tabs', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = parseInt(req.params.organizationId);
+      const tab = await storage.createCustomProjectTab({
+        ...req.body,
+        organizationId,
+        createdBy: userId
+      });
+      res.status(201).json(tab);
+    } catch (error) {
+      console.error('Error creating custom tab:', error);
+      res.status(500).json({ message: 'Failed to create custom tab' });
+    }
+  });
+
+  // Update a custom tab
+  app.put('/api/custom-tabs/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = parseInt(req.params.id);
+      const tab = await storage.updateCustomProjectTab(id, req.body);
+      res.json(tab);
+    } catch (error) {
+      console.error('Error updating custom tab:', error);
+      res.status(500).json({ message: 'Failed to update custom tab' });
+    }
+  });
+
+  // Delete a custom tab
+  app.delete('/api/custom-tabs/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCustomProjectTab(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting custom tab:', error);
+      res.status(500).json({ message: 'Failed to delete custom tab' });
+    }
+  });
+
+  // ============================================
+  // CUSTOM TAB SECTIONS ROUTES
+  // ============================================
+
+  // Get sections for a tab
+  app.get('/api/custom-tabs/:tabId/sections', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const tabId = parseInt(req.params.tabId);
+      const sections = await storage.getCustomTabSections(tabId);
+      res.json(sections);
+    } catch (error) {
+      console.error('Error fetching custom tab sections:', error);
+      res.status(500).json({ message: 'Failed to fetch sections' });
+    }
+  });
+
+  // Create a section
+  app.post('/api/custom-tabs/:tabId/sections', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const tabId = parseInt(req.params.tabId);
+      const section = await storage.createCustomTabSection({
+        ...req.body,
+        tabId
+      });
+      res.status(201).json(section);
+    } catch (error) {
+      console.error('Error creating custom tab section:', error);
+      res.status(500).json({ message: 'Failed to create section' });
+    }
+  });
+
+  // Update a section
+  app.put('/api/custom-tab-sections/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = parseInt(req.params.id);
+      const section = await storage.updateCustomTabSection(id, req.body);
+      res.json(section);
+    } catch (error) {
+      console.error('Error updating custom tab section:', error);
+      res.status(500).json({ message: 'Failed to update section' });
+    }
+  });
+
+  // Delete a section
+  app.delete('/api/custom-tab-sections/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCustomTabSection(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting custom tab section:', error);
+      res.status(500).json({ message: 'Failed to delete section' });
+    }
+  });
+
+  // ============================================
+  // CUSTOM TAB FIELDS ROUTES
+  // ============================================
+
+  // Get fields for a section
+  app.get('/api/custom-tab-sections/:sectionId/fields', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const sectionId = parseInt(req.params.sectionId);
+      const fields = await storage.getCustomTabFields(sectionId);
+      res.json(fields);
+    } catch (error) {
+      console.error('Error fetching custom tab fields:', error);
+      res.status(500).json({ message: 'Failed to fetch fields' });
+    }
+  });
+
+  // Create a field
+  app.post('/api/custom-tab-sections/:sectionId/fields', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const sectionId = parseInt(req.params.sectionId);
+      const field = await storage.createCustomTabField({
+        ...req.body,
+        sectionId
+      });
+      res.status(201).json(field);
+    } catch (error) {
+      console.error('Error creating custom tab field:', error);
+      res.status(500).json({ message: 'Failed to create field' });
+    }
+  });
+
+  // Update a field
+  app.put('/api/custom-tab-fields/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = parseInt(req.params.id);
+      const field = await storage.updateCustomTabField(id, req.body);
+      res.json(field);
+    } catch (error) {
+      console.error('Error updating custom tab field:', error);
+      res.status(500).json({ message: 'Failed to update field' });
+    }
+  });
+
+  // Delete a field
+  app.delete('/api/custom-tab-fields/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCustomTabField(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting custom tab field:', error);
+      res.status(500).json({ message: 'Failed to delete field' });
+    }
+  });
+
+  // Get project field definitions for tab builder
+  app.get('/api/project-field-definitions', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { PROJECT_FIELD_DEFINITIONS } = await import('@shared/schema');
+      res.json(PROJECT_FIELD_DEFINITIONS);
+    } catch (error) {
+      console.error('Error fetching project field definitions:', error);
+      res.status(500).json({ message: 'Failed to fetch project field definitions' });
+    }
+  });
+
   return httpServer;
 }

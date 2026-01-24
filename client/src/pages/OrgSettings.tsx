@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -32,7 +32,8 @@ import { usePortfolios } from "@/hooks/use-portfolios";
 import IntegrationsPage from "@/pages/Integrations";
 import { BillingContent } from "@/pages/Billing";
 import { useCustomFieldDefinitions, useCreateCustomFieldDefinition, useUpdateCustomFieldDefinition, useDeleteCustomFieldDefinition } from "@/hooks/use-custom-fields";
-import type { CustomFieldDefinition } from "@shared/schema";
+import { useCustomProjectTabs, useCreateCustomTab, useUpdateCustomTab, useDeleteCustomTab, useFullCustomTab, useCreateCustomTabSection, useUpdateCustomTabSection, useDeleteCustomTabSection, useCreateCustomTabField, useDeleteCustomTabField, useProjectFieldDefinitions } from "@/hooks/use-custom-tabs";
+import type { CustomFieldDefinition, CustomProjectTab, CustomTabSection, CustomTabField } from "@shared/schema";
 
 interface EnrichedMember extends OrganizationMember {
   user?: User;
@@ -104,6 +105,7 @@ const settingsTabs = [
   { value: "billing", label: "Billing", icon: Zap },
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "custom-fields", label: "Custom Fields", icon: FileText },
+  { value: "custom-tabs", label: "Custom Tabs", icon: LayoutGrid },
   { value: "intake", label: "Intake Workflow", icon: GitBranch },
   { value: "members", label: "Team Members", icon: Users },
   { value: "recycle", label: "Recycle Bin", icon: Trash2 },
@@ -204,6 +206,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </TabsContent>
         <TabsContent value="custom-fields" className="mt-0">
           <CustomFieldsSection organizationId={currentOrganization.id} />
+        </TabsContent>
+        <TabsContent value="custom-tabs" className="mt-0">
+          <CustomTabsSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="intake" className="mt-0">
           <IntakeWorkflowSection organizationId={currentOrganization.id} />
@@ -3586,6 +3591,375 @@ function CustomFieldsSection({ organizationId }: { organizationId: number }) {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete-field"
             >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
+function CustomTabsSection({ organizationId }: { organizationId: number }) {
+  const { toast } = useToast();
+  const { data: tabs = [], isLoading } = useCustomProjectTabs(organizationId);
+  const { data: projectFields = [] } = useProjectFieldDefinitions();
+  const { data: customFields = [] } = useCustomFieldDefinitions(organizationId);
+  const createTab = useCreateCustomTab();
+  const updateTab = useUpdateCustomTab();
+  const deleteTab = useDeleteCustomTab();
+  const createSection = useCreateCustomTabSection();
+  const updateSection = useUpdateCustomTabSection();
+  const deleteSection = useDeleteCustomTabSection();
+  const createField = useCreateCustomTabField();
+  const deleteField = useDeleteCustomTabField();
+  const [showNewTabDialog, setShowNewTabDialog] = useState(false);
+  const [editingTabId, setEditingTabId] = useState<number | null>(null);
+  const [tabName, setTabName] = useState("");
+  const [tabDescription, setTabDescription] = useState("");
+  const [tabIcon, setTabIcon] = useState("FileText");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [tabToDelete, setTabToDelete] = useState<number | null>(null);
+  const [showSectionDialog, setShowSectionDialog] = useState(false);
+  const [sectionTabId, setSectionTabId] = useState<number | null>(null);
+  const [sectionName, setSectionName] = useState("");
+  const [sectionColumns, setSectionColumns] = useState(2);
+  const [showFieldPicker, setShowFieldPicker] = useState(false);
+  const [fieldPickerSectionId, setFieldPickerSectionId] = useState<number | null>(null);
+  const [fieldPickerTabId, setFieldPickerTabId] = useState<number | null>(null);
+  const { data: fullTabData } = useFullCustomTab(editingTabId ?? undefined);
+
+  const handleCreateTab = async () => {
+    if (!tabName.trim()) {
+      toast({ title: "Error", description: "Tab name is required", variant: "destructive" });
+      return;
+    }
+    try {
+      await createTab.mutateAsync({ organizationId, name: tabName, description: tabDescription, icon: tabIcon });
+      toast({ title: "Success", description: "Custom tab created" });
+      setShowNewTabDialog(false);
+      setTabName("");
+      setTabDescription("");
+      setTabIcon("FileText");
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to create tab", variant: "destructive" });
+    }
+  };
+
+  const handleEditTab = (tab: CustomProjectTab) => {
+    setEditingTabId(tab.id);
+    setTabName(tab.name);
+    setTabDescription(tab.description || "");
+    setTabIcon(tab.icon || "FileText");
+  };
+
+  const handleUpdateTab = async () => {
+    if (!editingTabId) return;
+    try {
+      await updateTab.mutateAsync({ id: editingTabId, organizationId, name: tabName, description: tabDescription, icon: tabIcon });
+      toast({ title: "Success", description: "Tab updated" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update tab", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteTab = async () => {
+    if (!tabToDelete) return;
+    try {
+      await deleteTab.mutateAsync({ id: tabToDelete, organizationId });
+      toast({ title: "Success", description: "Tab deleted" });
+      setShowDeleteConfirm(false);
+      setTabToDelete(null);
+      if (editingTabId === tabToDelete) setEditingTabId(null);
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete tab", variant: "destructive" });
+    }
+  };
+
+  const handleAddSection = async () => {
+    if (!sectionTabId || !sectionName.trim()) return;
+    try {
+      await createSection.mutateAsync({ tabId: sectionTabId, name: sectionName, columns: sectionColumns });
+      toast({ title: "Success", description: "Section added" });
+      setShowSectionDialog(false);
+      setSectionName("");
+      setSectionColumns(2);
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to add section", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteSection = async (sectionId: number, tabId: number) => {
+    try {
+      await deleteSection.mutateAsync({ id: sectionId, tabId });
+      toast({ title: "Success", description: "Section deleted" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete section", variant: "destructive" });
+    }
+  };
+
+  const handleAddField = async (fieldKey: string, fieldType: string) => {
+    if (!fieldPickerSectionId || !fieldPickerTabId) return;
+    try {
+      await createField.mutateAsync({ sectionId: fieldPickerSectionId, tabId: fieldPickerTabId, fieldKey, fieldType });
+      toast({ title: "Success", description: "Field added" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to add field", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveField = async (fieldId: number, sectionId: number, tabId: number) => {
+    try {
+      await deleteField.mutateAsync({ id: fieldId, sectionId, tabId });
+      toast({ title: "Success", description: "Field removed" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to remove field", variant: "destructive" });
+    }
+  };
+
+  const allFields = [
+    ...projectFields.map(f => ({ key: f.key, label: f.label, type: 'project' as const })),
+    ...customFields.map(f => ({ key: `customField:${f.id}`, label: f.name, type: 'custom' as const }))
+  ];
+
+  if (isLoading) {
+    return <Card className="p-6"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></Card>;
+  }
+
+  return (
+    <Card data-testid="card-custom-tabs">
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <LayoutGrid className="h-5 w-5" />
+            Custom Tabs
+          </CardTitle>
+          <CardDescription>
+            Create custom tabs for project details with your own sections and fields
+          </CardDescription>
+        </div>
+        <Button onClick={() => setShowNewTabDialog(true)} data-testid="button-add-custom-tab">
+          <Plus className="h-4 w-4 mr-2" /> Add Tab
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {tabs.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground" data-testid="text-no-custom-tabs">
+            No custom tabs yet. Create one to get started.
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {tabs.map((tab) => (
+              <div key={tab.id} className="border rounded-lg p-4 hover-elevate cursor-pointer" onClick={() => handleEditTab(tab)} data-testid={`card-custom-tab-${tab.id}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <LayoutGrid className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium">{tab.name}</div>
+                      {tab.description && <div className="text-sm text-muted-foreground">{tab.description}</div>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); handleEditTab(tab); }} data-testid={`button-edit-tab-${tab.id}`}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setTabToDelete(tab.id); setShowDeleteConfirm(true); }} data-testid={`button-delete-tab-${tab.id}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={showNewTabDialog} onOpenChange={setShowNewTabDialog}>
+        <DialogContent data-testid="dialog-new-custom-tab">
+          <DialogHeader>
+            <DialogTitle>Create Custom Tab</DialogTitle>
+            <DialogDescription>Add a new customizable tab to project details</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Tab Name</Label>
+              <Input value={tabName} onChange={(e) => setTabName(e.target.value)} placeholder="e.g., My Custom View" data-testid="input-tab-name" />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea value={tabDescription} onChange={(e) => setTabDescription(e.target.value)} placeholder="What is this tab for?" data-testid="input-tab-description" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewTabDialog(false)} data-testid="button-cancel-tab">Cancel</Button>
+            <Button onClick={handleCreateTab} disabled={createTab.isPending} data-testid="button-create-tab">
+              {createTab.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create Tab
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingTabId !== null} onOpenChange={(open) => !open && setEditingTabId(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" data-testid="dialog-edit-custom-tab">
+          <DialogHeader>
+            <DialogTitle>Edit Tab: {tabName}</DialogTitle>
+            <DialogDescription>Design your custom tab with sections and fields</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="grid gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Tab Name</Label>
+                  <Input value={tabName} onChange={(e) => setTabName(e.target.value)} data-testid="input-edit-tab-name" />
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <Input value={tabDescription} onChange={(e) => setTabDescription(e.target.value)} data-testid="input-edit-tab-description" />
+                </div>
+              </div>
+              <Button variant="outline" onClick={handleUpdateTab} disabled={updateTab.isPending} data-testid="button-save-tab">
+                <Save className="h-4 w-4 mr-2" /> Save Tab Settings
+              </Button>
+            </div>
+            <Separator />
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <Label className="text-lg font-medium">Sections</Label>
+                <Button size="sm" onClick={() => { setSectionTabId(editingTabId); setShowSectionDialog(true); }} data-testid="button-add-section">
+                  <Plus className="h-4 w-4 mr-2" /> Add Section
+                </Button>
+              </div>
+              {fullTabData?.sections.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground border rounded-lg" data-testid="text-no-sections">
+                  No sections yet. Add a section to organize your fields.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {fullTabData?.sections.map((section) => (
+                    <Card key={section.id} className="p-4" data-testid={`card-section-${section.id}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Columns className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{section.name}</span>
+                          <Badge variant="secondary">{section.columns} col</Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => { setFieldPickerSectionId(section.id); setFieldPickerTabId(editingTabId); setShowFieldPicker(true); }} data-testid={`button-add-field-${section.id}`}>
+                            <Plus className="h-4 w-4 mr-1" /> Add Field
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={() => editingTabId && handleDeleteSection(section.id, editingTabId)} data-testid={`button-delete-section-${section.id}`}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {section.fields.length === 0 ? (
+                        <div className="text-sm text-muted-foreground py-2" data-testid={`text-no-fields-${section.id}`}>No fields in this section</div>
+                      ) : (
+                        <div className={`grid gap-2 grid-cols-${section.columns || 2}`}>
+                          {section.fields.map((field) => {
+                            const fieldDef = allFields.find(f => f.key === field.fieldKey);
+                            return (
+                              <div key={field.id} className="flex items-center justify-between bg-muted/50 rounded px-3 py-2" data-testid={`field-${field.id}`}>
+                                <span className="text-sm">{field.label || fieldDef?.label || field.fieldKey}</span>
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => editingTabId && handleRemoveField(field.id, section.id, editingTabId)} data-testid={`button-remove-field-${field.id}`}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSectionDialog} onOpenChange={setShowSectionDialog}>
+        <DialogContent data-testid="dialog-add-section">
+          <DialogHeader>
+            <DialogTitle>Add Section</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Section Name</Label>
+              <Input value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="e.g., Budget Details" data-testid="input-section-name" />
+            </div>
+            <div>
+              <Label>Number of Columns</Label>
+              <Select value={sectionColumns.toString()} onValueChange={(v) => setSectionColumns(parseInt(v))}>
+                <SelectTrigger data-testid="select-section-columns">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 Column</SelectItem>
+                  <SelectItem value="2">2 Columns</SelectItem>
+                  <SelectItem value="3">3 Columns</SelectItem>
+                  <SelectItem value="4">4 Columns</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSectionDialog(false)} data-testid="button-cancel-section">Cancel</Button>
+            <Button onClick={handleAddSection} disabled={createSection.isPending} data-testid="button-create-section">
+              Add Section
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showFieldPicker} onOpenChange={setShowFieldPicker}>
+        <DialogContent className="max-w-2xl max-h-[70vh] overflow-y-auto" data-testid="dialog-field-picker">
+          <DialogHeader>
+            <DialogTitle>Add Field</DialogTitle>
+            <DialogDescription>Select a field to add to the section</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm text-muted-foreground">Project Fields</Label>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {projectFields.map((field) => (
+                  <Button key={field.key} variant="outline" size="sm" className="justify-start" onClick={() => { handleAddField(field.key, 'project'); }} data-testid={`button-field-${field.key}`}>
+                    {field.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            {customFields.length > 0 && (
+              <div>
+                <Label className="text-sm text-muted-foreground">Custom Fields</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {customFields.map((field) => (
+                    <Button key={field.id} variant="outline" size="sm" className="justify-start" onClick={() => { handleAddField(`customField:${field.id}`, 'custom'); }} data-testid={`button-custom-field-${field.id}`}>
+                      {field.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFieldPicker(false)} data-testid="button-close-field-picker">Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent data-testid="dialog-confirm-delete-tab">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Custom Tab?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this custom tab and all its sections and fields.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-tab">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteTab} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="button-confirm-delete-tab">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -15,7 +15,8 @@ import { useProjectComments, useCreateProjectComment, useDeleteProjectComment } 
 import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hooks/use-billable-status-comments";
 import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
-import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
+import { useCustomProjectTabs, useFullCustomTab } from "@/hooks/use-custom-tabs";
+import type { CustomFieldDefinition, ProjectCustomFieldValue, CustomProjectTab, CustomTabSection, CustomTabField } from "@shared/schema";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
@@ -181,6 +182,7 @@ export default function ProjectDetails() {
   const allCollapsed = Object.values(sectionsCollapsed).every(v => v);
   const allExpanded = Object.values(sectionsCollapsed).every(v => !v);
   const { currentOrganization } = useOrganization();
+  const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
 
   // Read tab from URL query parameter
@@ -423,6 +425,11 @@ export default function ProjectDetails() {
           <TabsTrigger value="change-requests" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-change-requests">Change Requests</TabsTrigger>
           <TabsTrigger value="documents" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-documents">Documents</TabsTrigger>
           <TabsTrigger value="status-report" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-status-report">Status Report</TabsTrigger>
+          {customTabs.map((tab) => (
+            <TabsTrigger key={tab.id} value={`custom-${tab.id}`} className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid={`tab-custom-${tab.id}`}>
+              {tab.name}
+            </TabsTrigger>
+          ))}
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
@@ -458,6 +465,11 @@ export default function ProjectDetails() {
               documents={projectDocuments || []}
             />
           </TabsContent>
+          {customTabs.map((tab) => (
+            <TabsContent key={tab.id} value={`custom-${tab.id}`}>
+              <CustomTabRenderer tabId={tab.id} project={project} onUpdate={updateProject} />
+            </TabsContent>
+          ))}
         </div>
       </Tabs>
 
@@ -1189,6 +1201,214 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; project: any; onUpdate: any }) {
+  const { toast } = useToast();
+  const { data: fullTabData, isLoading } = useFullCustomTab(tabId);
+  const { currentOrganization } = useOrganization();
+  const { data: customFieldDefs = [] } = useCustomFieldDefinitions(currentOrganization?.id);
+  const { data: customFieldValues = [] } = useProjectCustomFieldValues(project.id);
+  const updateCustomFieldValue = useUpdateProjectCustomFieldValue();
+  const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+
+  const tab = fullTabData?.tab;
+  const sections = fullTabData?.sections ?? [];
+
+  if (isLoading) {
+    return <Card className="p-6"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></Card>;
+  }
+
+  if (!tab) {
+    return <Card className="p-6 text-center text-muted-foreground">Tab configuration not found</Card>;
+  }
+
+  const getFieldValue = (fieldKey: string, fieldType: string): any => {
+    if (fieldType === 'custom') {
+      const customFieldId = parseInt(fieldKey.replace('customField:', ''));
+      const val = customFieldValues.find(v => v.fieldDefinitionId === customFieldId);
+      return val?.value || '';
+    }
+    return project[fieldKey] ?? '';
+  };
+
+  const handleEdit = (field: CustomTabField) => {
+    setEditingFieldId(field.id);
+    setEditValue(String(getFieldValue(field.fieldKey, field.fieldType) ?? ''));
+  };
+
+  const handleSave = async (field: CustomTabField) => {
+    try {
+      if (field.fieldType === 'custom') {
+        const customFieldId = parseInt(field.fieldKey.replace('customField:', ''));
+        await updateCustomFieldValue.mutateAsync({
+          projectId: project.id,
+          fieldDefinitionId: customFieldId,
+          value: editValue || null,
+        });
+      } else {
+        await onUpdate({ [field.fieldKey]: editValue || null });
+      }
+      toast({ title: "Saved" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    }
+    setEditingFieldId(null);
+  };
+
+  const handleCancel = () => {
+    setEditingFieldId(null);
+    setEditValue("");
+  };
+
+  const getFieldLabel = (field: CustomTabField): string => {
+    if (field.label) return field.label;
+    if (field.fieldType === 'custom') {
+      const customFieldId = parseInt(field.fieldKey.replace('customField:', ''));
+      const def = customFieldDefs.find(d => d.id === customFieldId);
+      return def?.name || field.fieldKey;
+    }
+    const projectFieldLabels: Record<string, string> = {
+      name: 'Project Name', projectCode: 'Project Code', description: 'Description', status: 'Status', priority: 'Priority',
+      health: 'Health', healthReason: 'Health Reason', projectType: 'Project Type', methodology: 'Methodology',
+      department: 'Department', category: 'Category', startDate: 'Start Date', endDate: 'End Date',
+      baselineStartDate: 'Baseline Start', baselineEndDate: 'Baseline End', actualStartDate: 'Actual Start',
+      actualEndDate: 'Actual End', budget: 'Budget', actualCost: 'Actual Cost', forecastCost: 'Forecast Cost',
+      completionPercentage: 'Completion %', scheduleVariance: 'Schedule Variance', costVariance: 'Cost Variance',
+      scope: 'Scope', objectives: 'Objectives', successCriteria: 'Success Criteria', constraints: 'Constraints',
+      assumptions: 'Assumptions', dependencies: 'Dependencies', businessValue: 'Business Value',
+      riskLevel: 'Risk Level', notes: 'Notes', billableStatus: 'Billable Status', source: 'Source',
+    };
+    return projectFieldLabels[field.fieldKey] || field.fieldKey;
+  };
+
+  const formatDisplayValue = (value: any, fieldKey: string): string => {
+    if (value === null || value === undefined || value === '') return 'Not set';
+    if (fieldKey.endsWith('Date') && value) {
+      try {
+        return format(new Date(value), 'MMM d, yyyy');
+      } catch { return String(value); }
+    }
+    if (fieldKey === 'budget' || fieldKey === 'actualCost' || fieldKey === 'forecastCost') {
+      return `$${Number(value).toLocaleString()}`;
+    }
+    if (fieldKey === 'completionPercentage') {
+      return `${value}%`;
+    }
+    return String(value);
+  };
+
+  const renderFieldInput = (field: CustomTabField) => {
+    const isDateField = field.fieldKey.endsWith('Date');
+    const isCurrencyField = ['budget', 'actualCost', 'forecastCost'].includes(field.fieldKey);
+    const isNumberField = ['completionPercentage', 'scheduleVariance', 'costVariance'].includes(field.fieldKey) || isCurrencyField;
+    const isTextArea = ['description', 'scope', 'objectives', 'successCriteria', 'constraints', 'assumptions', 'dependencies', 'notes', 'healthReason'].includes(field.fieldKey);
+    const isSelect = ['status', 'priority', 'health', 'riskLevel', 'billableStatus'].includes(field.fieldKey);
+
+    if (isDateField) {
+      return <Input type="date" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="h-8 text-sm" data-testid={`input-${field.fieldKey}`} />;
+    }
+    if (isNumberField) {
+      return <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="h-8 text-sm" data-testid={`input-${field.fieldKey}`} />;
+    }
+    if (isTextArea) {
+      return <Textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} className="min-h-[60px] text-sm" data-testid={`input-${field.fieldKey}`} />;
+    }
+    if (isSelect) {
+      const options: Record<string, string[]> = {
+        status: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'On Hold', 'Cancelled'],
+        priority: ['Low', 'Medium', 'High', 'Critical'],
+        health: ['Green', 'Yellow', 'Red'],
+        riskLevel: ['Low', 'Medium', 'High'],
+        billableStatus: ['Billable', 'Non-Billable', 'N/A'],
+      };
+      return (
+        <Select value={editValue} onValueChange={setEditValue}>
+          <SelectTrigger className="h-8 text-sm" data-testid={`select-${field.fieldKey}`}>
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {(options[field.fieldKey] || []).map((opt) => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    return <Input value={editValue} onChange={(e) => setEditValue(e.target.value)} className="h-8 text-sm" data-testid={`input-${field.fieldKey}`} />;
+  };
+
+  const getGridCols = (columns: number | null): string => {
+    switch (columns) {
+      case 1: return 'grid-cols-1';
+      case 3: return 'grid-cols-1 md:grid-cols-3';
+      case 4: return 'grid-cols-2 md:grid-cols-4';
+      default: return 'grid-cols-1 md:grid-cols-2';
+    }
+  };
+
+  return (
+    <div className="space-y-6" data-testid={`custom-tab-content-${tabId}`}>
+      {sections.map((section) => (
+        <Card key={section.id} data-testid={`custom-section-${section.id}`}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              {section.name}
+              <Badge variant="secondary" className="text-xs">{section.fields.length} fields</Badge>
+            </CardTitle>
+            {section.description && <CardDescription>{section.description}</CardDescription>}
+          </CardHeader>
+          <CardContent>
+            {section.fields.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-4 text-center">No fields in this section</div>
+            ) : (
+              <div className={`grid gap-4 ${getGridCols(section.columns)}`}>
+                {section.fields.map((field) => {
+                  const value = getFieldValue(field.fieldKey, field.fieldType);
+                  const isEditing = editingFieldId === field.id;
+                  return (
+                    <div key={field.id} className="space-y-1" data-testid={`custom-field-${field.id}`}>
+                      <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                        {getFieldLabel(field)}
+                      </Label>
+                      {isEditing ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1">{renderFieldInput(field)}</div>
+                          <Button size="icon" variant="ghost" onClick={() => handleSave(field)} data-testid={`button-save-${field.fieldKey}`}>
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={handleCancel} data-testid={`button-cancel-${field.fieldKey}`}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div
+                          className={`flex items-center justify-between p-2 rounded min-h-[36px] border border-transparent ${field.isEditable ? 'cursor-pointer hover-elevate' : ''}`}
+                          onClick={() => field.isEditable && handleEdit(field)}
+                          data-testid={`button-edit-${field.fieldKey}`}
+                        >
+                          <span className="text-sm">{formatDisplayValue(value, field.fieldKey)}</span>
+                          {field.isEditable && <Pencil className="h-3 w-3 text-muted-foreground" />}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+      {sections.length === 0 && (
+        <Card className="p-8 text-center text-muted-foreground">
+          <LayoutGrid className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>This tab has no sections yet.</p>
+          <p className="text-sm mt-2">Go to Organization Settings to add sections and fields.</p>
+        </Card>
+      )}
     </div>
   );
 }

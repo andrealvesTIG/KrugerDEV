@@ -1357,3 +1357,110 @@ export const insertProjectCustomFieldValueSchema = createInsertSchema(projectCus
 export type InsertProjectCustomFieldValue = z.infer<typeof insertProjectCustomFieldValueSchema>;
 export type ProjectCustomFieldValue = typeof projectCustomFieldValues.$inferSelect;
 export type UpdateProjectCustomFieldValueRequest = Partial<InsertProjectCustomFieldValue>;
+
+// Custom Project Tabs - User-defined tabs for project details
+export const customProjectTabs = pgTable("custom_project_tabs", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  icon: text("icon"), // Lucide icon name
+  displayOrder: integer("display_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+});
+
+export const insertCustomProjectTabSchema = createInsertSchema(customProjectTabs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCustomProjectTab = z.infer<typeof insertCustomProjectTabSchema>;
+export type CustomProjectTab = typeof customProjectTabs.$inferSelect;
+
+// Custom Tab Sections - Sections within a custom tab
+export const customTabSections = pgTable("custom_tab_sections", {
+  id: serial("id").primaryKey(),
+  tabId: integer("tab_id").references(() => customProjectTabs.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  columns: integer("columns").default(2), // 1, 2, 3, or 4 column layout
+  displayOrder: integer("display_order").default(0),
+  isCollapsible: boolean("is_collapsible").default(true),
+  isCollapsedByDefault: boolean("is_collapsed_by_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCustomTabSectionSchema = createInsertSchema(customTabSections).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCustomTabSection = z.infer<typeof insertCustomTabSectionSchema>;
+export type CustomTabSection = typeof customTabSections.$inferSelect;
+
+// Custom Tab Fields - Fields within a section
+export const customTabFields = pgTable("custom_tab_fields", {
+  id: serial("id").primaryKey(),
+  sectionId: integer("section_id").references(() => customTabSections.id).notNull(),
+  fieldKey: text("field_key").notNull(), // e.g., 'name', 'status', 'budget', 'customField:123'
+  fieldType: text("field_type").notNull(), // 'project', 'custom' - source of the field
+  label: text("label"), // Override label, null means use default
+  displayOrder: integer("display_order").default(0),
+  isEditable: boolean("is_editable").default(true),
+  width: text("width"), // 'full', 'half', 'third', 'quarter' - for grid layout
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCustomTabFieldSchema = createInsertSchema(customTabFields).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCustomTabField = z.infer<typeof insertCustomTabFieldSchema>;
+export type CustomTabField = typeof customTabFields.$inferSelect;
+
+// Project field definitions for the custom tab builder
+export const PROJECT_FIELD_DEFINITIONS = [
+  { key: 'name', label: 'Project Name', type: 'text' },
+  { key: 'projectCode', label: 'Project Code', type: 'text' },
+  { key: 'description', label: 'Description', type: 'textarea' },
+  { key: 'status', label: 'Status', type: 'select' },
+  { key: 'priority', label: 'Priority', type: 'select' },
+  { key: 'health', label: 'Health', type: 'select' },
+  { key: 'healthReason', label: 'Health Reason', type: 'textarea' },
+  { key: 'projectType', label: 'Project Type', type: 'text' },
+  { key: 'methodology', label: 'Methodology', type: 'text' },
+  { key: 'department', label: 'Department', type: 'text' },
+  { key: 'category', label: 'Category', type: 'text' },
+  { key: 'startDate', label: 'Start Date', type: 'date' },
+  { key: 'endDate', label: 'End Date', type: 'date' },
+  { key: 'baselineStartDate', label: 'Baseline Start Date', type: 'date' },
+  { key: 'baselineEndDate', label: 'Baseline End Date', type: 'date' },
+  { key: 'actualStartDate', label: 'Actual Start Date', type: 'date' },
+  { key: 'actualEndDate', label: 'Actual End Date', type: 'date' },
+  { key: 'budget', label: 'Budget', type: 'currency' },
+  { key: 'actualCost', label: 'Actual Cost', type: 'currency' },
+  { key: 'forecastCost', label: 'Forecast Cost', type: 'currency' },
+  { key: 'completionPercentage', label: 'Completion %', type: 'percentage' },
+  { key: 'scheduleVariance', label: 'Schedule Variance', type: 'number' },
+  { key: 'costVariance', label: 'Cost Variance', type: 'number' },
+  { key: 'scope', label: 'Scope', type: 'textarea' },
+  { key: 'objectives', label: 'Objectives', type: 'textarea' },
+  { key: 'successCriteria', label: 'Success Criteria', type: 'textarea' },
+  { key: 'constraints', label: 'Constraints', type: 'textarea' },
+  { key: 'assumptions', label: 'Assumptions', type: 'textarea' },
+  { key: 'dependencies', label: 'Dependencies', type: 'textarea' },
+  { key: 'businessValue', label: 'Business Value', type: 'text' },
+  { key: 'riskLevel', label: 'Risk Level', type: 'select' },
+  { key: 'notes', label: 'Notes', type: 'textarea' },
+  { key: 'billableStatus', label: 'Billable Status', type: 'select' },
+  { key: 'source', label: 'Source', type: 'text' },
+  { key: 'portfolioId', label: 'Portfolio', type: 'reference' },
+  { key: 'managerResourceId', label: 'Project Manager', type: 'reference' },
+] as const;
+
+export type ProjectFieldKey = typeof PROJECT_FIELD_DEFINITIONS[number]['key'];

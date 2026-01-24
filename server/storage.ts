@@ -48,7 +48,10 @@ import {
   type ProjectView, type InsertProjectView, type UpdateProjectViewRequest,
   userConsents, type UserConsent, type InsertUserConsent,
   customFieldDefinitions, type CustomFieldDefinition, type InsertCustomFieldDefinition, type UpdateCustomFieldDefinitionRequest,
-  projectCustomFieldValues, type ProjectCustomFieldValue, type InsertProjectCustomFieldValue
+  projectCustomFieldValues, type ProjectCustomFieldValue, type InsertProjectCustomFieldValue,
+  customProjectTabs, type CustomProjectTab, type InsertCustomProjectTab,
+  customTabSections, type CustomTabSection, type InsertCustomTabSection,
+  customTabFields, type CustomTabField, type InsertCustomTabField
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
@@ -360,6 +363,30 @@ export interface IStorage {
   getProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<ProjectCustomFieldValue | undefined>;
   upsertProjectCustomFieldValue(value: InsertProjectCustomFieldValue): Promise<ProjectCustomFieldValue>;
   deleteProjectCustomFieldValue(projectId: number, fieldDefinitionId: number): Promise<void>;
+
+  // Custom Project Tabs
+  getCustomProjectTabs(organizationId: number): Promise<CustomProjectTab[]>;
+  getCustomProjectTab(id: number): Promise<CustomProjectTab | undefined>;
+  createCustomProjectTab(tab: InsertCustomProjectTab): Promise<CustomProjectTab>;
+  updateCustomProjectTab(id: number, updates: Partial<InsertCustomProjectTab>): Promise<CustomProjectTab>;
+  deleteCustomProjectTab(id: number): Promise<void>;
+
+  // Custom Tab Sections
+  getCustomTabSections(tabId: number): Promise<CustomTabSection[]>;
+  getCustomTabSection(id: number): Promise<CustomTabSection | undefined>;
+  createCustomTabSection(section: InsertCustomTabSection): Promise<CustomTabSection>;
+  updateCustomTabSection(id: number, updates: Partial<InsertCustomTabSection>): Promise<CustomTabSection>;
+  deleteCustomTabSection(id: number): Promise<void>;
+
+  // Custom Tab Fields
+  getCustomTabFields(sectionId: number): Promise<CustomTabField[]>;
+  getCustomTabField(id: number): Promise<CustomTabField | undefined>;
+  createCustomTabField(field: InsertCustomTabField): Promise<CustomTabField>;
+  updateCustomTabField(id: number, updates: Partial<InsertCustomTabField>): Promise<CustomTabField>;
+  deleteCustomTabField(id: number): Promise<void>;
+
+  // Full tab with sections and fields
+  getFullCustomProjectTab(tabId: number): Promise<{ tab: CustomProjectTab; sections: (CustomTabSection & { fields: CustomTabField[] })[] } | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3164,6 +3191,128 @@ export class DatabaseStorage implements IStorage {
         eq(projectCustomFieldValues.projectId, projectId),
         eq(projectCustomFieldValues.fieldDefinitionId, fieldDefinitionId)
       ));
+  }
+
+  // Custom Project Tabs
+  async getCustomProjectTabs(organizationId: number): Promise<CustomProjectTab[]> {
+    return await db.select().from(customProjectTabs)
+      .where(and(
+        eq(customProjectTabs.organizationId, organizationId),
+        eq(customProjectTabs.isActive, true)
+      ))
+      .orderBy(asc(customProjectTabs.displayOrder), asc(customProjectTabs.name));
+  }
+
+  async getCustomProjectTab(id: number): Promise<CustomProjectTab | undefined> {
+    const [tab] = await db.select().from(customProjectTabs)
+      .where(eq(customProjectTabs.id, id));
+    return tab;
+  }
+
+  async createCustomProjectTab(tab: InsertCustomProjectTab): Promise<CustomProjectTab> {
+    const [created] = await db.insert(customProjectTabs).values(tab).returning();
+    return created;
+  }
+
+  async updateCustomProjectTab(id: number, updates: Partial<InsertCustomProjectTab>): Promise<CustomProjectTab> {
+    const [updated] = await db.update(customProjectTabs)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(customProjectTabs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCustomProjectTab(id: number): Promise<void> {
+    // First delete all fields in all sections of this tab
+    const sections = await this.getCustomTabSections(id);
+    for (const section of sections) {
+      await db.delete(customTabFields).where(eq(customTabFields.sectionId, section.id));
+    }
+    // Then delete all sections
+    await db.delete(customTabSections).where(eq(customTabSections.tabId, id));
+    // Finally delete the tab (soft delete)
+    await db.update(customProjectTabs)
+      .set({ isActive: false })
+      .where(eq(customProjectTabs.id, id));
+  }
+
+  // Custom Tab Sections
+  async getCustomTabSections(tabId: number): Promise<CustomTabSection[]> {
+    return await db.select().from(customTabSections)
+      .where(eq(customTabSections.tabId, tabId))
+      .orderBy(asc(customTabSections.displayOrder));
+  }
+
+  async getCustomTabSection(id: number): Promise<CustomTabSection | undefined> {
+    const [section] = await db.select().from(customTabSections)
+      .where(eq(customTabSections.id, id));
+    return section;
+  }
+
+  async createCustomTabSection(section: InsertCustomTabSection): Promise<CustomTabSection> {
+    const [created] = await db.insert(customTabSections).values(section).returning();
+    return created;
+  }
+
+  async updateCustomTabSection(id: number, updates: Partial<InsertCustomTabSection>): Promise<CustomTabSection> {
+    const [updated] = await db.update(customTabSections)
+      .set(updates)
+      .where(eq(customTabSections.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCustomTabSection(id: number): Promise<void> {
+    // First delete all fields in this section
+    await db.delete(customTabFields).where(eq(customTabFields.sectionId, id));
+    // Then delete the section
+    await db.delete(customTabSections).where(eq(customTabSections.id, id));
+  }
+
+  // Custom Tab Fields
+  async getCustomTabFields(sectionId: number): Promise<CustomTabField[]> {
+    return await db.select().from(customTabFields)
+      .where(eq(customTabFields.sectionId, sectionId))
+      .orderBy(asc(customTabFields.displayOrder));
+  }
+
+  async getCustomTabField(id: number): Promise<CustomTabField | undefined> {
+    const [field] = await db.select().from(customTabFields)
+      .where(eq(customTabFields.id, id));
+    return field;
+  }
+
+  async createCustomTabField(field: InsertCustomTabField): Promise<CustomTabField> {
+    const [created] = await db.insert(customTabFields).values(field).returning();
+    return created;
+  }
+
+  async updateCustomTabField(id: number, updates: Partial<InsertCustomTabField>): Promise<CustomTabField> {
+    const [updated] = await db.update(customTabFields)
+      .set(updates)
+      .where(eq(customTabFields.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCustomTabField(id: number): Promise<void> {
+    await db.delete(customTabFields).where(eq(customTabFields.id, id));
+  }
+
+  // Full tab with sections and fields
+  async getFullCustomProjectTab(tabId: number): Promise<{ tab: CustomProjectTab; sections: (CustomTabSection & { fields: CustomTabField[] })[] } | undefined> {
+    const tab = await this.getCustomProjectTab(tabId);
+    if (!tab) return undefined;
+
+    const sections = await this.getCustomTabSections(tabId);
+    const sectionsWithFields = await Promise.all(
+      sections.map(async (section) => {
+        const fields = await this.getCustomTabFields(section.id);
+        return { ...section, fields };
+      })
+    );
+
+    return { tab, sections: sectionsWithFields };
   }
 }
 
