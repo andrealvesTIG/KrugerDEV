@@ -16,6 +16,7 @@ import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hoo
 import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useCustomProjectTabs, useFullCustomTab } from "@/hooks/use-custom-tabs";
+import { useScoringCriteria, useCreateScoringCriteria, useDeleteScoringCriteria, useProjectScores, useSaveProjectScore, useProjectBenefits, useCreateProjectBenefit, useUpdateProjectBenefit, useDeleteProjectBenefit, useProjectDecisions, useCreateProjectDecision, useUpdateProjectDecision, useDeleteProjectDecision } from "@/hooks/use-project-features";
 import type { CustomFieldDefinition, ProjectCustomFieldValue, CustomProjectTab, CustomTabSection, CustomTabField } from "@shared/schema";
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
@@ -425,7 +426,7 @@ export default function ProjectDetails() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={['change-requests', 'documents', 'status-report', ...customTabs.map(t => `custom-${t.id}`)].includes(activeTab) ? 'default' : 'ghost'} 
+                variant={['change-requests', 'documents', 'status-report', 'scoring', 'benefits', 'decisions', ...customTabs.map(t => `custom-${t.id}`)].includes(activeTab) ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
@@ -433,12 +434,24 @@ export default function ProjectDetails() {
                 {activeTab === 'change-requests' ? 'Change Requests' : 
                  activeTab === 'documents' ? 'Documents' : 
                  activeTab === 'status-report' ? 'Status Report' :
+                 activeTab === 'scoring' ? 'Scoring' :
+                 activeTab === 'benefits' ? 'Benefits' :
+                 activeTab === 'decisions' ? 'Decisions' :
                  activeTab.startsWith('custom-') ? customTabs.find(t => `custom-${t.id}` === activeTab)?.name :
                  'More'}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setActiveTab('scoring')} data-testid="menu-tab-scoring">
+                Scoring
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('benefits')} data-testid="menu-tab-benefits">
+                Benefits
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('decisions')} data-testid="menu-tab-decisions">
+                Decisions
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setActiveTab('change-requests')} data-testid="menu-tab-change-requests">
                 Change Requests
               </DropdownMenuItem>
@@ -471,6 +484,15 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="financials">
             <FinancialsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="scoring">
+            <ScoringTab projectId={project.id} organizationId={project.organizationId} />
+          </TabsContent>
+          <TabsContent value="benefits">
+            <BenefitsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="decisions">
+            <DecisionsTab projectId={project.id} />
           </TabsContent>
           <TabsContent value="change-requests">
             <ChangeRequestsTab projectId={project.id} />
@@ -10200,6 +10222,671 @@ function StatusReportTab({
           documents={documents}
           executiveSummary={project.description || ""}
         />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ScoringTab({ projectId, organizationId }: { projectId: number; organizationId: number }) {
+  const { data: criteria, isLoading: loadingCriteria } = useScoringCriteria(organizationId);
+  const { data: scores, isLoading: loadingScores } = useProjectScores(projectId);
+  const createCriteria = useCreateScoringCriteria();
+  const deleteCriteria = useDeleteScoringCriteria();
+  const saveScore = useSaveProjectScore();
+  const { toast } = useToast();
+  
+  const [showAddCriteria, setShowAddCriteria] = useState(false);
+  const [newCriteria, setNewCriteria] = useState({ name: '', description: '', category: 'Strategic', weight: '1', minScore: 0, maxScore: 10 });
+  const [localScores, setLocalScores] = useState<Record<number, { score: number; justification: string }>>({});
+
+  useEffect(() => {
+    if (scores) {
+      const scoreMap: Record<number, { score: number; justification: string }> = {};
+      scores.forEach(s => {
+        scoreMap[s.criteriaId] = { score: s.score, justification: s.justification || '' };
+      });
+      setLocalScores(scoreMap);
+    }
+  }, [scores]);
+
+  const handleAddCriteria = async () => {
+    try {
+      await createCriteria.mutateAsync({ organizationId, data: newCriteria });
+      toast({ title: "Criterion added" });
+      setShowAddCriteria(false);
+      setNewCriteria({ name: '', description: '', category: 'Strategic', weight: '1', minScore: 0, maxScore: 10 });
+    } catch {
+      toast({ title: "Error", description: "Failed to add criterion", variant: "destructive" });
+    }
+  };
+
+  const handleScoreChange = (criteriaId: number, score: number) => {
+    setLocalScores(prev => ({ ...prev, [criteriaId]: { ...prev[criteriaId], score, justification: prev[criteriaId]?.justification || '' } }));
+  };
+
+  const handleJustificationChange = (criteriaId: number, justification: string) => {
+    setLocalScores(prev => ({ ...prev, [criteriaId]: { ...prev[criteriaId], justification, score: prev[criteriaId]?.score || 0 } }));
+  };
+
+  const handleSaveScore = async (criteriaId: number) => {
+    const local = localScores[criteriaId];
+    if (!local) return;
+    try {
+      await saveScore.mutateAsync({ projectId, criteriaId, score: local.score, justification: local.justification });
+      toast({ title: "Score saved" });
+    } catch {
+      toast({ title: "Error", description: "Failed to save score", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteCriteria = async (id: number) => {
+    try {
+      await deleteCriteria.mutateAsync({ id, organizationId });
+      toast({ title: "Criterion deleted" });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete criterion", variant: "destructive" });
+    }
+  };
+
+  if (loadingCriteria || loadingScores) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
+  const activeCriteria = criteria?.filter(c => c.isActive) || [];
+  
+  const calculateTotalScore = () => {
+    let totalWeightedScore = 0;
+    let totalWeight = 0;
+    activeCriteria.forEach(c => {
+      const score = localScores[c.id]?.score;
+      if (score !== undefined) {
+        const weight = parseFloat(String(c.weight)) || 1;
+        totalWeightedScore += score * weight;
+        totalWeight += weight;
+      }
+    });
+    return totalWeight > 0 ? (totalWeightedScore / totalWeight).toFixed(2) : 'N/A';
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle>Project Scoring</CardTitle>
+        <Button size="sm" onClick={() => setShowAddCriteria(true)} data-testid="button-add-criteria">
+          <Plus className="h-4 w-4 mr-1" /> Add Criterion
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 p-4 bg-muted rounded-lg">
+          <div className="text-sm text-muted-foreground">Weighted Total Score</div>
+          <div className="text-3xl font-bold">{calculateTotalScore()}</div>
+        </div>
+
+        {showAddCriteria && (
+          <Card className="mb-4 p-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Name</Label>
+                <Input value={newCriteria.name} onChange={e => setNewCriteria(p => ({ ...p, name: e.target.value }))} data-testid="input-criteria-name" />
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Select value={newCriteria.category} onValueChange={v => setNewCriteria(p => ({ ...p, category: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Strategic">Strategic</SelectItem>
+                    <SelectItem value="Financial">Financial</SelectItem>
+                    <SelectItem value="Risk">Risk</SelectItem>
+                    <SelectItem value="Resource">Resource</SelectItem>
+                    <SelectItem value="Technical">Technical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Label>Description</Label>
+                <Textarea value={newCriteria.description} onChange={e => setNewCriteria(p => ({ ...p, description: e.target.value }))} data-testid="input-criteria-description" />
+              </div>
+              <div>
+                <Label>Weight</Label>
+                <Input type="number" value={newCriteria.weight} onChange={e => setNewCriteria(p => ({ ...p, weight: e.target.value }))} data-testid="input-criteria-weight" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setShowAddCriteria(false)}>Cancel</Button>
+              <Button onClick={handleAddCriteria} disabled={!newCriteria.name} data-testid="button-save-criteria">Save</Button>
+            </div>
+          </Card>
+        )}
+
+        <div className="space-y-4">
+          {activeCriteria.map(c => (
+            <Card key={c.id} className="p-4">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <div className="font-medium">{c.name}</div>
+                  <div className="text-sm text-muted-foreground">{c.description}</div>
+                  <Badge variant="secondary" className="mt-1">{c.category}</Badge>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => handleDeleteCriteria(c.id)} data-testid={`button-delete-criteria-${c.id}`}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="mt-4">
+                <div className="flex items-center gap-4">
+                  <Label className="w-16">Score:</Label>
+                  <Slider 
+                    value={[localScores[c.id]?.score || 0]} 
+                    onValueChange={([v]) => handleScoreChange(c.id, v)}
+                    min={c.minScore || 0}
+                    max={c.maxScore || 10}
+                    step={1}
+                    className="flex-1"
+                  />
+                  <span className="w-12 text-center font-bold">{localScores[c.id]?.score || 0}/{c.maxScore || 10}</span>
+                </div>
+                <div className="mt-2">
+                  <Label>Justification</Label>
+                  <Textarea 
+                    value={localScores[c.id]?.justification || ''} 
+                    onChange={e => handleJustificationChange(c.id, e.target.value)}
+                    placeholder="Explain the score..."
+                    data-testid={`input-justification-${c.id}`}
+                  />
+                </div>
+                <Button size="sm" className="mt-2" onClick={() => handleSaveScore(c.id)} data-testid={`button-save-score-${c.id}`}>
+                  Save Score
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {activeCriteria.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            No scoring criteria defined. Click "Add Criterion" to create one.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BenefitsTab({ projectId }: { projectId: number }) {
+  const { data: benefits, isLoading } = useProjectBenefits(projectId);
+  const createBenefit = useCreateProjectBenefit();
+  const updateBenefit = useUpdateProjectBenefit();
+  const deleteBenefit = useDeleteProjectBenefit();
+  const { toast } = useToast();
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState({ name: '', description: '', category: 'Financial', benefitType: 'Tangible', unit: 'Currency', targetValue: '', actualValue: '', targetDate: '', status: 'Planned' });
+
+  const handleAdd = async () => {
+    try {
+      await createBenefit.mutateAsync({ 
+        projectId, 
+        data: { 
+          name: form.name, 
+          description: form.description, 
+          category: form.category, 
+          benefitType: form.benefitType, 
+          unit: form.unit, 
+          targetValue: form.targetValue || null, 
+          actualValue: form.actualValue || null, 
+          targetDate: form.targetDate || null, 
+          status: form.status 
+        } 
+      });
+      toast({ title: "Benefit added" });
+      setShowAdd(false);
+      resetForm();
+    } catch {
+      toast({ title: "Error", description: "Failed to add benefit", variant: "destructive" });
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingId) return;
+    try {
+      await updateBenefit.mutateAsync({
+        id: editingId,
+        projectId,
+        data: {
+          name: form.name,
+          description: form.description,
+          category: form.category,
+          benefitType: form.benefitType,
+          unit: form.unit,
+          targetValue: form.targetValue || null,
+          actualValue: form.actualValue || null,
+          targetDate: form.targetDate || null,
+          status: form.status,
+        }
+      });
+      toast({ title: "Benefit updated" });
+      setEditingId(null);
+      resetForm();
+    } catch {
+      toast({ title: "Error", description: "Failed to update benefit", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteBenefit.mutateAsync({ id, projectId });
+      toast({ title: "Benefit deleted" });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete benefit", variant: "destructive" });
+    }
+  };
+
+  const resetForm = () => {
+    setForm({ name: '', description: '', category: 'Financial', benefitType: 'Tangible', unit: 'Currency', targetValue: '', actualValue: '', targetDate: '', status: 'Planned' });
+  };
+
+  const startEdit = (b: any) => {
+    setEditingId(b.id);
+    setForm({
+      name: b.name,
+      description: b.description || '',
+      category: b.category || 'Financial',
+      benefitType: b.benefitType || 'Tangible',
+      unit: b.unit || 'Currency',
+      targetValue: b.targetValue?.toString() || '',
+      actualValue: b.actualValue?.toString() || '',
+      targetDate: b.targetDate || '',
+      status: b.status || 'Planned'
+    });
+  };
+
+  const calculateRealization = (target: any, actual: any) => {
+    const t = parseFloat(target);
+    const a = parseFloat(actual);
+    if (!t || t === 0) return null;
+    return Math.round((a / t) * 100);
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle>Benefits Tracking</CardTitle>
+        <Button size="sm" onClick={() => { setShowAdd(true); setEditingId(null); resetForm(); }} data-testid="button-add-benefit">
+          <Plus className="h-4 w-4 mr-1" /> Add Benefit
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {(showAdd || editingId) && (
+          <Card className="mb-4 p-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Name</Label>
+                <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} data-testid="input-benefit-name" />
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Select value={form.category} onValueChange={v => setForm(p => ({ ...p, category: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Financial">Financial</SelectItem>
+                    <SelectItem value="Operational">Operational</SelectItem>
+                    <SelectItem value="Strategic">Strategic</SelectItem>
+                    <SelectItem value="Customer">Customer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Label>Description</Label>
+                <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Type</Label>
+                <Select value={form.benefitType} onValueChange={v => setForm(p => ({ ...p, benefitType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Tangible">Tangible</SelectItem>
+                    <SelectItem value="Intangible">Intangible</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Unit</Label>
+                <Select value={form.unit} onValueChange={v => setForm(p => ({ ...p, unit: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Currency">Currency</SelectItem>
+                    <SelectItem value="Percentage">Percentage</SelectItem>
+                    <SelectItem value="Hours">Hours</SelectItem>
+                    <SelectItem value="Number">Number</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Target Value</Label>
+                <Input type="number" value={form.targetValue} onChange={e => setForm(p => ({ ...p, targetValue: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Actual Value</Label>
+                <Input type="number" value={form.actualValue} onChange={e => setForm(p => ({ ...p, actualValue: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Target Date</Label>
+                <Input type="date" value={form.targetDate} onChange={e => setForm(p => ({ ...p, targetDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Planned">Planned</SelectItem>
+                    <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Partially Realized">Partially Realized</SelectItem>
+                    <SelectItem value="Fully Realized">Fully Realized</SelectItem>
+                    <SelectItem value="Not Achieved">Not Achieved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => { setShowAdd(false); setEditingId(null); resetForm(); }}>Cancel</Button>
+              <Button onClick={editingId ? handleUpdate : handleAdd} disabled={!form.name} data-testid="button-save-benefit">
+                {editingId ? 'Update' : 'Save'}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        <div className="space-y-3">
+          {benefits?.map(b => {
+            const realization = calculateRealization(b.targetValue, b.actualValue);
+            return (
+              <Card key={b.id} className="p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-medium">{b.name}</div>
+                    <div className="text-sm text-muted-foreground">{b.description}</div>
+                    <div className="flex gap-2 mt-2">
+                      <Badge variant="secondary">{b.category}</Badge>
+                      <Badge variant="outline">{b.benefitType}</Badge>
+                      <Badge>{b.status}</Badge>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => startEdit(b)} data-testid={`button-edit-benefit-${b.id}`}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(b.id)} data-testid={`button-delete-benefit-${b.id}`}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <div className="text-muted-foreground">Target</div>
+                    <div className="font-medium">{b.targetValue ? `${b.targetValue} ${b.unit}` : '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Actual</div>
+                    <div className="font-medium">{b.actualValue ? `${b.actualValue} ${b.unit}` : '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Realization</div>
+                    <div className="font-medium">{realization !== null ? `${realization}%` : '-'}</div>
+                  </div>
+                </div>
+                {realization !== null && (
+                  <Progress value={Math.min(realization, 100)} className="mt-2" />
+                )}
+              </Card>
+            );
+          })}
+        </div>
+
+        {(!benefits || benefits.length === 0) && !showAdd && (
+          <div className="text-center py-8 text-muted-foreground">
+            No benefits tracked yet. Click "Add Benefit" to start tracking.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DecisionsTab({ projectId }: { projectId: number }) {
+  const { data: decisions, isLoading } = useProjectDecisions(projectId);
+  const createDecision = useCreateProjectDecision();
+  const updateDecision = useUpdateProjectDecision();
+  const deleteDecision = useDeleteProjectDecision();
+  const { toast } = useToast();
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState({ title: '', description: '', decisionType: 'Strategic', status: 'Pending', rationale: '', impact: '', priority: 'Medium', decisionDate: '' });
+
+  const handleAdd = async () => {
+    try {
+      await createDecision.mutateAsync({
+        projectId,
+        data: {
+          title: form.title,
+          description: form.description,
+          decisionType: form.decisionType,
+          status: form.status,
+          rationale: form.rationale,
+          impact: form.impact,
+          priority: form.priority,
+          decisionDate: form.decisionDate || null,
+        }
+      });
+      toast({ title: "Decision logged" });
+      setShowAdd(false);
+      resetForm();
+    } catch {
+      toast({ title: "Error", description: "Failed to log decision", variant: "destructive" });
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingId) return;
+    try {
+      await updateDecision.mutateAsync({
+        id: editingId,
+        projectId,
+        data: {
+          title: form.title,
+          description: form.description,
+          decisionType: form.decisionType,
+          status: form.status,
+          rationale: form.rationale,
+          impact: form.impact,
+          priority: form.priority,
+          decisionDate: form.decisionDate || null,
+        }
+      });
+      toast({ title: "Decision updated" });
+      setEditingId(null);
+      resetForm();
+    } catch {
+      toast({ title: "Error", description: "Failed to update decision", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteDecision.mutateAsync({ id, projectId });
+      toast({ title: "Decision deleted" });
+    } catch {
+      toast({ title: "Error", description: "Failed to delete decision", variant: "destructive" });
+    }
+  };
+
+  const resetForm = () => {
+    setForm({ title: '', description: '', decisionType: 'Strategic', status: 'Pending', rationale: '', impact: '', priority: 'Medium', decisionDate: '' });
+  };
+
+  const startEdit = (d: any) => {
+    setEditingId(d.id);
+    setForm({
+      title: d.title,
+      description: d.description || '',
+      decisionType: d.decisionType || 'Strategic',
+      status: d.status || 'Pending',
+      rationale: d.rationale || '',
+      impact: d.impact || '',
+      priority: d.priority || 'Medium',
+      decisionDate: d.decisionDate || ''
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Approved': return 'bg-green-100 text-green-800';
+      case 'Rejected': return 'bg-red-100 text-red-800';
+      case 'Implemented': return 'bg-blue-100 text-blue-800';
+      case 'Deferred': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle>Decision Log</CardTitle>
+        <Button size="sm" onClick={() => { setShowAdd(true); setEditingId(null); resetForm(); }} data-testid="button-add-decision">
+          <Plus className="h-4 w-4 mr-1" /> Log Decision
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {(showAdd || editingId) && (
+          <Card className="mb-4 p-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label>Title</Label>
+                <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} data-testid="input-decision-title" />
+              </div>
+              <div className="col-span-2">
+                <Label>Description</Label>
+                <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Type</Label>
+                <Select value={form.decisionType} onValueChange={v => setForm(p => ({ ...p, decisionType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Strategic">Strategic</SelectItem>
+                    <SelectItem value="Financial">Financial</SelectItem>
+                    <SelectItem value="Resource">Resource</SelectItem>
+                    <SelectItem value="Risk">Risk</SelectItem>
+                    <SelectItem value="Scope">Scope</SelectItem>
+                    <SelectItem value="Technical">Technical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="Approved">Approved</SelectItem>
+                    <SelectItem value="Rejected">Rejected</SelectItem>
+                    <SelectItem value="Deferred">Deferred</SelectItem>
+                    <SelectItem value="Implemented">Implemented</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Label>Rationale</Label>
+                <Textarea value={form.rationale} onChange={e => setForm(p => ({ ...p, rationale: e.target.value }))} placeholder="Why was this decision made?" />
+              </div>
+              <div className="col-span-2">
+                <Label>Expected Impact</Label>
+                <Textarea value={form.impact} onChange={e => setForm(p => ({ ...p, impact: e.target.value }))} placeholder="What is the expected impact?" />
+              </div>
+              <div>
+                <Label>Priority</Label>
+                <Select value={form.priority} onValueChange={v => setForm(p => ({ ...p, priority: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Decision Date</Label>
+                <Input type="date" value={form.decisionDate} onChange={e => setForm(p => ({ ...p, decisionDate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => { setShowAdd(false); setEditingId(null); resetForm(); }}>Cancel</Button>
+              <Button onClick={editingId ? handleUpdate : handleAdd} disabled={!form.title} data-testid="button-save-decision">
+                {editingId ? 'Update' : 'Save'}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        <div className="space-y-3">
+          {decisions?.map(d => (
+            <Card key={d.id} className="p-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="font-medium">{d.title}</div>
+                  <div className="text-sm text-muted-foreground">{d.description}</div>
+                  <div className="flex gap-2 mt-2">
+                    <Badge variant="secondary">{d.decisionType}</Badge>
+                    <Badge className={getStatusColor(d.status || '')}>{d.status}</Badge>
+                    <Badge variant="outline">{d.priority}</Badge>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => startEdit(d)} data-testid={`button-edit-decision-${d.id}`}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)} data-testid={`button-delete-decision-${d.id}`}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              {(d.rationale || d.impact) && (
+                <div className="mt-3 text-sm space-y-2">
+                  {d.rationale && (
+                    <div>
+                      <span className="font-medium">Rationale:</span> {d.rationale}
+                    </div>
+                  )}
+                  {d.impact && (
+                    <div>
+                      <span className="font-medium">Impact:</span> {d.impact}
+                    </div>
+                  )}
+                </div>
+              )}
+              {d.decisionDate && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Decision Date: {format(new Date(d.decisionDate), 'MMM d, yyyy')}
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+
+        {(!decisions || decisions.length === 0) && !showAdd && (
+          <div className="text-center py-8 text-muted-foreground">
+            No decisions logged yet. Click "Log Decision" to record a decision.
+          </div>
+        )}
       </CardContent>
     </Card>
   );

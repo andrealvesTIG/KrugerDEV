@@ -52,10 +52,10 @@ import {
   customProjectTabs, type CustomProjectTab, type InsertCustomProjectTab,
   customTabSections, type CustomTabSection, type InsertCustomTabSection,
   customTabFields, type CustomTabField, type InsertCustomTabField,
-  portfolioScoringCriteria, type PortfolioScoringCriteria, type InsertPortfolioScoringCriteria,
-  portfolioScores, type PortfolioScore, type InsertPortfolioScore,
-  portfolioBenefits, type PortfolioBenefit, type InsertPortfolioBenefit,
-  portfolioDecisions, type PortfolioDecision, type InsertPortfolioDecision
+  projectScoringCriteria, type ProjectScoringCriteria, type InsertProjectScoringCriteria,
+  projectScores, type ProjectScore, type InsertProjectScore,
+  projectBenefits, type ProjectBenefit, type InsertProjectBenefit,
+  projectDecisions, type ProjectDecision, type InsertProjectDecision
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
@@ -3319,87 +3319,87 @@ export class DatabaseStorage implements IStorage {
     return { tab, sections: sectionsWithFields };
   }
 
-  // Portfolio Scoring Criteria
-  async getPortfolioScoringCriteria(organizationId: number): Promise<PortfolioScoringCriteria[]> {
-    return await db.select().from(portfolioScoringCriteria)
+  // Project Scoring Criteria
+  async getProjectScoringCriteria(organizationId: number): Promise<ProjectScoringCriteria[]> {
+    return await db.select().from(projectScoringCriteria)
       .where(and(
-        eq(portfolioScoringCriteria.organizationId, organizationId),
-        eq(portfolioScoringCriteria.isActive, true)
+        eq(projectScoringCriteria.organizationId, organizationId),
+        eq(projectScoringCriteria.isActive, true)
       ))
-      .orderBy(asc(portfolioScoringCriteria.displayOrder), asc(portfolioScoringCriteria.name));
+      .orderBy(asc(projectScoringCriteria.displayOrder), asc(projectScoringCriteria.name));
   }
 
-  async getPortfolioScoringCriterion(id: number): Promise<PortfolioScoringCriteria | undefined> {
-    const [criteria] = await db.select().from(portfolioScoringCriteria)
-      .where(eq(portfolioScoringCriteria.id, id));
+  async getProjectScoringCriterion(id: number): Promise<ProjectScoringCriteria | undefined> {
+    const [criteria] = await db.select().from(projectScoringCriteria)
+      .where(eq(projectScoringCriteria.id, id));
     return criteria;
   }
 
-  async createPortfolioScoringCriteria(criteria: InsertPortfolioScoringCriteria): Promise<PortfolioScoringCriteria> {
-    const [created] = await db.insert(portfolioScoringCriteria).values(criteria).returning();
+  async createProjectScoringCriteria(criteria: InsertProjectScoringCriteria): Promise<ProjectScoringCriteria> {
+    const [created] = await db.insert(projectScoringCriteria).values(criteria).returning();
     return created;
   }
 
-  async updatePortfolioScoringCriteria(id: number, updates: Partial<InsertPortfolioScoringCriteria>): Promise<PortfolioScoringCriteria> {
-    const [updated] = await db.update(portfolioScoringCriteria)
+  async updateProjectScoringCriteria(id: number, updates: Partial<InsertProjectScoringCriteria>): Promise<ProjectScoringCriteria> {
+    const [updated] = await db.update(projectScoringCriteria)
       .set(updates)
-      .where(eq(portfolioScoringCriteria.id, id))
+      .where(eq(projectScoringCriteria.id, id))
       .returning();
     return updated;
   }
 
-  async deletePortfolioScoringCriteria(id: number): Promise<void> {
-    await db.update(portfolioScoringCriteria)
+  async deleteProjectScoringCriteria(id: number): Promise<void> {
+    await db.update(projectScoringCriteria)
       .set({ isActive: false })
-      .where(eq(portfolioScoringCriteria.id, id));
+      .where(eq(projectScoringCriteria.id, id));
   }
 
-  // Portfolio Scores
-  async getPortfolioScores(portfolioId: number): Promise<PortfolioScore[]> {
-    return await db.select().from(portfolioScores)
-      .where(eq(portfolioScores.portfolioId, portfolioId))
-      .orderBy(desc(portfolioScores.scoredAt));
+  // Project Scores
+  async getProjectScores(projectId: number): Promise<ProjectScore[]> {
+    return await db.select().from(projectScores)
+      .where(eq(projectScores.projectId, projectId))
+      .orderBy(desc(projectScores.scoredAt));
   }
 
-  async getPortfolioScore(id: number): Promise<PortfolioScore | undefined> {
-    const [score] = await db.select().from(portfolioScores)
-      .where(eq(portfolioScores.id, id));
+  async getProjectScore(id: number): Promise<ProjectScore | undefined> {
+    const [score] = await db.select().from(projectScores)
+      .where(eq(projectScores.id, id));
     return score;
   }
 
-  async createPortfolioScore(score: InsertPortfolioScore): Promise<PortfolioScore> {
-    const [created] = await db.insert(portfolioScores).values(score).returning();
+  async createProjectScore(score: InsertProjectScore): Promise<ProjectScore> {
+    const [created] = await db.insert(projectScores).values(score).returning();
     return created;
   }
 
-  async updatePortfolioScore(id: number, updates: Partial<InsertPortfolioScore>): Promise<PortfolioScore> {
-    const [updated] = await db.update(portfolioScores)
+  async updateProjectScore(id: number, updates: Partial<InsertProjectScore>): Promise<ProjectScore> {
+    const [updated] = await db.update(projectScores)
       .set(updates)
-      .where(eq(portfolioScores.id, id))
+      .where(eq(projectScores.id, id))
       .returning();
     return updated;
   }
 
-  async deletePortfolioScore(id: number): Promise<void> {
-    await db.delete(portfolioScores).where(eq(portfolioScores.id, id));
+  async deleteProjectScore(id: number): Promise<void> {
+    await db.delete(projectScores).where(eq(projectScores.id, id));
   }
 
-  async upsertPortfolioScore(portfolioId: number, criteriaId: number, score: number, justification: string | null, scoredBy: string | null): Promise<PortfolioScore> {
-    const existing = await db.select().from(portfolioScores)
+  async upsertProjectScore(projectId: number, criteriaId: number, score: number, justification: string | null, scoredBy: string | null): Promise<ProjectScore> {
+    const existing = await db.select().from(projectScores)
       .where(and(
-        eq(portfolioScores.portfolioId, portfolioId),
-        eq(portfolioScores.criteriaId, criteriaId)
+        eq(projectScores.projectId, projectId),
+        eq(projectScores.criteriaId, criteriaId)
       ));
     
     if (existing.length > 0) {
-      const [updated] = await db.update(portfolioScores)
+      const [updated] = await db.update(projectScores)
         .set({ score, justification, scoredBy, scoredAt: new Date() })
-        .where(eq(portfolioScores.id, existing[0].id))
+        .where(eq(projectScores.id, existing[0].id))
         .returning();
       return updated;
     } else {
-      const [created] = await db.insert(portfolioScores).values({
-        portfolioId,
+      const [created] = await db.insert(projectScores).values({
+        projectId,
         criteriaId,
         score,
         justification,
@@ -3409,64 +3409,64 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Portfolio Benefits
-  async getPortfolioBenefits(portfolioId: number): Promise<PortfolioBenefit[]> {
-    return await db.select().from(portfolioBenefits)
-      .where(eq(portfolioBenefits.portfolioId, portfolioId))
-      .orderBy(desc(portfolioBenefits.createdAt));
+  // Project Benefits
+  async getProjectBenefits(projectId: number): Promise<ProjectBenefit[]> {
+    return await db.select().from(projectBenefits)
+      .where(eq(projectBenefits.projectId, projectId))
+      .orderBy(desc(projectBenefits.createdAt));
   }
 
-  async getPortfolioBenefit(id: number): Promise<PortfolioBenefit | undefined> {
-    const [benefit] = await db.select().from(portfolioBenefits)
-      .where(eq(portfolioBenefits.id, id));
+  async getProjectBenefit(id: number): Promise<ProjectBenefit | undefined> {
+    const [benefit] = await db.select().from(projectBenefits)
+      .where(eq(projectBenefits.id, id));
     return benefit;
   }
 
-  async createPortfolioBenefit(benefit: InsertPortfolioBenefit): Promise<PortfolioBenefit> {
-    const [created] = await db.insert(portfolioBenefits).values(benefit).returning();
+  async createProjectBenefit(benefit: InsertProjectBenefit): Promise<ProjectBenefit> {
+    const [created] = await db.insert(projectBenefits).values(benefit).returning();
     return created;
   }
 
-  async updatePortfolioBenefit(id: number, updates: Partial<InsertPortfolioBenefit>): Promise<PortfolioBenefit> {
-    const [updated] = await db.update(portfolioBenefits)
+  async updateProjectBenefit(id: number, updates: Partial<InsertProjectBenefit>): Promise<ProjectBenefit> {
+    const [updated] = await db.update(projectBenefits)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(portfolioBenefits.id, id))
+      .where(eq(projectBenefits.id, id))
       .returning();
     return updated;
   }
 
-  async deletePortfolioBenefit(id: number): Promise<void> {
-    await db.delete(portfolioBenefits).where(eq(portfolioBenefits.id, id));
+  async deleteProjectBenefit(id: number): Promise<void> {
+    await db.delete(projectBenefits).where(eq(projectBenefits.id, id));
   }
 
-  // Portfolio Decisions
-  async getPortfolioDecisions(portfolioId: number): Promise<PortfolioDecision[]> {
-    return await db.select().from(portfolioDecisions)
-      .where(eq(portfolioDecisions.portfolioId, portfolioId))
-      .orderBy(desc(portfolioDecisions.createdAt));
+  // Project Decisions
+  async getProjectDecisions(projectId: number): Promise<ProjectDecision[]> {
+    return await db.select().from(projectDecisions)
+      .where(eq(projectDecisions.projectId, projectId))
+      .orderBy(desc(projectDecisions.createdAt));
   }
 
-  async getPortfolioDecision(id: number): Promise<PortfolioDecision | undefined> {
-    const [decision] = await db.select().from(portfolioDecisions)
-      .where(eq(portfolioDecisions.id, id));
+  async getProjectDecision(id: number): Promise<ProjectDecision | undefined> {
+    const [decision] = await db.select().from(projectDecisions)
+      .where(eq(projectDecisions.id, id));
     return decision;
   }
 
-  async createPortfolioDecision(decision: InsertPortfolioDecision): Promise<PortfolioDecision> {
-    const [created] = await db.insert(portfolioDecisions).values(decision).returning();
+  async createProjectDecision(decision: InsertProjectDecision): Promise<ProjectDecision> {
+    const [created] = await db.insert(projectDecisions).values(decision).returning();
     return created;
   }
 
-  async updatePortfolioDecision(id: number, updates: Partial<InsertPortfolioDecision>): Promise<PortfolioDecision> {
-    const [updated] = await db.update(portfolioDecisions)
+  async updateProjectDecision(id: number, updates: Partial<InsertProjectDecision>): Promise<ProjectDecision> {
+    const [updated] = await db.update(projectDecisions)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(portfolioDecisions.id, id))
+      .where(eq(projectDecisions.id, id))
       .returning();
     return updated;
   }
 
-  async deletePortfolioDecision(id: number): Promise<void> {
-    await db.delete(portfolioDecisions).where(eq(portfolioDecisions.id, id));
+  async deleteProjectDecision(id: number): Promise<void> {
+    await db.delete(projectDecisions).where(eq(projectDecisions.id, id));
   }
 }
 

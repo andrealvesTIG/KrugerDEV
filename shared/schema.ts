@@ -1466,7 +1466,8 @@ export const PROJECT_FIELD_DEFINITIONS = [
 export type ProjectFieldKey = typeof PROJECT_FIELD_DEFINITIONS[number]['key'];
 
 // Portfolio Scoring Criteria - defines scoring dimensions with weights
-export const portfolioScoringCriteria = pgTable("portfolio_scoring_criteria", {
+// Project Scoring Criteria - organization-level criteria for scoring projects
+export const projectScoringCriteria = pgTable("project_scoring_criteria", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   name: text("name").notNull(),
@@ -1482,37 +1483,37 @@ export const portfolioScoringCriteria = pgTable("portfolio_scoring_criteria", {
   createdBy: varchar("created_by").references(() => users.id),
 });
 
-export const insertPortfolioScoringCriteriaSchema = createInsertSchema(portfolioScoringCriteria).omit({
+export const insertProjectScoringCriteriaSchema = createInsertSchema(projectScoringCriteria).omit({
   id: true,
   createdAt: true,
 });
 
-export type InsertPortfolioScoringCriteria = z.infer<typeof insertPortfolioScoringCriteriaSchema>;
-export type PortfolioScoringCriteria = typeof portfolioScoringCriteria.$inferSelect;
+export type InsertProjectScoringCriteria = z.infer<typeof insertProjectScoringCriteriaSchema>;
+export type ProjectScoringCriteria = typeof projectScoringCriteria.$inferSelect;
 
-// Portfolio Scores - actual scores for portfolios on each criterion
-export const portfolioScores = pgTable("portfolio_scores", {
+// Project Scores - actual scores for projects on each criterion
+export const projectScores = pgTable("project_scores", {
   id: serial("id").primaryKey(),
-  portfolioId: integer("portfolio_id").references(() => portfolios.id).notNull(),
-  criteriaId: integer("criteria_id").references(() => portfolioScoringCriteria.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  criteriaId: integer("criteria_id").references(() => projectScoringCriteria.id).notNull(),
   score: integer("score").notNull(),
   justification: text("justification"),
   scoredAt: timestamp("scored_at").defaultNow(),
   scoredBy: varchar("scored_by").references(() => users.id),
 });
 
-export const insertPortfolioScoreSchema = createInsertSchema(portfolioScores).omit({
+export const insertProjectScoreSchema = createInsertSchema(projectScores).omit({
   id: true,
   scoredAt: true,
 });
 
-export type InsertPortfolioScore = z.infer<typeof insertPortfolioScoreSchema>;
-export type PortfolioScore = typeof portfolioScores.$inferSelect;
+export type InsertProjectScore = z.infer<typeof insertProjectScoreSchema>;
+export type ProjectScore = typeof projectScores.$inferSelect;
 
-// Portfolio Benefits - track expected and realized benefits
-export const portfolioBenefits = pgTable("portfolio_benefits", {
+// Project Benefits - track expected and realized benefits
+export const projectBenefits = pgTable("project_benefits", {
   id: serial("id").primaryKey(),
-  portfolioId: integer("portfolio_id").references(() => portfolios.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
   name: text("name").notNull(),
   description: text("description"),
   category: text("category"), // Financial, Operational, Strategic, Customer, etc.
@@ -1521,7 +1522,7 @@ export const portfolioBenefits = pgTable("portfolio_benefits", {
   unit: text("unit"), // Currency, Percentage, Number, etc.
   targetValue: numeric("target_value"), // Expected/target value
   actualValue: numeric("actual_value"), // Realized/actual value
-  baselineValue: numeric("baseline_value"), // Value before portfolio
+  baselineValue: numeric("baseline_value"), // Value before project
   targetDate: date("target_date"), // When benefit should be realized
   actualRealizationDate: date("actual_realization_date"), // When benefit was realized
   status: text("status").default("Planned"), // Planned, In Progress, Partially Realized, Fully Realized, Not Achieved
@@ -1532,19 +1533,19 @@ export const portfolioBenefits = pgTable("portfolio_benefits", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertPortfolioBenefitSchema = createInsertSchema(portfolioBenefits).omit({
+export const insertProjectBenefitSchema = createInsertSchema(projectBenefits).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export type InsertPortfolioBenefit = z.infer<typeof insertPortfolioBenefitSchema>;
-export type PortfolioBenefit = typeof portfolioBenefits.$inferSelect;
+export type InsertProjectBenefit = z.infer<typeof insertProjectBenefitSchema>;
+export type ProjectBenefit = typeof projectBenefits.$inferSelect;
 
-// Portfolio Decisions - log key decisions made for portfolios
-export const portfolioDecisions = pgTable("portfolio_decisions", {
+// Project Decisions - log key decisions made for projects
+export const projectDecisions = pgTable("project_decisions", {
   id: serial("id").primaryKey(),
-  portfolioId: integer("portfolio_id").references(() => portfolios.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
   title: text("title").notNull(),
   description: text("description"),
   decisionType: text("decision_type"), // Strategic, Financial, Resource, Risk, Scope, etc.
@@ -1560,17 +1561,16 @@ export const portfolioDecisions = pgTable("portfolio_decisions", {
   outcome: text("outcome"), // Actual outcome after implementation
   decisionMaker: varchar("decision_maker").references(() => users.id),
   priority: text("priority").default("Medium"), // Low, Medium, High, Critical
-  relatedProjectId: integer("related_project_id").references(() => projects.id), // Optional link to specific project
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: varchar("created_by").references(() => users.id),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertPortfolioDecisionSchema = createInsertSchema(portfolioDecisions).omit({
+export const insertProjectDecisionSchema = createInsertSchema(projectDecisions).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export type InsertPortfolioDecision = z.infer<typeof insertPortfolioDecisionSchema>;
-export type PortfolioDecision = typeof portfolioDecisions.$inferSelect;
+export type InsertProjectDecision = z.infer<typeof insertProjectDecisionSchema>;
+export type ProjectDecision = typeof projectDecisions.$inferSelect;
