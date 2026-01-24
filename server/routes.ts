@@ -14083,5 +14083,244 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ============================================
+  // PORTFOLIO SCORING CRITERIA ROUTES
+  // ============================================
+
+  app.get('/api/organizations/:organizationId/scoring-criteria', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const organizationId = parseInt(req.params.organizationId);
+      const criteria = await storage.getPortfolioScoringCriteria(organizationId);
+      res.json(criteria);
+    } catch (error) {
+      console.error('Error fetching scoring criteria:', error);
+      res.status(500).json({ message: 'Failed to fetch scoring criteria' });
+    }
+  });
+
+  app.post('/api/organizations/:organizationId/scoring-criteria', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const organizationId = parseInt(req.params.organizationId);
+      const criteria = await storage.createPortfolioScoringCriteria({
+        ...req.body,
+        organizationId,
+        createdBy: userId
+      });
+      res.status(201).json(criteria);
+    } catch (error) {
+      console.error('Error creating scoring criteria:', error);
+      res.status(500).json({ message: 'Failed to create scoring criteria' });
+    }
+  });
+
+  app.put('/api/scoring-criteria/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const id = parseInt(req.params.id);
+      const criteria = await storage.updatePortfolioScoringCriteria(id, req.body);
+      res.json(criteria);
+    } catch (error) {
+      console.error('Error updating scoring criteria:', error);
+      res.status(500).json({ message: 'Failed to update scoring criteria' });
+    }
+  });
+
+  app.delete('/api/scoring-criteria/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePortfolioScoringCriteria(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting scoring criteria:', error);
+      res.status(500).json({ message: 'Failed to delete scoring criteria' });
+    }
+  });
+
+  // ============================================
+  // PORTFOLIO SCORES ROUTES
+  // ============================================
+
+  app.get('/api/portfolios/:portfolioId/scores', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const portfolioId = parseInt(req.params.portfolioId);
+      const scores = await storage.getPortfolioScores(portfolioId);
+      res.json(scores);
+    } catch (error) {
+      console.error('Error fetching portfolio scores:', error);
+      res.status(500).json({ message: 'Failed to fetch portfolio scores' });
+    }
+  });
+
+  app.post('/api/portfolios/:portfolioId/scores', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const portfolioId = parseInt(req.params.portfolioId);
+      const { criteriaId, score, justification } = req.body;
+      const result = await storage.upsertPortfolioScore(portfolioId, criteriaId, score, justification, userId);
+      res.status(201).json(result);
+    } catch (error) {
+      console.error('Error saving portfolio score:', error);
+      res.status(500).json({ message: 'Failed to save portfolio score' });
+    }
+  });
+
+  app.delete('/api/portfolio-scores/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePortfolioScore(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting portfolio score:', error);
+      res.status(500).json({ message: 'Failed to delete portfolio score' });
+    }
+  });
+
+  // ============================================
+  // PORTFOLIO BENEFITS ROUTES
+  // ============================================
+
+  app.get('/api/portfolios/:portfolioId/benefits', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const portfolioId = parseInt(req.params.portfolioId);
+      const benefits = await storage.getPortfolioBenefits(portfolioId);
+      res.json(benefits);
+    } catch (error) {
+      console.error('Error fetching portfolio benefits:', error);
+      res.status(500).json({ message: 'Failed to fetch portfolio benefits' });
+    }
+  });
+
+  app.post('/api/portfolios/:portfolioId/benefits', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const portfolioId = parseInt(req.params.portfolioId);
+      const benefit = await storage.createPortfolioBenefit({
+        ...req.body,
+        portfolioId,
+        createdBy: userId
+      });
+      res.status(201).json(benefit);
+    } catch (error) {
+      console.error('Error creating portfolio benefit:', error);
+      res.status(500).json({ message: 'Failed to create portfolio benefit' });
+    }
+  });
+
+  app.put('/api/portfolio-benefits/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const id = parseInt(req.params.id);
+      const benefit = await storage.updatePortfolioBenefit(id, req.body);
+      res.json(benefit);
+    } catch (error) {
+      console.error('Error updating portfolio benefit:', error);
+      res.status(500).json({ message: 'Failed to update portfolio benefit' });
+    }
+  });
+
+  app.delete('/api/portfolio-benefits/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePortfolioBenefit(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting portfolio benefit:', error);
+      res.status(500).json({ message: 'Failed to delete portfolio benefit' });
+    }
+  });
+
+  // ============================================
+  // PORTFOLIO DECISIONS ROUTES
+  // ============================================
+
+  app.get('/api/portfolios/:portfolioId/decisions', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const portfolioId = parseInt(req.params.portfolioId);
+      const decisions = await storage.getPortfolioDecisions(portfolioId);
+      res.json(decisions);
+    } catch (error) {
+      console.error('Error fetching portfolio decisions:', error);
+      res.status(500).json({ message: 'Failed to fetch portfolio decisions' });
+    }
+  });
+
+  app.post('/api/portfolios/:portfolioId/decisions', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const portfolioId = parseInt(req.params.portfolioId);
+      const decision = await storage.createPortfolioDecision({
+        ...req.body,
+        portfolioId,
+        createdBy: userId
+      });
+      res.status(201).json(decision);
+    } catch (error) {
+      console.error('Error creating portfolio decision:', error);
+      res.status(500).json({ message: 'Failed to create portfolio decision' });
+    }
+  });
+
+  app.put('/api/portfolio-decisions/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const id = parseInt(req.params.id);
+      const decision = await storage.updatePortfolioDecision(id, req.body);
+      res.json(decision);
+    } catch (error) {
+      console.error('Error updating portfolio decision:', error);
+      res.status(500).json({ message: 'Failed to update portfolio decision' });
+    }
+  });
+
+  app.delete('/api/portfolio-decisions/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePortfolioDecision(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting portfolio decision:', error);
+      res.status(500).json({ message: 'Failed to delete portfolio decision' });
+    }
+  });
+
   return httpServer;
 }
