@@ -1610,3 +1610,83 @@ export const insertLessonLearnedSchema = createInsertSchema(lessonsLearned).omit
 
 export type InsertLessonLearned = z.infer<typeof insertLessonLearnedSchema>;
 export type LessonLearned = typeof lessonsLearned.$inferSelect;
+
+// === APPLICATION MONITORING ===
+
+// API Request Logs - track all API requests for monitoring
+export const apiRequestLogs = pgTable("api_request_logs", {
+  id: serial("id").primaryKey(),
+  method: text("method").notNull(), // GET, POST, PUT, DELETE, etc.
+  path: text("path").notNull(), // API endpoint path
+  statusCode: integer("status_code"), // HTTP response status
+  duration: integer("duration"), // Response time in milliseconds
+  userId: varchar("user_id").references(() => users.id), // Who made the request
+  organizationId: integer("organization_id").references(() => organizations.id),
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  errorMessage: text("error_message"), // Error details if request failed
+  requestBody: jsonb("request_body"), // Sanitized request body for debugging
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ApiRequestLog = typeof apiRequestLogs.$inferSelect;
+
+// Application Metrics - aggregated metrics for dashboards
+export const applicationMetrics = pgTable("application_metrics", {
+  id: serial("id").primaryKey(),
+  metricType: text("metric_type").notNull(), // daily_active_users, api_requests, error_rate, etc.
+  metricValue: numeric("metric_value").notNull(),
+  metricDate: date("metric_date").notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id), // null for system-wide
+  metadata: jsonb("metadata"), // Additional context
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ApplicationMetric = typeof applicationMetrics.$inferSelect;
+
+// User Activity Logs - track important user actions
+export const userActivityLogs = pgTable("user_activity_logs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  activityType: text("activity_type").notNull(), // login, logout, create_project, update_task, etc.
+  entityType: text("entity_type"), // project, task, portfolio, etc.
+  entityId: integer("entity_id"),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  details: jsonb("details"), // Additional activity details
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type UserActivityLog = typeof userActivityLogs.$inferSelect;
+
+// Feature Usage - track which features are being used
+export const featureUsageLogs = pgTable("feature_usage_logs", {
+  id: serial("id").primaryKey(),
+  featureName: text("feature_name").notNull(), // projects, tasks, risks, timesheets, etc.
+  actionType: text("action_type").notNull(), // view, create, update, delete
+  userId: varchar("user_id").references(() => users.id),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  count: integer("count").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type FeatureUsageLog = typeof featureUsageLogs.$inferSelect;
+
+// Error Logs - detailed error tracking
+export const errorLogs = pgTable("error_logs", {
+  id: serial("id").primaryKey(),
+  errorType: text("error_type").notNull(), // api_error, database_error, validation_error, etc.
+  errorMessage: text("error_message").notNull(),
+  stackTrace: text("stack_trace"),
+  path: text("path"), // Where the error occurred
+  userId: varchar("user_id").references(() => users.id),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  requestData: jsonb("request_data"), // Context about the request
+  resolved: boolean("resolved").default(false),
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ErrorLog = typeof errorLogs.$inferSelect;
