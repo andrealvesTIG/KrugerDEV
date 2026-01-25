@@ -48,7 +48,13 @@ import {
   Plug,
   CreditCard,
   DollarSign,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Star,
+  Gift,
+  Scale,
+  Lightbulb,
+  Sliders,
+  LayoutTemplate
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -63,6 +69,10 @@ const sections = [
   { id: "portfolios", name: "Portfolios", icon: Briefcase },
   { id: "projects", name: "Projects", icon: FolderKanban },
   { id: "intakes", name: "Project Intakes", icon: Inbox },
+  { id: "scoring", name: "Project Scoring", icon: Star },
+  { id: "benefits", name: "Benefits Tracking", icon: Gift },
+  { id: "decisions", name: "Decision Log", icon: Scale },
+  { id: "lessons", name: "Lessons Learned", icon: Lightbulb },
   { id: "tasks", name: "Tasks", icon: CheckSquare },
   { id: "issues", name: "Issues", icon: CircleDot },
   { id: "timesheets", name: "Timesheets", icon: Clock },
@@ -70,6 +80,8 @@ const sections = [
   { id: "calendar", name: "Calendar", icon: Calendar },
   { id: "integrations", name: "Integrations", icon: Plug },
   { id: "custom-links", name: "Custom Links", icon: Link2 },
+  { id: "custom-fields", name: "Custom Fields", icon: Sliders },
+  { id: "custom-tabs", name: "Custom Tabs", icon: LayoutTemplate },
   { id: "billing", name: "Billing & Credits", icon: CreditCard },
   { id: "organizations", name: "Organizations", icon: Building2 },
   { id: "users", name: "User Management", icon: Users },
@@ -444,7 +456,128 @@ const UserGuidePDF = () => (
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>5. Tasks</Text>
+        <Text style={pdfStyles.sectionTitle}>5. Project Intakes</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Project request pipeline and approval workflow</Text>
+        <Text style={pdfStyles.paragraph}>
+          The Project Intakes feature provides a structured pipeline for new project requests.
+          Submit, review, and approve project proposals before they become active projects.
+        </Text>
+        <Text style={pdfStyles.heading}>Intake Workflow:</Text>
+        <Text style={pdfStyles.listItem}>Submitted → Under Review → Approved → Project Created</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>6. Project Scoring</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Evaluate projects with weighted scoring criteria</Text>
+        <Text style={pdfStyles.paragraph}>
+          The Project Scoring feature allows you to evaluate projects using customizable weighted criteria.
+          Create scoring criteria, assign scores, and calculate weighted totals for objective project assessment.
+        </Text>
+        <Text style={pdfStyles.heading}>How to Use:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Navigate to project details, select 'More' dropdown, then 'Scoring'</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Add criteria with name, category, weight, and description</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Score each criterion using the slider (0-10) with justification</Text>
+        </View>
+        <Text style={pdfStyles.heading}>Categories:</Text>
+        <Text style={pdfStyles.listItem}>Strategic, Financial, Risk, Resource, Technical</Text>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>7</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>7. Benefits Tracking</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Track and measure project benefits realization</Text>
+        <Text style={pdfStyles.paragraph}>
+          Benefits Tracking helps you define, measure, and track expected project benefits.
+          Monitor target vs actual values and track benefit realization progress.
+        </Text>
+        <Text style={pdfStyles.heading}>How to Use:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Navigate to project details, select 'More' dropdown, then 'Benefits'</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Click 'Add Benefit' and specify name, category, and target value</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Set target date and update actual values as benefits are realized</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Track progress via status: Planned → Partially Realized → Fully Realized</Text>
+        </View>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>8. Decision Log</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Document and track project decisions</Text>
+        <Text style={pdfStyles.paragraph}>
+          The Decision Log captures important project decisions, their rationale, and expected impact.
+          Maintain a clear audit trail of key decisions made throughout the project lifecycle.
+        </Text>
+        <Text style={pdfStyles.heading}>How to Use:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Navigate to project details, select 'More' dropdown, then 'Decisions'</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Click 'Add Decision' and specify title, type, and decision maker</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Document rationale, impact, and set priority level</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Update status as decision moves from Pending → Approved → Implemented</Text>
+        </View>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>8</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>9. Lessons Learned</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Capture knowledge from project experiences</Text>
+        <Text style={pdfStyles.paragraph}>
+          Lessons Learned allows you to capture both positive outcomes and areas for improvement.
+          Build organizational knowledge to improve future project execution.
+        </Text>
+        <Text style={pdfStyles.heading}>Key Features:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Types: Positive (what went well), Negative (what to improve)</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Categories: Process, Technical, Communication, Resource, Risk, etc.</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Document root cause and actionable recommendations</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Organization-wide view from dedicated Lessons Learned page</Text>
+        </View>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>10. Tasks</Text>
         <Text style={pdfStyles.sectionSubtitle}>Work items and to-do tracking</Text>
         <Text style={pdfStyles.paragraph}>
           Tasks represent individual work items that need to be completed. They can be associated 
@@ -478,7 +611,7 @@ const UserGuidePDF = () => (
       </View>
 
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>6. Issues</Text>
+        <Text style={pdfStyles.sectionTitle}>11. Issues</Text>
         <Text style={pdfStyles.sectionSubtitle}>Bug tracking and problem resolution</Text>
         <Text style={pdfStyles.paragraph}>
           Issues help you track bugs, problems, and enhancement requests across your projects. 
@@ -495,7 +628,7 @@ const UserGuidePDF = () => (
       </View>
 
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>7. Timesheets</Text>
+        <Text style={pdfStyles.sectionTitle}>12. Timesheets</Text>
         <Text style={pdfStyles.sectionSubtitle}>Time tracking and project hours management</Text>
         <Text style={pdfStyles.paragraph}>
           The Timesheets module allows team members to log time spent on projects and tasks. 
@@ -520,12 +653,12 @@ const UserGuidePDF = () => (
         </View>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>7</Text>
+      <Text style={pdfStyles.pageNumber}>9</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>8. Resources</Text>
+        <Text style={pdfStyles.sectionTitle}>13. Resources</Text>
         <Text style={pdfStyles.sectionSubtitle}>Team member and resource management</Text>
         <Text style={pdfStyles.paragraph}>
           The Resources page helps you manage team members and resources across your organization. 
@@ -560,7 +693,7 @@ const UserGuidePDF = () => (
       </View>
 
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>9. Calendar</Text>
+        <Text style={pdfStyles.sectionTitle}>14. Calendar</Text>
         <Text style={pdfStyles.sectionSubtitle}>Timeline and milestone visualization</Text>
         <Text style={pdfStyles.paragraph}>
           The Calendar view provides a visual timeline of your projects, milestones, and key dates. 
@@ -589,12 +722,93 @@ const UserGuidePDF = () => (
         </View>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>8</Text>
+      <Text style={pdfStyles.pageNumber}>10</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>10. Billing & Credits</Text>
+        <Text style={pdfStyles.sectionTitle}>15. Integrations</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Connect with external services</Text>
+        <Text style={pdfStyles.paragraph}>
+          Integrate FridayReport.AI with external services like Microsoft Planner, Planner Premium,
+          and other project management tools to sync your data seamlessly.
+        </Text>
+        <Text style={pdfStyles.heading}>Available Integrations:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Microsoft Planner: Import plans and tasks</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Planner Premium: Advanced project import with schedules</Text>
+        </View>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>16. Custom Links</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Add external resources to projects</Text>
+        <Text style={pdfStyles.paragraph}>
+          Add custom links to external resources, documentation, or tools directly from 
+          project details. Keep all relevant resources accessible in one place.
+        </Text>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>11</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>17. Custom Fields</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Define organization-level custom data fields</Text>
+        <Text style={pdfStyles.paragraph}>
+          Custom Fields allow organizations to define additional data fields for projects.
+          Create text, number, date, or dropdown fields to capture organization-specific information.
+        </Text>
+        <Text style={pdfStyles.heading}>How to Create Custom Fields:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Navigate to Organization Settings, then 'Custom Fields' tab</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Click 'Add Field' and specify name, type, and entity</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Set validation rules and default values as needed</Text>
+        </View>
+        <Text style={pdfStyles.heading}>Field Types:</Text>
+        <Text style={pdfStyles.listItem}>Text, Number, Date, Dropdown, Boolean</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>18. Custom Tabs</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Design custom tab layouts for project details</Text>
+        <Text style={pdfStyles.paragraph}>
+          Custom Tabs allow you to create additional tabs in project details pages 
+          to display custom content and organize information your way.
+        </Text>
+        <Text style={pdfStyles.heading}>How to Create Custom Tabs:</Text>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Navigate to Organization Settings, then 'Custom Tabs' tab</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Click 'Add Tab' and specify a name and icon</Text>
+        </View>
+        <View style={pdfStyles.listRow}>
+          <View style={pdfStyles.bulletPoint} />
+          <Text style={pdfStyles.listItem}>Configure tab content using the visual designer</Text>
+        </View>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>12</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>19. Billing & Credits</Text>
         <Text style={pdfStyles.sectionSubtitle}>Subscription plans and usage tracking</Text>
         <Text style={pdfStyles.paragraph}>
           FridayReport.AI uses a credit-based billing system. Credits are consumed when creating projects, 
@@ -632,12 +846,12 @@ const UserGuidePDF = () => (
         </View>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>9</Text>
+      <Text style={pdfStyles.pageNumber}>13</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>11. Organizations</Text>
+        <Text style={pdfStyles.sectionTitle}>20. Organizations</Text>
         <Text style={pdfStyles.sectionSubtitle}>Multi-organization support and switching</Text>
         <Text style={pdfStyles.paragraph}>
           FridayReport.AI supports multiple organizations. Each organization has its own set of portfolios, 
@@ -655,7 +869,7 @@ const UserGuidePDF = () => (
       </View>
 
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>12. User Management</Text>
+        <Text style={pdfStyles.sectionTitle}>21. User Management</Text>
         <Text style={pdfStyles.sectionSubtitle}>Profile and user settings</Text>
         <Text style={pdfStyles.paragraph}>
           Manage your user profile and account settings through the user menu in the sidebar. 
@@ -680,12 +894,12 @@ const UserGuidePDF = () => (
         </View>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>10</Text>
+      <Text style={pdfStyles.pageNumber}>14</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>13. Settings</Text>
+        <Text style={pdfStyles.sectionTitle}>22. Settings</Text>
         <Text style={pdfStyles.sectionSubtitle}>Application and organization configuration</Text>
         <Text style={pdfStyles.paragraph}>
           Configure application settings, organization preferences, and user-specific options 
@@ -706,12 +920,12 @@ const UserGuidePDF = () => (
         </View>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>11</Text>
+      <Text style={pdfStyles.pageNumber}>15</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.page}>
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>14. Themes</Text>
+        <Text style={pdfStyles.sectionTitle}>23. Themes</Text>
         <Text style={pdfStyles.sectionSubtitle}>Customize your visual experience</Text>
         <Text style={pdfStyles.paragraph}>
           FridayReport.AI supports multiple themes to customize your visual experience. 
@@ -740,7 +954,7 @@ const UserGuidePDF = () => (
         </Text>
       </View>
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
-      <Text style={pdfStyles.pageNumber}>12</Text>
+      <Text style={pdfStyles.pageNumber}>16</Text>
     </Page>
   </Document>
 );
@@ -1186,6 +1400,292 @@ export default function UserGuide() {
               </Card>
             </section>
 
+            <section id="scoring" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                      <Star className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Project Scoring</CardTitle>
+                      <CardDescription>Evaluate projects with weighted scoring criteria</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Project Scoring feature allows you to evaluate projects using customizable weighted criteria. 
+                    Create scoring criteria, assign scores, and calculate weighted totals for objective project assessment.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">How to Use Scoring:</h4>
+                  <div className="space-y-3">
+                    <ActionItem 
+                      icon={Plus}
+                      title="Add Scoring Criterion"
+                      description="Navigate to project details, select the 'More' dropdown, then choose 'Scoring'. Click 'Add Criterion' to create a new scoring category"
+                    />
+                    <ActionItem 
+                      icon={Sliders}
+                      title="Configure Criteria"
+                      description="Set name, description, category (Strategic, Financial, Risk, Resource, Technical), and weight for each criterion"
+                    />
+                    <ActionItem 
+                      icon={BarChart3}
+                      title="Score Projects"
+                      description="Use the slider to set scores (0-10) for each criterion and add justification notes"
+                    />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Scoring Categories:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Strategic</Badge>
+                    <Badge variant="secondary">Financial</Badge>
+                    <Badge variant="secondary">Risk</Badge>
+                    <Badge variant="secondary">Resource</Badge>
+                    <Badge variant="secondary">Technical</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Weighted Total Score:</h4>
+                  <p className="text-muted-foreground">
+                    The system automatically calculates a weighted total score based on all criteria scores 
+                    multiplied by their respective weights. This provides an objective overall project score 
+                    for comparison and prioritization.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="benefits" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                      <Gift className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Benefits Tracking</CardTitle>
+                      <CardDescription>Track and measure project benefits realization</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Benefits Tracking helps you define, measure, and track the expected benefits from your projects. 
+                    Monitor target vs actual values and track benefit realization progress.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">How to Track Benefits:</h4>
+                  <div className="space-y-3">
+                    <ActionItem 
+                      icon={Plus}
+                      title="Add Benefit"
+                      description="From project details, access 'Benefits' from the 'More' dropdown. Click 'Add Benefit' to define a new project benefit"
+                    />
+                    <ActionItem 
+                      icon={Target}
+                      title="Set Targets"
+                      description="Define target values and target dates for benefit realization"
+                    />
+                    <ActionItem 
+                      icon={TrendingUp}
+                      title="Track Progress"
+                      description="Update actual values to see realization percentage with visual progress indicators"
+                    />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Benefit Categories:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Financial</Badge>
+                    <Badge variant="secondary">Operational</Badge>
+                    <Badge variant="secondary">Strategic</Badge>
+                    <Badge variant="secondary">Customer</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Benefit Types & Units:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline">Tangible</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Measurable benefits with quantifiable values</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline">Intangible</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Qualitative benefits that are harder to measure</p>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Realization Status:</h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline">Planned</Badge>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <Badge variant="outline">In Progress</Badge>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <Badge variant="outline">Partially Realized</Badge>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <Badge variant="outline">Fully Realized</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="decisions" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                      <Scale className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Decision Log</CardTitle>
+                      <CardDescription>Document and track project decisions</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Decision Log captures important project decisions, their rationale, and expected impact. 
+                    Maintain a clear audit trail of key decisions made throughout the project lifecycle.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">How to Log Decisions:</h4>
+                  <div className="space-y-3">
+                    <ActionItem 
+                      icon={Plus}
+                      title="Log Decision"
+                      description="From project details, access 'Decisions' from the 'More' dropdown. Click 'Log Decision' to record a new decision"
+                    />
+                    <ActionItem 
+                      icon={FileText}
+                      title="Document Rationale"
+                      description="Explain why the decision was made and document the reasoning"
+                    />
+                    <ActionItem 
+                      icon={AlertTriangle}
+                      title="Define Impact"
+                      description="Describe the expected impact of the decision on the project"
+                    />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Decision Types:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Strategic</Badge>
+                    <Badge variant="secondary">Financial</Badge>
+                    <Badge variant="secondary">Resource</Badge>
+                    <Badge variant="secondary">Risk</Badge>
+                    <Badge variant="secondary">Scope</Badge>
+                    <Badge variant="secondary">Technical</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Decision Status:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">Pending</Badge>
+                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Approved</Badge>
+                    <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Rejected</Badge>
+                    <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Deferred</Badge>
+                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Implemented</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Priority Levels:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="border-red-500 text-red-600">Critical</Badge>
+                    <Badge variant="outline" className="border-orange-500 text-orange-600">High</Badge>
+                    <Badge variant="outline" className="border-yellow-500 text-yellow-600">Medium</Badge>
+                    <Badge variant="outline" className="border-slate-400 text-slate-600">Low</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="lessons" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                      <Lightbulb className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Lessons Learned</CardTitle>
+                      <CardDescription>Capture knowledge from project experiences</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Lessons Learned allows you to capture both positive outcomes and areas for improvement from your projects. 
+                    Build organizational knowledge to improve future project execution.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">How to Use Lessons Learned:</h4>
+                  <div className="space-y-3">
+                    <ActionItem 
+                      icon={Plus}
+                      title="Add Lesson"
+                      description="From project details, access 'Lessons Learned' from the 'More' dropdown or from the dedicated Lessons Learned page in the sidebar"
+                    />
+                    <ActionItem 
+                      icon={FileText}
+                      title="Document Root Cause"
+                      description="Explain what caused the positive outcome or issue"
+                    />
+                    <ActionItem 
+                      icon={Target}
+                      title="Add Recommendations"
+                      description="Provide actionable recommendations for future projects"
+                    />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Lesson Categories:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">Process</Badge>
+                    <Badge variant="secondary">Technical</Badge>
+                    <Badge variant="secondary">Communication</Badge>
+                    <Badge variant="secondary">Resource</Badge>
+                    <Badge variant="secondary">Risk Management</Badge>
+                    <Badge variant="secondary">Stakeholder</Badge>
+                    <Badge variant="secondary">Vendor</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Lesson Types:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className="bg-green-100 text-green-700">Positive</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">What went well - practices to continue</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className="bg-red-100 text-red-700">Negative</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">What to improve - areas for change</p>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Lesson Status:</h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline">Draft</Badge>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <Badge variant="outline">Under Review</Badge>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <Badge variant="outline">Approved</Badge>
+                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <Badge variant="outline">Archived</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Organization-Wide View:</h4>
+                  <p className="text-muted-foreground">
+                    Access the dedicated Lessons Learned page from the sidebar to view lessons across all projects 
+                    in your organization. Use filters to search by project, category, type, or status.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+
             <section id="tasks" className="scroll-mt-8">
               <Card>
                 <CardHeader>
@@ -1615,6 +2115,187 @@ export default function UserGuide() {
                       <span><strong>Remove:</strong> Delete links that are no longer needed</span>
                     </li>
                   </ul>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="custom-fields" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
+                      <Sliders className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Custom Fields</CardTitle>
+                      <CardDescription>Define custom data fields for projects</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Custom Fields allow you to capture additional project information specific to your organization's needs. 
+                    Define custom data fields that appear on project detail pages and can be used in custom tabs.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">How to Create Custom Fields:</h4>
+                  <div className="space-y-3">
+                    <ActionItem 
+                      icon={Settings}
+                      title="Access Organization Settings"
+                      description="Navigate to Organization Settings from the sidebar user menu"
+                    />
+                    <ActionItem 
+                      icon={Plus}
+                      title="Add Custom Field"
+                      description="Go to the 'Custom Fields' tab and click 'Add Field' to create a new field"
+                    />
+                    <ActionItem 
+                      icon={Edit}
+                      title="Configure Field Properties"
+                      description="Set the field name, type, description, and whether it's required"
+                    />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Field Types:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Badge variant="secondary">Text</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Single line text input</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Badge variant="secondary">Textarea</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Multi-line text input</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Badge variant="secondary">Number</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Numeric values</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Badge variant="secondary">Date</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Date picker field</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Badge variant="secondary">Single Select</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Dropdown with custom options</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Badge variant="secondary">Multi Select</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Multiple selection from options</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Badge variant="secondary">Checkbox</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">True/false toggle</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <Badge variant="secondary">URL</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Web link input</p>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Using Custom Fields:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Project Details:</strong> Custom fields appear on project detail pages where values can be entered</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Custom Tabs:</strong> Include custom fields in custom tab layouts for organized data display</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Required Fields:</strong> Mark fields as required to ensure data is always captured</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="custom-tabs" className="scroll-mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+                      <LayoutTemplate className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Custom Tabs</CardTitle>
+                      <CardDescription>Design custom tab layouts for project details</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Custom Tabs allow you to design additional tabs on project detail pages with custom layouts. 
+                    Create sections, add project fields and custom fields, and organize information the way your team needs it.
+                  </p>
+                  
+                  <h4 className="font-semibold text-foreground mt-4">How to Create Custom Tabs:</h4>
+                  <div className="space-y-3">
+                    <ActionItem 
+                      icon={Settings}
+                      title="Access Organization Settings"
+                      description="Navigate to Organization Settings from the sidebar user menu"
+                    />
+                    <ActionItem 
+                      icon={Plus}
+                      title="Create New Tab"
+                      description="Go to the 'Custom Tabs' section and click 'New Tab' to create a custom tab"
+                    />
+                    <ActionItem 
+                      icon={LayoutTemplate}
+                      title="Add Sections"
+                      description="Click 'Add Section' to create layout sections within your tab"
+                    />
+                    <ActionItem 
+                      icon={Sliders}
+                      title="Add Fields"
+                      description="Add project fields or custom fields to each section"
+                    />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Tab Designer Features:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Sections:</strong> Organize fields into logical groups with customizable column layouts (1-4 columns)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Project Fields:</strong> Include standard project fields like name, status, dates, budget, etc.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Custom Fields:</strong> Add any custom fields you've defined for your organization</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Tab Icons:</strong> Choose an icon to represent your tab in the project detail navigation</span>
+                    </li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Available Project Fields:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline">Name</Badge>
+                    <Badge variant="outline">Description</Badge>
+                    <Badge variant="outline">Status</Badge>
+                    <Badge variant="outline">Priority</Badge>
+                    <Badge variant="outline">Health</Badge>
+                    <Badge variant="outline">Progress</Badge>
+                    <Badge variant="outline">Start Date</Badge>
+                    <Badge variant="outline">End Date</Badge>
+                    <Badge variant="outline">Budget</Badge>
+                    <Badge variant="outline">Portfolio</Badge>
+                    <Badge variant="outline">Project Manager</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Accessing Custom Tabs:</h4>
+                  <p className="text-muted-foreground">
+                    Once created, custom tabs appear in the "More" dropdown menu on project detail pages alongside 
+                    other features like Scoring, Benefits, and Decisions. Click on a custom tab to view its designed layout 
+                    with the configured fields and sections.
+                  </p>
                 </CardContent>
               </Card>
             </section>
