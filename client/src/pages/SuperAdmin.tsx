@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
@@ -85,6 +85,10 @@ export default function SuperAdmin() {
             <FileCheck className="h-4 w-4" />
             User Consents
           </TabsTrigger>
+          <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-monitoring">
+            <Activity className="h-4 w-4" />
+            Monitoring
+          </TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="organizations">
@@ -101,6 +105,9 @@ export default function SuperAdmin() {
           </TabsContent>
           <TabsContent value="consents">
             <ConsentsTab />
+          </TabsContent>
+          <TabsContent value="monitoring">
+            <MonitoringTab />
           </TabsContent>
         </div>
       </Tabs>
@@ -2688,6 +2695,858 @@ function ConsentsTab() {
           </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+interface MonitoringOverview {
+  summary: {
+    activeUsers24h: number;
+    requestsToday: number;
+    avgResponseTime: string;
+    errorRate: string;
+    totalUsers: number;
+    totalOrganizations: number;
+    totalProjects: number;
+  };
+  charts: {
+    requestsPerDay: Array<{ date: string; count: number }>;
+    userRegistrations: Array<{ date: string; count: number }>;
+  };
+  topEndpoints: Array<{ path: string; method: string; count: number; avg_duration: number }>;
+  recentErrors: Array<{ path: string; status_code: number; error_message: string | null; count: number }>;
+}
+
+interface UserActivity {
+  hourlyActive: Array<{ hour: string; active_users: number }>;
+  topUsers: Array<{ user_id: string; email: string; first_name: string; last_name: string; request_count: number; last_activity: string }>;
+  dailyLogins: Array<{ date: string; unique_users: number }>;
+}
+
+interface FeatureUsage {
+  featureUsage: Array<{ feature: string; total_requests: number; get_requests: number; post_requests: number; update_requests: number; delete_requests: number }>;
+  trend: Array<{ date: string; feature: string; count: number }>;
+}
+
+interface PerformanceMetrics {
+  percentiles: { p50: number; p90: number; p95: number; p99: number; avg: number; max: number; min: number };
+  slowEndpoints: Array<{ path: string; method: string; avg_duration: number; max_duration: number; request_count: number }>;
+  responseTrend: Array<{ hour: string; avg_duration: number; request_count: number }>;
+  errorTrend: Array<{ hour: string; total_requests: number; error_count: number; error_rate: number }>;
+}
+
+interface DatabaseStats {
+  tableCounts: Array<{ table_name: string; row_count: number }>;
+  databaseSize: string;
+  tableSizes: Array<{ table_name: string; total_size: string }>;
+}
+
+interface OrgUsage {
+  organizations: Array<{ id: number; name: string; slug: string; member_count: number; project_count: number; task_count: number; api_requests_7d: number }>;
+}
+
+type MonitoringSubTab = 'overview' | 'api-logs' | 'users' | 'features' | 'performance' | 'database' | 'organizations';
+
+function MonitoringTab() {
+  const { toast } = useToast();
+  const [subTab, setSubTab] = useState<MonitoringSubTab>('overview');
+  const [apiLogsPage, setApiLogsPage] = useState(1);
+  const [methodFilter, setMethodFilter] = useState<string>('');
+  const [pathFilter, setPathFilter] = useState<string>('');
+
+  const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<MonitoringOverview>({
+    queryKey: ['/api/admin/monitoring/overview'],
+  });
+
+  const { data: userActivity, isLoading: activityLoading, refetch: refetchActivity } = useQuery<UserActivity>({
+    queryKey: ['/api/admin/monitoring/user-activity'],
+    enabled: subTab === 'users',
+  });
+
+  const { data: featureUsage, isLoading: featuresLoading, refetch: refetchFeatures } = useQuery<FeatureUsage>({
+    queryKey: ['/api/admin/monitoring/feature-usage'],
+    enabled: subTab === 'features',
+  });
+
+  const { data: performance, isLoading: perfLoading, refetch: refetchPerf } = useQuery<PerformanceMetrics>({
+    queryKey: ['/api/admin/monitoring/performance'],
+    enabled: subTab === 'performance',
+  });
+
+  const { data: databaseStats, isLoading: dbLoading, refetch: refetchDb } = useQuery<DatabaseStats>({
+    queryKey: ['/api/admin/monitoring/database'],
+    enabled: subTab === 'database',
+  });
+
+  const { data: orgUsage, isLoading: orgLoading, refetch: refetchOrg } = useQuery<OrgUsage>({
+    queryKey: ['/api/admin/monitoring/organization-usage'],
+    enabled: subTab === 'organizations',
+  });
+
+  const handleRefresh = () => {
+    refetchOverview();
+    if (subTab === 'users') refetchActivity();
+    if (subTab === 'features') refetchFeatures();
+    if (subTab === 'performance') refetchPerf();
+    if (subTab === 'database') refetchDb();
+    if (subTab === 'organizations') refetchOrg();
+    toast({ title: "Data refreshed" });
+  };
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+  };
+
+  const formatDuration = (ms: number | null | undefined) => {
+    if (ms === null || ms === undefined) return '-';
+    return `${Math.round(ms)}ms`;
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    try {
+      return format(new Date(dateStr), 'MMM d, h:mm a');
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const renderOverview = () => {
+    if (overviewLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (!overview) {
+      return (
+        <div className="text-center text-muted-foreground py-8">
+          No monitoring data available yet. API requests will be tracked automatically.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+          <Card className="hover-elevate" data-testid="card-active-users">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Users className="h-4 w-4" />
+                Active Users (24h)
+              </div>
+              <div className="text-2xl font-bold mt-1">{formatNumber(overview.summary.activeUsers24h)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate" data-testid="card-requests-today">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Globe className="h-4 w-4" />
+                Requests Today
+              </div>
+              <div className="text-2xl font-bold mt-1">{formatNumber(overview.summary.requestsToday)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate" data-testid="card-avg-response">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Zap className="h-4 w-4" />
+                Avg Response
+              </div>
+              <div className="text-2xl font-bold mt-1">{overview.summary.avgResponseTime}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate" data-testid="card-error-rate">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <AlertTriangle className="h-4 w-4" />
+                Error Rate
+              </div>
+              <div className="text-2xl font-bold mt-1">{overview.summary.errorRate}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate" data-testid="card-total-users">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Users className="h-4 w-4" />
+                Total Users
+              </div>
+              <div className="text-2xl font-bold mt-1">{formatNumber(overview.summary.totalUsers)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate" data-testid="card-total-orgs">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Building2 className="h-4 w-4" />
+                Organizations
+              </div>
+              <div className="text-2xl font-bold mt-1">{formatNumber(overview.summary.totalOrganizations)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate" data-testid="card-total-projects">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <BarChart3 className="h-4 w-4" />
+                Projects
+              </div>
+              <div className="text-2xl font-bold mt-1">{formatNumber(overview.summary.totalProjects)}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <TrendingUp className="h-5 w-5" />
+                Top Endpoints (24h)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Endpoint</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead className="text-right">Requests</TableHead>
+                    <TableHead className="text-right">Avg Time</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {overview.topEndpoints?.slice(0, 8).map((ep, i) => (
+                    <TableRow key={i} data-testid={`row-endpoint-${i}`}>
+                      <TableCell className="font-mono text-xs max-w-[200px] truncate">{ep.path}</TableCell>
+                      <TableCell>
+                        <Badge variant={ep.method === 'GET' ? 'secondary' : ep.method === 'POST' ? 'default' : 'outline'}>
+                          {ep.method}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{formatNumber(Number(ep.count))}</TableCell>
+                      <TableCell className="text-right">{formatDuration(ep.avg_duration)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {(!overview.topEndpoints || overview.topEndpoints.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">No data yet</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Recent Errors (24h)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Endpoint</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Count</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {overview.recentErrors?.slice(0, 8).map((err, i) => (
+                    <TableRow key={i} data-testid={`row-error-${i}`}>
+                      <TableCell className="font-mono text-xs max-w-[200px] truncate">{err.path}</TableCell>
+                      <TableCell>
+                        <Badge variant="destructive">{err.status_code}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{formatNumber(Number(err.count))}</TableCell>
+                    </TableRow>
+                  ))}
+                  {(!overview.recentErrors || overview.recentErrors.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-muted-foreground">No errors</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BarChart3 className="h-5 w-5" />
+                Requests Per Day (Last 7 Days)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {overview.charts.requestsPerDay?.map((day, i) => {
+                  const maxCount = Math.max(...overview.charts.requestsPerDay.map(d => Number(d.count)));
+                  const percentage = maxCount > 0 ? (Number(day.count) / maxCount) * 100 : 0;
+                  return (
+                    <div key={i} className="flex items-center gap-3" data-testid={`bar-requests-${i}`}>
+                      <span className="text-xs text-muted-foreground w-24">{format(new Date(day.date), 'MMM d')}</span>
+                      <div className="flex-1 h-6 bg-muted rounded-sm overflow-hidden">
+                        <div 
+                          className="h-full bg-primary transition-all duration-300" 
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium w-16 text-right">{formatNumber(Number(day.count))}</span>
+                    </div>
+                  );
+                })}
+                {(!overview.charts.requestsPerDay || overview.charts.requestsPerDay.length === 0) && (
+                  <div className="text-center text-muted-foreground py-4">No data yet</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <UserPlus className="h-5 w-5" />
+                User Registrations (Last 30 Days)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {overview.charts.userRegistrations?.slice(0, 7).map((day, i) => {
+                  const maxCount = Math.max(...overview.charts.userRegistrations.map(d => Number(d.count)));
+                  const percentage = maxCount > 0 ? (Number(day.count) / maxCount) * 100 : 0;
+                  return (
+                    <div key={i} className="flex items-center gap-3" data-testid={`bar-registrations-${i}`}>
+                      <span className="text-xs text-muted-foreground w-24">{format(new Date(day.date), 'MMM d')}</span>
+                      <div className="flex-1 h-6 bg-muted rounded-sm overflow-hidden">
+                        <div 
+                          className="h-full bg-green-500 transition-all duration-300" 
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium w-16 text-right">{formatNumber(Number(day.count))}</span>
+                    </div>
+                  );
+                })}
+                {(!overview.charts.userRegistrations || overview.charts.userRegistrations.length === 0) && (
+                  <div className="text-center text-muted-foreground py-4">No data yet</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  const renderUserActivity = () => {
+    if (activityLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (!userActivity) {
+      return <div className="text-center text-muted-foreground py-8">No user activity data yet</div>;
+    }
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Most Active Users (24h)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead className="text-right">Requests</TableHead>
+                  <TableHead className="text-right">Last Activity</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {userActivity.topUsers?.map((user, i) => (
+                  <TableRow key={i} data-testid={`row-active-user-${i}`}>
+                    <TableCell className="font-medium">
+                      {user.first_name || user.last_name 
+                        ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                        : 'Unknown'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{user.email || '-'}</TableCell>
+                    <TableCell className="text-right">{formatNumber(Number(user.request_count))}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{formatDate(user.last_activity)}</TableCell>
+                  </TableRow>
+                ))}
+                {(!userActivity.topUsers || userActivity.topUsers.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">No data yet</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Active Users By Hour (24h)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {userActivity.hourlyActive?.slice(0, 12).map((hour, i) => {
+                const maxCount = Math.max(...userActivity.hourlyActive.map(h => Number(h.active_users)));
+                const percentage = maxCount > 0 ? (Number(hour.active_users) / maxCount) * 100 : 0;
+                return (
+                  <div key={i} className="flex items-center gap-3" data-testid={`bar-hourly-${i}`}>
+                    <span className="text-xs text-muted-foreground w-24">{format(new Date(hour.hour), 'h:mm a')}</span>
+                    <div className="flex-1 h-5 bg-muted rounded-sm overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 transition-all duration-300" 
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium w-12 text-right">{Number(hour.active_users)}</span>
+                  </div>
+                );
+              })}
+              {(!userActivity.hourlyActive || userActivity.hourlyActive.length === 0) && (
+                <div className="text-center text-muted-foreground py-4">No data yet</div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  const renderFeatureUsage = () => {
+    if (featuresLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (!featureUsage) {
+      return <div className="text-center text-muted-foreground py-8">No feature usage data yet</div>;
+    }
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Feature Usage (Last 7 Days)
+            </CardTitle>
+            <CardDescription>API requests grouped by feature area</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Feature</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">GET</TableHead>
+                  <TableHead className="text-right">POST</TableHead>
+                  <TableHead className="text-right">UPDATE</TableHead>
+                  <TableHead className="text-right">DELETE</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {featureUsage.featureUsage?.map((feature, i) => (
+                  <TableRow key={i} data-testid={`row-feature-${i}`}>
+                    <TableCell className="font-medium">{feature.feature}</TableCell>
+                    <TableCell className="text-right font-bold">{formatNumber(Number(feature.total_requests))}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{formatNumber(Number(feature.get_requests))}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{formatNumber(Number(feature.post_requests))}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{formatNumber(Number(feature.update_requests))}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{formatNumber(Number(feature.delete_requests))}</TableCell>
+                  </TableRow>
+                ))}
+                {(!featureUsage.featureUsage || featureUsage.featureUsage.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">No data yet</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  const renderPerformance = () => {
+    if (perfLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (!performance) {
+      return <div className="text-center text-muted-foreground py-8">No performance data yet</div>;
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+          <Card className="hover-elevate">
+            <CardContent className="pt-4 pb-3">
+              <div className="text-muted-foreground text-sm">P50</div>
+              <div className="text-xl font-bold">{formatDuration(performance.percentiles?.p50)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate">
+            <CardContent className="pt-4 pb-3">
+              <div className="text-muted-foreground text-sm">P90</div>
+              <div className="text-xl font-bold">{formatDuration(performance.percentiles?.p90)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate">
+            <CardContent className="pt-4 pb-3">
+              <div className="text-muted-foreground text-sm">P95</div>
+              <div className="text-xl font-bold">{formatDuration(performance.percentiles?.p95)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate">
+            <CardContent className="pt-4 pb-3">
+              <div className="text-muted-foreground text-sm">P99</div>
+              <div className="text-xl font-bold">{formatDuration(performance.percentiles?.p99)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate">
+            <CardContent className="pt-4 pb-3">
+              <div className="text-muted-foreground text-sm">Average</div>
+              <div className="text-xl font-bold">{formatDuration(performance.percentiles?.avg)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate">
+            <CardContent className="pt-4 pb-3">
+              <div className="text-muted-foreground text-sm">Min</div>
+              <div className="text-xl font-bold">{formatDuration(performance.percentiles?.min)}</div>
+            </CardContent>
+          </Card>
+          <Card className="hover-elevate">
+            <CardContent className="pt-4 pb-3">
+              <div className="text-muted-foreground text-sm">Max</div>
+              <div className="text-xl font-bold">{formatDuration(performance.percentiles?.max)}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-amber-500" />
+              Slowest Endpoints (24h)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Endpoint</TableHead>
+                  <TableHead>Method</TableHead>
+                  <TableHead className="text-right">Avg Time</TableHead>
+                  <TableHead className="text-right">Max Time</TableHead>
+                  <TableHead className="text-right">Requests</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {performance.slowEndpoints?.map((ep, i) => (
+                  <TableRow key={i} data-testid={`row-slow-endpoint-${i}`}>
+                    <TableCell className="font-mono text-xs max-w-[200px] truncate">{ep.path}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{ep.method}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">{formatDuration(ep.avg_duration)}</TableCell>
+                    <TableCell className="text-right text-amber-600">{formatDuration(ep.max_duration)}</TableCell>
+                    <TableCell className="text-right">{formatNumber(Number(ep.request_count))}</TableCell>
+                  </TableRow>
+                ))}
+                {(!performance.slowEndpoints || performance.slowEndpoints.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">No data yet</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Error Rate By Hour (24h)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {performance.errorTrend?.slice(0, 12).map((hour, i) => {
+                const errorRate = Number(hour.error_rate) || 0;
+                return (
+                  <div key={i} className="flex items-center gap-3" data-testid={`bar-error-${i}`}>
+                    <span className="text-xs text-muted-foreground w-24">{format(new Date(hour.hour), 'h:mm a')}</span>
+                    <div className="flex-1 h-5 bg-muted rounded-sm overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${errorRate > 5 ? 'bg-destructive' : errorRate > 1 ? 'bg-amber-500' : 'bg-green-500'}`}
+                        style={{ width: `${Math.min(errorRate * 10, 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium w-16 text-right">{errorRate.toFixed(1)}%</span>
+                  </div>
+                );
+              })}
+              {(!performance.errorTrend || performance.errorTrend.length === 0) && (
+                <div className="text-center text-muted-foreground py-4">No data yet</div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  const renderDatabase = () => {
+    if (dbLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (!databaseStats) {
+      return <div className="text-center text-muted-foreground py-8">No database stats available</div>;
+    }
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5" />
+              Database Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 rounded-lg bg-muted text-center">
+              <div className="text-muted-foreground">Total Database Size</div>
+              <div className="text-3xl font-bold mt-1">{databaseStats.databaseSize}</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Database className="h-5 w-5" />
+                Table Row Counts
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Table</TableHead>
+                    <TableHead className="text-right">Rows</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {databaseStats.tableCounts?.map((table, i) => (
+                    <TableRow key={i} data-testid={`row-table-count-${i}`}>
+                      <TableCell className="font-mono text-sm">{table.table_name}</TableCell>
+                      <TableCell className="text-right">{formatNumber(Number(table.row_count))}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <HardDrive className="h-5 w-5" />
+                Table Sizes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Table</TableHead>
+                    <TableHead className="text-right">Size</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {databaseStats.tableSizes?.map((table, i) => (
+                    <TableRow key={i} data-testid={`row-table-size-${i}`}>
+                      <TableCell className="font-mono text-sm">{table.table_name}</TableCell>
+                      <TableCell className="text-right">{table.total_size}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  const renderOrgUsage = () => {
+    if (orgLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (!orgUsage) {
+      return <div className="text-center text-muted-foreground py-8">No organization usage data yet</div>;
+    }
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Organization Usage (Last 7 Days)
+            </CardTitle>
+            <CardDescription>Top organizations by API requests</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Organization</TableHead>
+                  <TableHead>Slug</TableHead>
+                  <TableHead className="text-right">Members</TableHead>
+                  <TableHead className="text-right">Projects</TableHead>
+                  <TableHead className="text-right">Tasks</TableHead>
+                  <TableHead className="text-right">API Requests</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orgUsage.organizations?.map((org, i) => (
+                  <TableRow key={i} data-testid={`row-org-usage-${org.id}`}>
+                    <TableCell className="font-medium">{org.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{org.slug}</TableCell>
+                    <TableCell className="text-right">{formatNumber(Number(org.member_count))}</TableCell>
+                    <TableCell className="text-right">{formatNumber(Number(org.project_count))}</TableCell>
+                    <TableCell className="text-right">{formatNumber(Number(org.task_count))}</TableCell>
+                    <TableCell className="text-right font-bold">{formatNumber(Number(org.api_requests_7d))}</TableCell>
+                  </TableRow>
+                ))}
+                {(!orgUsage.organizations || orgUsage.organizations.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">No data yet</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant={subTab === 'overview' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSubTab('overview')}
+            data-testid="btn-subtab-overview"
+          >
+            <Activity className="h-4 w-4 mr-1" />
+            Overview
+          </Button>
+          <Button
+            variant={subTab === 'users' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSubTab('users')}
+            data-testid="btn-subtab-users"
+          >
+            <Users className="h-4 w-4 mr-1" />
+            User Activity
+          </Button>
+          <Button
+            variant={subTab === 'features' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSubTab('features')}
+            data-testid="btn-subtab-features"
+          >
+            <BarChart3 className="h-4 w-4 mr-1" />
+            Features
+          </Button>
+          <Button
+            variant={subTab === 'performance' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSubTab('performance')}
+            data-testid="btn-subtab-performance"
+          >
+            <Zap className="h-4 w-4 mr-1" />
+            Performance
+          </Button>
+          <Button
+            variant={subTab === 'database' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSubTab('database')}
+            data-testid="btn-subtab-database"
+          >
+            <Database className="h-4 w-4 mr-1" />
+            Database
+          </Button>
+          <Button
+            variant={subTab === 'organizations' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSubTab('organizations')}
+            data-testid="btn-subtab-organizations"
+          >
+            <Building2 className="h-4 w-4 mr-1" />
+            Organizations
+          </Button>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefresh} data-testid="btn-refresh-monitoring">
+          <RefreshCw className="h-4 w-4 mr-1" />
+          Refresh
+        </Button>
+      </div>
+
+      {subTab === 'overview' && renderOverview()}
+      {subTab === 'users' && renderUserActivity()}
+      {subTab === 'features' && renderFeatureUsage()}
+      {subTab === 'performance' && renderPerformance()}
+      {subTab === 'database' && renderDatabase()}
+      {subTab === 'organizations' && renderOrgUsage()}
     </div>
   );
 }
