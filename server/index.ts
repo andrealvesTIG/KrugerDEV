@@ -4,6 +4,8 @@ import { registerObjectStorageRoutes } from "./replit_integrations/object_storag
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import path from "path";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 const app = express();
 const httpServer = createServer(app);
@@ -38,9 +40,37 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+// API Request logging middleware for monitoring
+async function logApiRequest(
+  method: string,
+  path: string,
+  statusCode: number,
+  duration: number,
+  userId: string | null,
+  organizationId: number | null,
+  userAgent: string | undefined,
+  ipAddress: string | undefined,
+  errorMessage: string | null
+) {
+  try {
+    // Skip logging for monitoring endpoints to avoid infinite recursion
+    if (path.startsWith('/api/admin/monitoring')) {
+      return;
+    }
+    
+    await db.execute(sql`
+      INSERT INTO api_request_logs (method, path, status_code, duration, user_id, organization_id, user_agent, ip_address, error_message)
+      VALUES (${method}, ${path}, ${statusCode}, ${duration}, ${userId}, ${organizationId}, ${userAgent}, ${ipAddress}, ${errorMessage})
+    `);
+  } catch (err) {
+    // Silently fail - we don't want logging failures to affect the app
+    console.error('Failed to log API request:', err);
+  }
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
+  const reqPath = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
@@ -51,13 +81,32 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+    if (reqPath.startsWith("/api")) {
+      let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
       log(logLine);
+
+      // Log to database for monitoring (async, non-blocking)
+      const userId = (req as any).userId || (req as any).user?.id || null;
+      const organizationId = (req as any).organizationId || null;
+      const userAgent = req.get('user-agent');
+      const ipAddress = req.ip || req.socket?.remoteAddress;
+      const errorMessage = res.statusCode >= 400 ? capturedJsonResponse?.message || null : null;
+      
+      logApiRequest(
+        req.method,
+        reqPath,
+        res.statusCode,
+        duration,
+        userId,
+        organizationId,
+        userAgent,
+        ipAddress,
+        errorMessage
+      );
     }
   });
 

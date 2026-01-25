@@ -14405,5 +14405,517 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ============================================
+  // APPLICATION MONITORING ROUTES (Super Admin)
+  // ============================================
+
+  const {
+    apiRequestLogs,
+    applicationMetrics,
+    userActivityLogs,
+    featureUsageLogs,
+    errorLogs
+  } = await import("@shared/schema");
+
+  // Helper to verify super admin
+  const requireSuperAdmin = async (userId: string | null): Promise<boolean> => {
+    if (!userId) return false;
+    const user = await storage.getUser(userId);
+    return user?.role === "super_admin";
+  };
+
+  // Get monitoring dashboard overview
+  app.get('/api/admin/monitoring/overview', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      // Get active users (users with activity in last 24 hours)
+      const activeUsersResult = await db.execute(sql`
+        SELECT COUNT(DISTINCT user_id) as count FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+      `);
+      const activeUsers24h = Number(activeUsersResult.rows[0]?.count || 0);
+
+      // Get total requests today
+      const requestsTodayResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM api_request_logs 
+        WHERE DATE(created_at) = CURRENT_DATE
+      `);
+      const requestsToday = Number(requestsTodayResult.rows[0]?.count || 0);
+
+      // Get average response time
+      const avgResponseTimeResult = await db.execute(sql`
+        SELECT AVG(duration) as avg FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours' AND duration IS NOT NULL
+      `);
+      const avgResponseTime = Number(avgResponseTimeResult.rows[0]?.avg || 0).toFixed(0);
+
+      // Get error rate
+      const errorRateResult = await db.execute(sql`
+        SELECT 
+          COUNT(*) FILTER (WHERE status_code >= 400) as errors,
+          COUNT(*) as total
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+      `);
+      const errors = Number(errorRateResult.rows[0]?.errors || 0);
+      const total = Number(errorRateResult.rows[0]?.total || 1);
+      const errorRate = ((errors / total) * 100).toFixed(2);
+
+      // Get total users
+      const totalUsersResult = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
+      const totalUsers = Number(totalUsersResult.rows[0]?.count || 0);
+
+      // Get total organizations
+      const totalOrgsResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM organizations WHERE deactivated_at IS NULL
+      `);
+      const totalOrganizations = Number(totalOrgsResult.rows[0]?.count || 0);
+
+      // Get total projects
+      const totalProjectsResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM projects WHERE deleted_at IS NULL
+      `);
+      const totalProjects = Number(totalProjectsResult.rows[0]?.count || 0);
+
+      // Get requests per day for last 7 days
+      const requestsPerDayResult = await db.execute(sql`
+        SELECT DATE(created_at) as date, COUNT(*) as count 
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY DATE(created_at) 
+        ORDER BY date DESC
+      `);
+
+      // Get top endpoints
+      const topEndpointsResult = await db.execute(sql`
+        SELECT path, method, COUNT(*) as count, AVG(duration) as avg_duration
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY path, method 
+        ORDER BY count DESC 
+        LIMIT 10
+      `);
+
+      // Get user registrations per day for last 30 days
+      const registrationsResult = await db.execute(sql`
+        SELECT DATE(created_at) as date, COUNT(*) as count 
+        FROM users 
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(created_at) 
+        ORDER BY date DESC
+      `);
+
+      // Get recent errors
+      const recentErrorsResult = await db.execute(sql`
+        SELECT path, status_code, error_message, COUNT(*) as count
+        FROM api_request_logs 
+        WHERE status_code >= 400 AND created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY path, status_code, error_message
+        ORDER BY count DESC
+        LIMIT 10
+      `);
+
+      res.json({
+        summary: {
+          activeUsers24h,
+          requestsToday,
+          avgResponseTime: `${avgResponseTime}ms`,
+          errorRate: `${errorRate}%`,
+          totalUsers,
+          totalOrganizations,
+          totalProjects,
+        },
+        charts: {
+          requestsPerDay: requestsPerDayResult.rows,
+          userRegistrations: registrationsResult.rows,
+        },
+        topEndpoints: topEndpointsResult.rows,
+        recentErrors: recentErrorsResult.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching monitoring overview:', error);
+      res.status(500).json({ message: 'Failed to fetch monitoring data' });
+    }
+  });
+
+  // Get API request logs with pagination and filtering
+  app.get('/api/admin/monitoring/api-logs', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const { page = '1', limit = '50', method, path, minStatus, maxStatus } = req.query;
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+      let query = sql`
+        SELECT l.*, u.email as user_email, u.first_name, u.last_name
+        FROM api_request_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        WHERE 1=1
+      `;
+
+      if (method) {
+        query = sql`${query} AND l.method = ${method}`;
+      }
+      if (path) {
+        query = sql`${query} AND l.path LIKE ${'%' + path + '%'}`;
+      }
+      if (minStatus) {
+        query = sql`${query} AND l.status_code >= ${parseInt(minStatus as string)}`;
+      }
+      if (maxStatus) {
+        query = sql`${query} AND l.status_code <= ${parseInt(maxStatus as string)}`;
+      }
+
+      query = sql`${query} ORDER BY l.created_at DESC LIMIT ${parseInt(limit as string)} OFFSET ${offset}`;
+
+      const logs = await db.execute(query);
+
+      // Get total count
+      const countResult = await db.execute(sql`SELECT COUNT(*) as total FROM api_request_logs`);
+      const total = Number(countResult.rows[0]?.total || 0);
+
+      res.json({
+        logs: logs.rows,
+        pagination: {
+          page: parseInt(page as string),
+          limit: parseInt(limit as string),
+          total,
+          totalPages: Math.ceil(total / parseInt(limit as string)),
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching API logs:', error);
+      res.status(500).json({ message: 'Failed to fetch API logs' });
+    }
+  });
+
+  // Get user activity statistics
+  app.get('/api/admin/monitoring/user-activity', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      // Active users by hour for last 24 hours
+      const hourlyActiveResult = await db.execute(sql`
+        SELECT 
+          DATE_TRUNC('hour', created_at) as hour,
+          COUNT(DISTINCT user_id) as active_users
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY DATE_TRUNC('hour', created_at)
+        ORDER BY hour DESC
+      `);
+
+      // Most active users
+      const topUsersResult = await db.execute(sql`
+        SELECT 
+          l.user_id,
+          u.email,
+          u.first_name,
+          u.last_name,
+          COUNT(*) as request_count,
+          MAX(l.created_at) as last_activity
+        FROM api_request_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        WHERE l.created_at >= NOW() - INTERVAL '24 hours' AND l.user_id IS NOT NULL
+        GROUP BY l.user_id, u.email, u.first_name, u.last_name
+        ORDER BY request_count DESC
+        LIMIT 20
+      `);
+
+      // User logins per day
+      const loginsResult = await db.execute(sql`
+        SELECT 
+          DATE(l.created_at) as date,
+          COUNT(DISTINCT l.user_id) as unique_users
+        FROM api_request_logs l
+        WHERE l.created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(l.created_at)
+        ORDER BY date DESC
+      `);
+
+      res.json({
+        hourlyActive: hourlyActiveResult.rows,
+        topUsers: topUsersResult.rows,
+        dailyLogins: loginsResult.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching user activity:', error);
+      res.status(500).json({ message: 'Failed to fetch user activity' });
+    }
+  });
+
+  // Get feature usage statistics
+  app.get('/api/admin/monitoring/feature-usage', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      // API endpoint usage grouped by feature
+      const featureUsageResult = await db.execute(sql`
+        SELECT 
+          CASE 
+            WHEN path LIKE '/api/projects%' THEN 'Projects'
+            WHEN path LIKE '/api/tasks%' THEN 'Tasks'
+            WHEN path LIKE '/api/portfolios%' THEN 'Portfolios'
+            WHEN path LIKE '/api/risks%' THEN 'Risks'
+            WHEN path LIKE '/api/issues%' THEN 'Issues'
+            WHEN path LIKE '/api/timesheets%' THEN 'Timesheets'
+            WHEN path LIKE '/api/resources%' THEN 'Resources'
+            WHEN path LIKE '/api/milestones%' THEN 'Milestones'
+            WHEN path LIKE '/api/organizations%' THEN 'Organizations'
+            WHEN path LIKE '/api/users%' THEN 'Users'
+            WHEN path LIKE '/api/notifications%' THEN 'Notifications'
+            WHEN path LIKE '/api/custom-dashboards%' THEN 'Custom Dashboards'
+            WHEN path LIKE '/api/project-intakes%' THEN 'Project Intakes'
+            WHEN path LIKE '/api/chat%' THEN 'AI Chat'
+            ELSE 'Other'
+          END as feature,
+          COUNT(*) as total_requests,
+          COUNT(*) FILTER (WHERE method = 'GET') as get_requests,
+          COUNT(*) FILTER (WHERE method = 'POST') as post_requests,
+          COUNT(*) FILTER (WHERE method = 'PUT' OR method = 'PATCH') as update_requests,
+          COUNT(*) FILTER (WHERE method = 'DELETE') as delete_requests
+        FROM api_request_logs
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY 
+          CASE 
+            WHEN path LIKE '/api/projects%' THEN 'Projects'
+            WHEN path LIKE '/api/tasks%' THEN 'Tasks'
+            WHEN path LIKE '/api/portfolios%' THEN 'Portfolios'
+            WHEN path LIKE '/api/risks%' THEN 'Risks'
+            WHEN path LIKE '/api/issues%' THEN 'Issues'
+            WHEN path LIKE '/api/timesheets%' THEN 'Timesheets'
+            WHEN path LIKE '/api/resources%' THEN 'Resources'
+            WHEN path LIKE '/api/milestones%' THEN 'Milestones'
+            WHEN path LIKE '/api/organizations%' THEN 'Organizations'
+            WHEN path LIKE '/api/users%' THEN 'Users'
+            WHEN path LIKE '/api/notifications%' THEN 'Notifications'
+            WHEN path LIKE '/api/custom-dashboards%' THEN 'Custom Dashboards'
+            WHEN path LIKE '/api/project-intakes%' THEN 'Project Intakes'
+            WHEN path LIKE '/api/chat%' THEN 'AI Chat'
+            ELSE 'Other'
+          END
+        ORDER BY total_requests DESC
+      `);
+
+      // Feature usage trend over last 7 days
+      const trendResult = await db.execute(sql`
+        SELECT 
+          DATE(created_at) as date,
+          CASE 
+            WHEN path LIKE '/api/projects%' THEN 'Projects'
+            WHEN path LIKE '/api/tasks%' THEN 'Tasks'
+            WHEN path LIKE '/api/portfolios%' THEN 'Portfolios'
+            ELSE 'Other'
+          END as feature,
+          COUNT(*) as count
+        FROM api_request_logs
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY DATE(created_at), 
+          CASE 
+            WHEN path LIKE '/api/projects%' THEN 'Projects'
+            WHEN path LIKE '/api/tasks%' THEN 'Tasks'
+            WHEN path LIKE '/api/portfolios%' THEN 'Portfolios'
+            ELSE 'Other'
+          END
+        ORDER BY date DESC, count DESC
+      `);
+
+      res.json({
+        featureUsage: featureUsageResult.rows,
+        trend: trendResult.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching feature usage:', error);
+      res.status(500).json({ message: 'Failed to fetch feature usage' });
+    }
+  });
+
+  // Get performance metrics
+  app.get('/api/admin/monitoring/performance', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      // Response time percentiles
+      const percentilesResult = await db.execute(sql`
+        SELECT 
+          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration) as p50,
+          PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY duration) as p90,
+          PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration) as p95,
+          PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration) as p99,
+          AVG(duration) as avg,
+          MAX(duration) as max,
+          MIN(duration) as min
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours' AND duration IS NOT NULL
+      `);
+
+      // Slowest endpoints
+      const slowEndpointsResult = await db.execute(sql`
+        SELECT 
+          path,
+          method,
+          AVG(duration) as avg_duration,
+          MAX(duration) as max_duration,
+          COUNT(*) as request_count
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours' AND duration IS NOT NULL
+        GROUP BY path, method
+        HAVING COUNT(*) >= 5
+        ORDER BY avg_duration DESC
+        LIMIT 10
+      `);
+
+      // Response time trend by hour
+      const trendResult = await db.execute(sql`
+        SELECT 
+          DATE_TRUNC('hour', created_at) as hour,
+          AVG(duration) as avg_duration,
+          COUNT(*) as request_count
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours' AND duration IS NOT NULL
+        GROUP BY DATE_TRUNC('hour', created_at)
+        ORDER BY hour DESC
+      `);
+
+      // Error rate by hour
+      const errorTrendResult = await db.execute(sql`
+        SELECT 
+          DATE_TRUNC('hour', created_at) as hour,
+          COUNT(*) as total_requests,
+          COUNT(*) FILTER (WHERE status_code >= 400) as error_count,
+          ROUND(100.0 * COUNT(*) FILTER (WHERE status_code >= 400) / NULLIF(COUNT(*), 0), 2) as error_rate
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY DATE_TRUNC('hour', created_at)
+        ORDER BY hour DESC
+      `);
+
+      res.json({
+        percentiles: percentilesResult.rows[0] || {},
+        slowEndpoints: slowEndpointsResult.rows,
+        responseTrend: trendResult.rows,
+        errorTrend: errorTrendResult.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching performance metrics:', error);
+      res.status(500).json({ message: 'Failed to fetch performance metrics' });
+    }
+  });
+
+  // Get database statistics
+  app.get('/api/admin/monitoring/database', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      // Table row counts
+      const tableCountsResult = await db.execute(sql`
+        SELECT 
+          'users' as table_name, COUNT(*) as row_count FROM users
+        UNION ALL
+        SELECT 'organizations', COUNT(*) FROM organizations
+        UNION ALL
+        SELECT 'projects', COUNT(*) FROM projects
+        UNION ALL
+        SELECT 'tasks', COUNT(*) FROM tasks
+        UNION ALL
+        SELECT 'issues', COUNT(*) FROM issues
+        UNION ALL
+        SELECT 'risks', COUNT(*) FROM risks
+        UNION ALL
+        SELECT 'milestones', COUNT(*) FROM milestones
+        UNION ALL
+        SELECT 'resources', COUNT(*) FROM resources
+        UNION ALL
+        SELECT 'portfolios', COUNT(*) FROM portfolios
+        UNION ALL
+        SELECT 'timesheets', COUNT(*) FROM timesheets
+        UNION ALL
+        SELECT 'api_request_logs', COUNT(*) FROM api_request_logs
+        ORDER BY row_count DESC
+      `);
+
+      // Database size
+      const dbSizeResult = await db.execute(sql`
+        SELECT pg_size_pretty(pg_database_size(current_database())) as size
+      `);
+
+      // Table sizes
+      const tableSizesResult = await db.execute(sql`
+        SELECT 
+          relname as table_name,
+          pg_size_pretty(pg_total_relation_size(relid)) as total_size
+        FROM pg_catalog.pg_statio_user_tables
+        ORDER BY pg_total_relation_size(relid) DESC
+        LIMIT 15
+      `);
+
+      res.json({
+        tableCounts: tableCountsResult.rows,
+        databaseSize: dbSizeResult.rows[0]?.size || 'Unknown',
+        tableSizes: tableSizesResult.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching database stats:', error);
+      res.status(500).json({ message: 'Failed to fetch database statistics' });
+    }
+  });
+
+  // Get organization usage statistics
+  app.get('/api/admin/monitoring/organization-usage', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      // Organization usage statistics
+      const orgUsageResult = await db.execute(sql`
+        SELECT 
+          o.id,
+          o.name,
+          o.slug,
+          (SELECT COUNT(*) FROM organization_members om WHERE om.organization_id = o.id) as member_count,
+          (SELECT COUNT(*) FROM projects p WHERE p.organization_id = o.id AND p.deleted_at IS NULL) as project_count,
+          (SELECT COUNT(*) FROM tasks t INNER JOIN projects p ON t.project_id = p.id WHERE p.organization_id = o.id) as task_count,
+          (SELECT COUNT(*) FROM api_request_logs l WHERE l.organization_id = o.id AND l.created_at >= NOW() - INTERVAL '7 days') as api_requests_7d
+        FROM organizations o
+        WHERE o.deactivated_at IS NULL
+        ORDER BY api_requests_7d DESC
+        LIMIT 20
+      `);
+
+      res.json({
+        organizations: orgUsageResult.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching organization usage:', error);
+      res.status(500).json({ message: 'Failed to fetch organization usage' });
+    }
+  });
+
   return httpServer;
 }
