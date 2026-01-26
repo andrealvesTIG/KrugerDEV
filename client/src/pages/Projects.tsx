@@ -2493,6 +2493,40 @@ function ProjectsGridView({
             <Link href={`/projects/${project.id}`} className="font-medium text-primary hover:underline">
               {project.name}
             </Link>
+            {project.source === "planner" && project.plannerPlanId && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank');
+                }}
+                className="flex-shrink-0"
+                title="Open in Planner"
+              >
+                <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+              </button>
+            )}
+            {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const tenantId = project.dataverseTenantId || '';
+                  const planId = project.plannerPlanId;
+                  const premiumUrl = tenantId 
+                    ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
+                    : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
+                  window.open(premiumUrl, '_blank');
+                }}
+                className="flex-shrink-0 flex items-center gap-0.5"
+                title="Open in Planner Premium"
+              >
+                <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
+                <Crown className="h-3 w-3 text-purple-500" />
+              </button>
+            )}
             <Button 
               size="icon" 
               variant="ghost" 
