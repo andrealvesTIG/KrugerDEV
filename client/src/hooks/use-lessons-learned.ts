@@ -43,7 +43,7 @@ export function useUpdateLessonLearned() {
     mutationFn: async ({ id, projectId, organizationId, data }: { 
       id: number; 
       projectId: number; 
-      organizationId: number; 
+      organizationId?: number; 
       data: Partial<InsertLessonLearned> 
     }) => {
       const res = await apiRequest('PUT', `/api/lessons-learned/${id}`, data);
@@ -51,7 +51,9 @@ export function useUpdateLessonLearned() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'lessons-learned'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'lessons-learned'] });
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'lessons-learned'] });
+      }
     },
   });
 }
@@ -59,12 +61,14 @@ export function useUpdateLessonLearned() {
 export function useDeleteLessonLearned() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, projectId, organizationId }: { id: number; projectId: number; organizationId: number }) => {
+    mutationFn: async ({ id, projectId, organizationId }: { id: number; projectId: number; organizationId?: number }) => {
       await apiRequest('DELETE', `/api/lessons-learned/${id}`);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'lessons-learned'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'lessons-learned'] });
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/organizations', variables.organizationId, 'lessons-learned'] });
+      }
     },
   });
 }

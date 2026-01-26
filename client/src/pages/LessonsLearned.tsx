@@ -46,7 +46,7 @@ export default function LessonsLearned() {
       await updateLesson.mutateAsync({
         id: editingId,
         projectId: lesson.projectId,
-        organizationId: lesson.organizationId,
+        organizationId: lesson.organizationId ?? undefined,
         data: {
           title: form.title,
           description: form.description,
@@ -69,7 +69,7 @@ export default function LessonsLearned() {
 
   const handleDelete = async (lesson: LessonLearned) => {
     try {
-      await deleteLesson.mutateAsync({ id: lesson.id, projectId: lesson.projectId, organizationId: lesson.organizationId });
+      await deleteLesson.mutateAsync({ id: lesson.id, projectId: lesson.projectId, organizationId: lesson.organizationId ?? undefined });
       toast({ title: "Lesson learned deleted" });
     } catch {
       toast({ title: "Error", description: "Failed to delete lesson learned", variant: "destructive" });

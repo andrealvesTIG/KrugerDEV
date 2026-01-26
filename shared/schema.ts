@@ -1344,13 +1344,15 @@ export const projectCustomFieldValues = pgTable("project_custom_field_values", {
   projectId: integer("project_id").references(() => projects.id).notNull(),
   fieldDefinitionId: integer("field_definition_id").references(() => customFieldDefinitions.id).notNull(),
   value: text("value"), // JSON string for complex types (multiselect arrays, etc.)
-  createdAt: timestamp("created_at").defaultNow(),
+  textValue: text("text_value"), // Legacy typed storage
+  numberValue: numeric("number_value"), // Legacy typed storage
+  dateValue: date("date_value"), // Legacy typed storage
+  booleanValue: boolean("boolean_value"), // Legacy typed storage
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const insertProjectCustomFieldValueSchema = createInsertSchema(projectCustomFieldValues).omit({
   id: true,
-  createdAt: true,
   updatedAt: true,
 });
 
@@ -1579,22 +1581,29 @@ export type ProjectDecision = typeof projectDecisions.$inferSelect;
 export const lessonsLearned = pgTable("lessons_learned", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").references(() => projects.id).notNull(),
-  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id),
   title: text("title").notNull(),
   description: text("description"),
-  category: text("category"), // Technical, Process, Communication, Risk, Resource, etc.
+  category: text("category").default("General"), // Technical, Process, Communication, Risk, Resource, etc.
+  type: text("type").default("Improvement"), // Legacy column - Improvement, Success, Warning
   lessonType: text("lesson_type").default("Positive"), // Positive (what went well), Negative (what to avoid)
   impact: text("impact"), // Low, Medium, High
   phase: text("phase"), // Initiation, Planning, Execution, Monitoring, Closing
   rootCause: text("root_cause"), // Root cause analysis
   recommendation: text("recommendation"), // Actionable recommendations
+  outcome: text("outcome"), // Legacy - outcome description
   actionsTaken: text("actions_taken"), // Actions already taken
   applicability: text("applicability"), // Where this lesson can be applied
-  tags: text("tags").array(), // For filtering and searching
+  tags: text("tags"), // For filtering and searching (stored as comma-separated or JSON string)
+  attachments: text("attachments"), // Legacy - attachment references
+  isShared: boolean("is_shared").default(false), // Whether lesson is shared across projects
   status: text("status").default("Draft"), // Draft, Under Review, Approved, Archived
-  dateIdentified: date("date_identified"),
+  identifiedDate: date("identified_date"), // Legacy column name
+  dateIdentified: date("date_identified"), // New column name
   identifiedBy: varchar("identified_by").references(() => users.id),
-  approvedBy: varchar("approved_by").references(() => users.id),
+  reviewedBy: varchar("reviewed_by").references(() => users.id), // Legacy reviewer
+  reviewedAt: timestamp("reviewed_at"), // Legacy review timestamp
+  approvedBy: integer("approved_by"), // Numeric reference (legacy type mismatch)
   approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: varchar("created_by").references(() => users.id),
