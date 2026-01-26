@@ -631,6 +631,257 @@ export default function PublicUserGuide() {
           </div>
         );
 
+      case "intakes":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <Inbox className="h-6 w-6 text-amber-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Project Intakes</h1>
+                <p className="text-slate-400">Capture and evaluate new project requests</p>
+              </div>
+            </div>
+
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Streamline how new project requests enter your portfolio:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Intake Forms:</strong> Customizable forms for capturing project requests with all required information</li>
+                  <li><strong className="text-slate-200">Approval Workflows:</strong> Route requests through appropriate stakeholders for review and approval</li>
+                  <li><strong className="text-slate-200">Prioritization:</strong> Score and rank incoming requests based on business value and strategic fit</li>
+                  <li><strong className="text-slate-200">Conversion:</strong> Convert approved intakes directly into active projects</li>
+                  <li><strong className="text-slate-200">Pipeline View:</strong> Visualize all pending requests and their status in the intake pipeline</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "scoring":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                <Star className="h-6 w-6 text-yellow-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Project Scoring</h1>
+                <p className="text-slate-400">Evaluate and prioritize projects objectively</p>
+              </div>
+            </div>
+
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Use scoring models to objectively evaluate and prioritize projects:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Scoring Criteria:</strong> Define weighted criteria like strategic alignment, ROI, risk, and feasibility</li>
+                  <li><strong className="text-slate-200">Scoring Templates:</strong> Create reusable scoring models for different project types</li>
+                  <li><strong className="text-slate-200">Multi-Reviewer:</strong> Allow multiple stakeholders to score and aggregate results</li>
+                  <li><strong className="text-slate-200">Ranking:</strong> Automatically rank projects based on composite scores</li>
+                  <li><strong className="text-slate-200">What-If Analysis:</strong> Simulate different weighting scenarios to see impact on priorities</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "benefits":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <Gift className="h-6 w-6 text-green-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Benefits Tracking</h1>
+                <p className="text-slate-400">Measure and track project value realization</p>
+              </div>
+            </div>
+
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Track the expected and realized benefits of your projects:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Benefit Categories:</strong> Define financial, operational, and strategic benefit types</li>
+                  <li><strong className="text-slate-200">Expected vs Actual:</strong> Compare planned benefits against realized outcomes</li>
+                  <li><strong className="text-slate-200">Measurement Plans:</strong> Define how and when benefits will be measured</li>
+                  <li><strong className="text-slate-200">Benefit Owners:</strong> Assign accountability for benefit realization</li>
+                  <li><strong className="text-slate-200">Reporting:</strong> Generate benefit realization reports for stakeholders</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "decisions":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Scale className="h-6 w-6 text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Decision Log</h1>
+                <p className="text-slate-400">Document and track key project decisions</p>
+              </div>
+            </div>
+
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Maintain a clear record of important project decisions:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Decision Records:</strong> Capture the decision, rationale, and alternatives considered</li>
+                  <li><strong className="text-slate-200">Decision Makers:</strong> Document who made the decision and when</li>
+                  <li><strong className="text-slate-200">Impact Assessment:</strong> Record the expected impact on scope, schedule, and budget</li>
+                  <li><strong className="text-slate-200">Decision Status:</strong> Track pending, approved, and deferred decisions</li>
+                  <li><strong className="text-slate-200">Audit Trail:</strong> Maintain history for governance and compliance</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "lessons":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <Lightbulb className="h-6 w-6 text-orange-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Lessons Learned</h1>
+                <p className="text-slate-400">Capture knowledge for continuous improvement</p>
+              </div>
+            </div>
+
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Build organizational knowledge from project experiences:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Lesson Categories:</strong> Categorize lessons by type: what went well, what could improve, recommendations</li>
+                  <li><strong className="text-slate-200">Searchable Repository:</strong> Find relevant lessons from past projects</li>
+                  <li><strong className="text-slate-200">Action Items:</strong> Create follow-up actions to implement improvements</li>
+                  <li><strong className="text-slate-200">Phase-Based Capture:</strong> Document lessons at project milestones and closure</li>
+                  <li><strong className="text-slate-200">Knowledge Sharing:</strong> Share lessons across teams and portfolios</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "custom-fields":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <Sliders className="h-6 w-6 text-purple-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Custom Fields</h1>
+                <p className="text-slate-400">Extend data models for your needs</p>
+              </div>
+            </div>
+
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Add custom fields to capture organization-specific data:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Field Types:</strong> Text, number, date, dropdown, multi-select, checkbox, and more</li>
+                  <li><strong className="text-slate-200">Entity Support:</strong> Add custom fields to projects, portfolios, tasks, and resources</li>
+                  <li><strong className="text-slate-200">Required Fields:</strong> Mark fields as required for data completeness</li>
+                  <li><strong className="text-slate-200">Field Groups:</strong> Organize custom fields into logical groupings</li>
+                  <li><strong className="text-slate-200">Reporting:</strong> Include custom fields in reports and exports</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "custom-links":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                <Link2 className="h-6 w-6 text-teal-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Custom Links</h1>
+                <p className="text-slate-400">Add external links to your sidebar</p>
+              </div>
+            </div>
+
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Integrate external tools and resources into your workspace:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Sidebar Links:</strong> Add quick-access links to external tools in the navigation</li>
+                  <li><strong className="text-slate-200">Open Options:</strong> Open in new tab or embed within FridayReport.AI</li>
+                  <li><strong className="text-slate-200">Custom Icons:</strong> Choose icons to match your linked resources</li>
+                  <li><strong className="text-slate-200">Organization-Specific:</strong> Different links for different organizations</li>
+                  <li><strong className="text-slate-200">Common Uses:</strong> Link to Power BI reports, SharePoint sites, Teams channels, or any web resource</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "custom-tabs":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-rose-500/10 flex items-center justify-center">
+                <LayoutTemplate className="h-6 w-6 text-rose-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Custom Tabs</h1>
+                <p className="text-slate-400">Organize sidebar navigation your way</p>
+              </div>
+            </div>
+
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Customize the sidebar structure to match your workflow:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Custom Groups:</strong> Create named groups to organize sidebar items</li>
+                  <li><strong className="text-slate-200">Drag & Drop:</strong> Reorder modules and links within groups</li>
+                  <li><strong className="text-slate-200">Hide Modules:</strong> Hide unused modules to simplify the interface</li>
+                  <li><strong className="text-slate-200">Per-Organization:</strong> Each organization can have its own sidebar layout</li>
+                  <li><strong className="text-slate-200">Default Groups:</strong> Pre-configured Menu and Help groups as starting points</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "themes":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                <Moon className="h-6 w-6 text-indigo-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Themes</h1>
+                <p className="text-slate-400">Customize the visual appearance</p>
+              </div>
+            </div>
+
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Personalize the look and feel of FridayReport.AI:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Light & Dark Mode:</strong> Switch between light and dark themes</li>
+                  <li><strong className="text-slate-200">Accent Colors:</strong> Choose from multiple accent color options</li>
+                  <li><strong className="text-slate-200">Per-User Settings:</strong> Each user can set their preferred theme</li>
+                  <li><strong className="text-slate-200">System Preference:</strong> Automatically match your device settings</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
       default:
         return (
           <div className="space-y-6">
