@@ -31,7 +31,9 @@ import {
   Rocket,
   LayoutGrid,
   Square,
-  BookOpen
+  BookOpen,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 import {
   SiJira, SiAsana, SiTrello, SiNotion, SiClickup,
@@ -174,6 +176,7 @@ export default function SignInPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [isMuted, setIsMuted] = useState(true);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -181,6 +184,15 @@ export default function SignInPage() {
       videoRef.current.volume = 0;
     }
   }, []);
+
+  const toggleMute = useCallback(() => {
+    if (videoRef.current) {
+      const newMuted = !isMuted;
+      videoRef.current.muted = newMuted;
+      videoRef.current.volume = newMuted ? 0 : 1;
+      setIsMuted(newMuted);
+    }
+  }, [isMuted]);
   const [honeypotData, setHoneypotData] = useState<{ honeypot1: string; honeypot2: string; formLoadTime: number } | null>(null);
   const handleHoneypotChange = useCallback((data: { honeypot1: string; honeypot2: string; formLoadTime: number }) => {
     setHoneypotData(data);
@@ -354,6 +366,15 @@ export default function SignInPage() {
                 <source src={demoVideo} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={toggleMute}
+                className="absolute bottom-4 right-4 bg-slate-900/70 hover:bg-slate-900/90 text-white border border-slate-600"
+                data-testid="button-video-mute-toggle"
+              >
+                {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+              </Button>
             </div>
           </div>
         </div>
