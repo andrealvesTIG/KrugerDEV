@@ -360,21 +360,13 @@ export default function SignInPage() {
                 muted
                 loop
                 playsInline
+                controls
                 className="w-full h-auto"
                 data-testid="video-demo"
               >
                 <source src={demoVideo} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={toggleMute}
-                className="absolute bottom-4 right-4 bg-slate-900/70 hover:bg-slate-900/90 text-white border border-slate-600"
-                data-testid="button-video-mute-toggle"
-              >
-                {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-              </Button>
             </div>
           </div>
         </div>
