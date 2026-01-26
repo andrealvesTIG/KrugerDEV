@@ -783,27 +783,15 @@ function ProjectTimeline({
   endDate: string | null;
 }) {
   const [isOpen, setIsOpen] = useState(true);
-  const { data: milestones } = useMilestones(projectId);
   const { data: tasks } = useTasks(projectId);
   
   // Parse project dates
   const projectStart = startDate ? parseISO(startDate) : null;
   const projectEnd = endDate ? parseISO(endDate) : null;
   
-  // Get milestones from milestones table AND tasks marked as milestones
+  // Get only tasks marked as milestones
   const allEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
-    
-    // Add milestones from milestones table
-    milestones?.forEach((m) => {
-      events.push({
-        id: m.id,
-        type: 'milestone',
-        title: m.title,
-        date: parseISO(m.dueDate),
-        completed: m.completed || false,
-      });
-    });
     
     // Add tasks marked as milestones (use end date or start date as the milestone date)
     tasks?.filter(t => t.isMilestone && (t.endDate || t.startDate)).forEach((t) => {
@@ -820,7 +808,7 @@ function ProjectTimeline({
     
     // Sort by date
     return events.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [milestones, tasks]);
+  }, [tasks]);
   
   // Calculate timeline range
   const timelineRange = useMemo(() => {
