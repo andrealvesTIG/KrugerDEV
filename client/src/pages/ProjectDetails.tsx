@@ -1747,18 +1747,18 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="N/A">N/A</SelectItem>
-                  <SelectItem value="On Track">On Track</SelectItem>
-                  <SelectItem value="Waiting for Approval">Waiting for Approval</SelectItem>
-                  <SelectItem value="Verbal Approval">Verbal Approval</SelectItem>
-                  <SelectItem value="Email Approval">Email Approval</SelectItem>
-                  <SelectItem value="SOW Signed">SOW Signed</SelectItem>
-                  <SelectItem value="PO Received">PO Received</SelectItem>
-                  <SelectItem value="Partially Invoiced">Partially Invoiced</SelectItem>
-                  <SelectItem value="At Risk">At Risk</SelectItem>
-                  <SelectItem value="Ready for Invoice">Ready for Invoice</SelectItem>
-                  <SelectItem value="Critical">Critical</SelectItem>
-                  <SelectItem value="Invoiced">Invoiced</SelectItem>
+                  <SelectItem value="N/A"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-400" />N/A</span></SelectItem>
+                  <SelectItem value="On Track"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />On Track</span></SelectItem>
+                  <SelectItem value="Waiting for Approval"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Waiting for Approval</span></SelectItem>
+                  <SelectItem value="Verbal Approval"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Verbal Approval</span></SelectItem>
+                  <SelectItem value="Email Approval"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />Email Approval</span></SelectItem>
+                  <SelectItem value="SOW Signed"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />SOW Signed</span></SelectItem>
+                  <SelectItem value="PO Received"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />PO Received</span></SelectItem>
+                  <SelectItem value="Partially Invoiced"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />Partially Invoiced</span></SelectItem>
+                  <SelectItem value="At Risk"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500" />At Risk</span></SelectItem>
+                  <SelectItem value="Ready for Invoice"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />Ready for Invoice</span></SelectItem>
+                  <SelectItem value="Critical"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-rose-500" />Critical</span></SelectItem>
+                  <SelectItem value="Invoiced"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500" />Invoiced</span></SelectItem>
                 </SelectContent>
               </Select>
             </div>
