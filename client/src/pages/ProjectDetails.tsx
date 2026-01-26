@@ -3238,20 +3238,6 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   };
 
   const openEditDialog = (task: Task) => {
-    // For Planner projects, show a message dialog instead of allowing edits
-    if (isPlannerProject) {
-      setEditingTask(task);
-      setShowPlannerEditDialog(true);
-      return;
-    }
-    
-    // For MS Project imported projects, show a message dialog instead of allowing edits
-    if (isMsProjectImported) {
-      setEditingTask(task);
-      setShowMsProjectEditDialog(true);
-      return;
-    }
-    
     setEditingTask(task);
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
       ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
@@ -3365,7 +3351,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6" />
               <div>
                 <span className="font-medium">Synced from {isPremiumPlan ? "Planner Premium" : "Microsoft Planner"}</span>
-                <p className="text-sm text-muted-foreground">Tasks are read-only. Edit in {isPremiumPlan ? "Project for the Web" : "Planner"} or make editable to enable editing here.</p>
+                <p className="text-sm text-muted-foreground">Tasks are fully editable. Click "Detach & Edit" to disconnect sync and manage tasks locally only.</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -3466,7 +3452,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             <div>
               <span className="font-medium text-emerald-800 dark:text-emerald-200">Imported from Microsoft Project</span>
               <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                Tasks are read-only. Re-import to update or make editable to enable editing.
+                Tasks are fully editable. Click "Detach & Edit" to disconnect import link and manage tasks locally only.
               </p>
             </div>
           </div>
@@ -3714,7 +3700,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               data-testid="input-task-search"
             />
           </div>
-          {!isPlannerProject && !isMsProjectImported && <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
+          {<Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
             <DialogTrigger asChild>
               <Button onClick={openCreateDialog} data-testid="button-add-task">
                 <Plus className="mr-2 h-4 w-4" /> Add Task
@@ -4086,7 +4072,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           projectStartDate={projectStartDate}
           projectEndDate={projectEndDate}
           hideTimeline={true}
-          isReadOnly={isPlannerProject || isMsProjectImported}
+          isReadOnly={false}
           onCreateTask={(name) => {
             createTask.mutate({
               projectId,
@@ -4108,7 +4094,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           isFullscreen={isFullscreen}
           projectStartDate={projectStartDate}
           projectEndDate={projectEndDate}
-          isReadOnly={isPlannerProject || isMsProjectImported}
+          isReadOnly={false}
           onCreateTask={(name) => {
             createTask.mutate({
               projectId,
@@ -4128,7 +4114,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           organizationId={currentOrganization?.id ?? null}
           projectId={projectId}
           resources={resources}
-          isReadOnly={isPlannerProject || isMsProjectImported}
+          isReadOnly={false}
           onResourceAssign={(taskId, resourceIds) => {
             updateTaskResources.mutate({ taskId, resourceIds });
           }}
