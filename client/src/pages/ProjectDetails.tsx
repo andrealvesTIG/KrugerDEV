@@ -38,7 +38,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -248,7 +248,7 @@ export default function ProjectDetails() {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-display font-bold text-foreground">{project.name}</h1>
             <Badge className={cn(
               "text-sm px-3 py-1",
@@ -258,6 +258,42 @@ export default function ProjectDetails() {
             )}>
               {project.health} Health
             </Badge>
+            {/* Planner Badge */}
+            {project.source === "planner" && project.plannerPlanId && (
+              <button
+                type="button"
+                onClick={() => window.open(`https://planner.cloud.microsoft/webui/plan/${project.plannerPlanId}/view/board`, '_blank')}
+                className="flex items-center gap-1.5 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/50 transition-colors"
+                title="Synced from Microsoft Planner - Click to open in Planner"
+                data-testid="planner-badge-header"
+              >
+                <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Planner</span>
+                <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+              </button>
+            )}
+            {/* Planner Premium Badge */}
+            {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
+              <button
+                type="button"
+                onClick={() => {
+                  const tenantId = project.dataverseTenantId || '';
+                  const planId = project.plannerPlanId;
+                  const premiumUrl = tenantId 
+                    ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
+                    : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
+                  window.open(premiumUrl, '_blank');
+                }}
+                className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors"
+                title="Synced from Planner Premium - Click to open in Planner"
+                data-testid="planner-premium-badge-header"
+              >
+                <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
+                <Crown className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Planner Premium</span>
+                <ExternalLink className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+              </button>
+            )}
           </div>
           <p className="mt-2 max-w-2xl text-muted-foreground">{project.description}</p>
         </div>

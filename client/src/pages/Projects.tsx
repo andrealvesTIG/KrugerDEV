@@ -563,7 +563,7 @@ export default function Projects() {
                                 <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
                               </button>
                             )}
-                            {project.source === "planner-premium" && project.plannerPlanId && (
+                            {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -774,7 +774,7 @@ export default function Projects() {
                         </button>
                       )}
                       {/* Planner Premium Logo for synced projects */}
-                      {project.source === "planner-premium" && project.plannerPlanId && (
+                      {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -2609,7 +2609,7 @@ function ProjectsGridView({
       case "source":
         if ((project as any).isExternal) return <ExternalBadge organizationName={(project as any).sourceOrganizationName} />;
         if (project.source === "planner") return <Badge variant="outline" className="text-xs">Planner</Badge>;
-        if (project.source === "planner-premium") return <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">Planner Premium</Badge>;
+        if (project.source === "planner-premium" || project.source === "planner_premium") return <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">Planner Premium</Badge>;
         if (project.source === "imported") return <Badge variant="outline" className="text-xs">MS Project</Badge>;
         return <Badge variant="outline" className="text-xs">Manual</Badge>;
       case "owner":
@@ -3140,7 +3140,7 @@ function DraggableProjectCard({ project }: { project: Project }) {
                   <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
                 </button>
               )}
-              {project.source === "planner-premium" && project.plannerPlanId && (
+              {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -3556,7 +3556,7 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
                                 <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
                               </button>
                             )}
-                            {project.source === "planner-premium" && project.plannerPlanId && (
+                            {(project.source === "planner-premium" || project.source === "planner_premium") && project.plannerPlanId && (
                               <button
                                 type="button"
                                 onClick={(e) => {
