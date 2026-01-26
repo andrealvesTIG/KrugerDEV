@@ -196,23 +196,37 @@ export default function ProjectDetails() {
   const urlIssueId = urlParams.get('issueId');
   const urlRiskId = urlParams.get('riskId');
 
-  // Pinned tabs state - persisted in localStorage
-  const PINNED_TABS_KEY = 'project-pinned-tabs';
+  // Pinned tabs state - persisted in localStorage per project
+  const getPinnedTabsKey = (projectId: number) => `project-pinned-tabs-${projectId}`;
   const [pinnedTabs, setPinnedTabs] = useState<string[]>(() => {
+    if (!project?.id) return [];
     try {
-      const saved = localStorage.getItem(PINNED_TABS_KEY);
+      const saved = localStorage.getItem(getPinnedTabsKey(project.id));
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
   });
 
+  // Update pinned tabs when project changes
+  useEffect(() => {
+    if (project?.id) {
+      try {
+        const saved = localStorage.getItem(getPinnedTabsKey(project.id));
+        setPinnedTabs(saved ? JSON.parse(saved) : []);
+      } catch {
+        setPinnedTabs([]);
+      }
+    }
+  }, [project?.id]);
+
   const togglePinTab = (tabId: string) => {
+    if (!project?.id) return;
     setPinnedTabs(prev => {
       const newPinned = prev.includes(tabId) 
         ? prev.filter(t => t !== tabId) 
         : [...prev, tabId];
-      localStorage.setItem(PINNED_TABS_KEY, JSON.stringify(newPinned));
+      localStorage.setItem(getPinnedTabsKey(project.id), JSON.stringify(newPinned));
       return newPinned;
     });
   };
