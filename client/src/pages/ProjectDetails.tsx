@@ -38,7 +38,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -195,6 +195,38 @@ export default function ProjectDetails() {
   const urlTaskId = urlParams.get('taskId');
   const urlIssueId = urlParams.get('issueId');
   const urlRiskId = urlParams.get('riskId');
+
+  // Pinned tabs state - persisted in localStorage
+  const PINNED_TABS_KEY = 'project-pinned-tabs';
+  const [pinnedTabs, setPinnedTabs] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(PINNED_TABS_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const togglePinTab = (tabId: string) => {
+    setPinnedTabs(prev => {
+      const newPinned = prev.includes(tabId) 
+        ? prev.filter(t => t !== tabId) 
+        : [...prev, tabId];
+      localStorage.setItem(PINNED_TABS_KEY, JSON.stringify(newPinned));
+      return newPinned;
+    });
+  };
+
+  // Available tabs for pinning from the More menu
+  const moreTabItems = [
+    { id: 'scoring', label: 'Scoring' },
+    { id: 'benefits', label: 'Benefits' },
+    { id: 'decisions', label: 'Decisions' },
+    { id: 'lessons-learned', label: 'Lessons Learned' },
+    { id: 'change-requests', label: 'Change Requests' },
+    { id: 'documents', label: 'Documents' },
+    { id: 'status-report', label: 'Status Report' },
+  ];
 
   // Redirect if project doesn't belong to current organization
   useEffect(() => {
@@ -458,57 +490,128 @@ export default function ProjectDetails() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto">
+        <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap">
           <TabsTrigger value="summary" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-summary">Summary</TabsTrigger>
           <TabsTrigger value="tasks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-tasks">Tasks</TabsTrigger>
           <TabsTrigger value="risks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-risks">Risks</TabsTrigger>
           <TabsTrigger value="issues" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-issues">Issues</TabsTrigger>
           <TabsTrigger value="financials" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-financials">Financials</TabsTrigger>
+          
+          {/* Render pinned tabs as visible TabsTriggers */}
+          {moreTabItems.filter(item => pinnedTabs.includes(item.id)).map(item => (
+            <div key={item.id} className="flex items-center gap-0.5">
+              <TabsTrigger 
+                value={item.id} 
+                className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" 
+                data-testid={`tab-pinned-${item.id}`}
+              >
+                {item.label}
+              </TabsTrigger>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-md"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePinTab(item.id);
+                }}
+                data-testid={`button-unpin-${item.id}`}
+              >
+                <PinOff className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            </div>
+          ))}
+          
+          {/* Render pinned custom tabs */}
+          {customTabs.filter(tab => pinnedTabs.includes(`custom-${tab.id}`)).map(tab => (
+            <div key={tab.id} className="flex items-center gap-0.5">
+              <TabsTrigger 
+                value={`custom-${tab.id}`} 
+                className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" 
+                data-testid={`tab-pinned-custom-${tab.id}`}
+              >
+                {tab.name}
+              </TabsTrigger>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-md"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePinTab(`custom-${tab.id}`);
+                }}
+                data-testid={`button-unpin-custom-${tab.id}`}
+              >
+                <PinOff className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            </div>
+          ))}
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={['change-requests', 'documents', 'status-report', 'scoring', 'benefits', 'decisions', ...customTabs.map(t => `custom-${t.id}`)].includes(activeTab) ? 'default' : 'ghost'} 
+                variant={['change-requests', 'documents', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
               >
-                {activeTab === 'change-requests' ? 'Change Requests' : 
-                 activeTab === 'documents' ? 'Documents' : 
-                 activeTab === 'status-report' ? 'Status Report' :
-                 activeTab === 'scoring' ? 'Scoring' :
-                 activeTab === 'benefits' ? 'Benefits' :
-                 activeTab === 'decisions' ? 'Decisions' :
-                 activeTab === 'lessons-learned' ? 'Lessons Learned' :
-                 activeTab.startsWith('custom-') ? customTabs.find(t => `custom-${t.id}` === activeTab)?.name :
+                {!pinnedTabs.includes(activeTab) && activeTab === 'change-requests' ? 'Change Requests' : 
+                 !pinnedTabs.includes(activeTab) && activeTab === 'documents' ? 'Documents' : 
+                 !pinnedTabs.includes(activeTab) && activeTab === 'status-report' ? 'Status Report' :
+                 !pinnedTabs.includes(activeTab) && activeTab === 'scoring' ? 'Scoring' :
+                 !pinnedTabs.includes(activeTab) && activeTab === 'benefits' ? 'Benefits' :
+                 !pinnedTabs.includes(activeTab) && activeTab === 'decisions' ? 'Decisions' :
+                 !pinnedTabs.includes(activeTab) && activeTab === 'lessons-learned' ? 'Lessons Learned' :
+                 activeTab.startsWith('custom-') && !pinnedTabs.includes(activeTab) ? customTabs.find(t => `custom-${t.id}` === activeTab)?.name :
                  'More'}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setActiveTab('scoring')} data-testid="menu-tab-scoring">
-                Scoring
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('benefits')} data-testid="menu-tab-benefits">
-                Benefits
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('decisions')} data-testid="menu-tab-decisions">
-                Decisions
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('lessons-learned')} data-testid="menu-tab-lessons-learned">
-                Lessons Learned
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('change-requests')} data-testid="menu-tab-change-requests">
-                Change Requests
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('documents')} data-testid="menu-tab-documents">
-                Documents
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('status-report')} data-testid="menu-tab-status-report">
-                Status Report
-              </DropdownMenuItem>
-              {customTabs.map((tab) => (
-                <DropdownMenuItem key={tab.id} onClick={() => setActiveTab(`custom-${tab.id}`)} data-testid={`menu-tab-custom-${tab.id}`}>
-                  {tab.name}
+            <DropdownMenuContent align="start" className="min-w-[200px]">
+              {moreTabItems.filter(item => !pinnedTabs.includes(item.id)).map(item => (
+                <DropdownMenuItem 
+                  key={item.id} 
+                  className="flex items-center justify-between gap-2"
+                  data-testid={`menu-tab-${item.id}`}
+                >
+                  <span onClick={() => setActiveTab(item.id)} className="flex-1 cursor-pointer">
+                    {item.label}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePinTab(item.id);
+                    }}
+                    data-testid={`button-pin-${item.id}`}
+                  >
+                    <Pin className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuItem>
+              ))}
+              {customTabs.filter(tab => !pinnedTabs.includes(`custom-${tab.id}`)).map((tab) => (
+                <DropdownMenuItem 
+                  key={tab.id} 
+                  className="flex items-center justify-between gap-2"
+                  data-testid={`menu-tab-custom-${tab.id}`}
+                >
+                  <span onClick={() => setActiveTab(`custom-${tab.id}`)} className="flex-1 cursor-pointer">
+                    {tab.name}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePinTab(`custom-${tab.id}`);
+                    }}
+                    data-testid={`button-pin-custom-${tab.id}`}
+                  >
+                    <Pin className="h-3 w-3" />
+                  </Button>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
