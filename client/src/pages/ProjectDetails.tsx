@@ -22,6 +22,7 @@ import type { CustomFieldDefinition, ProjectCustomFieldValue, CustomProjectTab, 
 import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinancial, useDeleteProjectFinancial } from "@/hooks/use-project-financials";
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
+import { useAuth } from "@/hooks/use-auth";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { ResourceSelector } from "@/components/ResourceSelector";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
@@ -185,6 +186,7 @@ export default function ProjectDetails() {
   const allCollapsed = Object.values(sectionsCollapsed).every(v => v);
   const allExpanded = Object.values(sectionsCollapsed).every(v => !v);
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
 
@@ -196,41 +198,15 @@ export default function ProjectDetails() {
   const urlIssueId = urlParams.get('issueId');
   const urlRiskId = urlParams.get('riskId');
 
-  // Pinned tabs state - persisted in localStorage per project
-  const getPinnedTabsKey = (projectId: number) => `project-pinned-tabs-${projectId}`;
-  const [pinnedTabs, setPinnedTabs] = useState<string[]>(() => {
-    if (!project?.id) return [];
-    try {
-      const saved = localStorage.getItem(getPinnedTabsKey(project.id));
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Update pinned tabs when project changes
-  useEffect(() => {
-    if (project?.id) {
-      try {
-        const saved = localStorage.getItem(getPinnedTabsKey(project.id));
-        setPinnedTabs(saved ? JSON.parse(saved) : []);
-      } catch {
-        setPinnedTabs([]);
-      }
-    }
-  }, [project?.id]);
-
-  const togglePinTab = (tabId: string) => {
-    if (!project?.id) return;
-    setPinnedTabs(prev => {
-      const newPinned = prev.includes(tabId) 
-        ? prev.filter(t => t !== tabId) 
-        : [...prev, tabId];
-      localStorage.setItem(getPinnedTabsKey(project.id), JSON.stringify(newPinned));
-      return newPinned;
-    });
-  };
-
+  // Default tab order - main tabs first, then "More" tabs
+  const defaultMainTabs = [
+    { id: 'summary', label: 'Summary' },
+    { id: 'tasks', label: 'Tasks' },
+    { id: 'risks', label: 'Risks' },
+    { id: 'issues', label: 'Issues' },
+    { id: 'financials', label: 'Financials' },
+  ];
+  
   // Available tabs for pinning from the More menu
   const moreTabItems = [
     { id: 'scoring', label: 'Scoring' },
@@ -241,6 +217,145 @@ export default function ProjectDetails() {
     { id: 'documents', label: 'Documents' },
     { id: 'status-report', label: 'Status Report' },
   ];
+  
+  // All available tab IDs for ordering
+  const allTabIds = [...defaultMainTabs.map(t => t.id), ...moreTabItems.map(t => t.id)];
+
+  // Pinned tabs state - persisted in localStorage per project per user
+  const getPinnedTabsKey = (projectId: number, userId: string) => `project-pinned-tabs-${userId}-${projectId}`;
+  const getTabOrderKey = (projectId: number, userId: string) => `project-tab-order-${userId}-${projectId}`;
+  
+  const [pinnedTabs, setPinnedTabs] = useState<string[]>(() => {
+    if (!project?.id || !user?.id) return [];
+    try {
+      const saved = localStorage.getItem(getPinnedTabsKey(project.id, user.id));
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  
+  // Tab order state - persisted in localStorage per project per user
+  const [tabOrder, setTabOrder] = useState<string[]>(() => {
+    if (!project?.id || !user?.id) return allTabIds;
+    try {
+      const saved = localStorage.getItem(getTabOrderKey(project.id, user.id));
+      if (saved) {
+        const savedOrder = JSON.parse(saved);
+        // Merge with any new tabs that might have been added
+        const newTabs = allTabIds.filter(id => !savedOrder.includes(id));
+        return [...savedOrder, ...newTabs];
+      }
+      return allTabIds;
+    } catch {
+      return allTabIds;
+    }
+  });
+  
+  // Drag state for reordering
+  const [draggedTab, setDraggedTab] = useState<string | null>(null);
+  const [dragOverTab, setDragOverTab] = useState<string | null>(null);
+
+  // Update pinned tabs and tab order when project or user changes
+  useEffect(() => {
+    if (project?.id && user?.id) {
+      try {
+        const savedPinned = localStorage.getItem(getPinnedTabsKey(project.id, user.id));
+        setPinnedTabs(savedPinned ? JSON.parse(savedPinned) : []);
+        
+        const savedOrder = localStorage.getItem(getTabOrderKey(project.id, user.id));
+        if (savedOrder) {
+          const parsed = JSON.parse(savedOrder);
+          const newTabs = allTabIds.filter(id => !parsed.includes(id));
+          setTabOrder([...parsed, ...newTabs]);
+        } else {
+          setTabOrder(allTabIds);
+        }
+      } catch {
+        setPinnedTabs([]);
+        setTabOrder(allTabIds);
+      }
+    }
+  }, [project?.id, user?.id]);
+
+  const togglePinTab = (tabId: string) => {
+    if (!project?.id || !user?.id) return;
+    setPinnedTabs(prev => {
+      const newPinned = prev.includes(tabId) 
+        ? prev.filter(t => t !== tabId) 
+        : [...prev, tabId];
+      localStorage.setItem(getPinnedTabsKey(project.id, user.id), JSON.stringify(newPinned));
+      return newPinned;
+    });
+  };
+  
+  // Drag and drop handlers for tab reordering
+  const handleTabDragStart = (e: React.DragEvent, tabId: string) => {
+    setDraggedTab(tabId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', tabId);
+  };
+  
+  const handleTabDragOver = (e: React.DragEvent, tabId: string) => {
+    e.preventDefault();
+    if (draggedTab && draggedTab !== tabId) {
+      setDragOverTab(tabId);
+    }
+  };
+  
+  const handleTabDragLeave = () => {
+    setDragOverTab(null);
+  };
+  
+  const handleTabDrop = (e: React.DragEvent, targetTabId: string) => {
+    e.preventDefault();
+    if (!draggedTab || !project?.id || !user?.id || draggedTab === targetTabId) {
+      setDraggedTab(null);
+      setDragOverTab(null);
+      return;
+    }
+    
+    setTabOrder(prev => {
+      const newOrder = [...prev];
+      const draggedIndex = newOrder.indexOf(draggedTab);
+      const targetIndex = newOrder.indexOf(targetTabId);
+      
+      if (draggedIndex === -1 || targetIndex === -1) return prev;
+      
+      // Remove dragged item and insert at target position
+      newOrder.splice(draggedIndex, 1);
+      newOrder.splice(targetIndex, 0, draggedTab);
+      
+      // Save to localStorage
+      localStorage.setItem(getTabOrderKey(project.id, user.id), JSON.stringify(newOrder));
+      return newOrder;
+    });
+    
+    setDraggedTab(null);
+    setDragOverTab(null);
+  };
+  
+  const handleTabDragEnd = () => {
+    setDraggedTab(null);
+    setDragOverTab(null);
+  };
+  
+  // Get ordered main tabs based on user's custom order
+  const orderedMainTabs = useMemo(() => {
+    const mainTabIds = defaultMainTabs.map(t => t.id);
+    return tabOrder
+      .filter(id => mainTabIds.includes(id))
+      .map(id => defaultMainTabs.find(t => t.id === id)!)
+      .filter(Boolean);
+  }, [tabOrder]);
+  
+  // Get ordered pinned tabs based on user's custom order
+  const orderedPinnedTabs = useMemo(() => {
+    return tabOrder
+      .filter(id => pinnedTabs.includes(id) && moreTabItems.some(t => t.id === id))
+      .map(id => moreTabItems.find(t => t.id === id)!)
+      .filter(Boolean);
+  }, [tabOrder, pinnedTabs]);
 
   // Redirect if project doesn't belong to current organization
   useEffect(() => {
@@ -505,18 +620,49 @@ export default function ProjectDetails() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap">
-          <TabsTrigger value="summary" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-summary">Summary</TabsTrigger>
-          <TabsTrigger value="tasks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="risks" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-risks">Risks</TabsTrigger>
-          <TabsTrigger value="issues" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-issues">Issues</TabsTrigger>
-          <TabsTrigger value="financials" className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" data-testid="tab-financials">Financials</TabsTrigger>
+          {/* Render main tabs in user-defined order with drag-drop support */}
+          {orderedMainTabs.map(tab => (
+            <TabsTrigger 
+              key={tab.id}
+              value={tab.id} 
+              className={cn(
+                "rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md cursor-grab active:cursor-grabbing transition-all",
+                draggedTab === tab.id && "opacity-50",
+                dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1"
+              )}
+              data-testid={`tab-${tab.id}`}
+              draggable
+              onDragStart={(e) => handleTabDragStart(e, tab.id)}
+              onDragOver={(e) => handleTabDragOver(e, tab.id)}
+              onDragLeave={handleTabDragLeave}
+              onDrop={(e) => handleTabDrop(e, tab.id)}
+              onDragEnd={handleTabDragEnd}
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
           
-          {/* Render pinned tabs as visible TabsTriggers */}
-          {moreTabItems.filter(item => pinnedTabs.includes(item.id)).map(item => (
-            <div key={item.id} className="flex items-center gap-0.5">
+          {/* Render pinned tabs as visible TabsTriggers with drag-drop support */}
+          {orderedPinnedTabs.map(item => (
+            <div 
+              key={item.id} 
+              className={cn(
+                "flex items-center gap-0.5 transition-all",
+                dragOverTab === item.id && "ring-2 ring-primary ring-offset-1 rounded-lg"
+              )}
+              draggable
+              onDragStart={(e) => handleTabDragStart(e, item.id)}
+              onDragOver={(e) => handleTabDragOver(e, item.id)}
+              onDragLeave={handleTabDragLeave}
+              onDrop={(e) => handleTabDrop(e, item.id)}
+              onDragEnd={handleTabDragEnd}
+            >
               <TabsTrigger 
                 value={item.id} 
-                className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" 
+                className={cn(
+                  "rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md cursor-grab active:cursor-grabbing",
+                  draggedTab === item.id && "opacity-50"
+                )}
                 data-testid={`tab-pinned-${item.id}`}
               >
                 {item.label}
