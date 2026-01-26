@@ -94,32 +94,32 @@ const benefits = [
 // Integrations for landing page display
 const landingIntegrations = [
   // Project Management
-  { id: "jira", name: "Jira", icon: <SiJira className="h-5 w-5" />, category: "Project Management", bgColor: "bg-blue-100 dark:bg-blue-900/50" },
-  { id: "asana", name: "Asana", icon: <SiAsana className="h-5 w-5" />, category: "Project Management", bgColor: "bg-pink-100 dark:bg-pink-900/50" },
-  { id: "monday", name: "Monday.com", icon: <LayoutGrid className="h-5 w-5" />, category: "Project Management", bgColor: "bg-red-100 dark:bg-red-900/50" },
-  { id: "trello", name: "Trello", icon: <SiTrello className="h-5 w-5" />, category: "Project Management", bgColor: "bg-sky-100 dark:bg-sky-900/50" },
-  { id: "ms-project", name: "MS Project", icon: <FileSpreadsheet className="h-5 w-5" />, category: "Project Management", bgColor: "bg-blue-100 dark:bg-blue-900/50" },
-  { id: "planner", name: "Microsoft Planner", icon: <Calendar className="h-5 w-5" />, category: "Project Management", bgColor: "bg-indigo-100 dark:bg-indigo-900/50" },
-  { id: "planner-premium", name: "Planner Premium", icon: <Rocket className="h-5 w-5" />, category: "Project Management", bgColor: "bg-purple-100 dark:bg-purple-900/50" },
-  { id: "project-online", name: "Project Online", icon: <Cloud className="h-5 w-5" />, category: "Project Management", bgColor: "bg-blue-100 dark:bg-blue-900/50" },
-  { id: "notion", name: "Notion", icon: <SiNotion className="h-5 w-5" />, category: "Project Management", bgColor: "bg-stone-100 dark:bg-stone-900/50" },
-  { id: "clickup", name: "ClickUp", icon: <SiClickup className="h-5 w-5" />, category: "Project Management", bgColor: "bg-violet-100 dark:bg-violet-900/50" },
-  { id: "basecamp", name: "Basecamp", icon: <Briefcase className="h-5 w-5" />, category: "Project Management", bgColor: "bg-emerald-100 dark:bg-emerald-900/50" },
+  { id: "jira", name: "Jira", icon: <SiJira className="h-5 w-5" />, category: "Project Management", bgColor: "bg-blue-100 dark:bg-blue-900/50", url: "https://www.atlassian.com/software/jira" },
+  { id: "asana", name: "Asana", icon: <SiAsana className="h-5 w-5" />, category: "Project Management", bgColor: "bg-pink-100 dark:bg-pink-900/50", url: "https://asana.com" },
+  { id: "monday", name: "Monday.com", icon: <LayoutGrid className="h-5 w-5" />, category: "Project Management", bgColor: "bg-red-100 dark:bg-red-900/50", url: "https://monday.com" },
+  { id: "trello", name: "Trello", icon: <SiTrello className="h-5 w-5" />, category: "Project Management", bgColor: "bg-sky-100 dark:bg-sky-900/50", url: "https://trello.com" },
+  { id: "ms-project", name: "MS Project", icon: <FileSpreadsheet className="h-5 w-5" />, category: "Project Management", bgColor: "bg-blue-100 dark:bg-blue-900/50", url: "https://www.microsoft.com/en-us/microsoft-365/project/project-management-software" },
+  { id: "planner", name: "Microsoft Planner", icon: <Calendar className="h-5 w-5" />, category: "Project Management", bgColor: "bg-indigo-100 dark:bg-indigo-900/50", url: "https://www.microsoft.com/en-us/microsoft-365/business/task-management-software" },
+  { id: "planner-premium", name: "Planner Premium", icon: <Rocket className="h-5 w-5" />, category: "Project Management", bgColor: "bg-purple-100 dark:bg-purple-900/50", url: "https://www.microsoft.com/en-us/microsoft-365/planner/microsoft-planner" },
+  { id: "project-online", name: "Project Online", icon: <Cloud className="h-5 w-5" />, category: "Project Management", bgColor: "bg-blue-100 dark:bg-blue-900/50", url: "https://www.microsoft.com/en-us/microsoft-365/project/compare-microsoft-project-management-software" },
+  { id: "notion", name: "Notion", icon: <SiNotion className="h-5 w-5" />, category: "Project Management", bgColor: "bg-stone-100 dark:bg-stone-900/50", url: "https://www.notion.so" },
+  { id: "clickup", name: "ClickUp", icon: <SiClickup className="h-5 w-5" />, category: "Project Management", bgColor: "bg-violet-100 dark:bg-violet-900/50", url: "https://clickup.com" },
+  { id: "basecamp", name: "Basecamp", icon: <Briefcase className="h-5 w-5" />, category: "Project Management", bgColor: "bg-emerald-100 dark:bg-emerald-900/50", url: "https://basecamp.com" },
   // ERP
-  { id: "sap", name: "SAP", icon: <SiSap className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-blue-100 dark:bg-blue-900/50" },
-  { id: "oracle", name: "Oracle", icon: <SiOracle className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-red-100 dark:bg-red-900/50" },
-  { id: "netsuite", name: "NetSuite", icon: <Building2 className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-orange-100 dark:bg-orange-900/50" },
-  { id: "dynamics", name: "Dynamics 365", icon: <Square className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-cyan-100 dark:bg-cyan-900/50" },
-  { id: "workday", name: "Workday", icon: <Rocket className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-amber-100 dark:bg-amber-900/50" },
-  { id: "salesforce", name: "Salesforce", icon: <SiSalesforce className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-blue-100 dark:bg-blue-900/50" },
+  { id: "sap", name: "SAP", icon: <SiSap className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-blue-100 dark:bg-blue-900/50", url: "https://www.sap.com" },
+  { id: "oracle", name: "Oracle", icon: <SiOracle className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-red-100 dark:bg-red-900/50", url: "https://www.oracle.com" },
+  { id: "netsuite", name: "NetSuite", icon: <Building2 className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-orange-100 dark:bg-orange-900/50", url: "https://www.netsuite.com" },
+  { id: "dynamics", name: "Dynamics 365", icon: <Square className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-cyan-100 dark:bg-cyan-900/50", url: "https://dynamics.microsoft.com" },
+  { id: "workday", name: "Workday", icon: <Rocket className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-amber-100 dark:bg-amber-900/50", url: "https://www.workday.com" },
+  { id: "salesforce", name: "Salesforce", icon: <SiSalesforce className="h-5 w-5" />, category: "ERP Systems", bgColor: "bg-blue-100 dark:bg-blue-900/50", url: "https://www.salesforce.com" },
   // Analytics
-  { id: "power-bi", name: "Power BI", icon: <BarChart3 className="h-5 w-5" />, category: "Analytics & BI", bgColor: "bg-amber-100 dark:bg-amber-900/50" },
-  { id: "tableau", name: "Tableau", icon: <SiTableau className="h-5 w-5" />, category: "Analytics & BI", bgColor: "bg-blue-100 dark:bg-blue-900/50" },
-  { id: "google-analytics", name: "Google Analytics", icon: <SiGoogleanalytics className="h-5 w-5" />, category: "Analytics & BI", bgColor: "bg-orange-100 dark:bg-orange-900/50" },
-  { id: "looker", name: "Looker", icon: <BarChart3 className="h-5 w-5" />, category: "Analytics & BI", bgColor: "bg-purple-100 dark:bg-purple-900/50" },
+  { id: "power-bi", name: "Power BI", icon: <BarChart3 className="h-5 w-5" />, category: "Analytics & BI", bgColor: "bg-amber-100 dark:bg-amber-900/50", url: "https://powerbi.microsoft.com" },
+  { id: "tableau", name: "Tableau", icon: <SiTableau className="h-5 w-5" />, category: "Analytics & BI", bgColor: "bg-blue-100 dark:bg-blue-900/50", url: "https://www.tableau.com" },
+  { id: "google-analytics", name: "Google Analytics", icon: <SiGoogleanalytics className="h-5 w-5" />, category: "Analytics & BI", bgColor: "bg-orange-100 dark:bg-orange-900/50", url: "https://analytics.google.com" },
+  { id: "looker", name: "Looker", icon: <BarChart3 className="h-5 w-5" />, category: "Analytics & BI", bgColor: "bg-purple-100 dark:bg-purple-900/50", url: "https://cloud.google.com/looker" },
   // Identity & Directory
-  { id: "entra-id", name: "Microsoft Entra ID", icon: <Users className="h-5 w-5" />, category: "Identity", bgColor: "bg-sky-100 dark:bg-sky-900/50" },
-  { id: "business-central", name: "Business Central", icon: <Briefcase className="h-5 w-5" />, category: "Identity", bgColor: "bg-green-100 dark:bg-green-900/50" },
+  { id: "entra-id", name: "Microsoft Entra ID", icon: <Users className="h-5 w-5" />, category: "Identity", bgColor: "bg-sky-100 dark:bg-sky-900/50", url: "https://www.microsoft.com/en-us/security/business/identity-access/microsoft-entra-id" },
+  { id: "business-central", name: "Business Central", icon: <Briefcase className="h-5 w-5" />, category: "Identity", bgColor: "bg-green-100 dark:bg-green-900/50", url: "https://dynamics.microsoft.com/en-us/business-central/overview/" },
 ];
 
 const trustedBy = [
@@ -433,16 +433,24 @@ export default function SignInPage() {
           
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
             {landingIntegrations.map((integration) => (
-              <Card 
-                key={integration.id} 
-                className="flex flex-col items-center p-4 bg-slate-800/50 border-slate-700 hover-elevate group"
-                data-testid={`integration-card-${integration.id}`}
+              <a
+                key={integration.id}
+                href={integration.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Learn more about ${integration.name}`}
+                data-testid={`integration-link-${integration.id}`}
               >
-                <div className={`w-12 h-12 rounded-lg ${integration.bgColor} flex items-center justify-center mb-2 group-hover:scale-105 transition-transform`}>
-                  {integration.icon}
-                </div>
-                <span className="text-xs text-slate-300 text-center font-medium" data-testid={`integration-name-${integration.id}`}>{integration.name}</span>
-              </Card>
+                <Card 
+                  className="flex flex-col items-center p-4 bg-slate-800/50 border-slate-700 hover-elevate group h-full"
+                  data-testid={`integration-card-${integration.id}`}
+                >
+                  <div className={`w-12 h-12 rounded-lg ${integration.bgColor} flex items-center justify-center mb-2 group-hover:scale-105 transition-transform`}>
+                    {integration.icon}
+                  </div>
+                  <span className="text-xs text-slate-300 text-center font-medium" data-testid={`integration-name-${integration.id}`}>{integration.name}</span>
+                </Card>
+              </a>
             ))}
           </div>
           
