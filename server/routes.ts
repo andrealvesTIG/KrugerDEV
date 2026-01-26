@@ -1143,8 +1143,55 @@ export async function registerRoutes(
   // --- Users (Admin) ---
   app.get('/api/users', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: 'User not found' });
+      }
+      
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
+      
+      // Super admins can see all users
+      if (user.role === 'super_admin') {
+        if (organizationId) {
+          const orgMembers = await storage.getOrganizationMembers(organizationId);
+          const memberUserIds = orgMembers.map(m => m.userId);
+          const allUsers = await storage.getAllUsers();
+          const orgUsers = allUsers.filter(u => memberUserIds.includes(u.id));
+          return res.json(orgUsers);
+        }
+        const allUsers = await storage.getAllUsers();
+        return res.json(allUsers);
+      }
+      
+      // Non-super-admins must specify an organization
+      if (!organizationId) {
+        return res.status(400).json({ message: 'organizationId is required' });
+      }
+      
+      // Verify user has admin access to the requested organization
+      const memberships = await storage.getUserOrganizations(userId);
+      const membership = memberships.find(m => m.organizationId === organizationId);
+      
+      if (!membership) {
+        return res.json([]);
+      }
+      
+      // Only org admins and owners can list all users in the org
+      if (!['org_admin', 'owner'].includes(membership.role)) {
+        return res.status(403).json({ message: 'Admin access required to list users' });
+      }
+      
+      // Get users who are members of this organization
+      const orgMembers = await storage.getOrganizationMembers(organizationId);
+      const memberUserIds = orgMembers.map(m => m.userId);
       const allUsers = await storage.getAllUsers();
-      res.json(allUsers);
+      const orgUsers = allUsers.filter(u => memberUserIds.includes(u.id));
+      return res.json(orgUsers);
     } catch (err) {
       res.json([]);
     }
@@ -6347,14 +6394,29 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
     
     const accessibleOrgIds = await getUserOrgIds(userId);
+    const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
     const allMilestones = await storage.getAllMilestones();
     
     const allProjects = await storage.getProjects();
-    const accessibleProjectIds = new Set(
-      allProjects
-        .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
-        .map(p => p.id)
-    );
+    let accessibleProjectIds: Set<number>;
+    
+    if (organizationId !== null) {
+      // Verify user has access to this organization
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.json([]);
+      }
+      accessibleProjectIds = new Set(
+        allProjects
+          .filter(p => p.organizationId === organizationId)
+          .map(p => p.id)
+      );
+    } else {
+      accessibleProjectIds = new Set(
+        allProjects
+          .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
+          .map(p => p.id)
+      );
+    }
     
     const filteredMilestones = allMilestones.filter(m => accessibleProjectIds.has(m.projectId));
     res.json(filteredMilestones);
