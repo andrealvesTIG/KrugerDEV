@@ -318,11 +318,15 @@ export default function SignInPage() {
         <div className="max-w-7xl mx-auto relative">
           <div className="text-center max-w-3xl mx-auto mb-6">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 leading-tight">
-              Deliver Projects with
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400"> Confidence</span>
+              The Most Flexible,
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400"> AI-First PMO Platform</span>
             </h1>
-            
-            <p className="text-sm sm:text-base text-slate-300 mb-4 max-w-xl mx-auto">Enterprise PPM platform to manage portfolios, track progress, and deliver on time.</p>
+            <p className="text-lg sm:text-xl font-medium text-slate-200 mb-2">
+              Built to adapt. Designed to predict.
+            </p>
+            <p className="text-sm sm:text-base text-slate-400 mb-4 max-w-xl mx-auto">
+              FridayReport.ai brings AI-native intelligence to portfolio and project management—without forcing you into a rigid framework.
+            </p>
             
             <Button 
               size="default" 
