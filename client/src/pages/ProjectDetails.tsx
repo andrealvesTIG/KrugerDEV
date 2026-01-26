@@ -9576,6 +9576,9 @@ function DocumentsTab({ projectId }: { projectId: number }) {
   };
 
   const canPreview = (doc: ProjectDocument) => {
+    // Can preview if document has stored content
+    if (doc.content) return true;
+    
     const mimeType = doc.mimeType?.toLowerCase() || '';
     const fileName = doc.fileName?.toLowerCase() || '';
     const ext = fileName.split('.').pop() || '';
@@ -9949,7 +9952,7 @@ function DocumentsTab({ projectId }: { projectId: number }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {doc.fileUrl && canPreview(doc) && (
+                  {(doc.fileUrl || doc.content) && canPreview(doc) && (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button 
@@ -10020,6 +10023,18 @@ function DocumentsTab({ projectId }: { projectId: number }) {
           <div className="flex-1 overflow-auto min-h-[400px]">
             {previewDoc && (() => {
               const url = getFileUrl(previewDoc);
+              
+              // If document has stored content, show it directly
+              if (previewDoc.content) {
+                return (
+                  <div className="p-4 bg-muted rounded-lg">
+                    <pre className="whitespace-pre-wrap text-sm font-mono overflow-auto max-h-[600px]">
+                      {previewDoc.content}
+                    </pre>
+                  </div>
+                );
+              }
+              
               if (!url) return <div className="text-center py-8 text-muted-foreground">No file available</div>;
               
               const mimeType = previewDoc.mimeType?.toLowerCase() || '';
