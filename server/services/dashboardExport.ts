@@ -216,7 +216,7 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
     
     // Status Bar Chart
     if (data.charts.status) {
-      const { planning, execution, closing, initiation } = data.charts.status;
+      const { planning, execution, closing, initiation, billing = 0 } = data.charts.status;
       
       slide.addShape("roundRect", {
         x: 0.3 + chartWidth + 0.12,
@@ -242,8 +242,8 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
       slide.addChart("bar", [
         {
           name: "Projects",
-          labels: ["Initiation", "Planning", "Execution", "Closing"],
-          values: [initiation, planning, execution, closing],
+          labels: ["Initiation", "Planning", "Execution", "Closing", "Billing"],
+          values: [initiation, planning, execution, closing, billing],
         },
       ], {
         x: 0.3 + chartWidth + 0.2,
@@ -1024,6 +1024,7 @@ export async function getDashboardDataForExport(
       const planningCount = projects.filter((p: Project) => p.status === "Planning").length;
       const executionCount = projects.filter((p: Project) => p.status === "Execution").length;
       const closingCount = projects.filter((p: Project) => p.status === "Closing").length;
+      const billingCount = projects.filter((p: Project) => p.status === "Billing").length;
       
       // Get risks for priority chart
       let allRisks: Risk[] = [];
@@ -1063,7 +1064,7 @@ export async function getDashboardDataForExport(
         },
         charts: {
           health: { healthy: healthyCount, atRisk: atRiskCount, critical: criticalCount },
-          status: { initiation: initiationCount, planning: planningCount, execution: executionCount, closing: closingCount },
+          status: { initiation: initiationCount, planning: planningCount, execution: executionCount, closing: closingCount, billing: billingCount },
           priorities: { critical: criticalRisks, high: highRisks, medium: mediumRisks, low: lowRisks },
         },
         items: projects.slice(0, 10).map((p: Project) => ({
@@ -1090,6 +1091,7 @@ export async function getDashboardDataForExport(
       const planningCount = projects.filter((p: Project) => p.status === "Planning").length;
       const executionCount = projects.filter((p: Project) => p.status === "Execution").length;
       const closingCount = projects.filter((p: Project) => p.status === "Closing").length;
+      const billingCount = projects.filter((p: Project) => p.status === "Billing").length;
       
       return {
         type: "portfolios",
@@ -1106,7 +1108,7 @@ export async function getDashboardDataForExport(
         },
         charts: {
           health: { healthy: healthyCount, atRisk: atRiskCount, critical: criticalCount },
-          status: { initiation: initiationCount, planning: planningCount, execution: executionCount, closing: closingCount },
+          status: { initiation: initiationCount, planning: planningCount, execution: executionCount, closing: closingCount, billing: billingCount },
         },
         items: portfolios.map((p: Portfolio) => ({
           Name: p.name,

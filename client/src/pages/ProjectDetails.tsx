@@ -75,6 +75,7 @@ const PROJECT_STAGES = [
   { value: "Execution", label: "Execution", description: "Active development" },
   { value: "Monitoring", label: "Monitoring", description: "Track & control" },
   { value: "Closing", label: "Closing", description: "Project completion" },
+  { value: "Billing", label: "Billing", description: "Pending invoices & accounting" },
 ];
 
 function BusinessProcessFlow({ 
@@ -1374,7 +1375,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
     }
     if (isSelect) {
       const options: Record<string, string[]> = {
-        status: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'On Hold', 'Cancelled'],
+        status: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'Billing', 'On Hold', 'Cancelled'],
         priority: ['Low', 'Medium', 'High', 'Critical'],
         health: ['Green', 'Yellow', 'Red'],
         riskLevel: ['Low', 'Medium', 'High'],

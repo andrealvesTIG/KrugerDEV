@@ -423,7 +423,7 @@ const UserGuidePDF = () => (
           <View style={pdfStyles.badge}><Text style={pdfStyles.badgeText}>Budget</Text></View>
         </View>
         <Text style={pdfStyles.heading}>Status Values:</Text>
-        <Text style={pdfStyles.listItem}>Initiation, Planning, Execution, Monitoring, Closing</Text>
+        <Text style={pdfStyles.listItem}>Initiation, Planning, Execution, Monitoring, Closing, Billing</Text>
         <Text style={pdfStyles.heading}>Priority Levels:</Text>
         <Text style={pdfStyles.listItem}>Low, Medium, High, Critical</Text>
         <Text style={pdfStyles.heading}>Health Indicators:</Text>
@@ -1286,7 +1286,7 @@ export default function UserGuide() {
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="secondary">Status</Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">Initiation, Planning, Execution, Monitoring, Closing</p>
+                      <p className="text-sm text-muted-foreground">Initiation, Planning, Execution, Monitoring, Closing, Billing</p>
                     </div>
                     <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
                       <div className="flex items-center gap-2 mb-1">

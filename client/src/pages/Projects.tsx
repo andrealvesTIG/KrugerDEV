@@ -41,7 +41,7 @@ import ExcelJS from "exceljs";
 import { ViewsDropdown } from "@/components/ViewsDropdown";
 import { useColumnState, sortData, type SortDirection, type ColumnSort } from "@/hooks/use-column-state";
 
-const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
+const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing"];
 
 export default function Projects() {
   const { currentOrganization, memberships } = useOrganization();
@@ -2466,7 +2466,7 @@ function ProjectsGridView({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {["Initiation", "Planning", "Execution", "Monitoring", "Closing"].map(status => (
+              {["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing"].map(status => (
                 <SelectItem key={status} value={status}>{status}</SelectItem>
               ))}
             </SelectContent>

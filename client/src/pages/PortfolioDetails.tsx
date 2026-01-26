@@ -1033,7 +1033,7 @@ function DashboardTab({ portfolioId, metrics, onNavigate }: {
   ].filter(d => d.value > 0);
 
   // Build heat map data: Status x Health matrix
-  const statuses = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
+  const statuses = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing"];
   const healths = ["Green", "Yellow", "Red"];
   const healthLabels: Record<string, string> = { Green: "Healthy", Yellow: "At Risk", Red: "Critical" };
   

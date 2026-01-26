@@ -8226,7 +8226,7 @@ Create a JSON object with this exact structure:
         {
           "name": "Project Name",
           "description": "Project description",
-          "status": "Planning|Initiation|Execution|Monitoring|Closing",
+          "status": "Planning|Initiation|Execution|Monitoring|Closing|Billing",
           "priority": "Low|Medium|High|Critical",
           "budget": "500000",
           "health": "Green|Yellow|Red",
