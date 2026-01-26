@@ -8367,6 +8367,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         changeRequests: 0,
         lessonsLearned: 0,
         documents: 0,
+        benefits: 0,
+        decisions: 0,
         resources: 0,
         intakes: 0,
       };
@@ -8595,6 +8597,52 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
                 isDemo: true,
               });
               stats.documents++;
+            }
+          }
+          
+          // Generate benefits from template if available
+          if (projectTemplate.benefits && projectTemplate.benefits.length > 0) {
+            for (const benefitTemplate of projectTemplate.benefits) {
+              const targetDate = new Date(today);
+              targetDate.setDate(targetDate.getDate() + Math.floor(Math.random() * 180) + 30);
+              
+              await storage.createProjectBenefit({
+                projectId: project.id,
+                name: benefitTemplate.name,
+                description: benefitTemplate.description,
+                category: benefitTemplate.category,
+                benefitType: benefitTemplate.benefitType,
+                status: benefitTemplate.status,
+                targetValue: benefitTemplate.targetValue,
+                actualValue: benefitTemplate.actualValue || null,
+                measurementMethod: benefitTemplate.measurementMethod,
+                targetDate: targetDate.toISOString().split('T')[0],
+                isDemo: true,
+              });
+              stats.benefits++;
+            }
+          }
+          
+          // Generate decisions from template if available
+          if (projectTemplate.decisions && projectTemplate.decisions.length > 0) {
+            for (const decisionTemplate of projectTemplate.decisions) {
+              const decisionDate = new Date(today);
+              decisionDate.setDate(decisionDate.getDate() - Math.floor(Math.random() * 30));
+              
+              await storage.createProjectDecision({
+                projectId: project.id,
+                title: decisionTemplate.title,
+                description: decisionTemplate.description,
+                status: decisionTemplate.status,
+                priority: decisionTemplate.priority,
+                decisionType: decisionTemplate.decisionType,
+                outcome: decisionTemplate.outcome || null,
+                rationale: decisionTemplate.rationale || null,
+                alternatives: decisionTemplate.alternatives || null,
+                decisionDate: decisionTemplate.status === 'Made' ? decisionDate.toISOString().split('T')[0] : null,
+                isDemo: true,
+              });
+              stats.decisions++;
             }
           }
         }

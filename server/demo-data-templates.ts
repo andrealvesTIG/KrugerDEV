@@ -94,6 +94,26 @@ export interface DemoDataTemplate {
         fileName: string;
         content?: string;
       }>;
+      benefits?: Array<{
+        name: string;
+        description: string;
+        category: string;
+        benefitType: string;
+        status: string;
+        targetValue: string;
+        actualValue?: string;
+        measurementMethod: string;
+      }>;
+      decisions?: Array<{
+        title: string;
+        description: string;
+        status: string;
+        priority: string;
+        decisionType: string;
+        outcome?: string;
+        rationale?: string;
+        alternatives?: string;
+      }>;
     }>;
   }>;
 }
@@ -148,6 +168,16 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             documents: [
               { title: 'Cloud Migration Runbook', description: 'Step-by-step procedures for VM migration and cutover', type: 'Document', category: 'Technical', version: '2.1', status: 'Approved', fileName: 'migration-runbook-v2.1.pdf', content: 'This runbook contains detailed procedures for migrating virtual machines to cloud infrastructure including pre-migration checks, cutover steps, and rollback procedures.' },
               { title: 'Architecture Decision Record', description: 'ADR documenting hybrid connectivity design decisions', type: 'Design', category: 'Architecture', version: '1.0', status: 'Approved', fileName: 'adr-hybrid-connectivity.md', content: 'ADR-001: Hybrid Network Connectivity\n\nContext: Need secure, reliable connectivity between on-premise and cloud.\n\nDecision: Implement ExpressRoute with VPN backup.\n\nConsequences: Higher cost but improved reliability and security.' },
+            ],
+            benefits: [
+              { name: 'Infrastructure Cost Reduction', description: 'Reduce annual infrastructure costs by consolidating on-premise servers', category: 'Financial', benefitType: 'Tangible', status: 'Tracking', targetValue: '320000', measurementMethod: 'Compare annual cloud spend vs baseline on-prem costs' },
+              { name: 'Improved Scalability', description: 'Enable elastic scaling for peak demand periods', category: 'Operational', benefitType: 'Tangible', status: 'Tracking', targetValue: '100', measurementMethod: 'Load testing metrics and production scaling events' },
+              { name: 'Reduced Downtime', description: 'Improve system availability through cloud redundancy', category: 'Operational', benefitType: 'Tangible', status: 'Planned', targetValue: '99.9', measurementMethod: 'Monthly availability reports from monitoring system' },
+            ],
+            decisions: [
+              { title: 'Multi-Cloud Strategy', description: 'Decide on single cloud vs multi-cloud approach for migration', status: 'Made', priority: 'Critical', decisionType: 'Strategic', outcome: 'Single cloud (Azure) with DR in secondary region', rationale: 'Multi-cloud adds complexity without proportional benefits for our use case. Azure offers best integration with existing Microsoft stack.', alternatives: 'AWS primary, GCP primary, Multi-cloud (Azure + AWS)' },
+              { title: 'Database Migration Approach', description: 'Choose between lift-and-shift vs refactor for database migration', status: 'Made', priority: 'High', decisionType: 'Technical', outcome: 'Lift-and-shift with post-migration optimization', rationale: 'Faster migration timeline, can optimize after cutover without blocking other workloads', alternatives: 'Full refactor to managed DB services, Hybrid approach' },
+              { title: 'Network Connectivity Model', description: 'Select VPN vs ExpressRoute vs Direct Connect', status: 'Pending', priority: 'High', decisionType: 'Technical', alternatives: 'Site-to-Site VPN, ExpressRoute, ExpressRoute + VPN backup' },
             ],
           },
           {
@@ -262,6 +292,15 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             documents: [
               { title: 'HIPAA Compliance Assessment', description: 'Security and privacy assessment for patient portal features', type: 'Compliance', category: 'Security', version: '1.2', status: 'Approved', fileName: 'hipaa-assessment-v1.2.pdf', content: 'This assessment evaluates the patient portal for HIPAA compliance including PHI handling, access controls, audit logging, and data encryption at rest and in transit.' },
               { title: 'Patient Journey Map', description: 'Visual map of patient digital touchpoints and pain points', type: 'Design', category: 'UX', version: '2.0', status: 'Approved', fileName: 'patient-journey-map.pdf', content: 'Comprehensive journey map showing patient interactions across appointment scheduling, check-in, portal access, test results viewing, and medication management.' },
+            ],
+            benefits: [
+              { name: 'Patient Satisfaction Improvement', description: 'Increase patient satisfaction scores through improved digital experience', category: 'Strategic', benefitType: 'Intangible', status: 'Tracking', targetValue: '65', measurementMethod: 'Quarterly patient satisfaction surveys' },
+              { name: 'Call Center Volume Reduction', description: 'Reduce call center volume through self-service capabilities', category: 'Financial', benefitType: 'Tangible', status: 'Tracking', targetValue: '30', measurementMethod: 'Monthly call center analytics comparing to baseline' },
+              { name: 'Improved Appointment Adherence', description: 'Reduce no-show rates with automated reminders', category: 'Operational', benefitType: 'Tangible', status: 'Planned', targetValue: '8', measurementMethod: 'Monthly no-show reports from scheduling system' },
+            ],
+            decisions: [
+              { title: 'EHR Integration Approach', description: 'Choose between real-time vs batch data sync with Epic EHR', status: 'Made', priority: 'Critical', decisionType: 'Technical', outcome: 'Real-time HL7 FHIR integration', rationale: 'Patients expect real-time access to test results and appointment data. Batch processing would create unacceptable delays.', alternatives: 'Nightly batch sync, Hybrid real-time for critical data' },
+              { title: 'Mobile App vs Responsive Web', description: 'Decide on native mobile app vs responsive web for patient portal', status: 'Made', priority: 'High', decisionType: 'Strategic', outcome: 'Progressive Web App (PWA) with push notifications', rationale: 'PWA provides app-like experience without app store approval delays and works across all devices', alternatives: 'Native iOS/Android apps, Responsive web only' },
             ],
           },
           {
