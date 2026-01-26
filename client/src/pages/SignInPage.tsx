@@ -180,8 +180,14 @@ export default function SignInPage() {
 
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.muted = false;
       videoRef.current.volume = 1;
+      videoRef.current.play().catch(() => {
+        // Browser blocked autoplay with sound, try muted first then unmute
+        if (videoRef.current) {
+          videoRef.current.muted = true;
+          videoRef.current.play();
+        }
+      });
     }
   }, []);
 
