@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useOrganization } from "@/hooks/use-organization";
 import {
   Command,
   CommandDialog,
@@ -86,17 +87,19 @@ export function SearchCommand() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [, setLocation] = useLocation();
+  const { currentOrganization } = useOrganization();
 
   const { data: results, isLoading } = useQuery<SearchResults>({
-    queryKey: ['/api/search', query],
+    queryKey: ['/api/search', query, currentOrganization?.id],
     queryFn: async () => {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+      const orgParam = currentOrganization?.id ? `&organizationId=${currentOrganization.id}` : '';
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}${orgParam}`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error('Search failed');
       return res.json();
     },
-    enabled: query.length >= 2,
+    enabled: query.length >= 2 && !!currentOrganization?.id,
   });
 
   useEffect(() => {

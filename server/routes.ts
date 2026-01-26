@@ -3079,6 +3079,8 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       const query = req.query.q as string;
+      const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
+      
       if (!query || query.length < 2) {
         return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
       }
@@ -3089,7 +3091,16 @@ export async function registerRoutes(
         return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
       }
       
-      const results = await storage.search(query, accessibleOrgIds);
+      // If organizationId specified, verify user has access and filter to just that org
+      let searchOrgIds = accessibleOrgIds;
+      if (organizationId) {
+        if (!accessibleOrgIds.includes(organizationId)) {
+          return res.json({ portfolios: [], projects: [], tasks: [], issues: [], risks: [], milestones: [] });
+        }
+        searchOrgIds = [organizationId];
+      }
+      
+      const results = await storage.search(query, searchOrgIds);
       res.json(results);
     } catch (err) {
       console.error('Search error:', err);
