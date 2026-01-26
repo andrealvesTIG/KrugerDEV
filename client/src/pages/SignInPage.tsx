@@ -180,8 +180,8 @@ export default function SignInPage() {
 
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.muted = true;
-      videoRef.current.volume = 0;
+      videoRef.current.muted = false;
+      videoRef.current.volume = 1;
     }
   }, []);
 
@@ -357,7 +357,6 @@ export default function SignInPage() {
               <video
                 ref={videoRef}
                 autoPlay
-                muted
                 loop
                 playsInline
                 controls
