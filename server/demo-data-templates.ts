@@ -4,6 +4,13 @@ export interface DemoDataTemplate {
   industry: Industry;
   label: string;
   description: string;
+  scoringCriteria?: Array<{
+    name: string;
+    description: string;
+    category: string;
+    weight: number;
+    maxScore: number;
+  }>;
   portfolios: Array<{
     name: string;
     description: string;
@@ -56,6 +63,37 @@ export interface DemoDataTemplate {
         actualAmount: string;
         notes: string;
       }>;
+      lessonsLearned?: Array<{
+        title: string;
+        description: string;
+        category: string;
+        type: string;
+        impact: string;
+        phase: string;
+        recommendation: string;
+        status: string;
+      }>;
+      changeRequests?: Array<{
+        title: string;
+        description: string;
+        justification: string;
+        type: string;
+        priority: string;
+        status: string;
+        impact: string;
+        estimatedCost: number;
+        estimatedEffort: string;
+      }>;
+      documents?: Array<{
+        title: string;
+        description: string;
+        type: string;
+        category: string;
+        version: string;
+        status: string;
+        fileName: string;
+        content?: string;
+      }>;
     }>;
   }>;
 }
@@ -98,6 +136,18 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             financials: [
               { category: 'CapEx', lineItem: 'Cloud Infrastructure', description: 'Cloud VMs, storage, and networking costs', budgetAmount: '450000', plannedAmount: '420000', actualAmount: '185000', notes: 'On track with quarterly spend' },
               { category: 'OpEx', lineItem: 'Cloud Consulting', description: 'Partner consulting services', budgetAmount: '280000', plannedAmount: '250000', actualAmount: '120000', notes: 'Phase 1 consulting complete' },
+            ],
+            lessonsLearned: [
+              { title: 'Early Vendor Engagement', description: 'Engaging cloud vendors early helped identify compatibility issues before migration started', category: 'Process', type: 'Success', impact: 'High', phase: 'Planning', recommendation: 'Include vendor technical reviews in all future migration projects', status: 'Active' },
+              { title: 'Insufficient Testing Time', description: 'Performance testing was rushed due to timeline pressures, leading to post-migration issues', category: 'Technical', type: 'Improvement', impact: 'Medium', phase: 'Execution', recommendation: 'Allocate minimum 3 weeks for load testing in migration timelines', status: 'Active' },
+            ],
+            changeRequests: [
+              { title: 'Extended Migration Window', description: 'Request to extend migration cutover window from 8 hours to 12 hours', justification: 'Database size larger than initially estimated, requires additional time for data sync', type: 'Schedule', priority: 'High', status: 'Approved', impact: 'Minimal business impact during weekend window', estimatedCost: 15000, estimatedEffort: '4 hours additional' },
+              { title: 'Add Disaster Recovery Region', description: 'Add secondary DR region for critical workloads', justification: 'Compliance requirement discovered during security review', type: 'Scope', priority: 'Critical', status: 'Under Review', impact: 'Improves RTO/RPO but increases cloud costs', estimatedCost: 85000, estimatedEffort: '3 weeks' },
+            ],
+            documents: [
+              { title: 'Cloud Migration Runbook', description: 'Step-by-step procedures for VM migration and cutover', type: 'Document', category: 'Technical', version: '2.1', status: 'Approved', fileName: 'migration-runbook-v2.1.pdf', content: 'This runbook contains detailed procedures for migrating virtual machines to cloud infrastructure including pre-migration checks, cutover steps, and rollback procedures.' },
+              { title: 'Architecture Decision Record', description: 'ADR documenting hybrid connectivity design decisions', type: 'Design', category: 'Architecture', version: '1.0', status: 'Approved', fileName: 'adr-hybrid-connectivity.md', content: 'ADR-001: Hybrid Network Connectivity\n\nContext: Need secure, reliable connectivity between on-premise and cloud.\n\nDecision: Implement ExpressRoute with VPN backup.\n\nConsequences: Higher cost but improved reliability and security.' },
             ],
           },
           {
@@ -201,6 +251,17 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             financials: [
               { category: 'CapEx', lineItem: 'Development Platform', description: 'Cloud infrastructure and development tools', budgetAmount: '200000', plannedAmount: '180000', actualAmount: '95000', notes: 'Environment provisioned' },
               { category: 'OpEx', lineItem: 'UX Agency', description: 'External UX design and research', budgetAmount: '250000', plannedAmount: '230000', actualAmount: '120000', notes: 'Phase 1 research complete' },
+            ],
+            lessonsLearned: [
+              { title: 'Patient Feedback Integration', description: 'Incorporating real patient feedback early in design improved acceptance rates', category: 'Process', type: 'Success', impact: 'High', phase: 'Planning', recommendation: 'Include patient advisory councils in all patient-facing projects', status: 'Active' },
+              { title: 'HIPAA Review Timing', description: 'HIPAA compliance review should happen earlier to avoid design rework', category: 'Compliance', type: 'Improvement', impact: 'Medium', phase: 'Planning', recommendation: 'Engage compliance team in sprint zero for all healthcare projects', status: 'Active' },
+            ],
+            changeRequests: [
+              { title: 'Add Prescription Refill Feature', description: 'Allow patients to request prescription refills through the portal', justification: 'High patient demand identified in user research, reduces call center volume', type: 'Scope', priority: 'High', status: 'Approved', impact: 'Adds 3 weeks to timeline, reduces support costs by 20%', estimatedCost: 45000, estimatedEffort: '3 weeks' },
+            ],
+            documents: [
+              { title: 'HIPAA Compliance Assessment', description: 'Security and privacy assessment for patient portal features', type: 'Compliance', category: 'Security', version: '1.2', status: 'Approved', fileName: 'hipaa-assessment-v1.2.pdf', content: 'This assessment evaluates the patient portal for HIPAA compliance including PHI handling, access controls, audit logging, and data encryption at rest and in transit.' },
+              { title: 'Patient Journey Map', description: 'Visual map of patient digital touchpoints and pain points', type: 'Design', category: 'UX', version: '2.0', status: 'Approved', fileName: 'patient-journey-map.pdf', content: 'Comprehensive journey map showing patient interactions across appointment scheduling, check-in, portal access, test results viewing, and medication management.' },
             ],
           },
           {
@@ -308,6 +369,18 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { category: 'OpEx', lineItem: 'UX Agency', description: 'External design agency', budgetAmount: '600000', plannedAmount: '580000', actualAmount: '420000', notes: 'Design phase complete' },
               { category: 'OpEx', lineItem: 'Security Assessment', description: 'Third-party penetration testing', budgetAmount: '150000', plannedAmount: '150000', actualAmount: '45000', notes: 'Initial assessment done' },
             ],
+            lessonsLearned: [
+              { title: 'Biometric Auth Complexity', description: 'Underestimated complexity of biometric authentication across device types', category: 'Technical', type: 'Improvement', impact: 'High', phase: 'Execution', recommendation: 'Include device fragmentation testing in all mobile project estimates', status: 'Active' },
+              { title: 'Core Banking API Wrapper', description: 'Creating abstraction layer for legacy APIs improved development velocity', category: 'Technical', type: 'Success', impact: 'High', phase: 'Execution', recommendation: 'Invest in API abstraction layer before major integrations', status: 'Active' },
+            ],
+            changeRequests: [
+              { title: 'Add Biometric Login for Transactions', description: 'Require biometric confirmation for transactions over $1,000', justification: 'New regulatory requirement and customer feedback on security', type: 'Scope', priority: 'Critical', status: 'Approved', impact: 'Enhanced security posture, minor UX friction', estimatedCost: 75000, estimatedEffort: '2 weeks' },
+              { title: 'Defer Crypto Portfolio Feature', description: 'Remove cryptocurrency portfolio viewing from initial release', justification: 'Regulatory uncertainty requires additional legal review', type: 'Scope', priority: 'Medium', status: 'Approved', impact: 'Reduces scope and risk, can add in v1.1', estimatedCost: -50000, estimatedEffort: '-2 weeks' },
+            ],
+            documents: [
+              { title: 'Security Architecture Document', description: 'Technical security architecture for mobile banking application', type: 'Architecture', category: 'Security', version: '3.0', status: 'Approved', fileName: 'security-architecture-v3.pdf', content: 'This document outlines the security architecture including certificate pinning, secure enclave usage, jailbreak detection, transaction signing, and session management.' },
+              { title: 'PCI-DSS Compliance Checklist', description: 'Payment card industry compliance requirements mapping', type: 'Compliance', category: 'Regulatory', version: '1.0', status: 'Draft', fileName: 'pci-dss-checklist.xlsx', content: 'Checklist mapping PCI-DSS requirements to application controls including cardholder data protection, access control, and encryption standards.' },
+            ],
           },
           {
             name: 'Open Banking API Platform',
@@ -410,6 +483,17 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
             financials: [
               { category: 'CapEx', lineItem: 'Commerce Platform', description: 'Headless commerce platform fees', budgetAmount: '400000', plannedAmount: '400000', actualAmount: '350000', notes: 'Annual subscription paid' },
               { category: 'OpEx', lineItem: 'Implementation Partner', description: 'System integration services', budgetAmount: '600000', plannedAmount: '550000', actualAmount: '280000', notes: 'Phase 1 complete' },
+            ],
+            lessonsLearned: [
+              { title: 'Parallel Path Strategy', description: 'Running old and new platforms in parallel reduced risk significantly', category: 'Strategy', type: 'Success', impact: 'High', phase: 'Execution', recommendation: 'Always maintain fallback during major platform migrations', status: 'Active' },
+              { title: 'SEO Redirect Planning', description: 'Starting redirect mapping earlier would have prevented initial SEO drop', category: 'Technical', type: 'Improvement', impact: 'Medium', phase: 'Planning', recommendation: 'Include SEO team in sprint zero for commerce migrations', status: 'Active' },
+            ],
+            changeRequests: [
+              { title: 'Add Apple Pay Support', description: 'Include Apple Pay in checkout options at launch', justification: 'Competitor analysis shows 25% of mobile conversions use Apple Pay', type: 'Scope', priority: 'High', status: 'Approved', impact: 'Improves mobile conversion by estimated 8%', estimatedCost: 35000, estimatedEffort: '2 weeks' },
+            ],
+            documents: [
+              { title: 'Platform Architecture Diagram', description: 'High-level architecture of headless commerce implementation', type: 'Architecture', category: 'Technical', version: '2.0', status: 'Approved', fileName: 'headless-architecture.pdf', content: 'Architecture diagram showing API layer, frontend Next.js application, PIM integration, order management, and payment gateway connections.' },
+              { title: 'Performance Benchmark Report', description: 'Core Web Vitals and performance testing results', type: 'Report', category: 'Technical', version: '1.0', status: 'Final', fileName: 'performance-benchmarks.pdf', content: 'Performance benchmark showing LCP, FID, and CLS scores across device types. Current scores: LCP 1.8s, FID 45ms, CLS 0.08.' },
             ],
           },
           {
@@ -514,6 +598,17 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { category: 'CapEx', lineItem: 'IoT Infrastructure', description: 'Sensors, gateways, and edge devices', budgetAmount: '450000', plannedAmount: '430000', actualAmount: '280000', notes: 'Phase 1 deployed' },
               { category: 'CapEx', lineItem: 'Data Platform', description: 'Industrial IoT platform', budgetAmount: '300000', plannedAmount: '290000', actualAmount: '250000', notes: 'Platform licensed' },
               { category: 'OpEx', lineItem: 'Implementation Services', description: 'System integration and data science', budgetAmount: '350000', plannedAmount: '320000', actualAmount: '180000', notes: 'Phase 2 started' },
+            ],
+            lessonsLearned: [
+              { title: 'Edge Computing Essential', description: 'Processing data at the edge reduced latency from seconds to milliseconds', category: 'Technical', type: 'Success', impact: 'High', phase: 'Execution', recommendation: 'Always include edge gateways in IIoT architecture', status: 'Active' },
+              { title: 'OT Team Early Involvement', description: 'Should have involved operations technology team earlier to understand PLC protocols', category: 'Process', type: 'Improvement', impact: 'Medium', phase: 'Planning', recommendation: 'Include OT engineers in discovery phase for all IoT projects', status: 'Active' },
+            ],
+            changeRequests: [
+              { title: 'Add Vibration Sensors to Line 3', description: 'Extend sensor coverage to production line 3', justification: 'Line 3 has highest unplanned downtime and would benefit most from predictions', type: 'Scope', priority: 'High', status: 'Approved', impact: 'Increases coverage to 85% of critical equipment', estimatedCost: 55000, estimatedEffort: '3 weeks' },
+            ],
+            documents: [
+              { title: 'Sensor Placement Diagram', description: 'Equipment sensor placement specifications for all production lines', type: 'Technical', category: 'Engineering', version: '3.0', status: 'Approved', fileName: 'sensor-placement-v3.pdf', content: 'Detailed sensor placement diagrams for CNC machines, conveyors, and robotic cells including vibration, temperature, and current sensors.' },
+              { title: 'Data Architecture Document', description: 'Industrial data lake architecture and data flow specifications', type: 'Architecture', category: 'Data', version: '1.0', status: 'Approved', fileName: 'iiot-data-architecture.pdf', content: 'Data architecture showing sensor data ingestion, edge processing, cloud data lake storage, and ML model training pipelines.' },
             ],
           },
           {

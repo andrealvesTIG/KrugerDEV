@@ -8365,6 +8365,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         issues: 0,
         financials: 0,
         changeRequests: 0,
+        lessonsLearned: 0,
+        documents: 0,
         resources: 0,
         intakes: 0,
       };
@@ -8497,29 +8499,103 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             stats.financials++;
           }
           
-          // Generate demo change requests for each project
-          const changeRequestTypes = ['Scope', 'Schedule', 'Budget', 'Resource'];
-          const crStatuses = ['Draft', 'Submitted', 'Under Review', 'Approved'];
-          for (let crIdx = 0; crIdx < 2; crIdx++) {
-            const crType = changeRequestTypes[crIdx % changeRequestTypes.length];
-            const crStatus = crStatuses[crIdx % crStatuses.length];
-            const requestedDate = new Date(today);
-            requestedDate.setDate(requestedDate.getDate() - (10 - crIdx * 5));
-            
-            await storage.createChangeRequest({
-              projectId: project.id,
-              requestNumber: `CR-${String(project.id).padStart(3, '0')}-${String(crIdx + 1).padStart(2, '0')}`,
-              title: crIdx === 0 ? 'Scope Enhancement Request' : 'Timeline Adjustment Request',
-              description: crIdx === 0 ? 'Additional features requested by stakeholders' : 'Schedule change due to resource constraints',
-              justification: crIdx === 0 ? 'Business requirement change based on market feedback' : 'Resource availability requires timeline shift',
-              type: crType,
-              priority: crIdx === 0 ? 'High' : 'Medium',
-              status: crStatus,
-              requestedBy: 'Demo User',
-              requestedDate: requestedDate.toISOString().split('T')[0],
-              isDemo: true,
-            });
-            stats.changeRequests++;
+          // Generate demo change requests for each project (use template data if available)
+          if (projectTemplate.changeRequests && projectTemplate.changeRequests.length > 0) {
+            for (let crIdx = 0; crIdx < projectTemplate.changeRequests.length; crIdx++) {
+              const crTemplate = projectTemplate.changeRequests[crIdx];
+              const requestedDate = new Date(today);
+              requestedDate.setDate(requestedDate.getDate() - (10 - crIdx * 5));
+              
+              await storage.createChangeRequest({
+                projectId: project.id,
+                requestNumber: `CR-${String(project.id).padStart(3, '0')}-${String(crIdx + 1).padStart(2, '0')}`,
+                title: crTemplate.title,
+                description: crTemplate.description,
+                justification: crTemplate.justification,
+                type: crTemplate.type,
+                priority: crTemplate.priority,
+                status: crTemplate.status,
+                requestedBy: 'Demo User',
+                requestedDate: requestedDate.toISOString().split('T')[0],
+                impact: crTemplate.impact,
+                estimatedCost: String(crTemplate.estimatedCost || 0),
+                estimatedEffort: crTemplate.estimatedEffort,
+                isDemo: true,
+              });
+              stats.changeRequests++;
+            }
+          } else {
+            // Fall back to generic change requests
+            const changeRequestTypes = ['Scope', 'Schedule', 'Budget', 'Resource'];
+            const crStatuses = ['Draft', 'Submitted', 'Under Review', 'Approved'];
+            for (let crIdx = 0; crIdx < 2; crIdx++) {
+              const crType = changeRequestTypes[crIdx % changeRequestTypes.length];
+              const crStatus = crStatuses[crIdx % crStatuses.length];
+              const requestedDate = new Date(today);
+              requestedDate.setDate(requestedDate.getDate() - (10 - crIdx * 5));
+              
+              await storage.createChangeRequest({
+                projectId: project.id,
+                requestNumber: `CR-${String(project.id).padStart(3, '0')}-${String(crIdx + 1).padStart(2, '0')}`,
+                title: crIdx === 0 ? 'Scope Enhancement Request' : 'Timeline Adjustment Request',
+                description: crIdx === 0 ? 'Additional features requested by stakeholders' : 'Schedule change due to resource constraints',
+                justification: crIdx === 0 ? 'Business requirement change based on market feedback' : 'Resource availability requires timeline shift',
+                type: crType,
+                priority: crIdx === 0 ? 'High' : 'Medium',
+                status: crStatus,
+                requestedBy: 'Demo User',
+                requestedDate: requestedDate.toISOString().split('T')[0],
+                isDemo: true,
+              });
+              stats.changeRequests++;
+            }
+          }
+          
+          // Generate lessons learned from template if available
+          if (projectTemplate.lessonsLearned && projectTemplate.lessonsLearned.length > 0) {
+            for (const lessonTemplate of projectTemplate.lessonsLearned) {
+              const capturedDate = new Date(today);
+              capturedDate.setDate(capturedDate.getDate() - Math.floor(Math.random() * 60));
+              
+              await storage.createLessonLearned({
+                projectId: project.id,
+                title: lessonTemplate.title,
+                description: lessonTemplate.description,
+                category: lessonTemplate.category,
+                type: lessonTemplate.type,
+                impact: lessonTemplate.impact,
+                phase: lessonTemplate.phase,
+                recommendation: lessonTemplate.recommendation,
+                status: lessonTemplate.status,
+                capturedBy: 'Demo User',
+                capturedDate: capturedDate.toISOString().split('T')[0],
+                isDemo: true,
+              });
+              stats.lessonsLearned++;
+            }
+          }
+          
+          // Generate documents from template if available
+          if (projectTemplate.documents && projectTemplate.documents.length > 0) {
+            for (const docTemplate of projectTemplate.documents) {
+              const uploadedAt = new Date(today);
+              uploadedAt.setDate(uploadedAt.getDate() - Math.floor(Math.random() * 30));
+              
+              await storage.createProjectDocument({
+                projectId: project.id,
+                title: docTemplate.title,
+                description: docTemplate.description,
+                type: docTemplate.type,
+                category: docTemplate.category,
+                version: docTemplate.version,
+                status: docTemplate.status,
+                fileName: docTemplate.fileName,
+                content: docTemplate.content || '',
+                uploadedBy: 'Demo User',
+                isDemo: true,
+              });
+              stats.documents++;
+            }
           }
         }
       }
