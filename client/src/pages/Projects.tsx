@@ -563,6 +563,29 @@ export default function Projects() {
                                 <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
                               </button>
                             )}
+                            {project.source === "planner-premium" && project.plannerPlanId && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const tenantId = project.dataverseTenantId || '';
+                                  const planId = project.plannerPlanId;
+                                  const premiumUrl = tenantId 
+                                    ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
+                                    : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
+                                  window.open(premiumUrl, '_blank');
+                                }}
+                                className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors"
+                                title="Synced from Planner Premium - Click to open in Planner"
+                                data-testid={`planner-premium-badge-fullscreen-${project.id}`}
+                              >
+                                <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
+                                <Crown className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                                <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Planner Premium</span>
+                                <ExternalLink className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                              </button>
+                            )}
                             {project.source === "imported" && project.sourceFileUrl && (
                               <button
                                 type="button"
@@ -748,6 +771,31 @@ export default function Projects() {
                           <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
                           <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Planner</span>
                           <ExternalLink className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                        </button>
+                      )}
+                      {/* Planner Premium Logo for synced projects */}
+                      {project.source === "planner-premium" && project.plannerPlanId && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // Construct Planner Premium URL with tenant and plan ID
+                            const tenantId = project.dataverseTenantId || '';
+                            const planId = project.plannerPlanId;
+                            const premiumUrl = tenantId 
+                              ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
+                              : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
+                            window.open(premiumUrl, '_blank');
+                          }}
+                          className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors"
+                          title="Synced from Planner Premium - Click to open in Planner"
+                          data-testid={`planner-premium-badge-${project.id}`}
+                        >
+                          <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
+                          <Crown className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                          <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Planner Premium</span>
+                          <ExternalLink className="h-3 w-3 text-purple-600 dark:text-purple-400" />
                         </button>
                       )}
                       {/* MS Project Logo for imported projects */}
@@ -2561,6 +2609,7 @@ function ProjectsGridView({
       case "source":
         if ((project as any).isExternal) return <ExternalBadge organizationName={(project as any).sourceOrganizationName} />;
         if (project.source === "planner") return <Badge variant="outline" className="text-xs">Planner</Badge>;
+        if (project.source === "planner-premium") return <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">Planner Premium</Badge>;
         if (project.source === "imported") return <Badge variant="outline" className="text-xs">MS Project</Badge>;
         return <Badge variant="outline" className="text-xs">Manual</Badge>;
       case "owner":
@@ -3091,6 +3140,26 @@ function DraggableProjectCard({ project }: { project: Project }) {
                   <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
                 </button>
               )}
+              {project.source === "planner-premium" && project.plannerPlanId && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const tenantId = project.dataverseTenantId || '';
+                    const planId = project.plannerPlanId;
+                    const premiumUrl = tenantId 
+                      ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
+                      : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
+                    window.open(premiumUrl, '_blank');
+                  }}
+                  className="flex-shrink-0 flex items-center gap-0.5"
+                  title="Open in Planner Premium"
+                >
+                  <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
+                  <Crown className="h-3 w-3 text-purple-500" />
+                </button>
+              )}
               {project.source === "imported" && project.sourceFileUrl && (
                 <button
                   type="button"
@@ -3485,6 +3554,26 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
                                 title="Open in Planner"
                               >
                                 <img src={plannerLogoPath} alt="Planner" className="h-4 w-4" />
+                              </button>
+                            )}
+                            {project.source === "planner-premium" && project.plannerPlanId && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const tenantId = project.dataverseTenantId || '';
+                                  const planId = project.plannerPlanId;
+                                  const premiumUrl = tenantId 
+                                    ? `https://planner.cloud.microsoft/${tenantId}/en-US/Home/Planner/#/plantaskboard?planId=${planId}`
+                                    : `https://planner.cloud.microsoft/webui/plan/${planId}/view/board`;
+                                  window.open(premiumUrl, '_blank');
+                                }}
+                                className="flex-shrink-0 flex items-center gap-0.5"
+                                title="Open in Planner Premium"
+                              >
+                                <img src={plannerLogoPath} alt="Planner Premium" className="h-4 w-4" />
+                                <Crown className="h-3 w-3 text-purple-500" />
                               </button>
                             )}
                             {project.source === "imported" && project.sourceFileUrl && (
