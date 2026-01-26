@@ -192,8 +192,9 @@ export default function ProjectDetails() {
 
   // Read tab and item IDs from URL query parameters
   const urlParams = new URLSearchParams(window.location.search);
-  const initialTab = urlParams.get('tab') || 'summary';
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const urlTab = urlParams.get('tab');
+  const [activeTab, setActiveTab] = useState(urlTab || 'summary');
+  const [hasSetInitialTab, setHasSetInitialTab] = useState(false);
   const urlTaskId = urlParams.get('taskId');
   const urlIssueId = urlParams.get('issueId');
   const urlRiskId = urlParams.get('riskId');
@@ -257,6 +258,7 @@ export default function ProjectDetails() {
   const [dragOverTab, setDragOverTab] = useState<string | null>(null);
 
   // Update pinned tabs and tab order when project or user changes
+  // Also set the active tab to the first tab in the order (if no URL tab specified)
   useEffect(() => {
     if (project?.id && user?.id) {
       try {
@@ -264,12 +266,21 @@ export default function ProjectDetails() {
         setPinnedTabs(savedPinned ? JSON.parse(savedPinned) : []);
         
         const savedOrder = localStorage.getItem(getTabOrderKey(project.id, user.id));
+        let newOrder = allTabIds;
         if (savedOrder) {
           const parsed = JSON.parse(savedOrder);
           const newTabs = allTabIds.filter(id => !parsed.includes(id));
-          setTabOrder([...parsed, ...newTabs]);
-        } else {
-          setTabOrder(allTabIds);
+          newOrder = [...parsed, ...newTabs];
+        }
+        setTabOrder(newOrder);
+        
+        // Set active tab to first tab in order (only on initial load, not URL-specified)
+        if (!hasSetInitialTab && !urlTab) {
+          const firstMainTab = newOrder.find(id => defaultMainTabs.some(t => t.id === id));
+          if (firstMainTab) {
+            setActiveTab(firstMainTab);
+          }
+          setHasSetInitialTab(true);
         }
       } catch {
         setPinnedTabs([]);
