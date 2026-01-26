@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { 
   LayoutDashboard, 
   Briefcase, 
@@ -21,6 +21,34 @@ import {
   BookOpen
 } from "lucide-react";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+
+function FooterLink({ href, name, icon: Icon, testId }: { href: string; name: string; icon: React.ElementType; testId: string }) {
+  const [, setLocation] = useLocation();
+  
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const [path, hash] = href.split('#');
+    setLocation(path);
+    if (hash) {
+      setTimeout(() => {
+        window.location.hash = hash;
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }, 100);
+    }
+  };
+  
+  return (
+    <a 
+      href={href}
+      onClick={handleClick}
+      className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer"
+      data-testid={testId}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {name}
+    </a>
+  );
+}
 
 const footerSections = {
   features: {
@@ -102,14 +130,12 @@ export function LandingFooter() {
               <ul className="space-y-2">
                 {section.links.map((link) => (
                   <li key={link.name}>
-                    <Link 
+                    <FooterLink 
                       href={link.href}
-                      className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
-                      data-testid={`footer-link-${link.name.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <link.icon className="h-3.5 w-3.5" />
-                      {link.name}
-                    </Link>
+                      name={link.name}
+                      icon={link.icon}
+                      testId={`footer-link-${link.name.toLowerCase().replace(/\s+/g, '-')}`}
+                    />
                   </li>
                 ))}
               </ul>

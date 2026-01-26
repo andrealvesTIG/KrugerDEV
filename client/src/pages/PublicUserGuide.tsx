@@ -100,10 +100,19 @@ export default function PublicUserGuide() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (hash && sections.find(s => s.id === hash)) {
-      setActiveSection(hash);
-    }
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && sections.find(s => s.id === hash)) {
+        setActiveSection(hash);
+      }
+    };
+    
+    // Check initial hash
+    handleHashChange();
+    
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
   const handleSectionClick = (sectionId: string) => {
