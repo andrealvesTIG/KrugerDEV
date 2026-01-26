@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -21,9 +21,57 @@ import {
   AlertTriangle, 
   Bug, 
   Flag,
-  Loader2 
+  Loader2,
+  BookOpen,
+  LayoutDashboard,
+  Inbox,
+  Star,
+  Gift,
+  Scale,
+  Lightbulb,
+  CircleDot,
+  Clock,
+  UserCog,
+  Calendar,
+  Plug,
+  Link2,
+  Sliders,
+  LayoutTemplate,
+  CreditCard,
+  Building2,
+  Users,
+  Settings,
+  Moon,
+  type LucideIcon
 } from "lucide-react";
 import type { Portfolio, Project, Task, Issue, Risk, Milestone } from "@shared/schema";
+
+// User Guide sections for local search
+const userGuideSections: { id: string; name: string; icon: LucideIcon; keywords: string[] }[] = [
+  { id: "overview", name: "Overview", icon: BookOpen, keywords: ["overview", "introduction", "getting started", "guide", "help", "documentation"] },
+  { id: "dashboard", name: "Dashboard", icon: LayoutDashboard, keywords: ["dashboard", "home", "summary", "overview", "metrics", "kpi"] },
+  { id: "portfolios", name: "Portfolios", icon: Briefcase, keywords: ["portfolio", "portfolios", "program", "strategic", "grouping"] },
+  { id: "projects", name: "Projects", icon: FolderKanban, keywords: ["project", "projects", "initiative", "plan", "planning"] },
+  { id: "intakes", name: "Project Intakes", icon: Inbox, keywords: ["intake", "intakes", "request", "new project", "submission"] },
+  { id: "scoring", name: "Project Scoring", icon: Star, keywords: ["scoring", "score", "prioritization", "ranking", "evaluation"] },
+  { id: "benefits", name: "Benefits Tracking", icon: Gift, keywords: ["benefits", "benefit", "value", "roi", "return", "outcome"] },
+  { id: "decisions", name: "Decision Log", icon: Scale, keywords: ["decision", "decisions", "log", "approval", "governance"] },
+  { id: "lessons", name: "Lessons Learned", icon: Lightbulb, keywords: ["lessons", "lesson", "learned", "retrospective", "improvement"] },
+  { id: "tasks", name: "Tasks", icon: CheckSquare, keywords: ["task", "tasks", "work", "assignment", "todo", "activity"] },
+  { id: "issues", name: "Issues", icon: CircleDot, keywords: ["issue", "issues", "problem", "blocker", "impediment"] },
+  { id: "timesheets", name: "Timesheets", icon: Clock, keywords: ["timesheet", "timesheets", "time", "hours", "tracking", "effort"] },
+  { id: "resources", name: "Resources", icon: UserCog, keywords: ["resource", "resources", "team", "member", "capacity", "allocation"] },
+  { id: "calendar", name: "Calendar", icon: Calendar, keywords: ["calendar", "schedule", "dates", "timeline", "events"] },
+  { id: "integrations", name: "Integrations", icon: Plug, keywords: ["integration", "integrations", "connect", "sync", "planner", "microsoft", "api"] },
+  { id: "custom-links", name: "Custom Links", icon: Link2, keywords: ["custom links", "links", "external", "url", "navigation"] },
+  { id: "custom-fields", name: "Custom Fields", icon: Sliders, keywords: ["custom fields", "fields", "attributes", "metadata", "properties"] },
+  { id: "custom-tabs", name: "Custom Tabs", icon: LayoutTemplate, keywords: ["custom tabs", "tabs", "pages", "views", "navigation"] },
+  { id: "billing", name: "Billing & Credits", icon: CreditCard, keywords: ["billing", "credits", "payment", "subscription", "plan", "pricing"] },
+  { id: "organizations", name: "Organizations", icon: Building2, keywords: ["organization", "organizations", "company", "tenant", "workspace"] },
+  { id: "users", name: "User Management", icon: Users, keywords: ["user", "users", "management", "roles", "permissions", "access"] },
+  { id: "settings", name: "Settings", icon: Settings, keywords: ["settings", "configuration", "preferences", "options"] },
+  { id: "themes", name: "Themes", icon: Moon, keywords: ["theme", "themes", "dark mode", "light mode", "appearance", "colors"] },
+];
 
 interface SearchResults {
   portfolios: Portfolio[];
@@ -63,6 +111,16 @@ export function SearchCommand() {
     return () => document.removeEventListener("keydown", down);
   }, []);
 
+  // Local search for User Guide sections
+  const userGuideResults = useMemo(() => {
+    if (query.length < 2) return [];
+    const lowerQuery = query.toLowerCase();
+    return userGuideSections.filter(section => 
+      section.name.toLowerCase().includes(lowerQuery) ||
+      section.keywords.some(keyword => keyword.toLowerCase().includes(lowerQuery))
+    );
+  }, [query]);
+
   const handleSelect = useCallback((type: string, item: any) => {
     setOpen(false);
     setQuery("");
@@ -86,17 +144,20 @@ export function SearchCommand() {
       case "milestone":
         setLocation(`/projects/${item.projectId}?tab=milestones`);
         break;
+      case "userGuide":
+        setLocation(`/user-guide#${item.id}`);
+        break;
     }
   }, [setLocation]);
 
-  const hasResults = results && (
+  const hasResults = (results && (
     results.portfolios.length > 0 ||
     results.projects.length > 0 ||
     results.tasks.length > 0 ||
     results.issues.length > 0 ||
     results.risks.length > 0 ||
     results.milestones.length > 0
-  );
+  )) || userGuideResults.length > 0;
 
   return (
     <>
@@ -116,7 +177,7 @@ export function SearchCommand() {
       <CommandDialog open={open} onOpenChange={setOpen}>
         <Command shouldFilter={false}>
           <CommandInput 
-            placeholder="Search portfolios, projects, tasks, issues..." 
+            placeholder="Search portfolios, projects, tasks, help..." 
             value={query}
             onValueChange={setQuery}
             data-testid="input-global-search"
@@ -254,6 +315,30 @@ export function SearchCommand() {
                       </Badge>
                     </CommandItem>
                   ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {userGuideResults.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="User Guide">
+                  {userGuideResults.map((section) => {
+                    const IconComponent = section.icon;
+                    return (
+                      <CommandItem
+                        key={`userguide-${section.id}`}
+                        value={`userguide-${section.id}`}
+                        onSelect={() => handleSelect("userGuide", section)}
+                        className="flex items-center gap-2 cursor-pointer"
+                        data-testid={`search-result-userguide-${section.id}`}
+                      >
+                        <IconComponent className="h-4 w-4 text-teal-500" />
+                        <span className="flex-1">{section.name}</span>
+                        <Badge variant="outline" className="text-xs">Help</Badge>
+                      </CommandItem>
+                    );
+                  })}
                 </CommandGroup>
               </>
             )}
