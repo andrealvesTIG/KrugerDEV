@@ -133,16 +133,17 @@ export function SearchCommand() {
         setLocation(`/projects/${item.id}`);
         break;
       case "task":
-        setLocation(`/projects/${item.projectId}?tab=tasks`);
+        setLocation(`/projects/${item.projectId}?tab=tasks&taskId=${item.id}`);
         break;
       case "issue":
-        setLocation(`/projects/${item.projectId}?tab=issues`);
+        setLocation(`/projects/${item.projectId}?tab=issues&issueId=${item.id}`);
         break;
       case "risk":
-        setLocation(`/projects/${item.projectId}?tab=risks`);
+        setLocation(`/projects/${item.projectId}?tab=risks&riskId=${item.id}`);
         break;
       case "milestone":
-        setLocation(`/projects/${item.projectId}?tab=milestones`);
+        // Navigate to project summary - milestones are displayed in the summary/timeline view
+        setLocation(`/projects/${item.projectId}`);
         break;
       case "userGuide":
         setLocation(`/user-guide#${item.id}`);

@@ -188,10 +188,13 @@ export default function ProjectDetails() {
   const { data: customTabs = [] } = useCustomProjectTabs(currentOrganization?.id);
   const [, setLocation] = useLocation();
 
-  // Read tab from URL query parameter
+  // Read tab and item IDs from URL query parameters
   const urlParams = new URLSearchParams(window.location.search);
   const initialTab = urlParams.get('tab') || 'summary';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const urlTaskId = urlParams.get('taskId');
+  const urlIssueId = urlParams.get('issueId');
+  const urlRiskId = urlParams.get('riskId');
 
   // Redirect if project doesn't belong to current organization
   useEffect(() => {
@@ -516,13 +519,13 @@ export default function ProjectDetails() {
             <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
-            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} />
+            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} urlTaskId={urlTaskId} />
           </TabsContent>
           <TabsContent value="risks">
-            <RisksTab projectId={project.id} projectName={project.name} />
+            <RisksTab projectId={project.id} projectName={project.name} urlRiskId={urlRiskId} />
           </TabsContent>
           <TabsContent value="issues">
-            <IssuesTab projectId={project.id} projectName={project.name} />
+            <IssuesTab projectId={project.id} projectName={project.name} urlIssueId={urlIssueId} />
           </TabsContent>
           <TabsContent value="financials">
             <FinancialsTab projectId={project.id} />
@@ -2387,7 +2390,7 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
   );
 }
 
-function RisksTab({ projectId, projectName }: { projectId: number; projectName?: string }) {
+function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; projectName?: string; urlRiskId?: string | null }) {
   const { currentOrganization } = useOrganization();
   const { data: risks, isLoading } = useRisks(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -2411,6 +2414,23 @@ function RisksTab({ projectId, projectName }: { projectId: number; projectName?:
       setSelectedResourceIds(riskAssignments.map(a => a.resourceId));
     }
   }, [riskAssignments, editingRisk]);
+
+  // Auto-open risk dialog from URL parameter
+  const riskAutoOpenRef = useRef(false);
+  useEffect(() => {
+    if (urlRiskId && risks && risks.length > 0 && !riskAutoOpenRef.current) {
+      const riskId = parseInt(urlRiskId);
+      const risk = risks.find(r => r.id === riskId);
+      if (risk) {
+        setEditingRisk(risk);
+        setIsDialogOpen(true);
+        riskAutoOpenRef.current = true;
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('riskId');
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+    }
+  }, [urlRiskId, risks]);
 
   const form = useForm({
     resolver: zodResolver(insertRiskSchema),
@@ -2942,7 +2962,7 @@ function computeWbsValues(tasks: Task[]): Map<number, string> {
   return wbsMap;
 }
 
-function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId }: { 
+function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId }: { 
   projectId: number; 
   projectName?: string; 
   projectStartDate?: string | null; 
@@ -2953,6 +2973,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   sourceFileUrl?: string | null;
   dataverseOrgId?: string | null;
   dataverseTenantId?: string | null;
+  urlTaskId?: string | null;
 }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
@@ -3187,6 +3208,24 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       lastInitializedTaskId.current = editingTask.id;
     }
   }, [taskAssignments, editingTask]);
+
+  // Auto-open task dialog from URL parameter
+  const taskAutoOpenRef = useRef(false);
+  useEffect(() => {
+    if (urlTaskId && tasks && tasks.length > 0 && !taskAutoOpenRef.current) {
+      const taskId = parseInt(urlTaskId);
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        setEditingTask(task);
+        setIsDialogOpen(true);
+        taskAutoOpenRef.current = true;
+        // Clear the URL param to prevent reopening on re-render
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('taskId');
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+    }
+  }, [urlTaskId, tasks]);
 
   const taskFormSchema = insertTaskSchema.extend({
     name: z.string().min(1, "Task name is required")
@@ -8367,7 +8406,7 @@ const typeIcons = {
   Question: HelpCircle,
 };
 
-function IssuesTab({ projectId, projectName }: { projectId: number; projectName?: string }) {
+function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; projectName?: string; urlIssueId?: string | null }) {
   const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useIssues(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -8387,6 +8426,23 @@ function IssuesTab({ projectId, projectName }: { projectId: number; projectName?
       setSelectedResourceIds(issueAssignments.map(a => a.resourceId));
     }
   }, [issueAssignments, editingIssue]);
+
+  // Auto-open issue dialog from URL parameter
+  const issueAutoOpenRef = useRef(false);
+  useEffect(() => {
+    if (urlIssueId && issues && issues.length > 0 && !issueAutoOpenRef.current) {
+      const issueId = parseInt(urlIssueId);
+      const issue = issues.find(i => i.id === issueId);
+      if (issue) {
+        setEditingIssue(issue);
+        setIsDialogOpen(true);
+        issueAutoOpenRef.current = true;
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('issueId');
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+    }
+  }, [urlIssueId, issues]);
 
   const form = useForm({
     resolver: zodResolver(insertIssueSchema),
