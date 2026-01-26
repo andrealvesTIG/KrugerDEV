@@ -6,6 +6,7 @@ import { z } from "zod";
 import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { setupMicrosoftAuth } from "./auth/microsoftAuth";
+import { setupGoogleAuth } from "./auth/googleAuth";
 import { setupProjectOnlineRoutes } from "./services/projectOnline";
 import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus, getOrgIntegration } from "./services/microsoftPlanner";
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
@@ -1126,10 +1127,11 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
-  // Set up authentication first - Replit OAuth, Email/Password, and Microsoft 365
+  // Set up authentication first - Replit OAuth, Email/Password, Microsoft 365, and Google
   await setupReplitAuth(app);
   await setupEmailAuth(app);
   await setupMicrosoftAuth(app);
+  setupGoogleAuth(app);
   await setupProjectOnlineRoutes(app);
   await setupPlannerRoutes(app);
   await setupDataverseRoutes(app);

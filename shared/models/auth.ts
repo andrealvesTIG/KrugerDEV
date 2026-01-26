@@ -35,6 +35,9 @@ export const users = pgTable("users", {
   microsoftId: varchar("microsoft_id").unique(), // Azure AD object ID (oid)
   microsoftTenantId: varchar("microsoft_tenant_id"), // Azure AD tenant ID (tid)
 
+  // Google authentication
+  googleId: varchar("google_id").unique(), // Google sub claim
+
   // API Key for external integrations (Power BI, etc.)
   apiKey: varchar("api_key").unique(),
 
