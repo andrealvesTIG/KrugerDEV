@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Clock, PartyPopper } from "lucide-react";
 
+import running_man from "@assets/running man.gif";
+
 export function FridayCountdown() {
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0, isFriday: false });
 
@@ -66,7 +68,7 @@ export function FridayCountdown() {
       title="Time until Friday"
       data-testid="friday-countdown"
     >
-      <img src={`/running-man.gif?t=${Date.now()}`} alt="Running" className="h-6 w-6 object-contain" />
+      <img src={running_man} alt="Running" className="h-6 w-6 object-contain" />
       <Clock className="h-3.5 w-3.5" />
       <span>{pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
       <span className="text-muted-foreground">to Friday</span>
