@@ -28,12 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ChevronDown, Plus, Save, Pencil, Trash2, Check, Star, Search, AlertCircle, FolderOpen, Users, User, Archive, FolderCheck, Info } from "lucide-react";
+import { ChevronDown, Plus, Save, Pencil, Trash2, Check, Star, Search, AlertCircle, FolderOpen, Users, User, Archive, FolderCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectViews, useCreateProjectView, useUpdateProjectView, useDeleteProjectView, useSetDefaultView } from "@/hooks/use-project-views";
 import type { ProjectView } from "@shared/schema";
@@ -322,23 +317,16 @@ export function ViewsDropdown({
                       key={option.id}
                       onClick={() => onFilterViewChange(option.id)}
                       data-testid={`filter-view-option-${option.id}`}
-                      className="flex items-center justify-between"
+                      className="flex items-center justify-between py-2"
                     >
-                      <span className={cn("flex items-center gap-2", isSelected && "font-medium")}>
-                        <OptionIcon className="h-4 w-4" />
-                        {option.label}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-[200px]">
-                            <p className="text-xs">{option.tooltip}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        {isSelected && <Check className="h-4 w-4 text-primary" />}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className={cn("flex items-center gap-2", isSelected && "font-medium")}>
+                          <OptionIcon className="h-4 w-4" />
+                          {option.label}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-6">{option.tooltip}</span>
+                      </div>
+                      {isSelected && <Check className="h-4 w-4 text-primary" />}
                     </DropdownMenuItem>
                   );
                 })}
