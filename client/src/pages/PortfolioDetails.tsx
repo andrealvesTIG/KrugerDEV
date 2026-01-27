@@ -542,7 +542,7 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
     </Card>
 
     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-      <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Add Projects to Portfolio</DialogTitle>
           <DialogDescription>
@@ -562,7 +562,7 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
             />
           </div>
 
-          <ScrollArea className="flex-1 min-h-[200px] max-h-[300px] border rounded-md">
+          <ScrollArea className="flex-1 min-h-[200px] max-h-[300px] border rounded-md overflow-x-hidden">
             {filteredAvailableProjects.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
                 <FolderOpen className="h-8 w-8 mb-2" />
