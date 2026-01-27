@@ -317,15 +317,12 @@ export function ViewsDropdown({
                       key={option.id}
                       onClick={() => onFilterViewChange(option.id)}
                       data-testid={`filter-view-option-${option.id}`}
-                      className="flex items-center justify-between py-2"
+                      className="flex items-center justify-between"
                     >
-                      <div className="flex flex-col">
-                        <span className={cn("flex items-center gap-2", isSelected && "font-medium")}>
-                          <OptionIcon className="h-4 w-4" />
-                          {option.label}
-                        </span>
-                        <span className="text-xs text-muted-foreground ml-6">{option.tooltip}</span>
-                      </div>
+                      <span className={cn("flex items-center gap-2", isSelected && "font-medium")}>
+                        <OptionIcon className="h-4 w-4" />
+                        {option.label}
+                      </span>
                       {isSelected && <Check className="h-4 w-4 text-primary" />}
                     </DropdownMenuItem>
                   );
