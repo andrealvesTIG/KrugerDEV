@@ -5746,19 +5746,22 @@ function ProjectGanttTaskRowTimeline({
   const isCritical = showCriticalPath && isOnCriticalPath;
   
   // Determine rendering mode:
-  // - Zero duration (durationDays === 0): Show diamond only
+  // - Zero duration (same start/end date OR durationDays === 0): Show diamond only
   // - Has duration AND marked as milestone: Show bar + diamond at end
   // - Has duration but NOT milestone: Show bar only
-  const isZeroDuration = task.durationDays !== null && task.durationDays !== undefined && task.durationDays === 0;
+  // Calculate actual duration from dates (more reliable than stored durationDays)
+  const calculatedDurationDays = start && end ? differenceInDays(end, start) : null;
+  const isZeroDuration = calculatedDurationDays === 0 || 
+    (task.durationDays !== null && task.durationDays !== undefined && task.durationDays === 0 && calculatedDurationDays === null);
   const isMarkedAsMilestone = task.isMilestone === true;
-  const hasDuration = !isZeroDuration;
+  const hasDuration = !isZeroDuration && hasValidDates;
   
-  // Show diamond only for zero-duration tasks
-  const showDiamondOnly = isZeroDuration;
-  // Show bar for tasks with duration
-  const showBar = hasDuration && hasValidDates;
+  // Show diamond only for zero-duration tasks (start == end date)
+  const showDiamondOnly = isZeroDuration && hasValidDates;
+  // Show bar for tasks with actual duration (end date > start date)
+  const showBar = hasDuration;
   // Show diamond at end of bar if task has duration AND is marked as milestone
-  const showMilestoneDiamond = hasDuration && isMarkedAsMilestone && hasValidDates;
+  const showMilestoneDiamond = hasDuration && isMarkedAsMilestone;
 
   return (
     <div 
