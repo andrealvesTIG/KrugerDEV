@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { Clock, PartyPopper } from "lucide-react";
+import { Clock, PartyPopper, Coffee, TreePalm, Sparkles } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 import running_man from "@assets/running man.gif";
 
@@ -63,15 +70,73 @@ export function FridayCountdown() {
   const pad = (n: number) => n.toString().padStart(2, '0');
 
   return (
-    <div 
-      className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-transparent text-slate-600 dark:text-slate-300 text-xs font-mono"
-      title="Time until Friday"
-      data-testid="friday-countdown"
-    >
-      <img src={`${running_man}?t=${Date.now()}`} alt="Running" className="h-10 w-10 object-contain" />
-      <Clock className="h-3.5 w-3.5" />
-      <span>{pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
-      <span className="text-muted-foreground">to Friday</span>
-    </div>
+    <Dialog>
+      <DialogTrigger asChild>
+        <div 
+          className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-transparent text-slate-600 dark:text-slate-300 text-xs font-mono cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors"
+          title="Time until Friday"
+          data-testid="friday-countdown"
+        >
+          <img src={`${running_man}?t=${Date.now()}`} alt="Running" className="h-10 w-10 object-contain" />
+          <Clock className="h-3.5 w-3.5" />
+          <span>{pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
+          <span className="text-muted-foreground">to Friday</span>
+        </div>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 border-none shadow-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-2xl font-serif text-sky-900 dark:text-sky-100 italic">
+            <TreePalm className="h-6 w-6 text-emerald-500" />
+            Time to exhale...
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center justify-center py-8 space-y-6 text-center">
+          <div className="relative">
+            <div className="absolute -inset-4 bg-sky-400/20 rounded-full blur-xl animate-pulse" />
+            <img 
+              src={`${running_man}?t=${Date.now()}`} 
+              alt="Relaxing" 
+              className="relative h-24 w-24 object-contain"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <p className="text-lg text-slate-700 dark:text-slate-300">
+              You can relax as it is only
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <div className="flex flex-col items-center">
+                <span className="text-4xl font-bold text-sky-600 dark:text-sky-400 font-mono tracking-tighter">{pad(timeLeft.hours)}</span>
+                <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">hours</span>
+              </div>
+              <span className="text-2xl font-light text-slate-300">:</span>
+              <div className="flex flex-col items-center">
+                <span className="text-4xl font-bold text-sky-600 dark:text-sky-400 font-mono tracking-tighter">{pad(timeLeft.minutes)}</span>
+                <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">minutes</span>
+              </div>
+              <span className="text-2xl font-light text-slate-300">:</span>
+              <div className="flex flex-col items-center">
+                <span className="text-4xl font-bold text-sky-600 dark:text-sky-400 font-mono tracking-tighter">{pad(timeLeft.seconds)}</span>
+                <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">seconds</span>
+              </div>
+            </div>
+            <p className="text-lg text-slate-700 dark:text-slate-300">
+              left until it is <span className="text-emerald-600 dark:text-emerald-400 font-bold italic underline decoration-wavy decoration-emerald-200">Friday</span>!
+            </p>
+          </div>
+
+          <div className="flex gap-4 pt-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/50 dark:bg-white/5 text-slate-500 text-xs">
+              <Coffee className="h-3.5 w-3.5" />
+              <span>Take a breath</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/50 dark:bg-white/5 text-slate-500 text-xs">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Almost there</span>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
