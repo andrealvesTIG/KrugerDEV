@@ -1328,12 +1328,34 @@ function ProjectTimeline({
                 </Button>
               </div>
               <span className="flex items-center gap-1.5">
-                <Flag className="h-3.5 w-3.5 text-primary" />
+                {/* F1 Start flag - green/white grid */}
+                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                  <rect x="1" y="2" width="3" height="3" fill="#22c55e"/>
+                  <rect x="4" y="2" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="1" y="5" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="4" y="5" width="3" height="3" fill="#22c55e"/>
+                  <rect x="1" y="8" width="3" height="3" fill="#22c55e"/>
+                  <rect x="4" y="8" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="1" y="11" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="4" y="11" width="3" height="3" fill="#22c55e"/>
+                  <rect x="7" y="2" width="2" height="12" fill="#374151"/>
+                </svg>
                 {format(projectStart, 'MMM d, yyyy')}
               </span>
               <span className="flex items-center gap-1.5">
                 {format(projectEnd, 'MMM d, yyyy')}
-                <Flag className="h-3.5 w-3.5 text-green-600" />
+                {/* F1 Checkered finish flag - black/white grid */}
+                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                  <rect x="1" y="2" width="3" height="3" fill="black"/>
+                  <rect x="4" y="2" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="1" y="5" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="4" y="5" width="3" height="3" fill="black"/>
+                  <rect x="1" y="8" width="3" height="3" fill="black"/>
+                  <rect x="4" y="8" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="1" y="11" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="4" y="11" width="3" height="3" fill="black"/>
+                  <rect x="7" y="2" width="2" height="12" fill="#374151"/>
+                </svg>
               </span>
             </div>
           </CardHeader>
@@ -1493,14 +1515,34 @@ function ProjectTimeline({
                 );
               })}
               
-              {/* Start marker - positioned at first row */}
-              <div className="absolute -left-4" style={{ top: '8px' }}>
-                <Flag className="h-4 w-4 text-primary" />
+              {/* Start marker - F1 green checkered flag */}
+              <div className="absolute -left-4" style={{ top: '4px' }}>
+                <svg className="h-5 w-5" viewBox="0 0 16 16" fill="none">
+                  <rect x="1" y="2" width="3" height="3" fill="#22c55e"/>
+                  <rect x="4" y="2" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="1" y="5" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="4" y="5" width="3" height="3" fill="#22c55e"/>
+                  <rect x="1" y="8" width="3" height="3" fill="#22c55e"/>
+                  <rect x="4" y="8" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="1" y="11" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="4" y="11" width="3" height="3" fill="#22c55e"/>
+                  <rect x="7" y="2" width="2" height="12" fill="#374151"/>
+                </svg>
               </div>
               
-              {/* End marker - positioned at first row */}
-              <div className="absolute -right-4" style={{ top: '8px' }}>
-                <Flag className="h-4 w-4 text-green-600" />
+              {/* End marker - F1 black/white checkered flag */}
+              <div className="absolute -right-4" style={{ top: '4px' }}>
+                <svg className="h-5 w-5" viewBox="0 0 16 16" fill="none">
+                  <rect x="1" y="2" width="3" height="3" fill="black"/>
+                  <rect x="4" y="2" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="1" y="5" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="4" y="5" width="3" height="3" fill="black"/>
+                  <rect x="1" y="8" width="3" height="3" fill="black"/>
+                  <rect x="4" y="8" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="1" y="11" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
+                  <rect x="4" y="11" width="3" height="3" fill="black"/>
+                  <rect x="7" y="2" width="2" height="12" fill="#374151"/>
+                </svg>
               </div>
             </div>
             
