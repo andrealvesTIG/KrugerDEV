@@ -1092,6 +1092,7 @@ function ProjectTimeline({
   
   // Distribute milestones across rows to avoid overlapping
   // Each milestone gets assigned a row based on proximity to other milestones
+  // Also determine which labels can be shown without overlapping
   const eventsWithRows = useMemo(() => {
     if (!timelineRange || visibleEvents.length === 0) return [];
     
@@ -1100,13 +1101,11 @@ function ProjectTimeline({
       ...event,
       position: (differenceInDays(event.date, timelineRange.start) / timelineRange.totalDays) * 100,
       row: 0,
+      showLabel: false,
+      labelPosition: 'right' as 'left' | 'right',
     })).filter(e => e.position >= 0 && e.position <= 100);
     
-    if (numRows === 1) {
-      return eventsWithPos;
-    }
-    
-    // Minimum percentage distance between milestones on the same row
+    // Minimum percentage distance between milestones on the same row (for diamond markers)
     const minDistance = 3; // 3% of timeline width
     
     // Assign rows using a greedy algorithm
@@ -1128,6 +1127,39 @@ function ProjectTimeline({
       }
       event.row = assignedRow;
       rowLastPositions[assignedRow] = event.position;
+    }
+    
+    // Determine which labels to show - avoid overlapping labels
+    // Labels need more space than markers (roughly 8-12% depending on text length)
+    const labelMinDistance = 10; // Minimum % distance for labels to not overlap
+    const rowLastLabelEnd: number[] = Array(numRows).fill(-Infinity);
+    
+    for (const event of eventsWithPos) {
+      const estimatedLabelWidth = Math.min(15, Math.max(6, event.title.length * 0.5)); // Rough estimate
+      
+      // Check if label can fit to the right
+      if (event.position - rowLastLabelEnd[event.row] >= 2) {
+        // Check if there's enough space to the right (not too close to edge or next label)
+        const nextEventOnRow = eventsWithPos.find(e => 
+          e.row === event.row && 
+          e.position > event.position && 
+          e.position - event.position < estimatedLabelWidth + 2
+        );
+        
+        if (!nextEventOnRow && event.position + estimatedLabelWidth <= 100) {
+          event.showLabel = true;
+          event.labelPosition = 'right';
+          rowLastLabelEnd[event.row] = event.position + estimatedLabelWidth;
+        } else if (event.position > estimatedLabelWidth + 2) {
+          // Try left side
+          const prevLabelEnd = rowLastLabelEnd[event.row];
+          if (event.position - estimatedLabelWidth > prevLabelEnd + 2) {
+            event.showLabel = true;
+            event.labelPosition = 'left';
+            rowLastLabelEnd[event.row] = event.position;
+          }
+        }
+      }
     }
     
     return eventsWithPos;
@@ -1258,18 +1290,44 @@ function ProjectTimeline({
                   <Tooltip key={`${event.type}-${event.id}`}>
                     <TooltipTrigger asChild>
                       <div 
-                        className={cn(
-                          "absolute -translate-x-1/2 w-3 h-3 rounded-sm rotate-45 cursor-pointer z-20 border-2",
-                          event.completed 
-                            ? "bg-green-600 border-green-700" 
-                            : "bg-red-500 border-red-600"
-                        )}
+                        className="absolute flex items-center gap-1 cursor-pointer z-20"
                         style={{ 
                           left: `${event.position}%`,
                           top: `${rowTop}px`,
+                          transform: event.labelPosition === 'left' ? 'translateX(-100%)' : 'translateX(-6px)',
                         }}
                         data-testid={`timeline-milestone-${event.id}`}
-                      />
+                      >
+                        {/* Label on left side if applicable */}
+                        {event.showLabel && event.labelPosition === 'left' && (
+                          <span 
+                            className="text-[9px] text-muted-foreground truncate max-w-[80px] pr-1"
+                            title={event.title}
+                          >
+                            {event.title.length > 12 ? event.title.slice(0, 12) + '...' : event.title}
+                          </span>
+                        )}
+                        
+                        {/* Diamond marker */}
+                        <div 
+                          className={cn(
+                            "w-3 h-3 rounded-sm rotate-45 border-2 flex-shrink-0",
+                            event.completed 
+                              ? "bg-green-600 border-green-700" 
+                              : "bg-red-500 border-red-600"
+                          )}
+                        />
+                        
+                        {/* Label on right side if applicable */}
+                        {event.showLabel && event.labelPosition === 'right' && (
+                          <span 
+                            className="text-[9px] text-muted-foreground truncate max-w-[80px] pl-1"
+                            title={event.title}
+                          >
+                            {event.title.length > 12 ? event.title.slice(0, 12) + '...' : event.title}
+                          </span>
+                        )}
+                      </div>
                     </TooltipTrigger>
                     <TooltipContent className="space-y-2">
                       <button
