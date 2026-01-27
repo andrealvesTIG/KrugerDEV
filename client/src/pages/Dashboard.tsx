@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -34,7 +33,6 @@ import {
   FolderKanban, 
   ShieldAlert, 
   Users, 
-  UserCog, 
   Clock,
   FileInput,
   MoreVertical,
@@ -43,6 +41,22 @@ import {
   BarChart3,
   Eye,
   EyeOff,
+  ChevronDown,
+  TrendingUp,
+  DollarSign,
+  Target,
+  Activity,
+  PieChart,
+  Calendar,
+  Workflow,
+  AlertTriangle,
+  CheckCircle,
+  ClipboardList,
+  UserCheck,
+  Gauge,
+  CalendarDays,
+  FileBarChart,
+  Timer,
 } from "lucide-react";
 import { SiTableau, SiLooker, SiMetabase } from "react-icons/si";
 import { useOrganization } from "@/hooks/use-organization";
@@ -67,17 +81,89 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const DASHBOARD_TABS = [
-  { id: "executive", label: "Executive", icon: LayoutDashboard },
-  { id: "portfolios", label: "Portfolios", icon: FolderKanban },
-  { id: "intake", label: "Intake", icon: FileInput },
-  { id: "risks-issues", label: "Risks & Issues", icon: ShieldAlert },
-  { id: "resource", label: "Resource", icon: Users },
-  { id: "resource-management", label: "Resource Management", icon: UserCog },
-  { id: "timesheet", label: "Timesheet Report", icon: Clock },
-] as const;
+type SubMenuItem = {
+  id: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+};
 
-type TabId = typeof DASHBOARD_TABS[number]["id"] | `custom-${number}`;
+type DashboardTab = {
+  id: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  submenus: SubMenuItem[];
+};
+
+const DASHBOARD_TABS: DashboardTab[] = [
+  { 
+    id: "executive", 
+    label: "Executive", 
+    icon: LayoutDashboard,
+    submenus: [
+      { id: "executive-overview", label: "Overview", icon: LayoutDashboard },
+      { id: "executive-strategic", label: "Strategic KPIs", icon: Target },
+      { id: "executive-trends", label: "Trend Analysis", icon: TrendingUp },
+      { id: "executive-financial", label: "Financial Summary", icon: DollarSign },
+    ]
+  },
+  { 
+    id: "portfolios", 
+    label: "Portfolios", 
+    icon: FolderKanban,
+    submenus: [
+      { id: "portfolios-overview", label: "Overview", icon: FolderKanban },
+      { id: "portfolios-health", label: "Portfolio Health", icon: Activity },
+      { id: "portfolios-allocation", label: "Allocation", icon: PieChart },
+      { id: "portfolios-timeline", label: "Timeline", icon: Calendar },
+    ]
+  },
+  { 
+    id: "intake", 
+    label: "Intake", 
+    icon: FileInput,
+    submenus: [
+      { id: "intake-overview", label: "Overview", icon: FileInput },
+      { id: "intake-pipeline", label: "Request Pipeline", icon: Workflow },
+      { id: "intake-approvals", label: "Approval Workflow", icon: CheckCircle },
+      { id: "intake-capacity", label: "Capacity Analysis", icon: Gauge },
+    ]
+  },
+  { 
+    id: "risks-issues", 
+    label: "Risks & Issues", 
+    icon: ShieldAlert,
+    submenus: [
+      { id: "risks-issues-overview", label: "Overview", icon: ShieldAlert },
+      { id: "risks-issues-matrix", label: "Risk Matrix", icon: AlertTriangle },
+      { id: "risks-issues-tracker", label: "Issue Tracker", icon: ClipboardList },
+      { id: "risks-issues-mitigation", label: "Mitigation Status", icon: CheckCircle },
+    ]
+  },
+  { 
+    id: "resources", 
+    label: "Resources", 
+    icon: Users,
+    submenus: [
+      { id: "resources-overview", label: "Overview", icon: Users },
+      { id: "resources-allocation", label: "Allocation", icon: PieChart },
+      { id: "resources-utilization", label: "Utilization", icon: Gauge },
+      { id: "resources-capacity", label: "Capacity Planning", icon: UserCheck },
+    ]
+  },
+  { 
+    id: "timesheet", 
+    label: "Timesheet", 
+    icon: Clock,
+    submenus: [
+      { id: "timesheet-overview", label: "Overview", icon: Clock },
+      { id: "timesheet-weekly", label: "Weekly Summary", icon: CalendarDays },
+      { id: "timesheet-project", label: "Project Hours", icon: FileBarChart },
+      { id: "timesheet-resource", label: "Resource Hours", icon: Timer },
+    ]
+  },
+];
+
+type TabId = string | `custom-${number}`;
 
 const STORAGE_KEY = "dashboard-active-tab";
 
@@ -87,14 +173,17 @@ type UnifiedTab = {
   label: string;
   icon?: typeof LayoutDashboard;
   dashboardId?: number;
+  submenus?: SubMenuItem[];
 };
 
 interface SortableTabProps {
   tab: UnifiedTab;
   isAdmin: boolean;
+  activeSubmenu: string;
+  onSubmenuChange: (submenuId: string) => void;
 }
 
-function SortableTab({ tab, isAdmin }: SortableTabProps) {
+function SortableTab({ tab, isAdmin, activeSubmenu, onSubmenuChange }: SortableTabProps) {
   const {
     attributes,
     listeners,
@@ -112,6 +201,7 @@ function SortableTab({ tab, isAdmin }: SortableTabProps) {
   };
 
   if (tab.type === 'custom') {
+    const isActive = activeSubmenu === tab.id;
     return (
       <div
         ref={setNodeRef}
@@ -119,19 +209,23 @@ function SortableTab({ tab, isAdmin }: SortableTabProps) {
         className="flex items-center"
         {...(isAdmin ? { ...attributes, ...listeners } : {})}
       >
-        <TabsTrigger
-          value={tab.id}
-          className="flex items-center gap-2 data-[state=active]:bg-background"
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onSubmenuChange(tab.id)}
+          className={`flex items-center gap-2 h-9 px-3 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
           data-testid={`tab-${tab.id}`}
         >
           <Sparkles className="h-4 w-4" />
           <span className="hidden sm:inline truncate max-w-32">{tab.label}</span>
-        </TabsTrigger>
+        </Button>
       </div>
     );
   }
 
   const Icon = tab.icon!;
+  const isActive = activeSubmenu.startsWith(tab.id);
+  const currentSubmenu = tab.submenus?.find(s => s.id === activeSubmenu);
 
   return (
     <div
@@ -140,14 +234,38 @@ function SortableTab({ tab, isAdmin }: SortableTabProps) {
       className="flex items-center"
       {...(isAdmin ? { ...attributes, ...listeners } : {})}
     >
-      <TabsTrigger
-        value={tab.id}
-        className="flex items-center gap-2 data-[state=active]:bg-background"
-        data-testid={`tab-${tab.id}`}
-      >
-        <Icon className="h-4 w-4" />
-        <span className="hidden sm:inline">{tab.label}</span>
-      </TabsTrigger>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`flex items-center gap-1.5 h-9 px-3 rounded-lg transition-colors ${isActive ? 'bg-background shadow-sm' : 'hover:bg-background/50'}`}
+            data-testid={`tab-${tab.id}`}
+          >
+            <Icon className="h-4 w-4" />
+            <span className="hidden sm:inline">{tab.label}</span>
+            <ChevronDown className="h-3 w-3 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          {tab.submenus?.map((submenu) => {
+            const SubIcon = submenu.icon;
+            const isSubmenuActive = activeSubmenu === submenu.id;
+            return (
+              <DropdownMenuItem
+                key={submenu.id}
+                onClick={() => onSubmenuChange(submenu.id)}
+                className={isSubmenuActive ? 'bg-accent' : ''}
+                data-testid={`submenu-${submenu.id}`}
+              >
+                <SubIcon className="h-4 w-4 mr-2" />
+                {submenu.label}
+                {isSubmenuActive && <CheckCircle className="h-3 w-3 ml-auto text-primary" />}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -160,7 +278,7 @@ export default function Dashboard() {
   const { currentOrganization, memberships } = useOrganization();
   const { user } = useAuth();
   
-  const [activeTab, setActiveTab] = useState<TabId>("executive");
+  const [activeSubmenu, setActiveSubmenu] = useState<string>("executive-overview");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showPowerBIDialog, setShowPowerBIDialog] = useState(false);
   const [showComingSoonDialog, setShowComingSoonDialog] = useState<string | null>(null);
@@ -241,12 +359,13 @@ export default function Dashboard() {
     const savedOrder = tabOrderData?.tabOrder || [];
     const hiddenTabIds = tabOrderData?.hiddenTabs || [];
     
-    // Create unified tabs from built-in tabs
+    // Create unified tabs from built-in tabs (include submenus)
     const builtinUnified: UnifiedTab[] = DASHBOARD_TABS.map(tab => ({
       id: tab.id,
       type: 'builtin' as const,
       label: tab.label,
       icon: tab.icon,
+      submenus: tab.submenus,
     }));
     
     // Create unified tabs from custom dashboards (visible ones only in tab bar)
@@ -309,45 +428,56 @@ export default function Dashboard() {
     }
   };
 
-  const getInitialTab = (): TabId => {
+  const getInitialSubmenu = (): string => {
     if (viewParam) {
-      if (DASHBOARD_TABS.some(t => t.id === viewParam)) {
-        return viewParam as TabId;
+      // Check if it's a submenu ID
+      for (const tab of DASHBOARD_TABS) {
+        if (tab.submenus.some(s => s.id === viewParam)) {
+          return viewParam;
+        }
       }
+      // Check if it's a custom dashboard
       if (viewParam.startsWith('custom-')) {
-        return viewParam as TabId;
+        return viewParam;
+      }
+      // Legacy support: if it's a main tab ID, return its first submenu
+      const mainTab = DASHBOARD_TABS.find(t => t.id === viewParam);
+      if (mainTab) {
+        return mainTab.submenus[0].id;
       }
     }
-    const stored = localStorage.getItem(STORAGE_KEY) as TabId | null;
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      if (DASHBOARD_TABS.some(t => t.id === stored)) {
-        return stored;
+      // Check if stored value is a valid submenu
+      for (const tab of DASHBOARD_TABS) {
+        if (tab.submenus.some(s => s.id === stored)) {
+          return stored;
+        }
       }
       if (stored.startsWith('custom-')) {
         return stored;
       }
     }
-    return "executive";
+    return "executive-overview";
   };
 
   useEffect(() => {
-    const initialTab = getInitialTab();
-    setActiveTab(initialTab);
+    const initialSubmenu = getInitialSubmenu();
+    setActiveSubmenu(initialSubmenu);
     // Also set selectedCustomDashboard if it's a custom tab
-    if (initialTab.startsWith('custom-')) {
-      const dashboardId = Number(initialTab.replace('custom-', ''));
+    if (initialSubmenu.startsWith('custom-')) {
+      const dashboardId = Number(initialSubmenu.replace('custom-', ''));
       setSelectedCustomDashboard(dashboardId);
     }
   }, [viewParam]);
 
-  const handleTabChange = (value: string) => {
-    const tabId = value as TabId;
-    setActiveTab(tabId);
-    localStorage.setItem(STORAGE_KEY, tabId);
-    setLocation(`/?view=${tabId}`, { replace: true });
+  const handleSubmenuChange = (submenuId: string) => {
+    setActiveSubmenu(submenuId);
+    localStorage.setItem(STORAGE_KEY, submenuId);
+    setLocation(`/?view=${submenuId}`, { replace: true });
     
-    if (tabId.startsWith('custom-')) {
-      const dashboardId = Number(tabId.replace('custom-', ''));
+    if (submenuId.startsWith('custom-')) {
+      const dashboardId = Number(submenuId.replace('custom-', ''));
       setSelectedCustomDashboard(dashboardId);
     } else {
       setSelectedCustomDashboard(null);
@@ -355,43 +485,44 @@ export default function Dashboard() {
   };
 
   const handleCustomDashboardCreated = (dashboardId: number) => {
-    const tabId = `custom-${dashboardId}` as TabId;
-    setActiveTab(tabId);
+    const tabId = `custom-${dashboardId}`;
+    setActiveSubmenu(tabId);
     setSelectedCustomDashboard(dashboardId);
     localStorage.setItem(STORAGE_KEY, tabId);
     setLocation(`/?view=${tabId}`, { replace: true });
   };
 
   const handleSelectCustomDashboard = (dashboardId: number) => {
-    const tabId = `custom-${dashboardId}` as TabId;
-    setActiveTab(tabId);
+    const tabId = `custom-${dashboardId}`;
+    setActiveSubmenu(tabId);
     setSelectedCustomDashboard(dashboardId);
     localStorage.setItem(STORAGE_KEY, tabId);
     setLocation(`/?view=${tabId}`, { replace: true });
   };
 
-  const isCustomTab = activeTab.startsWith('custom-');
+  const isCustomTab = activeSubmenu.startsWith('custom-');
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="w-full flex flex-wrap h-auto gap-1 bg-muted/50 p-1" data-testid="dashboard-tabs">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
+      <div className="w-full flex flex-wrap items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg" data-testid="dashboard-tabs">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={visibleTabs.map(t => t.id)}
+            strategy={horizontalListSortingStrategy}
           >
-            <SortableContext
-              items={visibleTabs.map(t => t.id)}
-              strategy={horizontalListSortingStrategy}
-            >
-              {visibleTabs.map((tab) => (
-                <SortableTab
-                  key={tab.id}
-                  tab={tab}
-                  isAdmin={isOrgAdmin}
-                />
-              ))}
+            {visibleTabs.map((tab) => (
+              <SortableTab
+                key={tab.id}
+                tab={tab}
+                isAdmin={isOrgAdmin}
+                activeSubmenu={activeSubmenu}
+                onSubmenuChange={handleSubmenuChange}
+              />
+            ))}
             </SortableContext>
           </DndContext>
 
@@ -523,55 +654,43 @@ export default function Dashboard() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-        </TabsList>
+      </div>
 
-        <TabsContent value="executive" className="mt-6" data-testid="content-executive">
-          <ExecutiveDashboard />
-        </TabsContent>
-
-        <TabsContent value="portfolios" className="mt-6" data-testid="content-portfolios">
-          <PortfoliosDashboard />
-        </TabsContent>
-
-        <TabsContent value="intake" className="mt-6" data-testid="content-intake">
-          <IntakeDashboard />
-        </TabsContent>
-
-        <TabsContent value="risks-issues" className="mt-6" data-testid="content-risks-issues">
-          <RisksIssuesDashboard />
-        </TabsContent>
-
-        <TabsContent value="resource" className="mt-6" data-testid="content-resource">
-          <ResourceDashboard />
-        </TabsContent>
-
-        <TabsContent value="resource-management" className="mt-6" data-testid="content-resource-management">
-          <ResourceManagementDashboard />
-        </TabsContent>
-
-        <TabsContent value="timesheet" className="mt-6" data-testid="content-timesheet">
-          <TimesheetReportDashboard />
-        </TabsContent>
-
-        {/* Render TabsContent for all visible custom dashboards */}
-        {customDashboards?.filter(d => !hiddenCustomDashboards.includes(d.id)).map((dashboard) => (
-          <TabsContent 
-            key={dashboard.id}
-            value={`custom-${dashboard.id}`} 
-            className="mt-6" 
-            data-testid={`content-custom-${dashboard.id}`}
-          >
-            <CustomDashboard 
-              dashboardId={dashboard.id} 
-              onDelete={() => {
-                setActiveTab("executive");
-                setSelectedCustomDashboard(null);
-                setLocation('/?view=executive', { replace: true });
-              }}
-            />
-          </TabsContent>
-        ))}
-      </Tabs>
+      {/* Dashboard Content - render based on activeSubmenu */}
+      <div className="mt-6" data-testid={`content-${activeSubmenu}`}>
+        {/* Executive Dashboard submenus */}
+        {activeSubmenu.startsWith('executive-') && <ExecutiveDashboard />}
+        
+        {/* Portfolios Dashboard submenus */}
+        {activeSubmenu.startsWith('portfolios-') && <PortfoliosDashboard />}
+        
+        {/* Intake Dashboard submenus */}
+        {activeSubmenu.startsWith('intake-') && <IntakeDashboard />}
+        
+        {/* Risks & Issues Dashboard submenus */}
+        {activeSubmenu.startsWith('risks-issues-') && <RisksIssuesDashboard />}
+        
+        {/* Resources Dashboard submenus (combined Resource + Resource Management) */}
+        {activeSubmenu === 'resources-overview' && <ResourceDashboard />}
+        {activeSubmenu === 'resources-allocation' && <ResourceDashboard />}
+        {activeSubmenu === 'resources-utilization' && <ResourceManagementDashboard />}
+        {activeSubmenu === 'resources-capacity' && <ResourceManagementDashboard />}
+        
+        {/* Timesheet Dashboard submenus */}
+        {activeSubmenu.startsWith('timesheet-') && <TimesheetReportDashboard />}
+        
+        {/* Custom Dashboards */}
+        {activeSubmenu.startsWith('custom-') && selectedCustomDashboard && (
+          <CustomDashboard 
+            dashboardId={selectedCustomDashboard} 
+            onDelete={() => {
+              setActiveSubmenu("executive-overview");
+              setSelectedCustomDashboard(null);
+              setLocation('/?view=executive-overview', { replace: true });
+            }}
+          />
+        )}
+      </div>
 
       <CreateCustomDashboardDialog
         open={showCreateDialog}
