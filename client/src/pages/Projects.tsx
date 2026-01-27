@@ -15,7 +15,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
-import type { InsertProject, Project } from "@shared/schema";
+import type { InsertProject, Project, Resource } from "@shared/schema";
 import { Link } from "wouter";
 import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -2256,6 +2256,17 @@ function ProjectsGridView({
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [internalFullscreen, setInternalFullscreen] = useState(false);
   
+  const { data: resources } = useQuery<Resource[]>({
+    queryKey: ['/api/organizations', organizationId, 'resources'],
+    enabled: !!organizationId,
+  });
+  
+  const resourceMap = useMemo(() => {
+    const map = new Map<number, string>();
+    resources?.forEach(r => map.set(r.id, r.displayName));
+    return map;
+  }, [resources]);
+  
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
   const setIsFullscreen = onExitFullscreen ? () => onExitFullscreen() : setInternalFullscreen;
   
@@ -2647,7 +2658,8 @@ function ProjectsGridView({
         if (project.source === "imported") return <Badge variant="outline" className="text-xs">MS Project</Badge>;
         return <Badge variant="outline" className="text-xs">Manual</Badge>;
       case "owner":
-        return <span className="text-sm">{project.managerId || "-"}</span>;
+        const managerName = project.managerResourceId ? resourceMap.get(project.managerResourceId) : null;
+        return <span className="text-sm">{managerName || "-"}</span>;
       case "description":
         return (
           <div className="flex items-center gap-2 group">
