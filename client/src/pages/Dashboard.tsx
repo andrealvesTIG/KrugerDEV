@@ -312,8 +312,21 @@ export default function Dashboard() {
 
   // Easter egg: "friday" secret code for Dilbert comic
   const [showDilbert, setShowDilbert] = useState(false);
+  const [dilbertDate, setDilbertDate] = useState<string>("");
   const secretCodeRef = useRef<string>("");
   const SECRET_CODE = "friday";
+
+  // Generate random Dilbert comic date (between 1989-04-16 and today)
+  const getRandomDilbertDate = () => {
+    const start = new Date('1989-04-16').getTime();
+    const end = new Date().getTime();
+    const randomTime = start + Math.random() * (end - start);
+    const randomDate = new Date(randomTime);
+    const year = randomDate.getFullYear();
+    const month = String(randomDate.getMonth() + 1).padStart(2, '0');
+    const day = String(randomDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -326,6 +339,7 @@ export default function Dashboard() {
         }
         // Check if secret code is entered
         if (secretCodeRef.current === SECRET_CODE) {
+          setDilbertDate(getRandomDilbertDate());
           setShowDilbert(true);
           secretCodeRef.current = "";
         }
@@ -794,38 +808,63 @@ export default function Dashboard() {
 
       {/* Easter Egg: Dilbert Comic Dialog */}
       <Dialog open={showDilbert} onOpenChange={setShowDilbert}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
             <DialogTitle className="text-center text-2xl flex items-center justify-center gap-2">
               <span className="text-3xl">🎉</span> Happy Friday!
             </DialogTitle>
             <DialogDescription className="text-center">
-              You discovered the secret code! Type "friday" on the dashboard anytime for a smile.
+              You discovered the secret code! Here's a random Dilbert comic for you.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-6 py-6">
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 p-6 rounded-xl border-2 border-amber-200 dark:border-amber-800 shadow-lg max-w-md">
-              <p className="text-lg font-medium text-center mb-4 text-foreground">Dilbert's Friday Wisdom:</p>
-              <p className="text-xl italic text-center text-muted-foreground leading-relaxed">
-                "Friday is my second favorite F-word."
-              </p>
-              <p className="text-right text-sm mt-4 text-amber-700 dark:text-amber-400">— Dilbert</p>
+          <div className="flex flex-col items-center gap-5 py-4">
+            <div 
+              className="w-full bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 rounded-xl border-2 border-amber-200 dark:border-amber-800 shadow-lg p-6 cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]"
+              onClick={() => window.open(`https://dilbert.com/strip/${dilbertDate}`, '_blank')}
+            >
+              <div className="text-center space-y-4">
+                <div className="text-6xl">📰</div>
+                <div>
+                  <p className="text-lg font-bold text-amber-800 dark:text-amber-200">
+                    Dilbert Comic Strip
+                  </p>
+                  <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                    {dilbertDate && new Date(dilbertDate).toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </p>
+                </div>
+                <p className="text-primary font-medium text-sm flex items-center justify-center gap-1">
+                  Click to view comic <span>↗</span>
+                </p>
+              </div>
             </div>
-            <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">Want more Dilbert?</p>
-              <a 
-                href="https://dilbert.com" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-primary hover:underline font-medium"
+            
+            <div className="flex items-center gap-3 flex-wrap justify-center">
+              <Button 
+                variant="outline" 
+                onClick={() => setDilbertDate(getRandomDilbertDate())}
+                data-testid="button-dilbert-random"
               >
-                Visit dilbert.com <span className="text-lg">→</span>
-              </a>
+                🎲 Random Date
+              </Button>
+              <Button
+                onClick={() => window.open(`https://dilbert.com/strip/${dilbertDate}`, '_blank')}
+              >
+                View Comic ↗
+              </Button>
             </div>
+            
+            <p className="text-xs text-muted-foreground text-center">
+              Dilbert by Scott Adams • Type "friday" anytime on the dashboard for another comic!
+            </p>
           </div>
-          <div className="flex justify-center">
-            <Button onClick={() => setShowDilbert(false)} size="lg" data-testid="button-dilbert-close">
-              Back to Work! 💼
+          <div className="flex justify-center pt-2">
+            <Button variant="outline" onClick={() => setShowDilbert(false)} data-testid="button-dilbert-close">
+              Back to Work 💼
             </Button>
           </div>
         </DialogContent>
