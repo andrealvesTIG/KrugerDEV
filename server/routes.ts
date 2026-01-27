@@ -5365,14 +5365,26 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Allowed workflow stages for validation
+  const ALLOWED_PROJECT_STAGES = ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'Billing'];
+
   // Complete project - terminal state that locks the workflow
   app.post('/api/projects/:id/complete', async (req, res) => {
     try {
       const projectId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
       
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const existing = await storage.getProject(projectId);
       if (!existing) return res.status(404).json({ message: "Project not found" });
+      
+      // Authorization check - user must have access to the organization
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: "Access denied to this project" });
+      }
       
       // Check if project is already completed
       if (existing.completedAt) {
@@ -5414,15 +5426,28 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       const { status } = req.body; // Optional status to set (defaults to Billing)
       
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const existing = await storage.getProject(projectId);
       if (!existing) return res.status(404).json({ message: "Project not found" });
+      
+      // Authorization check - user must have access to the organization
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: "Access denied to this project" });
+      }
       
       // Check if project is actually completed
       if (!existing.completedAt) {
         return res.status(400).json({ message: "Project is not completed" });
       }
       
+      // Validate status against allowed stages
       const newStatus = status || 'Billing'; // Default to Billing stage
+      if (!ALLOWED_PROJECT_STAGES.includes(newStatus)) {
+        return res.status(400).json({ message: `Invalid status. Must be one of: ${ALLOWED_PROJECT_STAGES.join(', ')}` });
+      }
       
       // Reactivate the project
       const updated = await storage.updateProject(projectId, {
