@@ -89,6 +89,30 @@ The application manages comprehensive data entities including:
 - **Microsoft Planner**: Integration via Microsoft Graph API for importing and syncing projects and tasks. Supports OAuth for secure access and task synchronization, with tasks from Planner being read-only within the application.
 - **Analytics API**: REST endpoints for integrating with external analytics tools like Power BI, providing project, portfolio, risk, issue, milestone, intake, and KPI data. Secured with API key authentication.
 
+### Notification Engine
+- **Notification Types**: The system supports multiple notification types including:
+  - `mention`: @mention in a comment
+  - `comment_reply`: reply to user's comment
+  - `task_overdue`: task past its end date
+  - `task_deadline_warning`: task deadline approaching (3 days or less)
+  - `project_health_alert`: project health changed to Red
+  - `portfolio_health_alert`: portfolio has multiple red projects
+  - `task_assignment`: user assigned to a task
+  - `risk_assignment`: user assigned to a risk
+  - `issue_assignment`: user assigned to an issue
+  - `project_assignment`: user added to a project team
+  - `milestone_approaching`: milestone deadline within 7 days
+  - `milestone_overdue`: milestone past its target date
+  - `status_change`: project/task status changed
+- **Severity Levels**: info, warning, critical - displayed with appropriate styling in the UI.
+- **Notification Engine Service**: Located at `server/services/notificationEngine.ts` with functions for checking overdue tasks, upcoming deadlines, project health, and milestones.
+- **API Endpoints**:
+  - `POST /api/organizations/:orgId/notifications/check`: Run notification checks for an organization (admin only)
+  - `POST /api/admin/notifications/check-all`: Run checks for all organizations (super admin only, for scheduled jobs)
+- **Assignment Notifications**: Helper functions for creating assignment notifications when users are added to tasks, risks, issues, or projects.
+- **Deduplication**: Notifications are deduplicated to prevent spam - each notification type/reference is only created once per 24 hours.
+- **Frontend Display**: NotificationBell component displays notifications with type-specific icons and severity badges.
+
 ### Help & Feedback System
 - **Help Button**: Located in the top header bar, accessible from all pages.
 - **Help Dialog**: Users can submit text descriptions and paste/upload screenshots directly.

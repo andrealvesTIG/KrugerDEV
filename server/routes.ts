@@ -10071,6 +10071,85 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     }
   });
 
+  // Run notification checks for an organization (generates notifications for overdue tasks, deadlines, health alerts, etc.)
+  app.post('/api/organizations/:orgId/notifications/check', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const orgId = Number(req.params.orgId);
+      
+      // Check user has access to the organization (admin or owner only)
+      const membership = await storage.getOrganizationMember(orgId, userId);
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      const isOrgAdmin = membership?.role === 'owner' || membership?.role === 'org_admin' || membership?.role === 'admin';
+      
+      if (!isSuperAdmin && !isOrgAdmin) {
+        return res.status(403).json({ message: "Admin access required to run notification checks" });
+      }
+      
+      const { runAllNotificationChecks } = await import('./services/notificationEngine');
+      const results = await runAllNotificationChecks(orgId);
+      
+      res.json({
+        message: "Notification check completed",
+        results,
+      });
+    } catch (err) {
+      console.error("Error running notification checks:", err);
+      res.status(500).json({ message: "Error running notification checks" });
+    }
+  });
+
+  // Run notification checks for all organizations (super admin only - for scheduled jobs)
+  app.post('/api/admin/notifications/check-all', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (user?.role !== 'super_admin') {
+        return res.status(403).json({ message: "Super admin access required" });
+      }
+      
+      const orgs = await storage.getOrganizations();
+      const activeOrgs = orgs.filter(o => !o.deactivatedAt);
+      
+      const { runAllNotificationChecks } = await import('./services/notificationEngine');
+      const allResults = [];
+      
+      for (const org of activeOrgs) {
+        try {
+          const result = await runAllNotificationChecks(org.id);
+          allResults.push({ organizationId: org.id, organizationName: org.name, ...result });
+        } catch (err) {
+          allResults.push({ organizationId: org.id, organizationName: org.name, error: String(err) });
+        }
+      }
+      
+      const totals = allResults.reduce((acc, r) => ({
+        totalCreated: acc.totalCreated + (r.totalCreated || 0),
+        totalSkipped: acc.totalSkipped + (r.totalSkipped || 0),
+        totalErrors: acc.totalErrors + (r.totalErrors || 0),
+      }), { totalCreated: 0, totalSkipped: 0, totalErrors: 0 });
+      
+      res.json({
+        message: "Notification check completed for all organizations",
+        organizationsProcessed: activeOrgs.length,
+        ...totals,
+        details: allResults,
+      });
+    } catch (err) {
+      console.error("Error running notification checks for all orgs:", err);
+      res.status(500).json({ message: "Error running notification checks" });
+    }
+  });
+
   // =========== INTAKE WORKFLOW CONFIGURATION ===========
 
   // Get intake workflow steps for an organization

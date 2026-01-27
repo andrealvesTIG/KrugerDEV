@@ -3,7 +3,7 @@ import { Sidebar, SidebarProvider, useSidebarState, logoIcon } from "./Sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -164,6 +164,41 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   );
 }
 
+function getNotificationIcon(type: string, severity?: string | null) {
+  const iconClass = "h-4 w-4";
+  
+  switch (type) {
+    case 'mention':
+      return { icon: <AtSign className={`${iconClass} text-blue-600 dark:text-blue-400`} />, bg: 'bg-blue-100 dark:bg-blue-900/30' };
+    case 'comment_reply':
+      return { icon: <MessageSquare className={`${iconClass} text-primary`} />, bg: 'bg-primary/10' };
+    case 'task_overdue':
+      return { icon: <AlertTriangle className={`${iconClass} text-red-600 dark:text-red-400`} />, bg: 'bg-red-100 dark:bg-red-900/30' };
+    case 'task_deadline_warning':
+      return { icon: <Clock className={`${iconClass} text-amber-600 dark:text-amber-400`} />, bg: 'bg-amber-100 dark:bg-amber-900/30' };
+    case 'project_health_alert':
+      return { icon: <AlertCircle className={`${iconClass} text-red-600 dark:text-red-400`} />, bg: 'bg-red-100 dark:bg-red-900/30' };
+    case 'portfolio_health_alert':
+      return { icon: <AlertCircle className={`${iconClass} text-red-600 dark:text-red-400`} />, bg: 'bg-red-100 dark:bg-red-900/30' };
+    case 'task_assignment':
+      return { icon: <UserPlus className={`${iconClass} text-green-600 dark:text-green-400`} />, bg: 'bg-green-100 dark:bg-green-900/30' };
+    case 'risk_assignment':
+      return { icon: <Flag className={`${iconClass} text-orange-600 dark:text-orange-400`} />, bg: 'bg-orange-100 dark:bg-orange-900/30' };
+    case 'issue_assignment':
+      return { icon: <AlertCircle className={`${iconClass} text-yellow-600 dark:text-yellow-400`} />, bg: 'bg-yellow-100 dark:bg-yellow-900/30' };
+    case 'project_assignment':
+      return { icon: <UserPlus className={`${iconClass} text-blue-600 dark:text-blue-400`} />, bg: 'bg-blue-100 dark:bg-blue-900/30' };
+    case 'milestone_approaching':
+      return { icon: <Target className={`${iconClass} text-amber-600 dark:text-amber-400`} />, bg: 'bg-amber-100 dark:bg-amber-900/30' };
+    case 'milestone_overdue':
+      return { icon: <Target className={`${iconClass} text-red-600 dark:text-red-400`} />, bg: 'bg-red-100 dark:bg-red-900/30' };
+    case 'status_change':
+      return { icon: <CheckCircle2 className={`${iconClass} text-primary`} />, bg: 'bg-primary/10' };
+    default:
+      return { icon: <Bell className={`${iconClass} text-primary`} />, bg: 'bg-primary/10' };
+  }
+}
+
 function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [, setLocation] = useLocation();
@@ -178,7 +213,10 @@ function NotificationBell() {
     if (!notification.isRead) {
       markRead.mutate(notification.id);
     }
-    if (notification.projectId) {
+    if (notification.actionUrl) {
+      setLocation(notification.actionUrl);
+      setOpen(false);
+    } else if (notification.projectId) {
       setLocation(`/projects/${notification.projectId}`);
       setOpen(false);
     }
@@ -196,7 +234,7 @@ function NotificationBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end">
+      <PopoverContent className="w-96 p-0" align="end">
         <div className="flex items-center justify-between gap-2 px-4 py-3 border-b">
           <h4 className="font-medium text-sm">Notifications</h4>
           {unreadCount > 0 && (
@@ -212,41 +250,53 @@ function NotificationBell() {
             </Button>
           )}
         </div>
-        <ScrollArea className="h-[300px]">
+        <ScrollArea className="h-[350px]">
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : notifications && notifications.length > 0 ? (
             <div className="divide-y">
-              {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`px-4 py-3 cursor-pointer hover-elevate transition-colors ${!notification.isRead ? 'bg-primary/5' : ''}`}
-                  onClick={() => handleNotificationClick(notification)}
-                  data-testid={`notification-${notification.id}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${notification.type === 'mention' ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-primary/10'}`}>
-                      {notification.type === 'mention' ? (
-                        <AtSign className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      ) : (
-                        <MessageSquare className="h-4 w-4 text-primary" />
+              {notifications.map((notification) => {
+                const { icon, bg } = getNotificationIcon(notification.type, notification.severity);
+                const severity = notification.severity;
+                return (
+                  <div
+                    key={notification.id}
+                    className={`px-4 py-3 cursor-pointer hover-elevate transition-colors ${!notification.isRead ? 'bg-primary/5' : ''}`}
+                    onClick={() => handleNotificationClick(notification)}
+                    data-testid={`notification-${notification.id}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${bg}`}>
+                        {icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{notification.title}</p>
+                          {severity === 'critical' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 font-medium">
+                              Critical
+                            </span>
+                          )}
+                          {severity === 'warning' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-medium">
+                              Warning
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {notification.createdAt && formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                        </p>
+                      </div>
+                      {!notification.isRead && (
+                        <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{notification.title}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {notification.createdAt && formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                      </p>
-                    </div>
-                    {!notification.isRead && (
-                      <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">

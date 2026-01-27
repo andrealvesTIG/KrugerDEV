@@ -560,17 +560,40 @@ export const projectComments = pgTable("project_comments", {
   isDemo: boolean("is_demo").default(false),
 });
 
+// Notification types:
+// - mention: @mention in a comment
+// - comment_reply: reply to user's comment
+// - task_overdue: task past its end date
+// - task_deadline_warning: task deadline approaching (3 days or less)
+// - project_health_alert: project health changed to Red or at risk
+// - portfolio_health_alert: portfolio has multiple red projects
+// - task_assignment: user assigned to a task
+// - risk_assignment: user assigned to a risk
+// - issue_assignment: user assigned to an issue
+// - project_assignment: user added to a project team
+// - milestone_approaching: milestone deadline within 7 days
+// - milestone_overdue: milestone past its target date
+// - status_change: project/task status changed
+
 // Notifications for @mentions and other events
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  type: text("type").notNull(), // "mention", "comment_reply", etc.
+  organizationId: integer("organization_id").references(() => organizations.id),
+  type: text("type").notNull(),
   title: text("title").notNull(),
   message: text("message").notNull(),
   projectId: integer("project_id").references(() => projects.id),
+  portfolioId: integer("portfolio_id").references(() => portfolios.id),
+  taskId: integer("task_id"),
+  riskIssueId: integer("risk_issue_id"),
+  milestoneId: integer("milestone_id"),
   commentId: integer("comment_id"),
   fromUserId: varchar("from_user_id").references(() => users.id),
   fromUserName: text("from_user_name"),
+  severity: text("severity").default("info"), // info, warning, critical
+  actionUrl: text("action_url"), // deep link to the relevant item
+  metadata: text("metadata"), // JSON string for additional context
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
