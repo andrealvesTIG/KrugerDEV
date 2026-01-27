@@ -5365,6 +5365,93 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Complete project - terminal state that locks the workflow
+  app.post('/api/projects/:id/complete', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      const existing = await storage.getProject(projectId);
+      if (!existing) return res.status(404).json({ message: "Project not found" });
+      
+      // Check if project is already completed
+      if (existing.completedAt) {
+        return res.status(400).json({ message: "Project is already completed" });
+      }
+      
+      // Update project to completed state
+      const updated = await storage.updateProject(projectId, {
+        status: 'Completed',
+        completedAt: new Date(),
+        completedBy: userId || null,
+        updatedAt: new Date(),
+        updatedBy: userId || null,
+      });
+      
+      // Log the completion
+      const user = userId ? await storage.getUser(userId) : null;
+      await storage.createProjectChangeLog({
+        projectId,
+        changedBy: userId || null,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'updated',
+        changeSummary: `Project completed (status: "${existing.status}" → "Completed")`,
+        previousValues: JSON.stringify({ status: existing.status, completedAt: null }),
+        newValues: JSON.stringify({ status: 'Completed', completedAt: updated?.completedAt }),
+      });
+      
+      res.json(updated);
+    } catch (err) {
+      console.error("Error completing project:", err);
+      res.status(500).json({ message: "Error completing project" });
+    }
+  });
+
+  // Reactivate project - re-enable a completed project while preserving history
+  app.post('/api/projects/:id/reactivate', async (req, res) => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const { status } = req.body; // Optional status to set (defaults to Billing)
+      
+      const existing = await storage.getProject(projectId);
+      if (!existing) return res.status(404).json({ message: "Project not found" });
+      
+      // Check if project is actually completed
+      if (!existing.completedAt) {
+        return res.status(400).json({ message: "Project is not completed" });
+      }
+      
+      const newStatus = status || 'Billing'; // Default to Billing stage
+      
+      // Reactivate the project
+      const updated = await storage.updateProject(projectId, {
+        status: newStatus,
+        completedAt: null,
+        completedBy: null,
+        updatedAt: new Date(),
+        updatedBy: userId || null,
+      });
+      
+      // Log the reactivation
+      const user = userId ? await storage.getUser(userId) : null;
+      await storage.createProjectChangeLog({
+        projectId,
+        changedBy: userId || null,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'updated',
+        changeSummary: `Project reactivated (status: "Completed" → "${newStatus}")`,
+        previousValues: JSON.stringify({ status: 'Completed', completedAt: existing.completedAt }),
+        newValues: JSON.stringify({ status: newStatus, completedAt: null }),
+      });
+      
+      res.json(updated);
+    } catch (err) {
+      console.error("Error reactivating project:", err);
+      res.status(500).json({ message: "Error reactivating project" });
+    }
+  });
+
   // Convert imported project to editable (native) mode
   app.post('/api/projects/:id/make-editable', async (req, res) => {
     try {
