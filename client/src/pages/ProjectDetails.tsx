@@ -39,7 +39,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -1032,22 +1032,97 @@ function ProjectTimeline({
     return allEvents.filter(e => hiddenTaskIds.has(e.id));
   }, [allEvents, hiddenTaskIds]);
   
-  // Number of rows for timeline - persisted per project
+  // Number of rows for timeline - auto-detected or user-overridden per project
   const getRowsKey = () => `project-timeline-rows-${projectId}`;
+  const getRowsOverrideKey = () => `project-timeline-rows-override-${projectId}`;
+  
+  // Calculate auto-detected row count based on milestone density
+  const autoDetectedRows = useMemo(() => {
+    if (!projectStart || !projectEnd || visibleEvents.length === 0) return 1;
+    
+    const totalDays = differenceInDays(projectEnd, projectStart);
+    if (totalDays <= 0) return 1;
+    
+    // Calculate positions for all visible events
+    const positions = visibleEvents
+      .map(event => (differenceInDays(event.date, projectStart) / totalDays) * 100)
+      .filter(p => p >= 0 && p <= 100)
+      .sort((a, b) => a - b);
+    
+    if (positions.length === 0) return 1;
+    
+    // Minimum percentage distance between milestones on the same row
+    const minDistance = 3; // 3% of timeline width
+    
+    // Simulate row assignment to find how many rows are needed
+    let requiredRows = 1;
+    const rowLastPositions: number[] = [-Infinity];
+    
+    for (const position of positions) {
+      let foundRow = false;
+      for (let r = 0; r < rowLastPositions.length; r++) {
+        if (position - rowLastPositions[r] >= minDistance) {
+          rowLastPositions[r] = position;
+          foundRow = true;
+          break;
+        }
+      }
+      if (!foundRow) {
+        // Need a new row
+        rowLastPositions.push(position);
+        requiredRows = rowLastPositions.length;
+      }
+    }
+    
+    // Cap at 5 rows maximum
+    return Math.min(5, requiredRows);
+  }, [visibleEvents, projectStart, projectEnd]);
+  
+  // Check if user has manually overridden the row count
+  const [userOverride, setUserOverride] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(getRowsOverrideKey()) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  
   const [numRows, setNumRows] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(getRowsKey());
-      return saved ? Math.max(1, Math.min(5, Number(saved))) : 1;
+      if (saved && localStorage.getItem(getRowsOverrideKey()) === 'true') {
+        return Math.max(1, Math.min(5, Number(saved)));
+      }
+      return 1; // Will be updated by useEffect with autoDetectedRows
     } catch {
       return 1;
     }
   });
   
+  // Auto-update rows when auto-detected value changes (only if user hasn't overridden)
+  useEffect(() => {
+    if (!userOverride && autoDetectedRows > 0) {
+      setNumRows(autoDetectedRows);
+    }
+  }, [autoDetectedRows, userOverride]);
+  
   const updateNumRows = (rows: number) => {
     const clamped = Math.max(1, Math.min(5, rows));
     setNumRows(clamped);
+    setUserOverride(true);
     try {
       localStorage.setItem(getRowsKey(), String(clamped));
+      localStorage.setItem(getRowsOverrideKey(), 'true');
+    } catch {}
+  };
+  
+  // Reset to auto-detected rows
+  const resetToAutoRows = () => {
+    setUserOverride(false);
+    setNumRows(autoDetectedRows);
+    try {
+      localStorage.removeItem(getRowsKey());
+      localStorage.removeItem(getRowsOverrideKey());
     } catch {}
   };
   
@@ -1331,6 +1406,24 @@ function ProjectTimeline({
                 >
                   <ChevronUp className="h-3 w-3" />
                 </Button>
+                {userOverride ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        onClick={(e) => { e.stopPropagation(); resetToAutoRows(); }}
+                        data-testid="button-reset-rows"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Reset to auto ({autoDetectedRows})</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0">Auto</Badge>
+                )}
               </div>
               <span className="flex items-center gap-1.5">
                 {/* F1 Start flag - green/white checkered on pole */}
