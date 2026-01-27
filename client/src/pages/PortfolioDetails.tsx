@@ -24,8 +24,8 @@ import { Input } from "@/components/ui/input";
 import { 
   Loader2, DollarSign, Target, AlertTriangle, Bug, 
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
-  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, List, GanttChart, Plus, Search, X,
-  Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal
+  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X,
+  Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal, MoreVertical
 } from "lucide-react";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -469,20 +469,60 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
                     <td className="p-3 text-sm">${Number(project.budget).toLocaleString()}</td>
                     <td className="p-3">
                       <div className="flex items-center gap-1">
-                        <Link href={`/projects/${project.id}`}>
-                          <Button variant="ghost" size="sm" data-testid={`button-view-project-${project.id}`}>
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveProject(project.id)}
-                          className="text-muted-foreground hover:text-destructive"
-                          data-testid={`button-remove-project-${project.id}`}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                        {(() => {
+                          const projectIndex = projects?.findIndex((p: Project) => p.id === project.id) ?? -1;
+                          const prevProject = projectIndex > 0 ? projects?.[projectIndex - 1] : null;
+                          const nextProject = projectIndex < (projects?.length ?? 0) - 1 ? projects?.[projectIndex + 1] : null;
+                          return (
+                            <>
+                              <Link href={prevProject ? `/projects/${prevProject.id}` : "#"}>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  disabled={!prevProject}
+                                  className="h-8 w-8"
+                                  data-testid={`button-prev-project-${project.id}`}
+                                >
+                                  <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                              <Link href={nextProject ? `/projects/${nextProject.id}` : "#"}>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  disabled={!nextProject}
+                                  className="h-8 w-8"
+                                  data-testid={`button-next-project-${project.id}`}
+                                >
+                                  <ChevronRight className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                            </>
+                          );
+                        })()}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-menu-project-${project.id}`}>
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/projects/${project.id}`} className="cursor-pointer">
+                                <ArrowRight className="h-4 w-4 mr-2" />
+                                View Project
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleRemoveProject(project.id)}
+                              className="text-destructive focus:text-destructive"
+                              data-testid={`menu-delete-project-${project.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Remove from Portfolio
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>
