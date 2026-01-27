@@ -12,3 +12,4 @@ export { TimesheetReportDashboard } from "./TimesheetReportDashboard";
 export { IntakeDashboard } from "./IntakeDashboard";
 export { CustomDashboard } from "./CustomDashboard";
 export { CreateCustomDashboardDialog } from "./CreateCustomDashboardDialog";
+export { AddPowerBIDialog } from "./AddPowerBIDialog";

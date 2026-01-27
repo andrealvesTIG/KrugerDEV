@@ -149,6 +149,32 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
 
     const data = getDataForWidget(widget);
 
+    // Power BI Embed Widget
+    if (widget.type === 'powerbi-embed' && widget.embedUrl) {
+      return (
+        <div key={widget.id} className="col-span-4">
+          <Card className="h-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-amber-500" />
+                {widget.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="w-full h-[600px] rounded-b-lg overflow-hidden">
+                <iframe
+                  title={widget.title}
+                  src={widget.embedUrl}
+                  className="w-full h-full border-0"
+                  allowFullScreen
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     if (widget.type === 'kpi') {
       const iconMap: Record<string, any> = {
         projects: BarChart3,

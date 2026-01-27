@@ -1220,14 +1220,15 @@ export const customDashboards = pgTable("custom_dashboards", {
 // Custom Dashboard Configuration Types
 export interface DashboardWidget {
   id: string;
-  type: 'kpi' | 'bar-chart' | 'line-chart' | 'pie-chart' | 'area-chart' | 'table' | 'progress';
+  type: 'kpi' | 'bar-chart' | 'line-chart' | 'pie-chart' | 'area-chart' | 'table' | 'progress' | 'powerbi-embed';
   title: string;
-  dataSource: 'projects' | 'portfolios' | 'tasks' | 'risks' | 'issues' | 'milestones' | 'resources' | 'timesheets';
+  dataSource: 'projects' | 'portfolios' | 'tasks' | 'risks' | 'issues' | 'milestones' | 'resources' | 'timesheets' | 'external';
   metrics?: string[];
   filters?: Record<string, any>;
   aggregation?: 'count' | 'sum' | 'average' | 'percentage';
   groupBy?: string;
   size: 'small' | 'medium' | 'large' | 'full';
+  embedUrl?: string; // For Power BI or other iframe embeds
 }
 
 export interface CustomDashboardConfig {

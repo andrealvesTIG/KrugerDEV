@@ -20,6 +20,7 @@ import {
   IntakeDashboard,
   CustomDashboard,
   CreateCustomDashboardDialog,
+  AddPowerBIDialog,
 } from "@/components/dashboard";
 import { 
   LayoutDashboard, 
@@ -33,6 +34,7 @@ import {
   Plus,
   Sparkles,
   GripVertical,
+  BarChart3,
 } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
@@ -131,6 +133,7 @@ export default function Dashboard() {
   
   const [activeTab, setActiveTab] = useState<TabId>("executive");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showPowerBIDialog, setShowPowerBIDialog] = useState(false);
   const [selectedCustomDashboard, setSelectedCustomDashboard] = useState<number | null>(null);
 
   // Check if user is org admin or super admin
@@ -313,6 +316,13 @@ export default function Dashboard() {
                 <Plus className="h-4 w-4 mr-2" />
                 Create Custom Dashboard
               </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setShowPowerBIDialog(true)}
+                data-testid="menu-item-add-powerbi"
+              >
+                <BarChart3 className="h-4 w-4 mr-2 text-amber-500" />
+                Add Power BI Report
+              </DropdownMenuItem>
               
               {customDashboards && customDashboards.length > 0 && (
                 <>
@@ -381,6 +391,12 @@ export default function Dashboard() {
       <CreateCustomDashboardDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
+        onCreated={handleCustomDashboardCreated}
+      />
+
+      <AddPowerBIDialog
+        open={showPowerBIDialog}
+        onOpenChange={setShowPowerBIDialog}
         onCreated={handleCustomDashboardCreated}
       />
     </div>
