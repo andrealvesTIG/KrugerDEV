@@ -1227,7 +1227,9 @@ export class DatabaseStorage implements IStorage {
 
   // Portfolio Aggregations
   async getPortfolioProjects(portfolioId: number): Promise<Project[]> {
-    return await db.select().from(projects).where(eq(projects.portfolioId, portfolioId));
+    return await db.select().from(projects).where(
+      and(eq(projects.portfolioId, portfolioId), isNull(projects.deletedAt))
+    );
   }
 
   async getPortfolioRisks(portfolioId: number): Promise<(Risk & { projectName: string })[]> {
