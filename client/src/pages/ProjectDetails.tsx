@@ -6167,6 +6167,27 @@ function ProjectGanttView({
   const [visibleColumns, setVisibleColumns] = useState<GanttColumn[]>(DEFAULT_GANTT_COLUMNS);
   const [newTaskName, setNewTaskName] = useState('');
   
+  // Panel size state - persisted per project in localStorage
+  const getSplitSizeKey = () => `project-gantt-split-${projectId}`;
+  const [leftPanelSize, setLeftPanelSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(getSplitSizeKey());
+      return saved ? Number(saved) : 50;
+    } catch {
+      return 50;
+    }
+  });
+  
+  // Save panel size when it changes
+  const handlePanelResize = useCallback((sizes: number[]) => {
+    if (sizes[0] && sizes[0] !== leftPanelSize) {
+      setLeftPanelSize(sizes[0]);
+      try {
+        localStorage.setItem(getSplitSizeKey(), String(sizes[0]));
+      } catch {}
+    }
+  }, [leftPanelSize, projectId]);
+  
   // Scroll sync refs for left/right panes
   const leftPaneRef = useRef<HTMLDivElement>(null);
   const rightPaneRef = useRef<HTMLDivElement>(null);
@@ -7453,9 +7474,14 @@ function ProjectGanttView({
         </div>
         {/* Split-pane Gantt layout with resizable panels */}
         {/* Key changes based on hideTimeline to force complete remount and avoid ResizablePanel index errors */}
-        <ResizablePanelGroup key={hideTimeline ? "table-mode" : "gantt-mode"} direction="horizontal" className={cn("text-[11px]", isFullscreen ? "flex-1" : "h-[500px]")}>
+        <ResizablePanelGroup 
+          key={hideTimeline ? "table-mode" : "gantt-mode"} 
+          direction="horizontal" 
+          className={cn("text-[11px]", isFullscreen ? "flex-1" : "h-[500px]")}
+          onLayout={hideTimeline ? undefined : handlePanelResize}
+        >
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
-          <ResizablePanel defaultSize={hideTimeline ? 100 : 50} minSize={20} maxSize={hideTimeline ? 100 : 80}>
+          <ResizablePanel defaultSize={hideTimeline ? 100 : leftPanelSize} minSize={20} maxSize={hideTimeline ? 100 : 80}>
             <div ref={leftPaneRef} onScroll={handleLeftScroll} className="h-full overflow-x-auto overflow-y-scroll relative scrollbar-thin scrollbar-hide-y">
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Bulk actions bar - appears when tasks are selected */}
@@ -7797,7 +7823,7 @@ function ProjectGanttView({
           
           {/* Right pane: Timeline (resizable + scrollable) - hidden in table view */}
           {!hideTimeline && (
-            <ResizablePanel defaultSize={50} minSize={20}>
+            <ResizablePanel defaultSize={100 - leftPanelSize} minSize={20}>
               <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full flex overflow-y-auto scrollbar-thin">
                 <div className="flex-1 overflow-x-auto">
                 <div 
