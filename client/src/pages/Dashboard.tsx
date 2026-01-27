@@ -33,7 +33,6 @@ import {
   MoreVertical,
   Plus,
   Sparkles,
-  GripVertical,
   BarChart3,
 } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
@@ -91,6 +90,7 @@ function SortableTab({ tab, isAdmin }: SortableTabProps) {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    cursor: isAdmin ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
   };
 
   const Icon = tab.icon;
@@ -100,17 +100,8 @@ function SortableTab({ tab, isAdmin }: SortableTabProps) {
       ref={setNodeRef}
       style={style}
       className="flex items-center"
+      {...(isAdmin ? { ...attributes, ...listeners } : {})}
     >
-      {isAdmin && (
-        <span
-          {...attributes}
-          {...listeners}
-          className="cursor-grab hover:text-foreground text-muted-foreground px-1"
-          data-testid={`drag-handle-${tab.id}`}
-        >
-          <GripVertical className="h-3 w-3" />
-        </span>
-      )}
       <TabsTrigger
         value={tab.id}
         className="flex items-center gap-2 data-[state=active]:bg-background"
@@ -184,7 +175,7 @@ export default function Dashboard() {
 
   // DnD sensors
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { delay: 1000, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
