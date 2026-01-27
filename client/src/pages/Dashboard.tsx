@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -309,6 +309,32 @@ export default function Dashboard() {
     const stored = localStorage.getItem(`hidden-custom-dashboards-${currentOrganization?.id}`);
     return stored ? JSON.parse(stored) : [];
   });
+
+  // Easter egg: "friday" secret code for Dilbert comic
+  const [showDilbert, setShowDilbert] = useState(false);
+  const secretCodeRef = useRef<string>("");
+  const SECRET_CODE = "friday";
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only track letter keys, ignore modifiers
+      if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+        secretCodeRef.current += e.key.toLowerCase();
+        // Keep only the last N characters where N is the secret code length
+        if (secretCodeRef.current.length > SECRET_CODE.length) {
+          secretCodeRef.current = secretCodeRef.current.slice(-SECRET_CODE.length);
+        }
+        // Check if secret code is entered
+        if (secretCodeRef.current === SECRET_CODE) {
+          setShowDilbert(true);
+          secretCodeRef.current = "";
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Update localStorage when hidden custom dashboards change
   useEffect(() => {
@@ -761,6 +787,45 @@ export default function Dashboard() {
           <div className="flex justify-center py-4">
             <Button onClick={() => setShowComingSoonDialog(null)} data-testid="button-coming-soon-close">
               Got it
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Easter Egg: Dilbert Comic Dialog */}
+      <Dialog open={showDilbert} onOpenChange={setShowDilbert}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl flex items-center justify-center gap-2">
+              <span className="text-3xl">🎉</span> Happy Friday!
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              You discovered the secret code! Type "friday" on the dashboard anytime for a smile.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-6 py-6">
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 p-6 rounded-xl border-2 border-amber-200 dark:border-amber-800 shadow-lg max-w-md">
+              <p className="text-lg font-medium text-center mb-4 text-foreground">Dilbert's Friday Wisdom:</p>
+              <p className="text-xl italic text-center text-muted-foreground leading-relaxed">
+                "Friday is my second favorite F-word."
+              </p>
+              <p className="text-right text-sm mt-4 text-amber-700 dark:text-amber-400">— Dilbert</p>
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-sm text-muted-foreground">Want more Dilbert?</p>
+              <a 
+                href="https://dilbert.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-primary hover:underline font-medium"
+              >
+                Visit dilbert.com <span className="text-lg">→</span>
+              </a>
+            </div>
+          </div>
+          <div className="flex justify-center">
+            <Button onClick={() => setShowDilbert(false)} size="lg" data-testid="button-dilbert-close">
+              Back to Work! 💼
             </Button>
           </div>
         </DialogContent>
