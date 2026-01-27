@@ -81,39 +81,55 @@ const PROJECT_STAGES = [
 
 function BusinessProcessFlow({ 
   currentStatus, 
-  onStatusChange 
+  onStatusChange,
+  isCompleted,
+  onCompleteProject,
+  onReactivateProject,
+  isCompletePending,
+  isReactivatePending,
 }: { 
   currentStatus: string; 
   onStatusChange: (status: string) => void;
+  isCompleted: boolean;
+  onCompleteProject: () => void;
+  onReactivateProject: () => void;
+  isCompletePending?: boolean;
+  isReactivatePending?: boolean;
 }) {
-  const currentIndex = PROJECT_STAGES.findIndex(s => s.value === currentStatus);
+  const currentIndex = isCompleted 
+    ? PROJECT_STAGES.length // All stages completed when project is completed
+    : PROJECT_STAGES.findIndex(s => s.value === currentStatus);
   
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between gap-2">
       {PROJECT_STAGES.map((stage, index) => {
-          const isCompleted = index < currentIndex;
-          const isCurrent = index === currentIndex;
+          const isStageCompleted = index < currentIndex;
+          const isCurrent = !isCompleted && index === currentIndex;
           const isUpcoming = index > currentIndex;
+          const isDisabled = isCompleted; // Lock workflow when project is completed
           
           return (
             <div key={stage.value} className="flex items-center flex-1">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={() => onStatusChange(stage.value)}
+                    onClick={() => !isDisabled && onStatusChange(stage.value)}
+                    disabled={isDisabled}
                     className={cn(
-                      "flex flex-col items-center gap-1 group cursor-pointer transition-all",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md p-2"
+                      "flex flex-col items-center gap-1 group transition-all",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md p-2",
+                      isDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
                     )}
                     data-testid={`status-stage-${stage.value.toLowerCase()}`}
                   >
                     <div className={cn(
                       "w-10 h-10 rounded-full flex items-center justify-center transition-all border-2",
-                      isCompleted && "bg-primary border-primary text-primary-foreground",
+                      isStageCompleted && "bg-primary border-primary text-primary-foreground",
                       isCurrent && "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
-                      isUpcoming && "bg-muted border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50 group-hover:bg-muted/80"
+                      isUpcoming && "bg-muted border-muted-foreground/30 text-muted-foreground",
+                      !isDisabled && isUpcoming && "group-hover:border-primary/50 group-hover:bg-muted/80"
                     )}>
-                      {isCompleted ? (
+                      {isStageCompleted ? (
                         <CheckCircle2 className="h-5 w-5" />
                       ) : isCurrent ? (
                         <span className="text-sm font-bold">{index + 1}</span>
@@ -123,7 +139,8 @@ function BusinessProcessFlow({
                     </div>
                     <span className={cn(
                       "text-xs font-medium transition-colors",
-                      (isCompleted || isCurrent) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      (isStageCompleted || isCurrent) ? "text-foreground" : "text-muted-foreground",
+                      !isDisabled && isUpcoming && "group-hover:text-foreground"
                     )}>
                       {stage.label}
                     </span>
@@ -132,7 +149,11 @@ function BusinessProcessFlow({
                 <TooltipContent>
                   <p className="font-medium">{stage.label}</p>
                   <p className="text-xs text-muted-foreground">{stage.description}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Click to set status</p>
+                  {isDisabled ? (
+                    <p className="text-xs text-muted-foreground mt-1">Project is completed. Reactivate to change status.</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">Click to set status</p>
+                  )}
                 </TooltipContent>
               </Tooltip>
               
@@ -145,6 +166,75 @@ function BusinessProcessFlow({
             </div>
           );
         })}
+      
+      {/* Terminal Completed State */}
+      <div className="flex items-center">
+        <div className={cn(
+          "flex-1 h-1 mx-2 rounded-full transition-colors w-8",
+          isCompleted ? "bg-green-500" : "bg-muted-foreground/20"
+        )} />
+        
+        {isCompleted ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onReactivateProject}
+                disabled={isReactivatePending}
+                className={cn(
+                  "flex flex-col items-center gap-1 group cursor-pointer transition-all",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 rounded-md p-2"
+                )}
+                data-testid="status-stage-completed"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all border-2 bg-green-500 border-green-500 text-white ring-4 ring-green-500/20">
+                  {isReactivatePending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-5 w-5" />
+                  )}
+                </div>
+                <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                  Completed
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="font-medium">Project Completed</p>
+              <p className="text-xs text-muted-foreground">Click to reactivate the project</p>
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onCompleteProject}
+                disabled={isCompletePending}
+                className={cn(
+                  "flex flex-col items-center gap-1 group cursor-pointer transition-all",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 rounded-md p-2"
+                )}
+                data-testid="status-stage-complete-action"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all border-2 bg-muted border-green-500/50 text-green-600 dark:text-green-400 group-hover:bg-green-500/10 group-hover:border-green-500">
+                  {isCompletePending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Flag className="h-5 w-5" />
+                  )}
+                </div>
+                <span className="text-xs font-medium text-muted-foreground group-hover:text-green-600 dark:group-hover:text-green-400">
+                  Complete
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="font-medium">Complete Project</p>
+              <p className="text-xs text-muted-foreground">Mark project as completed (terminal state)</p>
+              <p className="text-xs text-muted-foreground">This locks the workflow</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
     </div>
   );
 }
@@ -162,6 +252,37 @@ export default function ProjectDetails() {
   const { data: projectDocuments } = useProjectDocuments(id);
   const { mutate: updateProject } = useUpdateProject();
   const { toast } = useToast();
+  
+  // Complete project mutation
+  const completeProjectMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/projects/${id}/complete`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', id] });
+      toast({ title: "Project Completed", description: "The project has been marked as completed and the workflow is now locked." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to complete project", variant: "destructive" });
+    },
+  });
+  
+  // Reactivate project mutation
+  const reactivateProjectMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/projects/${id}/reactivate`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', id] });
+      toast({ title: "Project Reactivated", description: "The project has been reactivated and you can now change its status." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to reactivate project", variant: "destructive" });
+    },
+  });
+  
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
   const [isStatusReportOpen, setIsStatusReportOpen] = useState(false);
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
@@ -574,7 +695,12 @@ export default function ProjectDetails() {
             <div className="px-4 pb-4">
               <BusinessProcessFlow 
                 currentStatus={project.status} 
-                onStatusChange={handleStatusChange} 
+                onStatusChange={handleStatusChange}
+                isCompleted={!!project.completedAt}
+                onCompleteProject={() => completeProjectMutation.mutate()}
+                onReactivateProject={() => reactivateProjectMutation.mutate()}
+                isCompletePending={completeProjectMutation.isPending}
+                isReactivatePending={reactivateProjectMutation.isPending}
               />
             </div>
           </CollapsibleContent>
