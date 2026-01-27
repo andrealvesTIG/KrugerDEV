@@ -365,8 +365,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
   return (
     <div className="space-y-4">
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <table className="w-full">
+      <div className="bg-card rounded-xl border border-border overflow-hidden overflow-x-auto">
+        <table className="w-full min-w-[800px]">
           <thead>
             <tr className="bg-muted/30">
               <th className="text-left p-4 font-medium text-muted-foreground min-w-[250px]">
