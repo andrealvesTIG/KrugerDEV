@@ -128,3 +128,7 @@ The application manages comprehensive data entities including:
 - **Token Management**: Access tokens, refresh tokens, and token expiry are stored per organization. When users switch organizations, they see the correct integration status for that specific organization.
 - **Helper Functions**: `getOrgIntegration()` and `upsertOrgIntegration()` in `server/services/microsoftPlanner.ts` handle reading and writing organization-scoped integration data.
 - **API Pattern**: All integration-related API endpoints accept `organizationId` as a parameter (query string for GET, body for POST) to scope operations to the correct organization.
+
+### Recent Schema Fixes (January 2026)
+- **Projects Table**: Added missing `completed_at` and `completed_by` columns to track project completion status and who completed them.
+- **Video Assets**: Landing page demo video is compressed and served from `client/public/videos/` folder with dedicated Express route for production compatibility.
