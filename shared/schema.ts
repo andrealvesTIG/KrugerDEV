@@ -109,7 +109,7 @@ export const externalShares = pgTable("external_shares", {
   objectId: integer("object_id").notNull(), // ID of the shared object
   sourceOrganizationId: integer("source_organization_id").references(() => organizations.id).notNull(), // Org that owns the object
   sharedWithUserId: varchar("shared_with_user_id").references(() => users.id).notNull(), // User who has access
-  sharedWithResourceId: integer("shared_with_resource_id"), // Resource record in source org
+  sharedWithResourceId: integer("shared_with_resource_id").references(() => resources.id), // Resource record in source org
   accessRole: text("access_role").notNull().default("viewer"), // 'viewer', 'assignee', 'manager'
   sharedBy: varchar("shared_by").references(() => users.id), // Who shared it
   sharedAt: timestamp("shared_at").defaultNow(),
@@ -166,7 +166,7 @@ export const projects = pgTable("projects", {
   actualCost: numeric("actual_cost").default("0"), // Actual spend to date
   forecastCost: numeric("forecast_cost"), // Projected final cost
   managerId: varchar("manager_id").references(() => users.id), // Project Manager (user ID)
-  managerResourceId: integer("manager_resource_id"), // Project Manager (resource ID for display)
+  managerResourceId: integer("manager_resource_id").references(() => resources.id), // Project Manager (resource ID for display)
   businessSponsorId: varchar("business_sponsor_id").references(() => users.id), // Executive Sponsor
   businessOwnerId: varchar("business_owner_id").references(() => users.id), // Product/Business Owner
   technicalLeadId: varchar("technical_lead_id").references(() => users.id), // Technical Lead
