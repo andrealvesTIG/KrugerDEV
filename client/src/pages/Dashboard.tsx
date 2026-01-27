@@ -350,7 +350,7 @@ export default function Dashboard() {
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent align="end" className="w-64 min-w-64">
               <DropdownMenuItem 
                 onClick={() => setShowCreateDialog(true)}
                 data-testid="menu-item-create-dashboard"
@@ -423,13 +423,13 @@ export default function Dashboard() {
                         }}
                         data-testid={`menu-item-dashboard-${dashboard.id}`}
                       >
-                        {isOrgAdmin ? (
+                        {isOrgAdmin && (
                           isHidden ? (
                             <EyeOff className="h-4 w-4 mr-2 text-muted-foreground" />
                           ) : (
                             <Eye className="h-4 w-4 mr-2 text-green-500" />
                           )
-                        ) : null}
+                        )}
                         <Sparkles className="h-4 w-4 mr-2" />
                         <span className={`flex-1 truncate ${isHidden ? 'text-muted-foreground' : ''}`}>{dashboard.name}</span>
                       </DropdownMenuItem>
