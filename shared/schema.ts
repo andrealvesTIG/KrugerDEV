@@ -118,7 +118,7 @@ export const externalShares = pgTable("external_shares", {
 
 // Portfolios - High level grouping of projects
 export const portfolios = pgTable("portfolios", {
-  organizationId: integer("organization_id").references(() => organizations.id),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
@@ -147,7 +147,7 @@ export const portfolios = pgTable("portfolios", {
 // Projects
 export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").references(() => organizations.id),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   portfolioId: integer("portfolio_id").references(() => portfolios.id),
   name: text("name").notNull(),
   projectCode: text("project_code"), // Unique project identifier (e.g., "PRJ-2025-001")
