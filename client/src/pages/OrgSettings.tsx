@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -3075,6 +3075,43 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
   const [customIndustry, setCustomIndustry] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState<string>("");
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
+  const handleVoiceInput = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast({
+        title: "Not Supported",
+        description: "Voice input is not supported in this browser. Try Chrome or Edge.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => {
+      setIsListening(false);
+      toast({
+        title: "Voice Error",
+        description: "Could not capture voice. Please try again.",
+        variant: "destructive",
+      });
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setCustomIndustry(transcript);
+      setSelectedIndustry("");
+    };
+
+    recognition.start();
+  };
 
   const { data: industries } = useQuery<Array<{ id: string; label: string; description: string }>>({
     queryKey: ['/api/demo-data/industries'],
@@ -3170,16 +3207,30 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="customIndustry">Industry / Business Type</Label>
-            <Input
-              id="customIndustry"
-              placeholder="e.g., Real Estate, Construction, Legal Services, Education..."
-              value={customIndustry}
-              onChange={(e) => {
-                setCustomIndustry(e.target.value);
-                if (e.target.value) setSelectedIndustry("");
-              }}
-              data-testid="input-custom-industry"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="customIndustry"
+                placeholder="e.g., Real Estate, Construction, Legal Services, Education..."
+                value={customIndustry}
+                onChange={(e) => {
+                  setCustomIndustry(e.target.value);
+                  if (e.target.value) setSelectedIndustry("");
+                }}
+                className="flex-1"
+                data-testid="input-custom-industry"
+              />
+              <Button
+                type="button"
+                variant={isListening ? "default" : "outline"}
+                size="icon"
+                onClick={handleVoiceInput}
+                disabled={isListening}
+                title="Voice input"
+                data-testid="button-voice-industry"
+              >
+                <Mic className={`h-4 w-4 ${isListening ? 'animate-pulse text-red-500' : ''}`} />
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground">
               Enter any industry or business type and AI will generate relevant demo data
             </p>
