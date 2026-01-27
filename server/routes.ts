@@ -5283,10 +5283,10 @@ export async function registerRoutes(
       
       const input = api.projects.update.input.parse(req.body);
       
-      // Server-side workflow lock: reject status changes when project is completed
-      if (existing.completedAt && 'status' in input) {
+      // Server-side lock: reject ALL updates when project is completed
+      if (existing.completedAt) {
         return res.status(403).json({ 
-          message: "Cannot change status of a completed project. Use the reactivate endpoint to unlock the workflow." 
+          message: "Cannot modify a completed project. Use the reactivate action to unlock the project first." 
         });
       }
       
