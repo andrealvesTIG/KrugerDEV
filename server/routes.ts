@@ -11047,9 +11047,12 @@ Return ONLY valid JSON.`;
           const milestoneDate = new Date(today);
           milestoneDate.setDate(milestoneDate.getDate() + (milestoneData.daysFromStart || 30));
           
+          // Use title if provided, otherwise fall back to name
+          const milestoneTitle = milestoneData.title || milestoneData.name || "Milestone";
+          
           const milestone = await storage.createMilestone({
             projectId: currentProjectId,
-            name: milestoneData.name,
+            title: milestoneTitle,
             description: milestoneData.description,
             dueDate: milestoneDate.toISOString().split('T')[0],
             status: "Not Started",
