@@ -427,7 +427,7 @@ export default function Dashboard() {
 
   // DnD sensors - only used when reorder mode is enabled
   const activeSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { delay: 1000, tolerance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
   const noSensors = useSensors();
