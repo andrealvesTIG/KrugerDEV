@@ -34,7 +34,7 @@ import {
   Plus,
   Sparkles,
   BarChart3,
-  Pin,
+  Eye,
   EyeOff,
 } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
@@ -128,6 +128,26 @@ export default function Dashboard() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showPowerBIDialog, setShowPowerBIDialog] = useState(false);
   const [selectedCustomDashboard, setSelectedCustomDashboard] = useState<number | null>(null);
+  const [hiddenCustomDashboards, setHiddenCustomDashboards] = useState<number[]>(() => {
+    const stored = localStorage.getItem(`hidden-custom-dashboards-${currentOrganization?.id}`);
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  // Update localStorage when hidden custom dashboards change
+  useEffect(() => {
+    if (currentOrganization?.id) {
+      localStorage.setItem(`hidden-custom-dashboards-${currentOrganization.id}`, JSON.stringify(hiddenCustomDashboards));
+    }
+  }, [hiddenCustomDashboards, currentOrganization?.id]);
+
+  // Toggle custom dashboard visibility
+  const toggleCustomDashboardVisibility = (dashboardId: number) => {
+    setHiddenCustomDashboards(prev => 
+      prev.includes(dashboardId) 
+        ? prev.filter(id => id !== dashboardId)
+        : [...prev, dashboardId]
+    );
+  };
 
   // Check if user is org admin or super admin
   const isOrgAdmin = useMemo(() => {
@@ -346,48 +366,36 @@ export default function Dashboard() {
                 Add Power BI Report
               </DropdownMenuItem>
               
-              {/* Visible Tabs Section - Admin can hide */}
-              {isOrgAdmin && visibleTabs.length > 1 && (
+              {/* All Tabs Section - Admin can toggle visibility */}
+              {isOrgAdmin && (
                 <>
                   <DropdownMenuSeparator />
                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                    Visible Tabs (Click to Hide)
+                    Dashboard Tabs
                   </div>
-                  {visibleTabs.map((tab) => {
+                  {DASHBOARD_TABS.map((tab) => {
                     const Icon = tab.icon;
+                    const isHidden = (tabOrderData?.hiddenTabs || []).includes(tab.id);
                     return (
                       <DropdownMenuItem
                         key={tab.id}
-                        onClick={() => handleHideTab(tab.id)}
-                        data-testid={`menu-item-hide-${tab.id}`}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          if (isHidden) {
+                            handlePinTab(tab.id);
+                          } else {
+                            handleHideTab(tab.id);
+                          }
+                        }}
+                        data-testid={`menu-item-toggle-${tab.id}`}
                       >
-                        <EyeOff className="h-4 w-4 mr-2 text-muted-foreground" />
+                        {isHidden ? (
+                          <EyeOff className="h-4 w-4 mr-2 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 mr-2 text-green-500" />
+                        )}
                         <Icon className="h-4 w-4 mr-2" />
-                        <span className="flex-1">{tab.label}</span>
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </>
-              )}
-
-              {/* Hidden Tabs Section - Admin only */}
-              {isOrgAdmin && hiddenTabs.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                    Hidden Tabs (Click to Pin)
-                  </div>
-                  {hiddenTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <DropdownMenuItem
-                        key={tab.id}
-                        onClick={() => handlePinTab(tab.id)}
-                        data-testid={`menu-item-pin-${tab.id}`}
-                      >
-                        <Pin className="h-4 w-4 mr-2 text-blue-500" />
-                        <Icon className="h-4 w-4 mr-2" />
-                        <span className="flex-1">{tab.label}</span>
+                        <span className={`flex-1 ${isHidden ? 'text-muted-foreground' : ''}`}>{tab.label}</span>
                       </DropdownMenuItem>
                     );
                   })}
@@ -400,16 +408,33 @@ export default function Dashboard() {
                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                     Saved Dashboards
                   </div>
-                  {customDashboards.map((dashboard) => (
-                    <DropdownMenuItem
-                      key={dashboard.id}
-                      onClick={() => handleSelectCustomDashboard(dashboard.id)}
-                      data-testid={`menu-item-dashboard-${dashboard.id}`}
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      <span className="flex-1 truncate">{dashboard.name}</span>
-                    </DropdownMenuItem>
-                  ))}
+                  {customDashboards.map((dashboard) => {
+                    const isHidden = hiddenCustomDashboards.includes(dashboard.id);
+                    return (
+                      <DropdownMenuItem
+                        key={dashboard.id}
+                        onSelect={(e) => {
+                          if (isOrgAdmin) {
+                            e.preventDefault();
+                            toggleCustomDashboardVisibility(dashboard.id);
+                          } else {
+                            handleSelectCustomDashboard(dashboard.id);
+                          }
+                        }}
+                        data-testid={`menu-item-dashboard-${dashboard.id}`}
+                      >
+                        {isOrgAdmin ? (
+                          isHidden ? (
+                            <EyeOff className="h-4 w-4 mr-2 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 mr-2 text-green-500" />
+                          )
+                        ) : null}
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        <span className={`flex-1 truncate ${isHidden ? 'text-muted-foreground' : ''}`}>{dashboard.name}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
                 </>
               )}
             </DropdownMenuContent>
