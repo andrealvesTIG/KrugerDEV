@@ -527,14 +527,34 @@ export default function ProjectDetails() {
   if (currentOrganization && project.organizationId !== currentOrganization.id) {
     return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
+  
+  // Project lock state - completed projects are locked for editing
+  const isProjectLocked = !!project.completedAt;
+  
+  // Helper to show locked message
+  const showLockedMessage = () => {
+    toast({ 
+      title: "Project Locked", 
+      description: "This project is completed. Reactivate it from the workflow section to make changes.",
+      variant: "destructive"
+    });
+  };
 
   const handleStatusChange = (status: string) => {
+    if (isProjectLocked) {
+      showLockedMessage();
+      return;
+    }
     updateProject({ id: project.id, status }, {
       onSuccess: () => toast({ title: "Status Updated", description: `Project status changed to ${status}` })
     });
   };
 
   const handleHealthChange = (health: string) => {
+    if (isProjectLocked) {
+      showLockedMessage();
+      return;
+    }
     updateProject({ id: project.id, health }, {
       onSuccess: () => toast({ title: "Health Updated", description: `Project health changed to ${health}` })
     });
@@ -599,10 +619,10 @@ export default function ProjectDetails() {
           {project.completedAt && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="outline" className="gap-1 text-muted-foreground border-amber-500/50 bg-amber-50 dark:bg-amber-900/20">
+                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border border-amber-500/50 bg-amber-50 dark:bg-amber-900/20 text-muted-foreground cursor-help">
                   <Lock className="h-3 w-3" />
                   Locked
-                </Badge>
+                </div>
               </TooltipTrigger>
               <TooltipContent>
                 <p>Project is completed and locked for editing.</p>
