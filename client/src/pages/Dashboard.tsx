@@ -10,6 +10,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   PortfoliosDashboard, 
   ExecutiveDashboard, 
@@ -127,6 +134,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabId>("executive");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showPowerBIDialog, setShowPowerBIDialog] = useState(false);
+  const [showComingSoonDialog, setShowComingSoonDialog] = useState<string | null>(null);
   const [selectedCustomDashboard, setSelectedCustomDashboard] = useState<number | null>(null);
   const [hiddenCustomDashboards, setHiddenCustomDashboards] = useState<number[]>(() => {
     const stored = localStorage.getItem(`hidden-custom-dashboards-${currentOrganization?.id}`);
@@ -367,6 +375,34 @@ export default function Dashboard() {
                 <BarChart3 className="h-4 w-4 mr-2 text-amber-500" />
                 Add Power BI Report
               </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setShowComingSoonDialog("Tableau")}
+                data-testid="menu-item-add-tableau"
+              >
+                <BarChart3 className="h-4 w-4 mr-2 text-blue-500" />
+                Add Tableau Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setShowComingSoonDialog("Looker")}
+                data-testid="menu-item-add-looker"
+              >
+                <BarChart3 className="h-4 w-4 mr-2 text-green-500" />
+                Add Looker Report
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setShowComingSoonDialog("Qlik")}
+                data-testid="menu-item-add-qlik"
+              >
+                <BarChart3 className="h-4 w-4 mr-2 text-emerald-500" />
+                Add Qlik Visualization
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setShowComingSoonDialog("Metabase")}
+                data-testid="menu-item-add-metabase"
+              >
+                <BarChart3 className="h-4 w-4 mr-2 text-indigo-500" />
+                Add Metabase Dashboard
+              </DropdownMenuItem>
               
               {/* All Tabs Section - Admin can toggle visibility */}
               {isOrgAdmin && (
@@ -496,6 +532,22 @@ export default function Dashboard() {
         onOpenChange={setShowPowerBIDialog}
         onCreated={handleCustomDashboardCreated}
       />
+
+      <Dialog open={!!showComingSoonDialog} onOpenChange={() => setShowComingSoonDialog(null)}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-coming-soon">
+          <DialogHeader>
+            <DialogTitle>{showComingSoonDialog} Integration</DialogTitle>
+            <DialogDescription>
+              {showComingSoonDialog} integration is coming soon! We're working hard to bring you seamless integration with {showComingSoonDialog} dashboards and reports.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center py-4">
+            <Button onClick={() => setShowComingSoonDialog(null)} data-testid="button-coming-soon-close">
+              Got it
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
