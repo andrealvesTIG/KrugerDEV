@@ -367,14 +367,15 @@ export default function SignInPage() {
           
           <div className="relative max-w-4xl mx-auto">
             <div className="absolute -inset-2 bg-gradient-to-r from-primary/30 via-orange-500/20 to-primary/30 rounded-xl blur-lg opacity-50" />
-            <div className="relative rounded-lg overflow-hidden border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900">
+            <div className="relative rounded-lg border border-slate-700 shadow-2xl shadow-black/50 bg-slate-900">
               <video
                 ref={videoRef}
                 autoPlay
                 loop
                 playsInline
                 controls
-                className="w-full h-auto"
+                className="w-full h-auto block rounded-lg"
+                style={{ aspectRatio: '16/9', objectFit: 'contain' }}
                 data-testid="video-demo"
               >
                 <source src={demoVideo} type="video/mp4" />
