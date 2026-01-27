@@ -5,6 +5,18 @@ export { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "
 export { ProjectCardCompact, ProjectCardCompactSkeleton } from "./ProjectCardCompact";
 export { PortfoliosDashboard } from "./PortfoliosDashboard";
 export { ExecutiveDashboard } from "./ExecutiveDashboard";
+export { StrategicKPIsDashboard } from "./StrategicKPIsDashboard";
+export { TrendAnalysisDashboard } from "./TrendAnalysisDashboard";
+export { FinancialSummaryDashboard } from "./FinancialSummaryDashboard";
+export { PortfolioHealthDashboard } from "./PortfolioHealthDashboard";
+export { PortfolioAllocationDashboard } from "./PortfolioAllocationDashboard";
+export { PortfolioTimelineDashboard } from "./PortfolioTimelineDashboard";
+export { IntakePipelineDashboard } from "./IntakePipelineDashboard";
+export { IntakeApprovalDashboard } from "./IntakeApprovalDashboard";
+export { IntakeCapacityDashboard } from "./IntakeCapacityDashboard";
+export { RiskMatrixDashboard } from "./RiskMatrixDashboard";
+export { IssueTrackerDashboard } from "./IssueTrackerDashboard";
+export { MitigationStatusDashboard } from "./MitigationStatusDashboard";
 export { RisksIssuesDashboard } from "./RisksIssuesDashboard";
 export { ResourceDashboard } from "./ResourceDashboard";
 export { ResourceManagementDashboard } from "./ResourceManagementDashboard";

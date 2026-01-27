@@ -19,6 +19,18 @@ import {
 import { 
   PortfoliosDashboard, 
   ExecutiveDashboard, 
+  StrategicKPIsDashboard,
+  TrendAnalysisDashboard,
+  FinancialSummaryDashboard,
+  PortfolioHealthDashboard,
+  PortfolioAllocationDashboard,
+  PortfolioTimelineDashboard,
+  IntakePipelineDashboard,
+  IntakeApprovalDashboard,
+  IntakeCapacityDashboard,
+  RiskMatrixDashboard,
+  IssueTrackerDashboard,
+  MitigationStatusDashboard,
   RisksIssuesDashboard,
   ResourceDashboard,
   ResourceManagementDashboard,
@@ -681,16 +693,28 @@ export default function Dashboard() {
       {/* Dashboard Content - render based on activeSubmenu */}
       <div className="mt-6" data-testid={`content-${activeSubmenu}`}>
         {/* Executive Dashboard submenus */}
-        {activeSubmenu.startsWith('executive-') && <ExecutiveDashboard />}
+        {activeSubmenu === 'executive-overview' && <ExecutiveDashboard />}
+        {activeSubmenu === 'executive-strategic' && <StrategicKPIsDashboard />}
+        {activeSubmenu === 'executive-trends' && <TrendAnalysisDashboard />}
+        {activeSubmenu === 'executive-financial' && <FinancialSummaryDashboard />}
         
         {/* Portfolios Dashboard submenus */}
-        {activeSubmenu.startsWith('portfolios-') && <PortfoliosDashboard />}
+        {activeSubmenu === 'portfolios-overview' && <PortfoliosDashboard />}
+        {activeSubmenu === 'portfolios-health' && <PortfolioHealthDashboard />}
+        {activeSubmenu === 'portfolios-allocation' && <PortfolioAllocationDashboard />}
+        {activeSubmenu === 'portfolios-timeline' && <PortfolioTimelineDashboard />}
         
         {/* Intake Dashboard submenus */}
-        {activeSubmenu.startsWith('intake-') && <IntakeDashboard />}
+        {activeSubmenu === 'intake-overview' && <IntakeDashboard />}
+        {activeSubmenu === 'intake-pipeline' && <IntakePipelineDashboard />}
+        {activeSubmenu === 'intake-approvals' && <IntakeApprovalDashboard />}
+        {activeSubmenu === 'intake-capacity' && <IntakeCapacityDashboard />}
         
         {/* Risks & Issues Dashboard submenus */}
-        {activeSubmenu.startsWith('risks-issues-') && <RisksIssuesDashboard />}
+        {activeSubmenu === 'risks-issues-overview' && <RisksIssuesDashboard />}
+        {activeSubmenu === 'risks-issues-matrix' && <RiskMatrixDashboard />}
+        {activeSubmenu === 'risks-issues-tracker' && <IssueTrackerDashboard />}
+        {activeSubmenu === 'risks-issues-mitigation' && <MitigationStatusDashboard />}
         
         {/* Resources Dashboard submenus (combined Resource + Resource Management) */}
         {activeSubmenu === 'resources-overview' && <ResourceDashboard />}
