@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -27,13 +28,65 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ChevronDown, Plus, Save, Pencil, Trash2, Check, Star, Search, AlertCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ChevronDown, Plus, Save, Pencil, Trash2, Check, Star, Search, AlertCircle, FolderOpen, Users, User, Archive, FolderCheck, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectViews, useCreateProjectView, useUpdateProjectView, useDeleteProjectView, useSetDefaultView } from "@/hooks/use-project-views";
 import type { ProjectView } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+export type ProjectFilterView = 
+  | "all"
+  | "my-active"
+  | "active"
+  | "closed"
+  | "my-closed";
+
+interface FilterViewOption {
+  id: ProjectFilterView;
+  label: string;
+  icon: typeof FolderOpen;
+  tooltip: string;
+}
+
+const FILTER_VIEW_OPTIONS: FilterViewOption[] = [
+  {
+    id: "all",
+    label: "All Projects",
+    icon: FolderOpen,
+    tooltip: "View all projects regardless of status",
+  },
+  {
+    id: "active",
+    label: "Active Projects",
+    icon: Users,
+    tooltip: "Projects not in 'Closing' status",
+  },
+  {
+    id: "my-active",
+    label: "My Active Projects",
+    icon: User,
+    tooltip: "Your assigned projects not in 'Closing' status",
+  },
+  {
+    id: "closed",
+    label: "Closed Projects",
+    icon: Archive,
+    tooltip: "Projects with 'Closing' status",
+  },
+  {
+    id: "my-closed",
+    label: "My Closed Projects",
+    icon: FolderCheck,
+    tooltip: "Your assigned projects with 'Closing' status",
+  },
+];
 
 interface GridColumn {
   id: string;
@@ -49,6 +102,8 @@ interface ViewsDropdownProps {
   onApplyView: (view: { visibleColumns: string[]; columnOrder: string[] }) => void;
   defaultColumns: string[];
   defaultColumnOrder: string[];
+  filterView?: ProjectFilterView;
+  onFilterViewChange?: (filterView: ProjectFilterView) => void;
 }
 
 export function ViewsDropdown({
@@ -60,6 +115,8 @@ export function ViewsDropdown({
   onApplyView,
   defaultColumns,
   defaultColumnOrder,
+  filterView = "all",
+  onFilterViewChange,
 }: ViewsDropdownProps) {
   const { toast } = useToast();
   const { data: views = [], isLoading } = useProjectViews(organizationId, mode);
@@ -253,7 +310,42 @@ export function ViewsDropdown({
               <ChevronDown className="h-4 w-4 ml-2" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuContent align="start" className="w-64">
+            {onFilterViewChange && (
+              <>
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Quick Filters</DropdownMenuLabel>
+                {FILTER_VIEW_OPTIONS.map(option => {
+                  const OptionIcon = option.icon;
+                  const isSelected = filterView === option.id;
+                  return (
+                    <DropdownMenuItem
+                      key={option.id}
+                      onClick={() => onFilterViewChange(option.id)}
+                      data-testid={`filter-view-option-${option.id}`}
+                      className="flex items-center justify-between"
+                    >
+                      <span className={cn("flex items-center gap-2", isSelected && "font-medium")}>
+                        <OptionIcon className="h-4 w-4" />
+                        {option.label}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-[200px]">
+                            <p className="text-xs">{option.tooltip}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        {isSelected && <Check className="h-4 w-4 text-primary" />}
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                })}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">Column Views</DropdownMenuLabel>
+              </>
+            )}
             <DropdownMenuItem
               onClick={() => handleSelectView(null)}
               data-testid="view-option-default"
@@ -310,7 +402,7 @@ export function ViewsDropdown({
                 <DropdownMenuItem 
                   onClick={() => handleSetDefault(activeView)}
                   data-testid="button-set-default-view"
-                  disabled={activeView.isDefault}
+                  disabled={activeView.isDefault === true}
                 >
                   <Star className="h-4 w-4 mr-2" />
                   Set as Default

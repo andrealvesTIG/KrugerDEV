@@ -38,8 +38,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/hooks/use-auth";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import ExcelJS from "exceljs";
-import { ViewsDropdown } from "@/components/ViewsDropdown";
-import { ProjectFilterViewsDropdown, type ProjectFilterView } from "@/components/ProjectFilterViewsDropdown";
+import { ViewsDropdown, type ProjectFilterView } from "@/components/ViewsDropdown";
 import { useColumnState, sortData, type SortDirection, type ColumnSort } from "@/hooks/use-column-state";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 
@@ -414,10 +413,6 @@ export default function Projects() {
             data-testid="input-search-projects"
           />
         </div>
-        <ProjectFilterViewsDropdown 
-          value={filterView}
-          onChange={setFilterView}
-        />
         <div className="w-full sm:w-[200px]">
           <Select value={selectedPortfolio} onValueChange={setSelectedPortfolio}>
             <SelectTrigger data-testid="select-portfolio-filter">
@@ -750,6 +745,8 @@ export default function Projects() {
                 organizationId={currentOrganization?.id || null}
                 isFullscreen={true}
                 onExitFullscreen={() => setIsFullscreen(false)}
+                filterView={filterView}
+                onFilterViewChange={setFilterView}
               />
             ) : view === "kanban" ? (
               <ProjectsKanbanView 
@@ -976,6 +973,8 @@ export default function Projects() {
           onUpdateProject={(id, data) => updateProject.mutate({ id, ...data })}
           isAdmin={isOrgAdmin}
           organizationId={currentOrganization?.id || null}
+          filterView={filterView}
+          onFilterViewChange={setFilterView}
         />
       ) : !isFullscreen && view === "kanban" ? (
         <ProjectsKanbanView 
@@ -2270,6 +2269,8 @@ function ProjectsGridView({
   organizationId,
   isFullscreen: externalFullscreen,
   onExitFullscreen,
+  filterView,
+  onFilterViewChange,
 }: { 
   projects: Project[];
   portfolios: Portfolio[];
@@ -2280,6 +2281,8 @@ function ProjectsGridView({
   organizationId: number | null;
   isFullscreen?: boolean;
   onExitFullscreen?: () => void;
+  filterView?: ProjectFilterView;
+  onFilterViewChange?: (filterView: ProjectFilterView) => void;
 }) {
   const { toast } = useToast();
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
@@ -2811,6 +2814,8 @@ function ProjectsGridView({
               onApplyView={handleApplyView}
               defaultColumns={defaultColumns}
               defaultColumnOrder={defaultColumnOrder}
+              filterView={filterView}
+              onFilterViewChange={onFilterViewChange}
             />
           </div>
           <div className="flex items-center gap-2">
@@ -2910,6 +2915,8 @@ function ProjectsGridView({
             onApplyView={handleApplyView}
             defaultColumns={defaultColumns}
             defaultColumnOrder={defaultColumnOrder}
+            filterView={filterView}
+            onFilterViewChange={onFilterViewChange}
           />
           <div className="flex gap-2">
             <Popover>
