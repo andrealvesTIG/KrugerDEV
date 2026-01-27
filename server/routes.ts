@@ -7617,6 +7617,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const projectId = Number(req.params.projectId);
       const { taskId, newIndex } = req.body as { taskId: number; newIndex: number };
       
+      // Check if project is completed (locked)
+      const project = await storage.getProject(projectId);
+      if (project?.completedAt) {
+        return res.status(403).json({ message: "Cannot reorder tasks in a completed project. Reactivate the project first." });
+      }
+      
       if (!taskId || newIndex === undefined) {
         return res.status(400).json({ message: "taskId and newIndex are required" });
       }
