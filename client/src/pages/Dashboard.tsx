@@ -310,22 +310,36 @@ export default function Dashboard() {
     return stored ? JSON.parse(stored) : [];
   });
 
-  // Easter egg: "friday" secret code for Dilbert comic
-  const [showDilbert, setShowDilbert] = useState(false);
-  const [dilbertDate, setDilbertDate] = useState<string>("");
+  // Easter egg: "friday" secret code for comic
+  const [showComic, setShowComic] = useState(false);
+  const [comicData, setComicData] = useState<{ img: string; title: string; alt: string; num: number } | null>(null);
+  const [comicLoading, setComicLoading] = useState(false);
   const secretCodeRef = useRef<string>("");
   const SECRET_CODE = "friday";
 
-  // Generate random Dilbert comic date (between 1989-04-16 and today)
-  const getRandomDilbertDate = () => {
-    const start = new Date('1989-04-16').getTime();
-    const end = new Date().getTime();
-    const randomTime = start + Math.random() * (end - start);
-    const randomDate = new Date(randomTime);
-    const year = randomDate.getFullYear();
-    const month = String(randomDate.getMonth() + 1).padStart(2, '0');
-    const day = String(randomDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  // Fetch random XKCD comic via server proxy (bypasses CORS)
+  const fetchRandomComic = async () => {
+    setComicLoading(true);
+    try {
+      const res = await fetch('/api/xkcd/random');
+      const comic = await res.json();
+      setComicData({
+        img: comic.img,
+        title: comic.title,
+        alt: comic.alt,
+        num: comic.num
+      });
+    } catch (error) {
+      console.error('Failed to fetch comic:', error);
+      // Fallback to a known good comic
+      setComicData({
+        img: 'https://imgs.xkcd.com/comics/compiling.png',
+        title: 'Compiling',
+        alt: 'Are you stealing those LCDs? Yeah, but I\'m doing it while my code compiles.',
+        num: 303
+      });
+    }
+    setComicLoading(false);
   };
 
   useEffect(() => {
@@ -339,8 +353,8 @@ export default function Dashboard() {
         }
         // Check if secret code is entered
         if (secretCodeRef.current === SECRET_CODE) {
-          setDilbertDate(getRandomDilbertDate());
-          setShowDilbert(true);
+          fetchRandomComic();
+          setShowComic(true);
           secretCodeRef.current = "";
         }
       }
@@ -806,64 +820,73 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Easter Egg: Dilbert Comic Dialog */}
-      <Dialog open={showDilbert} onOpenChange={setShowDilbert}>
-        <DialogContent className="sm:max-w-[550px]">
+      {/* Easter Egg: Comic Dialog */}
+      <Dialog open={showComic} onOpenChange={setShowComic}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-center text-2xl flex items-center justify-center gap-2">
               <span className="text-3xl">🎉</span> Happy Friday!
             </DialogTitle>
             <DialogDescription className="text-center">
-              You discovered the secret code! Here's a random Dilbert comic for you.
+              You discovered the secret code! Here's a random comic for you.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-5 py-4">
-            <div 
-              className="w-full bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 rounded-xl border-2 border-amber-200 dark:border-amber-800 shadow-lg p-6 cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]"
-              onClick={() => window.open(`https://dilbert.com/strip/${dilbertDate}`, '_blank')}
-            >
-              <div className="text-center space-y-4">
-                <div className="text-6xl">📰</div>
-                <div>
-                  <p className="text-lg font-bold text-amber-800 dark:text-amber-200">
-                    Dilbert Comic Strip
-                  </p>
-                  <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                    {dilbertDate && new Date(dilbertDate).toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </p>
-                </div>
-                <p className="text-primary font-medium text-sm flex items-center justify-center gap-1">
-                  Click to view comic <span>↗</span>
-                </p>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {comicLoading ? (
+              <div className="flex flex-col items-center gap-4 py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                <p className="text-muted-foreground">Loading comic...</p>
               </div>
-            </div>
+            ) : comicData ? (
+              <>
+                <div className="bg-white rounded-lg border-2 border-amber-200 shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/50 dark:to-orange-900/50 px-4 py-2 border-b border-amber-200">
+                    <p className="font-bold text-center text-amber-800 dark:text-amber-200">
+                      #{comicData.num}: {comicData.title}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-white">
+                    <img 
+                      src={comicData.img} 
+                      alt={comicData.title}
+                      className="max-w-full h-auto mx-auto"
+                      title={comicData.alt}
+                    />
+                  </div>
+                  <div className="bg-slate-50 px-4 py-3 border-t">
+                    <p className="text-xs text-slate-600 italic text-center">
+                      {comicData.alt}
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : null}
             
             <div className="flex items-center gap-3 flex-wrap justify-center">
               <Button 
                 variant="outline" 
-                onClick={() => setDilbertDate(getRandomDilbertDate())}
-                data-testid="button-dilbert-random"
+                onClick={fetchRandomComic}
+                disabled={comicLoading}
+                data-testid="button-comic-random"
               >
-                🎲 Random Date
+                🎲 Another Comic
               </Button>
-              <Button
-                onClick={() => window.open(`https://dilbert.com/strip/${dilbertDate}`, '_blank')}
-              >
-                View Comic ↗
-              </Button>
+              {comicData && (
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(`https://xkcd.com/${comicData.num}`, '_blank')}
+                >
+                  View on xkcd.com ↗
+                </Button>
+              )}
             </div>
             
             <p className="text-xs text-muted-foreground text-center">
-              Dilbert by Scott Adams • Type "friday" anytime on the dashboard for another comic!
+              xkcd by Randall Munroe • Type "friday" anytime on the dashboard!
             </p>
           </div>
           <div className="flex justify-center pt-2">
-            <Button variant="outline" onClick={() => setShowDilbert(false)} data-testid="button-dilbert-close">
+            <Button variant="outline" onClick={() => setShowComic(false)} data-testid="button-comic-close">
               Back to Work 💼
             </Button>
           </div>

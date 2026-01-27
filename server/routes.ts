@@ -15859,5 +15859,38 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // XKCD Comic Proxy (for Easter egg - bypasses CORS)
+  app.get('/api/xkcd/random', async (req, res) => {
+    try {
+      // First get the latest comic to know the range
+      const latestResponse = await fetch('https://xkcd.com/info.0.json');
+      const latest = await latestResponse.json();
+      const maxNum = latest.num;
+      
+      // Get a random comic number (avoiding very early ones)
+      const randomNum = Math.floor(Math.random() * (maxNum - 100)) + 100;
+      
+      // Fetch the random comic
+      const comicResponse = await fetch(`https://xkcd.com/${randomNum}/info.0.json`);
+      const comic = await comicResponse.json();
+      
+      res.json({
+        img: comic.img,
+        title: comic.title,
+        alt: comic.alt,
+        num: comic.num
+      });
+    } catch (error) {
+      console.error('Error fetching XKCD comic:', error);
+      // Return a known good fallback comic
+      res.json({
+        img: 'https://imgs.xkcd.com/comics/compiling.png',
+        title: 'Compiling',
+        alt: "Are you stealing those LCDs? Yeah, but I'm doing it while my code compiles.",
+        num: 303
+      });
+    }
+  });
+
   return httpServer;
 }
