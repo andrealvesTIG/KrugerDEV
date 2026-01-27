@@ -2781,16 +2781,18 @@ function ProjectsGridView({
         return <span className="text-sm">{project.projectCode || "-"}</span>;
       case "billableStatus":
         const billableValue = project.billableStatus || "N/A";
+        const greenStatuses = ["On Track", "Email Approval", "SOW Signed", "PO Received", "Ready for Invoice"];
+        const yellowStatuses = ["Waiting for Approval", "Verbal Approval", "Partially Invoiced", "At Risk"];
+        const redStatuses = ["Critical"];
+        const blueStatuses = ["Invoiced"];
         return (
           <Badge variant="outline" className={cn(
             "text-xs",
-            billableValue === "On Track" && "border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20",
-            billableValue === "At Risk" && "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-900/20",
-            billableValue === "Waiting for Approval" && "border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/20",
-            billableValue === "Approved" && "border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20",
-            billableValue === "Rejected" && "border-rose-500 text-rose-600 bg-rose-50 dark:bg-rose-900/20",
-            billableValue === "Non-Billable" && "border-slate-400 text-slate-600 bg-slate-50 dark:bg-slate-900/20",
-            billableValue === "N/A" && "border-slate-300 text-slate-500"
+            greenStatuses.includes(billableValue) && "border-emerald-500 text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30",
+            yellowStatuses.includes(billableValue) && "border-amber-500 text-amber-600 bg-amber-100 dark:bg-amber-900/30",
+            redStatuses.includes(billableValue) && "border-rose-500 text-rose-600 bg-rose-100 dark:bg-rose-900/30",
+            blueStatuses.includes(billableValue) && "border-blue-500 text-blue-600 bg-blue-100 dark:bg-blue-900/30",
+            billableValue === "N/A" && "border-slate-300 text-slate-500 bg-slate-100 dark:bg-slate-800/30"
           )}>
             {billableValue}
           </Badge>
