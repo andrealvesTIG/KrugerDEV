@@ -209,6 +209,8 @@ export const projects = pgTable("projects", {
   deletedBy: varchar("deleted_by").references(() => users.id),
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
   timesheetBlocked: boolean("timesheet_blocked").default(false), // Block timesheet entries against this project
+  completedAt: timestamp("completed_at"), // When project was marked as Complete (terminal state)
+  completedBy: varchar("completed_by").references(() => users.id), // Who completed the project
 });
 
 // Billable Status Comments (Comment log for billable status field)
