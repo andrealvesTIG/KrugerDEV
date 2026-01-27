@@ -15860,18 +15860,58 @@ Return ONLY valid JSON.`;
   });
 
   // XKCD Comic Proxy (for Easter egg - bypasses CORS)
+  // Curated list of PM-relevant XKCD comics about deadlines, estimates, meetings, scope, etc.
+  const PM_XKCD_COMICS = [
+    303,   // Compiling - "Are you stealing those LCDs?"
+    612,   // Estimation - How long will this take?
+    1658,  // Estimating Time - "How long will the 5 minute task take?"
+    844,   // Good Code - "It says here you wrote the code"
+    1205,  // Is It Worth The Time? - Time savings matrix
+    1319,  // Automation - Time spent automating vs doing manually
+    1445,  // Panama Canal - Cost of mega-projects
+    1570,  // Engineer Syllogism - "My code is good"
+    1667,  // Algorithms - O(n) jokes
+    1739,  // Fixing Problems - "Do you want me to fix it or explain why..."
+    1741,  // Work - "My hobby: Following people who say 'this will only take a minute'"
+    1790,  // Telescopes/Microphones - Scope creep
+    1831,  // Here to Help - "I'm from the help desk"
+    1844,  // Voting Systems - Designing the perfect system
+    1906,  // Making Progress - Progress bars that lie
+    1988,  // Containers - "It works on my machine"
+    2021,  // Software Development - Feature requests
+    2030,  // Voting Software - Why not to build it
+    2054,  // Data Pipeline - ETL nightmares
+    2083,  // Laptop Issues - "Have you tried turning it off?"
+    2173,  // Trained a Neural Net - ML overpromising
+    2347,  // Dependency - "Someday a random person will mass-delete all their repos"
+    2349,  // Rabbit Introduction - Introducing new features causing chaos
+    2365,  // Messaging Systems - Too many communication tools
+    2413,  // Pulsar Analogy - Explaining complex things
+    2456,  // Types of Scientific Paper - Results vary
+    2501,  // Average Familiarity - Everyone thinks they understand
+    2568,  // Brush Strokes - "Adding small features" nightmare
+    2620,  // Health Data - Dashboard data interpretation
+    2730,  // Code Lifespan - "This is temporary code"
+    353,   // Python - Import antigravity
+    1513,  // Code Quality - "WTFs per minute"
+    927,   // Standards - "We need a new standard to replace the 14 existing ones"
+    1172,  // Workflow - Complex automation
+    1926,  // Bad Code - "Sometimes I'm like 'wow I wrote this'"
+    2303,  // Error Bars - Uncertainty in estimates
+    1428,  // Move Fast and Break Things - Startup culture
+    1629,  // Tools - "What are you working on?" "Making tools"
+    1700,  // New Bug - "Fixing one bug creates two more"
+    2138,  // Wanna See The Code? - Code review anxiety
+  ];
+  
   app.get('/api/xkcd/random', async (req, res) => {
     try {
-      // First get the latest comic to know the range
-      const latestResponse = await fetch('https://xkcd.com/info.0.json');
-      const latest = await latestResponse.json();
-      const maxNum = latest.num;
+      // Pick a random comic from our curated PM-relevant list
+      const randomIndex = Math.floor(Math.random() * PM_XKCD_COMICS.length);
+      const comicNum = PM_XKCD_COMICS[randomIndex];
       
-      // Get a random comic number (avoiding very early ones)
-      const randomNum = Math.floor(Math.random() * (maxNum - 100)) + 100;
-      
-      // Fetch the random comic
-      const comicResponse = await fetch(`https://xkcd.com/${randomNum}/info.0.json`);
+      // Fetch the selected comic
+      const comicResponse = await fetch(`https://xkcd.com/${comicNum}/info.0.json`);
       const comic = await comicResponse.json();
       
       res.json({
@@ -15882,12 +15922,12 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching XKCD comic:', error);
-      // Return a known good fallback comic
+      // Return a known good fallback comic (Estimation)
       res.json({
-        img: 'https://imgs.xkcd.com/comics/compiling.png',
-        title: 'Compiling',
-        alt: "Are you stealing those LCDs? Yeah, but I'm doing it while my code compiles.",
-        num: 303
+        img: 'https://imgs.xkcd.com/comics/estimation.png',
+        title: 'Estimation',
+        alt: "They could say 'the connection is probably lost', but it's more fun to do naive time-averaging for this job.",
+        num: 612
       });
     }
   });
