@@ -428,9 +428,9 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                           >
                             <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           </motion.div>
-                          <FolderOpen className="h-4 w-4 text-primary" />
-                          <span className="font-medium text-foreground">{group.project.name}</span>
-                          <Badge variant="secondary" className="text-xs ml-1">
+                          <FolderOpen className="h-4 w-4 text-primary flex-shrink-0" />
+                          <span className="font-medium text-foreground truncate max-w-[400px]" title={group.project.name}>{group.project.name}</span>
+                          <Badge variant="secondary" className="text-xs ml-1 flex-shrink-0">
                             {group.tasks.length} task{group.tasks.length !== 1 ? 's' : ''}
                           </Badge>
                         </div>
@@ -645,9 +645,9 @@ function ApprovalTab() {
                     key={entry.id} 
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/50 gap-4 flex-wrap"
                   >
-                    <div className="flex-1 min-w-[200px]">
-                      <div className="font-medium">{(entry as any).task?.name || "Unknown Task"}</div>
-                      <div className="text-sm text-muted-foreground">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate" title={(entry as any).task?.name}>{(entry as any).task?.name || "Unknown Task"}</div>
+                      <div className="text-sm text-muted-foreground truncate" title={(entry as any).project?.name}>
                         {(entry as any).project?.name || "Unknown Project"} • {entry.entryDate}
                       </div>
                       {entry.notes && (
