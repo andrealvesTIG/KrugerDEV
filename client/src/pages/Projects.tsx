@@ -40,6 +40,7 @@ import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import ExcelJS from "exceljs";
 import { ViewsDropdown } from "@/components/ViewsDropdown";
 import { useColumnState, sortData, type SortDirection, type ColumnSort } from "@/hooks/use-column-state";
+import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing"];
 
@@ -2267,8 +2268,8 @@ function ProjectsGridView({
   });
   
   const resourceMap = useMemo(() => {
-    const map = new Map<number, string>();
-    resources?.forEach(r => map.set(r.id, r.displayName));
+    const map = new Map<number, Resource>();
+    resources?.forEach(r => map.set(r.id, r));
     return map;
   }, [resources]);
   
@@ -2663,8 +2664,22 @@ function ProjectsGridView({
         if (project.source === "imported") return <Badge variant="outline" className="text-xs">MS Project</Badge>;
         return <Badge variant="outline" className="text-xs">Manual</Badge>;
       case "owner":
-        const managerName = project.managerResourceId ? resourceMap.get(project.managerResourceId) : null;
-        return <span className="text-sm">{managerName || "-"}</span>;
+        const managerResource = project.managerResourceId ? resourceMap.get(project.managerResourceId) : null;
+        if (!managerResource) return <span className="text-sm">-</span>;
+        return (
+          <MicrosoftContactCard
+            displayName={managerResource.displayName}
+            email={managerResource.email}
+            title={managerResource.title}
+            department={managerResource.department}
+            phone={managerResource.phone}
+            photoUrl={managerResource.photoUrl}
+            side="top"
+            align="start"
+          >
+            <span className="text-sm cursor-pointer hover:underline">{managerResource.displayName}</span>
+          </MicrosoftContactCard>
+        );
       case "description":
         return (
           <div className="flex items-center gap-2 group">
