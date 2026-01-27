@@ -17,7 +17,7 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project, Resource } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -55,6 +55,13 @@ export default function Projects() {
   const { data: externalProjects } = useExternalProjects();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const { data: allTasks } = useAllTasks();
+  
+  // Fetch organization integrations for dynamic import menu
+  const { data: orgIntegrations } = useQuery<{ integrationType: string; connectionStatus: string }[]>({
+    queryKey: ['/api/organizations', currentOrganization?.id, 'integrations'],
+    enabled: !!currentOrganization?.id,
+  });
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   
@@ -374,15 +381,64 @@ export default function Projects() {
             className="hidden"
             data-testid="input-import-projects-file"
           />
-          <Button 
-            variant="outline" 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting}
-            data-testid="button-import-projects"
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            {isImporting ? "Importing..." : "Import"}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                disabled={isImporting}
+                data-testid="button-import-projects"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {isImporting ? "Importing..." : "Import"}
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => fileInputRef.current?.click()} data-testid="dropdown-import-excel">
+                <Table2 className="mr-2 h-4 w-4" />
+                Import from Excel
+              </DropdownMenuItem>
+              {orgIntegrations?.some(i => i.integrationType === 'ms-project' && i.connectionStatus === 'connected') && (
+                <DropdownMenuItem asChild data-testid="dropdown-import-msproject">
+                  <Link href="/integrations?integration=ms-project">
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Import from MS Project
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {orgIntegrations?.some(i => i.integrationType === 'planner' && i.connectionStatus === 'connected') && (
+                <DropdownMenuItem asChild data-testid="dropdown-import-planner">
+                  <Link href="/integrations?integration=planner">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    Import from Microsoft Planner
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {orgIntegrations?.some(i => i.integrationType === 'planner_premium' && i.connectionStatus === 'connected') && (
+                <DropdownMenuItem asChild data-testid="dropdown-import-planner-premium">
+                  <Link href="/integrations?integration=planner-premium">
+                    <Rocket className="mr-2 h-4 w-4" />
+                    Import from Planner Premium
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {orgIntegrations?.some(i => i.integrationType === 'project_online' && i.connectionStatus === 'connected') && (
+                <DropdownMenuItem asChild data-testid="dropdown-import-project-online">
+                  <Link href="/integrations?integration=project-online">
+                    <Cloud className="mr-2 h-4 w-4" />
+                    Import from Project Online
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild data-testid="dropdown-configure-integrations">
+                <Link href="/integrations">
+                  <Settings2 className="mr-2 h-4 w-4" />
+                  Configure Integrations
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button 
             variant="outline" 
             onClick={handleExportToExcel}
