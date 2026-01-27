@@ -12084,6 +12084,7 @@ function InvoicesTab({ projectId }: { projectId: number }) {
   const [newNote, setNewNote] = useState('');
   const [uploadedFile, setUploadedFile] = useState<{ name: string; url: string; size: number; type: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<ProjectInvoice | null>(null);
 
   const { data: invoices = [], isLoading, refetch: refetchInvoices } = useQuery<ProjectInvoice[]>({
     queryKey: ['/api/projects', projectId, 'invoices'],
@@ -12356,11 +12357,7 @@ function InvoicesTab({ projectId }: { projectId: number }) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => {
-                            if (confirm('Are you sure you want to delete this invoice?')) {
-                              deleteMutation.mutate(invoice.id);
-                            }
-                          }}
+                          onClick={() => setInvoiceToDelete(invoice)}
                           data-testid={`button-delete-invoice-${invoice.id}`}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -12545,6 +12542,31 @@ function InvoicesTab({ projectId }: { projectId: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!invoiceToDelete} onOpenChange={(open) => { if (!open) setInvoiceToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this invoice? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-invoice">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (invoiceToDelete) {
+                  deleteMutation.mutate(invoiceToDelete.id);
+                  setInvoiceToDelete(null);
+                }
+              }}
+              data-testid="button-confirm-delete-invoice"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
