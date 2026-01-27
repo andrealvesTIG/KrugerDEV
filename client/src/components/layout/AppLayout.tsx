@@ -118,12 +118,13 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             <QuickAddMenu />
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={() => setHelpDialogOpen(true)}
               className="text-muted-foreground hover:text-foreground"
               data-testid="button-help"
             >
-              <HelpCircle className="h-5 w-5" />
+              <HelpCircle className="h-4 w-4" />
+              Help
             </Button>
             <NotificationBell />
             <ThemeToggle />
