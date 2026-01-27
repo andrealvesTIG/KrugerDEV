@@ -135,9 +135,10 @@ export default function Portfolios() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
+                className="h-full"
               >
-                <Link href={`/portfolios/${portfolio.id}`}>
-                  <Card className="group cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-300" data-testid={`card-portfolio-${portfolio.id}`}>
+                <Link href={`/portfolios/${portfolio.id}`} className="h-full block">
+                  <Card className="group cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-300 h-full flex flex-col" data-testid={`card-portfolio-${portfolio.id}`}>
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="rounded-lg bg-primary/10 p-2 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
@@ -174,7 +175,7 @@ export default function Portfolios() {
                       <CardTitle className="mt-4 text-xl">{portfolio.name}</CardTitle>
                       <CardDescription className="line-clamp-2 mt-2">{portfolio.description}</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-3 flex-1 flex flex-col">
                       {/* Status and Department Row */}
                       <div className="flex items-center gap-2 flex-wrap">
                         {portfolio.status && (
@@ -265,6 +266,7 @@ export default function Portfolios() {
                         </div>
                       )}
 
+                      <div className="flex-1" />
                       <div className="flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity pt-2">
                         View Details <ArrowRight className="ml-1 h-4 w-4" />
                       </div>
