@@ -1090,6 +1090,117 @@ function ProjectTimeline({
     return markers;
   }, [timelineRange]);
   
+  // Auto-detect and generate time scale marks (days/weeks/months/quarters/years)
+  const timeScaleMarks = useMemo(() => {
+    if (!timelineRange) return { scale: 'months' as const, marks: [] as { label: string; position: number; isMinor: boolean }[] };
+    
+    const { totalDays, start, end } = timelineRange;
+    const marks: { label: string; position: number; isMinor: boolean }[] = [];
+    
+    // Determine the best scale based on timeline duration
+    let scale: 'days' | 'weeks' | 'months' | 'quarters' | 'years';
+    if (totalDays <= 14) {
+      scale = 'days';
+    } else if (totalDays <= 60) {
+      scale = 'weeks';
+    } else if (totalDays <= 365) {
+      scale = 'months';
+    } else if (totalDays <= 730) {
+      scale = 'quarters';
+    } else {
+      scale = 'years';
+    }
+    
+    // Generate marks based on scale
+    if (scale === 'days') {
+      // Show each day
+      let current = new Date(start);
+      while (current <= end) {
+        const position = (differenceInDays(current, start) / totalDays) * 100;
+        if (position >= 0 && position <= 100) {
+          marks.push({
+            label: format(current, 'd'),
+            position,
+            isMinor: current.getDay() !== 1, // Monday is major
+          });
+        }
+        current = addDays(current, 1);
+      }
+    } else if (scale === 'weeks') {
+      // Show week starts (Mondays)
+      let current = new Date(start);
+      // Align to Monday
+      while (current.getDay() !== 1) {
+        current = addDays(current, 1);
+      }
+      while (current <= end) {
+        const position = (differenceInDays(current, start) / totalDays) * 100;
+        if (position >= 0 && position <= 100) {
+          marks.push({
+            label: format(current, 'MMM d'),
+            position,
+            isMinor: false,
+          });
+        }
+        current = addDays(current, 7);
+      }
+    } else if (scale === 'months') {
+      // Show month starts
+      let current = new Date(start.getFullYear(), start.getMonth(), 1);
+      while (current <= end) {
+        const position = (differenceInDays(current, start) / totalDays) * 100;
+        if (position >= 0 && position <= 100) {
+          marks.push({
+            label: format(current, 'MMM'),
+            position,
+            isMinor: current.getMonth() !== 0, // January is major
+          });
+        }
+        current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+      }
+    } else if (scale === 'quarters') {
+      // Show quarter starts (Jan, Apr, Jul, Oct)
+      const quarterMonths = [0, 3, 6, 9]; // Jan, Apr, Jul, Oct
+      let year = start.getFullYear();
+      while (year <= end.getFullYear() + 1) {
+        for (const month of quarterMonths) {
+          const quarterStart = new Date(year, month, 1);
+          if (quarterStart >= start && quarterStart <= end) {
+            const position = (differenceInDays(quarterStart, start) / totalDays) * 100;
+            if (position >= 0 && position <= 100) {
+              const quarterNum = Math.floor(month / 3) + 1;
+              marks.push({
+                label: `Q${quarterNum} ${format(quarterStart, 'yy')}`,
+                position,
+                isMinor: month !== 0, // Q1 is major
+              });
+            }
+          }
+        }
+        year++;
+      }
+    } else {
+      // Years
+      let year = start.getFullYear();
+      while (year <= end.getFullYear() + 1) {
+        const yearStart = new Date(year, 0, 1);
+        if (yearStart >= start && yearStart <= end) {
+          const position = (differenceInDays(yearStart, start) / totalDays) * 100;
+          if (position >= 0 && position <= 100) {
+            marks.push({
+              label: String(year),
+              position,
+              isMinor: false,
+            });
+          }
+        }
+        year++;
+      }
+    }
+    
+    return { scale, marks };
+  }, [timelineRange]);
+  
   // Distribute milestones across rows to avoid overlapping
   // Each milestone gets assigned a row based on proximity to other milestones
   // Also determine which labels can be shown without overlapping
@@ -1230,16 +1341,39 @@ function ProjectTimeline({
         
         <CollapsibleContent>
           <CardContent className="pt-2 px-4 pb-3">
-            {/* Year markers */}
-            <div className="relative h-5 mb-2">
-              {yearMarkers.map((marker) => (
-                <span 
-                  key={marker.year}
-                  className="absolute text-xs font-medium text-muted-foreground -translate-x-1/2"
-                  style={{ left: `${marker.position}%` }}
+            {/* Time scale markers (auto-detected: days/weeks/months/quarters/years) */}
+            <div className="relative h-6 mb-1 mx-4">
+              {/* Scale indicator */}
+              <span className="absolute -left-4 top-0 text-[9px] text-muted-foreground/60 uppercase tracking-wider">
+                {timeScaleMarks.scale}
+              </span>
+              
+              {/* Time marks */}
+              {timeScaleMarks.marks.map((mark, index) => (
+                <div
+                  key={`${mark.label}-${index}`}
+                  className="absolute flex flex-col items-center"
+                  style={{ left: `${mark.position}%`, transform: 'translateX(-50%)' }}
                 >
-                  {marker.year}
-                </span>
+                  <span 
+                    className={cn(
+                      "text-[10px] whitespace-nowrap",
+                      mark.isMinor 
+                        ? "text-muted-foreground/50" 
+                        : "text-muted-foreground font-medium"
+                    )}
+                  >
+                    {mark.label}
+                  </span>
+                  <div 
+                    className={cn(
+                      "w-px mt-0.5",
+                      mark.isMinor 
+                        ? "h-1.5 bg-muted-foreground/20" 
+                        : "h-2.5 bg-muted-foreground/40"
+                    )}
+                  />
+                </div>
               ))}
             </div>
             
