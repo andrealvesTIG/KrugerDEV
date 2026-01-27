@@ -274,6 +274,10 @@ export default function SignInPage() {
     document.getElementById('signin-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const scrollToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   if (emailSent) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
@@ -330,10 +334,24 @@ export default function SignInPage() {
               <img src={logoIcon} alt="FridayReport.AI" className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0" />
               <span className="text-base sm:text-xl font-bold text-white truncate">FridayReport.AI</span>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-              <Link href="/guide" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors hidden sm:block" data-testid="link-nav-guide">
+            <div className="hidden md:flex items-center gap-6">
+              <button onClick={() => scrollToSection('features-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-features">
+                Features
+              </button>
+              <button onClick={() => scrollToSection('integrations-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-integrations">
+                Integrations
+              </button>
+              <button onClick={() => scrollToSection('pricing-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-pricing">
+                Pricing
+              </button>
+              <button onClick={() => scrollToSection('faq-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-faq">
+                FAQ
+              </button>
+              <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-guide">
                 User Guide
               </Link>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
               <Link href="/auth" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
                 Login
               </Link>
@@ -429,7 +447,7 @@ export default function SignInPage() {
         </div>
       </section>
       {/* Features Grid */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
+      <section id="features-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
@@ -458,7 +476,7 @@ export default function SignInPage() {
       </section>
 
       {/* Integrations Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section id="integrations-section" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
@@ -575,7 +593,7 @@ export default function SignInPage() {
         </div>
       </section>
       {/* Pricing Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
+      <section id="pricing-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
@@ -1054,7 +1072,7 @@ export default function SignInPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-20 px-4 bg-slate-700/30">
+      <section id="faq-section" className="py-20 px-4 bg-slate-700/30">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
