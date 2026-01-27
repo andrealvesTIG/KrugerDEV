@@ -627,6 +627,11 @@ export default function ProjectDetails() {
         projectId={project.id}
         startDate={project.startDate}
         endDate={project.endDate}
+        onMilestoneClick={(taskId) => {
+          setActiveTab('tasks');
+          window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
+          window.dispatchEvent(new CustomEvent('openTaskDialog', { detail: { taskId } }));
+        }}
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -933,11 +938,13 @@ interface TimelineEvent {
 function ProjectTimeline({ 
   projectId, 
   startDate, 
-  endDate 
+  endDate,
+  onMilestoneClick 
 }: { 
   projectId: number;
   startDate: string | null;
   endDate: string | null;
+  onMilestoneClick?: (taskId: number) => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const { data: tasks } = useTasks(projectId);
@@ -1114,7 +1121,13 @@ function ProjectTimeline({
                       />
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p className="font-medium">{event.title}</p>
+                      <button
+                        className="font-medium text-primary hover:underline cursor-pointer text-left"
+                        onClick={() => onMilestoneClick?.(event.id)}
+                        data-testid={`link-milestone-${event.id}`}
+                      >
+                        {event.title}
+                      </button>
                       <p className="text-xs text-muted-foreground">
                         {format(event.date, 'MMM d, yyyy')}
                         {event.completed && ' - Completed'}
