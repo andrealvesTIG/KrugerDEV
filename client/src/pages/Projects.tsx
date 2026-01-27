@@ -617,8 +617,8 @@ export default function Projects() {
                           project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
                         )} />
                         <div className="flex-1 pl-5">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
+                          <div className="flex flex-wrap items-center gap-3 min-w-0">
+                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200 truncate max-w-[400px]" title={project.name}>
                               {project.name}
                             </h3>
                             {project.source === "planner" && project.plannerPlanId && (
@@ -827,9 +827,9 @@ export default function Projects() {
                     project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
                   )} />
 
-                  <div className="flex-1 pl-5">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
+                  <div className="flex-1 pl-5 min-w-0">
+                    <div className="flex flex-wrap items-center gap-3 min-w-0">
+                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200 truncate max-w-[400px]" title={project.name}>
                         {project.name}
                       </h3>
                       {/* Planner Logo for synced projects */}

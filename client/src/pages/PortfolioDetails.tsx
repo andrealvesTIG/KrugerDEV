@@ -90,8 +90,8 @@ export default function PortfolioDetails() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-display font-bold">{portfolio.name}</h1>
-          <p className="text-muted-foreground mt-1">{portfolio.description}</p>
+          <h1 className="text-3xl font-display font-bold truncate max-w-[600px]" title={portfolio.name}>{portfolio.name}</h1>
+          <p className="text-muted-foreground mt-1 line-clamp-2">{portfolio.description}</p>
         </div>
       </div>
 
@@ -556,7 +556,7 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
                     <td className="p-3">
                       <Link href={`/projects/${project.id}`}>
                         <div className="hover:text-primary cursor-pointer">
-                          <p className="font-medium">{project.name}</p>
+                          <p className="font-medium truncate max-w-[300px]" title={project.name}>{project.name}</p>
                           <p className="text-sm text-muted-foreground line-clamp-1">{project.description}</p>
                         </div>
                       </Link>
@@ -1063,12 +1063,12 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
                 >
                   <td className="p-3">
                     <div>
-                      <p className="font-medium">{risk.title}</p>
+                      <p className="font-medium truncate max-w-[250px]" title={risk.title}>{risk.title}</p>
                       <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
                     </div>
                   </td>
                   <td className="p-3">
-                    <Badge variant="outline" className="text-xs">{risk.projectName}</Badge>
+                    <Badge variant="outline" className="text-xs truncate max-w-[150px]" title={risk.projectName}>{risk.projectName}</Badge>
                   </td>
                   <td className="p-3">
                     <Badge className={cn("text-xs", probabilityColors[risk.probability || "Medium"])}>{risk.probability}</Badge>
@@ -1189,12 +1189,12 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                 >
                   <td className="p-3">
                     <div>
-                      <p className="font-medium">{issue.title}</p>
+                      <p className="font-medium truncate max-w-[250px]" title={issue.title}>{issue.title}</p>
                       <p className="text-sm text-muted-foreground line-clamp-1">{issue.description}</p>
                     </div>
                   </td>
                   <td className="p-3">
-                    <Badge variant="outline" className="text-xs">{issue.projectName}</Badge>
+                    <Badge variant="outline" className="text-xs truncate max-w-[150px]" title={issue.projectName}>{issue.projectName}</Badge>
                   </td>
                   <td className="p-3">
                     <Badge variant="secondary" className="text-xs">{issue.type}</Badge>

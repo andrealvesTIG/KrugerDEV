@@ -131,7 +131,7 @@ function ProjectsAdminTab() {
           <TableBody>
             {projects?.map(project => (
               <TableRow key={project.id} data-testid={`admin-project-${project.id}`}>
-                <TableCell className="font-medium">{project.name}</TableCell>
+                <TableCell className="font-medium truncate max-w-[250px]" title={project.name}>{project.name}</TableCell>
                 <TableCell>
                   <Badge variant="outline">{project.status}</Badge>
                 </TableCell>
@@ -296,7 +296,7 @@ function RisksAdminTab() {
           <TableBody>
             {risks?.map(risk => (
               <TableRow key={risk.id} data-testid={`admin-risk-${risk.id}`}>
-                <TableCell className="font-medium">{risk.title}</TableCell>
+                <TableCell className="font-medium truncate max-w-[250px]" title={risk.title}>{risk.title}</TableCell>
                 <TableCell>{getProjectName(risk.projectId)}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className={cn(
@@ -383,7 +383,7 @@ function IssuesAdminTab() {
           <TableBody>
             {issues?.map(issue => (
               <TableRow key={issue.id} data-testid={`admin-issue-${issue.id}`}>
-                <TableCell className="font-medium">{issue.title}</TableCell>
+                <TableCell className="font-medium truncate max-w-[250px]" title={issue.title}>{issue.title}</TableCell>
                 <TableCell>{getProjectName(issue.projectId)}</TableCell>
                 <TableCell>{issue.type}</TableCell>
                 <TableCell>

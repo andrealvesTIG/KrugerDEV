@@ -424,8 +424,8 @@ export default function ProjectDetails() {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-display font-bold text-foreground">{project.name}</h1>
+          <div className="flex items-center gap-3 flex-wrap min-w-0">
+            <h1 className="text-3xl font-display font-bold text-foreground truncate max-w-[500px]" title={project.name}>{project.name}</h1>
             <Badge className={cn(
               "text-sm px-3 py-1",
               project.health === 'Green' ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" :
@@ -3458,9 +3458,9 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
               onClick={() => openEditDialog(risk)}
               data-testid={`risk-card-${risk.id}`}
             >
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                   <span className="font-semibold">{risk.title}</span>
+              <div className="space-y-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                   <span className="font-semibold truncate max-w-[300px]" title={risk.title}>{risk.title}</span>
                    <Badge variant="outline" className={cn(
                      risk.probability === 'High' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
                    )}>{risk.probability} Prob</Badge>
@@ -5383,7 +5383,7 @@ function TaskNameCell({
             {task.progress === 100 && (
               <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
             )}
-            {task.name}
+            <span className="truncate" title={task.name}>{task.name}</span>
           </span>
         )}
       </div>
@@ -9420,9 +9420,9 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
                   <div className="mt-0.5">
                     <TypeIcon className="h-5 w-5 text-muted-foreground" />
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold">{issue.title}</span>
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <span className="font-semibold truncate max-w-[300px]" title={issue.title}>{issue.title}</span>
                       <Badge variant="outline" className={cn("text-xs", issuePriorityColors[issue.priority as keyof typeof issuePriorityColors])}>
                         {issue.priority}
                       </Badge>

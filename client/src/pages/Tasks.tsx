@@ -2136,7 +2136,7 @@ function DraggableTaskCard({
           </DropdownMenu>
         </div>
         <CardContent className="p-4">
-          <div className="font-medium text-sm">{task.name}</div>
+          <div className="font-medium text-sm truncate" title={task.name}>{task.name}</div>
           <Link 
             href={`/projects/${task.projectId}`}
             onClick={(e) => e.stopPropagation()}

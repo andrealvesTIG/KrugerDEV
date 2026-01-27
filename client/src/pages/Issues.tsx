@@ -700,8 +700,8 @@ export default function Issues() {
                       <TypeIcon className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold" data-testid={`text-issue-title-${issue.id}`}>{issue.title}</span>
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className="font-semibold truncate max-w-[300px]" data-testid={`text-issue-title-${issue.id}`} title={issue.title}>{issue.title}</span>
                         <Badge variant="outline" className={cn("text-xs", issue.itemType === 'risk' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300")}>
                           {issue.itemType === 'risk' ? 'Risk' : 'Issue'}
                         </Badge>

@@ -111,11 +111,11 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
       className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
     >
       <td className={`p-3 ${indented ? 'pl-10' : ''}`}>
-        <div className="flex items-center gap-2">
-          <ListTodo className="h-4 w-4 text-muted-foreground" />
-          <span className="text-foreground">{task.name}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <ListTodo className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <span className="text-foreground truncate max-w-[200px]" title={task.name}>{task.name}</span>
           {!indented && (
-            <span className="text-xs text-muted-foreground">({project.name})</span>
+            <span className="text-xs text-muted-foreground truncate max-w-[150px]" title={project.name}>({project.name})</span>
           )}
         </div>
       </td>
