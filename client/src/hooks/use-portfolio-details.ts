@@ -69,3 +69,16 @@ export function usePortfolioMilestones(portfolioId: number) {
     enabled: portfolioId > 0,
   });
 }
+
+export interface EscalatedItems {
+  risks: (PortfolioRisk & { escalatedAt?: string | null; escalatedBy?: number | null })[];
+  issues: (PortfolioIssue & { escalatedAt?: string | null; escalatedBy?: number | null })[];
+}
+
+export function usePortfolioEscalatedItems(portfolioId: number) {
+  return useQuery<EscalatedItems>({
+    queryKey: ['/api/portfolios', portfolioId, 'escalated-items'],
+    queryFn: () => fetch(`/api/portfolios/${portfolioId}/escalated-items`).then(r => r.json()),
+    enabled: portfolioId > 0,
+  });
+}
