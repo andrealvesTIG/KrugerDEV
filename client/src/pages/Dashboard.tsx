@@ -81,8 +81,16 @@ type TabId = typeof DASHBOARD_TABS[number]["id"] | `custom-${number}`;
 
 const STORAGE_KEY = "dashboard-active-tab";
 
+type UnifiedTab = {
+  id: string;
+  type: 'builtin' | 'custom';
+  label: string;
+  icon?: typeof LayoutDashboard;
+  dashboardId?: number;
+};
+
 interface SortableTabProps {
-  tab: typeof DASHBOARD_TABS[number];
+  tab: UnifiedTab;
   isAdmin: boolean;
 }
 
@@ -103,7 +111,27 @@ function SortableTab({ tab, isAdmin }: SortableTabProps) {
     cursor: isAdmin ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
   };
 
-  const Icon = tab.icon;
+  if (tab.type === 'custom') {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="flex items-center"
+        {...(isAdmin ? { ...attributes, ...listeners } : {})}
+      >
+        <TabsTrigger
+          value={tab.id}
+          className="flex items-center gap-2 data-[state=active]:bg-background"
+          data-testid={`tab-${tab.id}`}
+        >
+          <Sparkles className="h-4 w-4" />
+          <span className="hidden sm:inline truncate max-w-32">{tab.label}</span>
+        </TabsTrigger>
+      </div>
+    );
+  }
+
+  const Icon = tab.icon!;
 
   return (
     <div
@@ -203,13 +231,39 @@ export default function Dashboard() {
     }
   };
 
+  const { data: customDashboards } = useQuery<CustomDashboardType[]>({
+    queryKey: [`/api/custom-dashboards?organizationId=${currentOrganization?.id}`],
+    enabled: !!currentOrganization?.id,
+  });
+
   // Get sorted tabs based on saved order, separating visible and hidden
   const { visibleTabs, hiddenTabs } = useMemo(() => {
     const savedOrder = tabOrderData?.tabOrder || [];
     const hiddenTabIds = tabOrderData?.hiddenTabs || [];
     
+    // Create unified tabs from built-in tabs
+    const builtinUnified: UnifiedTab[] = DASHBOARD_TABS.map(tab => ({
+      id: tab.id,
+      type: 'builtin' as const,
+      label: tab.label,
+      icon: tab.icon,
+    }));
+    
+    // Create unified tabs from custom dashboards (visible ones only in tab bar)
+    const customUnified: UnifiedTab[] = (customDashboards || [])
+      .filter(d => !hiddenCustomDashboards.includes(d.id))
+      .map(d => ({
+        id: `custom-${d.id}`,
+        type: 'custom' as const,
+        label: d.name,
+        dashboardId: d.id,
+      }));
+    
+    // Combine all tabs
+    const allTabs = [...builtinUnified, ...customUnified];
+    
     // Sort all tabs based on saved order
-    const allSorted = [...DASHBOARD_TABS].sort((a, b) => {
+    const allSorted = allTabs.sort((a, b) => {
       const aIndex = savedOrder.indexOf(a.id);
       const bIndex = savedOrder.indexOf(b.id);
       if (aIndex === -1 && bIndex === -1) return 0;
@@ -218,12 +272,17 @@ export default function Dashboard() {
       return aIndex - bIndex;
     });
     
-    // Separate visible and hidden tabs
-    const visible = allSorted.filter(tab => !hiddenTabIds.includes(tab.id));
-    const hidden = allSorted.filter(tab => hiddenTabIds.includes(tab.id));
+    // Separate visible and hidden tabs (only built-in tabs can be hidden via hiddenTabIds)
+    const visible = allSorted.filter(tab => {
+      if (tab.type === 'builtin') {
+        return !hiddenTabIds.includes(tab.id);
+      }
+      return true; // Custom dashboards are shown if not in hiddenCustomDashboards
+    });
+    const hidden = allSorted.filter(tab => tab.type === 'builtin' && hiddenTabIds.includes(tab.id));
     
     return { visibleTabs: visible, hiddenTabs: hidden };
-  }, [tabOrderData?.tabOrder, tabOrderData?.hiddenTabs]);
+  }, [tabOrderData?.tabOrder, tabOrderData?.hiddenTabs, customDashboards, hiddenCustomDashboards]);
 
   // DnD sensors
   const sensors = useSensors(
@@ -249,11 +308,6 @@ export default function Dashboard() {
       updateTabOrderMutation.mutate({ tabOrder: newOrder });
     }
   };
-
-  const { data: customDashboards } = useQuery<CustomDashboardType[]>({
-    queryKey: [`/api/custom-dashboards?organizationId=${currentOrganization?.id}`],
-    enabled: !!currentOrganization?.id,
-  });
 
   const getInitialTab = (): TabId => {
     if (viewParam) {
@@ -334,21 +388,6 @@ export default function Dashboard() {
               ))}
             </SortableContext>
           </DndContext>
-          
-          {/* Show visible (non-hidden) custom dashboards as tabs */}
-          {customDashboards?.filter(d => !hiddenCustomDashboards.includes(d.id)).map((dashboard) => (
-            <TabsTrigger
-              key={dashboard.id}
-              value={`custom-${dashboard.id}`}
-              className="flex items-center gap-2 data-[state=active]:bg-background"
-              data-testid={`tab-custom-${dashboard.id}`}
-            >
-              <Sparkles className="h-4 w-4" />
-              <span className="hidden sm:inline truncate max-w-32">
-                {dashboard.name}
-              </span>
-            </TabsTrigger>
-          ))}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
