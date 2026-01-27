@@ -39,7 +39,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -52,7 +52,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertRiskSchema, insertIssueSchema, insertTaskSchema } from "@shared/schema";
-import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User } from "@shared/schema";
+import type { Task, ProjectFinancial, Risk, Issue, ChangeRequest, ProjectDocument, User, ProjectInvoice, InvoiceNote } from "@shared/schema";
 import { api } from "@shared/routes";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -216,6 +216,7 @@ export default function ProjectDetails() {
     { id: 'lessons-learned', label: 'Lessons Learned' },
     { id: 'change-requests', label: 'Change Requests' },
     { id: 'documents', label: 'Documents' },
+    { id: 'invoices', label: 'Invoices' },
     { id: 'status-report', label: 'Status Report' },
   ];
   
@@ -726,13 +727,14 @@ export default function ProjectDetails() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={['change-requests', 'documents', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
+                variant={['change-requests', 'documents', 'invoices', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
               >
                 {!pinnedTabs.includes(activeTab) && activeTab === 'change-requests' ? 'Change Requests' : 
                  !pinnedTabs.includes(activeTab) && activeTab === 'documents' ? 'Documents' : 
+                 !pinnedTabs.includes(activeTab) && activeTab === 'invoices' ? 'Invoices' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'status-report' ? 'Status Report' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'scoring' ? 'Scoring' :
                  !pinnedTabs.includes(activeTab) && activeTab === 'benefits' ? 'Benefits' :
@@ -826,6 +828,9 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="documents">
             <DocumentsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="invoices">
+            <InvoicesTab projectId={project.id} />
           </TabsContent>
           <TabsContent value="status-report">
             <StatusReportTab 
@@ -12067,6 +12072,479 @@ function LessonsLearnedTab({ projectId, organizationId }: { projectId: number; o
           </div>
         )}
       </CardContent>
+    </Card>
+  );
+}
+
+function InvoicesTab({ projectId }: { projectId: number }) {
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<ProjectInvoice | null>(null);
+  const [notesInvoice, setNotesInvoice] = useState<ProjectInvoice | null>(null);
+  const [newNote, setNewNote] = useState('');
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; url: string; size: number; type: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const { data: invoices = [], isLoading, refetch: refetchInvoices } = useQuery<ProjectInvoice[]>({
+    queryKey: ['/api/projects', projectId, 'invoices'],
+  });
+
+  const { data: invoiceNotes = [], refetch: refetchNotes } = useQuery<InvoiceNote[]>({
+    queryKey: ['/api/invoices', notesInvoice?.id, 'notes'],
+    enabled: !!notesInvoice,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: Partial<ProjectInvoice>) => {
+      const res = await apiRequest('POST', `/api/projects/${projectId}/invoices`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Invoice created" });
+      refetchInvoices();
+      setIsDialogOpen(false);
+      setEditingInvoice(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create invoice", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<ProjectInvoice> }) => {
+      const res = await apiRequest('PATCH', `/api/invoices/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Invoice updated" });
+      refetchInvoices();
+      setIsDialogOpen(false);
+      setEditingInvoice(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update invoice", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest('DELETE', `/api/invoices/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Invoice deleted" });
+      refetchInvoices();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete invoice", variant: "destructive" });
+    },
+  });
+
+  const addNoteMutation = useMutation({
+    mutationFn: async ({ invoiceId, note }: { invoiceId: number; note: string }) => {
+      const res = await apiRequest('POST', `/api/invoices/${invoiceId}/notes`, { note });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Note added" });
+      refetchNotes();
+      setNewNote('');
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to add note", variant: "destructive" });
+    },
+  });
+
+  const statusColors: Record<string, string> = {
+    Draft: 'bg-muted text-muted-foreground',
+    Sent: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+    Paid: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+    Overdue: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+    Cancelled: 'bg-gray-100 dark:bg-gray-900/30 text-gray-500',
+  };
+
+  const uploadFileToStorage = async (file: File): Promise<{ url: string; name: string; size: number; type: string }> => {
+    const urlResponse = await fetch("/api/uploads/request-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: file.name,
+        size: file.size,
+        contentType: file.type || "application/octet-stream",
+      }),
+    });
+
+    if (!urlResponse.ok) {
+      throw new Error("Failed to get upload URL");
+    }
+
+    const { uploadURL, objectPath } = await urlResponse.json();
+
+    const uploadResponse = await fetch(uploadURL, {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error("Failed to upload file");
+    }
+
+    return { url: objectPath, name: file.name, size: file.size, type: file.type || "application/octet-stream" };
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const result = await uploadFileToStorage(file);
+      setUploadedFile(result);
+      toast({ title: "Success", description: "File uploaded" });
+    } catch {
+      toast({ title: "Error", description: "Failed to upload file", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSubmit = (formData: FormData) => {
+    const data: Partial<ProjectInvoice> = {
+      invoiceNumber: formData.get('invoiceNumber') as string,
+      title: formData.get('title') as string,
+      description: formData.get('description') as string,
+      amount: formData.get('amount') as string || '0',
+      currency: formData.get('currency') as string || 'USD',
+      status: formData.get('status') as string || 'Draft',
+      invoiceDate: formData.get('invoiceDate') as string || null,
+      dueDate: formData.get('dueDate') as string || null,
+      vendorName: formData.get('vendorName') as string,
+      vendorEmail: formData.get('vendorEmail') as string,
+    };
+
+    if (uploadedFile) {
+      data.fileName = uploadedFile.name;
+      data.fileUrl = uploadedFile.url;
+      data.fileSize = uploadedFile.size;
+      data.mimeType = uploadedFile.type;
+    } else {
+      data.fileName = null;
+      data.fileUrl = null;
+      data.fileSize = null;
+      data.mimeType = null;
+    }
+
+    if (!data.title?.trim()) {
+      toast({ title: "Error", description: "Title is required", variant: "destructive" });
+      return;
+    }
+
+    if (editingInvoice) {
+      updateMutation.mutate({ id: editingInvoice.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const openEditDialog = (invoice: ProjectInvoice) => {
+    setEditingInvoice(invoice);
+    if (invoice.fileUrl && invoice.fileName) {
+      setUploadedFile({ name: invoice.fileName, url: invoice.fileUrl, size: invoice.fileSize || 0, type: invoice.mimeType || '' });
+    } else {
+      setUploadedFile(null);
+    }
+    setIsDialogOpen(true);
+  };
+
+  const getFileUrl = (invoice: ProjectInvoice) => {
+    if (!invoice.fileUrl) return null;
+    return invoice.fileUrl.startsWith('/objects/') 
+      ? invoice.fileUrl 
+      : invoice.fileUrl.startsWith('http') 
+        ? invoice.fileUrl 
+        : `/objects/${invoice.fileUrl}`;
+  };
+
+  const formatCurrency = (amount: string | null, currency: string | null) => {
+    if (!amount) return '-';
+    const num = parseFloat(amount);
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency || 'USD',
+    }).format(num);
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle>Invoices</CardTitle>
+        <Button onClick={() => { setEditingInvoice(null); setUploadedFile(null); setIsDialogOpen(true); }} data-testid="button-add-invoice">
+          <Plus className="h-4 w-4 mr-2" /> Add Invoice
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {invoices.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No invoices yet. Click "Add Invoice" to create one.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-2 font-medium">Invoice #</th>
+                  <th className="text-left py-2 px-2 font-medium">Title</th>
+                  <th className="text-left py-2 px-2 font-medium">Vendor</th>
+                  <th className="text-right py-2 px-2 font-medium">Amount</th>
+                  <th className="text-left py-2 px-2 font-medium">Status</th>
+                  <th className="text-left py-2 px-2 font-medium">Due Date</th>
+                  <th className="text-left py-2 px-2 font-medium">File</th>
+                  <th className="text-right py-2 px-2 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id} className="border-b hover:bg-muted/50">
+                    <td className="py-2 px-2">{invoice.invoiceNumber || '-'}</td>
+                    <td className="py-2 px-2">{invoice.title}</td>
+                    <td className="py-2 px-2">{invoice.vendorName || '-'}</td>
+                    <td className="py-2 px-2 text-right">{formatCurrency(invoice.amount, invoice.currency)}</td>
+                    <td className="py-2 px-2">
+                      <Badge className={cn("text-xs", statusColors[invoice.status || 'Draft'])}>
+                        {invoice.status}
+                      </Badge>
+                    </td>
+                    <td className="py-2 px-2">
+                      {invoice.dueDate ? format(new Date(invoice.dueDate), 'MMM d, yyyy') : '-'}
+                    </td>
+                    <td className="py-2 px-2">
+                      {invoice.fileUrl ? (
+                        <a 
+                          href={getFileUrl(invoice) || '#'} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline flex items-center gap-1"
+                          data-testid={`link-invoice-file-${invoice.id}`}
+                        >
+                          <FileText className="h-3 w-3" />
+                          <span className="truncate max-w-[80px]">{invoice.fileName || 'File'}</span>
+                        </a>
+                      ) : '-'}
+                    </td>
+                    <td className="py-2 px-2 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setNotesInvoice(invoice)}
+                          data-testid={`button-notes-invoice-${invoice.id}`}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(invoice)}
+                          data-testid={`button-edit-invoice-${invoice.id}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this invoice?')) {
+                              deleteMutation.mutate(invoice.id);
+                            }
+                          }}
+                          data-testid={`button-delete-invoice-${invoice.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingInvoice(null); }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{editingInvoice ? 'Edit Invoice' : 'Add Invoice'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); handleSubmit(new FormData(e.currentTarget)); }} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="invoiceNumber">Invoice Number</Label>
+                <Input id="invoiceNumber" name="invoiceNumber" defaultValue={editingInvoice?.invoiceNumber || ''} data-testid="input-invoice-number" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select name="status" defaultValue={editingInvoice?.status || 'Draft'}>
+                  <SelectTrigger data-testid="select-invoice-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Sent">Sent</SelectItem>
+                    <SelectItem value="Paid">Paid</SelectItem>
+                    <SelectItem value="Overdue">Overdue</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="title">Title *</Label>
+              <Input id="title" name="title" defaultValue={editingInvoice?.title || ''} required data-testid="input-invoice-title" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea id="description" name="description" defaultValue={editingInvoice?.description || ''} rows={2} data-testid="input-invoice-description" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount</Label>
+                <Input id="amount" name="amount" type="number" step="0.01" defaultValue={editingInvoice?.amount || ''} data-testid="input-invoice-amount" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currency">Currency</Label>
+                <Select name="currency" defaultValue={editingInvoice?.currency || 'USD'}>
+                  <SelectTrigger data-testid="select-invoice-currency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="GBP">GBP</SelectItem>
+                    <SelectItem value="CAD">CAD</SelectItem>
+                    <SelectItem value="AUD">AUD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="vendorName">Vendor Name</Label>
+                <Input id="vendorName" name="vendorName" defaultValue={editingInvoice?.vendorName || ''} data-testid="input-vendor-name" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vendorEmail">Vendor Email</Label>
+                <Input id="vendorEmail" name="vendorEmail" type="email" defaultValue={editingInvoice?.vendorEmail || ''} data-testid="input-vendor-email" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="invoiceDate">Invoice Date</Label>
+                <Input id="invoiceDate" name="invoiceDate" type="date" defaultValue={editingInvoice?.invoiceDate || ''} data-testid="input-invoice-date" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dueDate">Due Date</Label>
+                <Input id="dueDate" name="dueDate" type="date" defaultValue={editingInvoice?.dueDate || ''} data-testid="input-due-date" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invoiceFile">Attachment</Label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  id="invoiceFile" 
+                  type="file" 
+                  onChange={handleFileChange}
+                  className="flex-1"
+                  disabled={isUploading}
+                  data-testid="input-invoice-file"
+                />
+                {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
+              </div>
+              {uploadedFile && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <FileText className="h-4 w-4" />
+                  <span className="truncate">{uploadedFile.name}</span>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-5 w-5"
+                    onClick={() => setUploadedFile(null)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-submit-invoice">
+                {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingInvoice ? 'Update' : 'Create'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!notesInvoice} onOpenChange={(open) => { if (!open) { setNotesInvoice(null); setNewNote(''); } }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Invoice Notes - {notesInvoice?.invoiceNumber || notesInvoice?.title}</DialogTitle>
+            <DialogDescription>
+              Track notes and status changes for this invoice
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Textarea
+                placeholder="Add a note..."
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                rows={2}
+                data-testid="input-invoice-note"
+              />
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (notesInvoice && newNote.trim()) {
+                    addNoteMutation.mutate({ invoiceId: notesInvoice.id, note: newNote.trim() });
+                  }
+                }}
+                disabled={!newNote.trim() || addNoteMutation.isPending}
+                data-testid="button-add-note"
+              >
+                {addNoteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Add Note
+              </Button>
+            </div>
+            <div className="max-h-[300px] overflow-y-auto space-y-3">
+              {invoiceNotes.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  No notes yet
+                </div>
+              ) : (
+                invoiceNotes.map((note) => (
+                  <div key={note.id} className="border rounded-md p-3 space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{note.userName}</span>
+                      <span>{note.createdAt ? format(new Date(note.createdAt), 'MMM d, yyyy h:mm a') : ''}</span>
+                    </div>
+                    {note.status && (
+                      <Badge variant="outline" className="text-xs">{note.status}</Badge>
+                    )}
+                    <p className="text-sm">{note.note}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
