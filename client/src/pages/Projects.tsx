@@ -2257,7 +2257,12 @@ function ProjectsGridView({
   const [internalFullscreen, setInternalFullscreen] = useState(false);
   
   const { data: resources } = useQuery<Resource[]>({
-    queryKey: ['/api/organizations', organizationId, 'resources'],
+    queryKey: ['/api/resources', organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/resources?organizationId=${organizationId}`);
+      if (!res.ok) throw new Error('Failed to fetch resources');
+      return res.json();
+    },
     enabled: !!organizationId,
   });
   
