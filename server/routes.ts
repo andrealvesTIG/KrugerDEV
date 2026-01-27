@@ -8702,8 +8702,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           // Generate lessons learned from template if available
           if (projectTemplate.lessonsLearned && projectTemplate.lessonsLearned.length > 0) {
             for (const lessonTemplate of projectTemplate.lessonsLearned) {
-              const capturedDate = new Date(today);
-              capturedDate.setDate(capturedDate.getDate() - Math.floor(Math.random() * 60));
+              const identifiedDate = new Date(today);
+              identifiedDate.setDate(identifiedDate.getDate() - Math.floor(Math.random() * 60));
               
               await storage.createLessonLearned({
                 projectId: project.id,
@@ -8715,8 +8715,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
                 phase: lessonTemplate.phase,
                 recommendation: lessonTemplate.recommendation,
                 status: lessonTemplate.status,
-                capturedBy: 'Demo User',
-                capturedDate: capturedDate.toISOString().split('T')[0],
+                dateIdentified: identifiedDate.toISOString().split('T')[0],
                 isDemo: true,
               });
               stats.lessonsLearned++;
@@ -8726,9 +8725,6 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           // Generate documents from template if available
           if (projectTemplate.documents && projectTemplate.documents.length > 0) {
             for (const docTemplate of projectTemplate.documents) {
-              const uploadedAt = new Date(today);
-              uploadedAt.setDate(uploadedAt.getDate() - Math.floor(Math.random() * 30));
-              
               await storage.createProjectDocument({
                 projectId: project.id,
                 title: docTemplate.title,
@@ -8739,7 +8735,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
                 status: docTemplate.status,
                 fileName: docTemplate.fileName,
                 content: docTemplate.content || '',
-                uploadedBy: 'Demo User',
+                author: 'Demo User',
                 isDemo: true,
               });
               stats.documents++;
