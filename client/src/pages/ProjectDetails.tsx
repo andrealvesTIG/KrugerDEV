@@ -1027,6 +1027,25 @@ function ProjectTimeline({
     return allEvents.filter(e => hiddenTaskIds.has(e.id));
   }, [allEvents, hiddenTaskIds]);
   
+  // Number of rows for timeline - persisted per project
+  const getRowsKey = () => `project-timeline-rows-${projectId}`;
+  const [numRows, setNumRows] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(getRowsKey());
+      return saved ? Math.max(1, Math.min(5, Number(saved))) : 1;
+    } catch {
+      return 1;
+    }
+  });
+  
+  const updateNumRows = (rows: number) => {
+    const clamped = Math.max(1, Math.min(5, rows));
+    setNumRows(clamped);
+    try {
+      localStorage.setItem(getRowsKey(), String(clamped));
+    } catch {}
+  };
+  
   // Calculate timeline range
   const timelineRange = useMemo(() => {
     if (!projectStart || !projectEnd) return null;
@@ -1071,6 +1090,49 @@ function ProjectTimeline({
     return markers;
   }, [timelineRange]);
   
+  // Distribute milestones across rows to avoid overlapping
+  // Each milestone gets assigned a row based on proximity to other milestones
+  const eventsWithRows = useMemo(() => {
+    if (!timelineRange || visibleEvents.length === 0) return [];
+    
+    // Calculate positions first
+    const eventsWithPos = visibleEvents.map(event => ({
+      ...event,
+      position: (differenceInDays(event.date, timelineRange.start) / timelineRange.totalDays) * 100,
+      row: 0,
+    })).filter(e => e.position >= 0 && e.position <= 100);
+    
+    if (numRows === 1) {
+      return eventsWithPos;
+    }
+    
+    // Minimum percentage distance between milestones on the same row
+    const minDistance = 3; // 3% of timeline width
+    
+    // Assign rows using a greedy algorithm
+    // For each milestone, find the first row where it doesn't overlap
+    const rowLastPositions: number[] = Array(numRows).fill(-Infinity);
+    
+    for (const event of eventsWithPos) {
+      // Find first row where this milestone won't overlap
+      let assignedRow = 0;
+      for (let r = 0; r < numRows; r++) {
+        if (event.position - rowLastPositions[r] >= minDistance) {
+          assignedRow = r;
+          break;
+        }
+        // If no row found, use the one with the oldest position
+        if (r === numRows - 1) {
+          assignedRow = rowLastPositions.indexOf(Math.min(...rowLastPositions));
+        }
+      }
+      event.row = assignedRow;
+      rowLastPositions[assignedRow] = event.position;
+    }
+    
+    return eventsWithPos;
+  }, [visibleEvents, timelineRange, numRows]);
+  
   if (!projectStart || !projectEnd || !timelineRange) {
     return (
       <Card className="py-2">
@@ -1098,6 +1160,30 @@ function ProjectTimeline({
               Timeline
             </CardTitle>
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Rows:</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={(e) => { e.stopPropagation(); updateNumRows(numRows - 1); }}
+                  disabled={numRows <= 1}
+                  data-testid="button-decrease-rows"
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+                <span className="w-4 text-center font-medium">{numRows}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={(e) => { e.stopPropagation(); updateNumRows(numRows + 1); }}
+                  disabled={numRows >= 5}
+                  data-testid="button-increase-rows"
+                >
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
+              </div>
               <span className="flex items-center gap-1.5">
                 <Flag className="h-3.5 w-3.5 text-primary" />
                 {format(projectStart, 'MMM d, yyyy')}
@@ -1125,51 +1211,63 @@ function ProjectTimeline({
               ))}
             </div>
             
-            {/* Timeline bar with padding for markers */}
-            <div className="relative h-10 mx-4">
-              {/* Background bar */}
-              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-4 bg-muted rounded-full" />
+            {/* Timeline bars with padding for markers - multiple rows */}
+            <div className="relative mx-4" style={{ height: `${numRows * 24 + 16}px` }}>
+              {/* Render each row */}
+              {Array.from({ length: numRows }).map((_, rowIndex) => {
+                const rowTop = rowIndex * 24 + 8; // 24px per row, 8px initial offset
+                return (
+                  <div key={rowIndex} className="absolute inset-x-0" style={{ top: `${rowTop}px` }}>
+                    {/* Background bar for this row */}
+                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-3 bg-muted rounded-full" />
+                    
+                    {/* Progress bar only on first row */}
+                    {rowIndex === 0 && timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
+                      <div 
+                        className={cn(
+                          "absolute top-1/2 -translate-y-1/2 h-3 bg-slate-400 dark:bg-slate-600",
+                          timelineRange.todayPosition < 100 ? "rounded-l-full" : "rounded-full"
+                        )}
+                        style={{ left: 0, width: `${Math.max(1, timelineRange.todayPosition)}%` }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
               
-              {/* Progress bar (from start to today if today is within range) */}
-              {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
-                <div 
-                  className={cn(
-                    "absolute top-1/2 -translate-y-1/2 h-4 bg-slate-400 dark:bg-slate-600",
-                    timelineRange.todayPosition < 100 ? "rounded-l-full" : "rounded-full"
-                  )}
-                  style={{ left: 0, width: `${Math.max(1, timelineRange.todayPosition)}%` }}
-                />
-              )}
-              
-              {/* Today indicator */}
+              {/* Today indicator - spans all rows */}
               {timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
                 <div 
                   className="absolute top-0 bottom-0 w-0.5 bg-green-600 z-10"
                   style={{ left: `${timelineRange.todayPosition}%` }}
                 >
-                  <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-green-600 font-medium whitespace-nowrap bg-background px-1 rounded">
+                  <div 
+                    className="absolute left-1/2 -translate-x-1/2 text-[10px] text-green-600 font-medium whitespace-nowrap bg-background px-1 rounded"
+                    style={{ bottom: '-20px' }}
+                  >
                     {format(timelineRange.today, 'MMM dd')}
                   </div>
                 </div>
               )}
               
-              {/* Milestone markers */}
-              {visibleEvents.map((event) => {
-                const position = (differenceInDays(event.date, timelineRange.start) / timelineRange.totalDays) * 100;
-                
-                if (position < 0 || position > 100) return null;
+              {/* Milestone markers distributed across rows */}
+              {eventsWithRows.map((event) => {
+                const rowTop = event.row * 24 + 8; // Match row positioning
                 
                 return (
                   <Tooltip key={`${event.type}-${event.id}`}>
                     <TooltipTrigger asChild>
                       <div 
                         className={cn(
-                          "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-sm rotate-45 cursor-pointer z-20 border-2",
+                          "absolute -translate-x-1/2 w-3 h-3 rounded-sm rotate-45 cursor-pointer z-20 border-2",
                           event.completed 
                             ? "bg-green-600 border-green-700" 
                             : "bg-red-500 border-red-600"
                         )}
-                        style={{ left: `${position}%` }}
+                        style={{ 
+                          left: `${event.position}%`,
+                          top: `${rowTop}px`,
+                        }}
                         data-testid={`timeline-milestone-${event.id}`}
                       />
                     </TooltipTrigger>
@@ -1203,13 +1301,13 @@ function ProjectTimeline({
                 );
               })}
               
-              {/* Start marker */}
-              <div className="absolute -left-4 top-1/2 -translate-y-1/2">
+              {/* Start marker - positioned at first row */}
+              <div className="absolute -left-4" style={{ top: '8px' }}>
                 <Flag className="h-4 w-4 text-primary" />
               </div>
               
-              {/* End marker */}
-              <div className="absolute -right-4 top-1/2 -translate-y-1/2">
+              {/* End marker - positioned at first row */}
+              <div className="absolute -right-4" style={{ top: '8px' }}>
                 <Flag className="h-4 w-4 text-green-600" />
               </div>
             </div>
