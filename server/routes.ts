@@ -11,6 +11,7 @@ import { setupProjectOnlineRoutes } from "./services/projectOnline";
 import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus, getOrgIntegration } from "./services/microsoftPlanner";
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
+import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { db } from "./db";
 import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
@@ -8154,8 +8155,32 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!Array.isArray(resourceIds)) {
         return res.status(400).json({ message: "resourceIds must be an array" });
       }
+      
+      // Get existing assignments before update to find new ones
+      const existingAssignments = await storage.getTaskResourceAssignments(taskId);
+      const existingResourceIds = new Set(existingAssignments.map(a => a.resourceId));
+      
       await storage.updateTaskResourceAssignments(taskId, resourceIds);
       const assignments = await storage.getTaskResourceAssignments(taskId);
+      
+      // Create notifications for newly assigned resources
+      const user = req.user as any;
+      if (user) {
+        const newResourceIds = resourceIds.filter((id: number) => !existingResourceIds.has(id));
+        for (const resourceId of newResourceIds) {
+          try {
+            await createTaskAssignmentNotification(
+              taskId,
+              resourceId,
+              user.id,
+              user.name || user.email || 'A team member'
+            );
+          } catch (notifErr) {
+            console.error('Error creating task assignment notification:', notifErr);
+          }
+        }
+      }
+      
       res.json(assignments);
     } catch (err) {
       res.status(500).json({ message: "Error updating task assignments" });
@@ -8183,8 +8208,36 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!Array.isArray(resourceIds)) {
         return res.status(400).json({ message: "resourceIds must be an array" });
       }
+      
+      // Get existing assignments before update to find new ones
+      const existingAssignments = await storage.getIssueResourceAssignments(issueId);
+      const existingResourceIds = new Set(existingAssignments.map(a => a.resourceId));
+      
       await storage.updateIssueResourceAssignments(issueId, resourceIds);
       const assignments = await storage.getIssueResourceAssignments(issueId);
+      
+      // Create notifications for newly assigned resources
+      const user = req.user as any;
+      if (user) {
+        const newResourceIds = resourceIds.filter((id: number) => !existingResourceIds.has(id));
+        for (const resourceId of newResourceIds) {
+          try {
+            // Get the resource to find their userId
+            const resource = await db.select().from(resources).where(eq(resources.id, resourceId)).limit(1);
+            if (resource[0]?.userId) {
+              await createRiskAssignmentNotification(
+                issueId,
+                resource[0].userId,
+                user.id,
+                user.name || user.email || 'A team member'
+              );
+            }
+          } catch (notifErr) {
+            console.error('Error creating issue assignment notification:', notifErr);
+          }
+        }
+      }
+      
       res.json(assignments);
     } catch (err) {
       res.status(500).json({ message: "Error updating issue assignments" });
@@ -8212,8 +8265,36 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!Array.isArray(resourceIds)) {
         return res.status(400).json({ message: "resourceIds must be an array" });
       }
+      
+      // Get existing assignments before update to find new ones
+      const existingAssignments = await storage.getRiskResourceAssignments(riskId);
+      const existingResourceIds = new Set(existingAssignments.map(a => a.resourceId));
+      
       await storage.updateRiskResourceAssignments(riskId, resourceIds);
       const assignments = await storage.getRiskResourceAssignments(riskId);
+      
+      // Create notifications for newly assigned resources
+      const user = req.user as any;
+      if (user) {
+        const newResourceIds = resourceIds.filter((id: number) => !existingResourceIds.has(id));
+        for (const resourceId of newResourceIds) {
+          try {
+            // Get the resource to find their userId
+            const resource = await db.select().from(resources).where(eq(resources.id, resourceId)).limit(1);
+            if (resource[0]?.userId) {
+              await createRiskAssignmentNotification(
+                riskId,
+                resource[0].userId,
+                user.id,
+                user.name || user.email || 'A team member'
+              );
+            }
+          } catch (notifErr) {
+            console.error('Error creating risk assignment notification:', notifErr);
+          }
+        }
+      }
+      
       res.json(assignments);
     } catch (err) {
       res.status(500).json({ message: "Error updating risk assignments" });
