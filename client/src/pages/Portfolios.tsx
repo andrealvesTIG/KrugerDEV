@@ -87,6 +87,22 @@ export default function Portfolios() {
       .slice(0, limit) || [];
   };
 
+  const getPortfolioBudget = (portfolioId: number) => {
+    // First check if portfolio has its own budget set
+    const portfolio = portfolios?.find(p => p.id === portfolioId);
+    if (portfolio?.budgetAllocated && Number(portfolio.budgetAllocated) > 0) {
+      return {
+        allocated: Number(portfolio.budgetAllocated),
+        spent: Number(portfolio.budgetSpent || 0)
+      };
+    }
+    // Otherwise, calculate from child projects
+    const portfolioProjects = projects?.filter(p => p.portfolioId === portfolioId) || [];
+    const totalBudget = portfolioProjects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
+    const totalSpent = portfolioProjects.reduce((sum, p) => sum + Number(p.actualCost || 0), 0);
+    return { allocated: totalBudget, spent: totalSpent };
+  };
+
   const getHealthColor = (health: string | null) => {
     switch (health) {
       case 'Green': return 'bg-emerald-500';
@@ -221,9 +237,18 @@ export default function Portfolios() {
                         <div className="flex items-center gap-1">
                           <DollarSign className="h-3 w-3" />
                           <span>
-                            {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 
-                              ? `$${(Number(portfolio.budgetSpent || 0) / 1000).toFixed(0)}k / $${(Number(portfolio.budgetAllocated) / 1000).toFixed(0)}k`
-                              : 'No budget'}
+                            {(() => {
+                              const budget = getPortfolioBudget(portfolio.id);
+                              if (budget.allocated > 0) {
+                                const formatBudget = (val: number) => {
+                                  if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
+                                  if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
+                                  return `$${val.toFixed(0)}`;
+                                };
+                                return `${formatBudget(budget.spent)} / ${formatBudget(budget.allocated)}`;
+                              }
+                              return 'No budget';
+                            })()}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
