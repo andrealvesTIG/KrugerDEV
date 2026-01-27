@@ -630,6 +630,48 @@ export const statusReportHistory = pgTable("status_report_history", {
   isDemo: boolean("is_demo").default(false),
 });
 
+// Project Invoices for tracking billing
+export const projectInvoices = pgTable("project_invoices", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  invoiceNumber: text("invoice_number"), // Invoice reference number
+  title: text("title").notNull(), // Brief description
+  description: text("description"), // Detailed description
+  amount: numeric("amount").default("0"), // Invoice amount
+  currency: text("currency").default("USD"),
+  status: text("status").default("Draft"), // Draft, Sent, Paid, Overdue, Cancelled
+  invoiceDate: date("invoice_date"), // Date of invoice
+  dueDate: date("due_date"), // Payment due date
+  paidDate: date("paid_date"), // Actual payment date
+  vendorName: text("vendor_name"), // Vendor or client name
+  vendorEmail: text("vendor_email"),
+  // File attachment fields
+  fileName: text("file_name"), // Original file name if uploaded
+  fileUrl: text("file_url"), // URL/path to the document in object storage
+  fileSize: integer("file_size"), // Size in bytes
+  mimeType: text("mime_type"), // File MIME type
+  // Metadata
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+});
+
+// Invoice Notes (tracking notes with timestamps like billable status comments)
+export const invoiceNotes = pgTable("invoice_notes", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").references(() => projectInvoices.id).notNull(),
+  status: text("status"), // The invoice status at time of note
+  note: text("note").notNull(),
+  userId: varchar("user_id").references(() => users.id),
+  userName: text("user_name"), // User's display name at time of note
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Project Financials (Budget/Plan/Actuals with CapEx/OpEx breakdown)
 export const projectFinancials = pgTable("project_financials", {
   id: serial("id").primaryKey(),
@@ -1065,6 +1107,8 @@ export const insertProjectDocumentSchema = createInsertSchema(projectDocuments).
 export const insertProjectCommentSchema = createInsertSchema(projectComments).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBillableStatusCommentSchema = createInsertSchema(billableStatusComments).omit({ id: true, createdAt: true });
 export const insertHealthStatusHistorySchema = createInsertSchema(healthStatusHistory).omit({ id: true, createdAt: true });
+export const insertProjectInvoiceSchema = createInsertSchema(projectInvoices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertInvoiceNoteSchema = createInsertSchema(invoiceNotes).omit({ id: true, createdAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1168,6 +1212,12 @@ export type InsertBillableStatusComment = z.infer<typeof insertBillableStatusCom
 
 export type HealthStatusHistory = typeof healthStatusHistory.$inferSelect;
 export type InsertHealthStatusHistory = z.infer<typeof insertHealthStatusHistorySchema>;
+
+export type ProjectInvoice = typeof projectInvoices.$inferSelect;
+export type InsertProjectInvoice = z.infer<typeof insertProjectInvoiceSchema>;
+
+export type InvoiceNote = typeof invoiceNotes.$inferSelect;
+export type InsertInvoiceNote = z.infer<typeof insertInvoiceNoteSchema>;
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
