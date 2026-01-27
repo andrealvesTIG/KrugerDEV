@@ -50,7 +50,10 @@ export default function Projects() {
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [filterView, setFilterView] = useState<ProjectFilterView>("all");
-  const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("createdAt");
+  const [sortBy, setSortBy] = useState<"name" | "createdAt" | "startDate" | "updatedAt" | "priority">("createdAt");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [healthFilter, setHealthFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: externalProjects } = useExternalProjects();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -321,12 +324,22 @@ export default function Projects() {
           break;
       }
       
-      return matchesSearch && matchesSource && matchesPortfolio && matchesFilterView;
+      const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+      const matchesHealth = healthFilter === "all" || p.health === healthFilter;
+      const matchesPriority = priorityFilter === "all" || p.priority === priorityFilter;
+      
+      return matchesSearch && matchesSource && matchesPortfolio && matchesFilterView && matchesStatus && matchesHealth && matchesPriority;
     });
+    
+    const priorityOrder: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
     
     // Then sort (most recent first for all date-based sorts)
     return [...filtered].sort((a, b) => {
-      if (sortBy === "createdAt") {
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name);
+      } else if (sortBy === "priority") {
+        return (priorityOrder[a.priority || "Medium"] || 2) - (priorityOrder[b.priority || "Medium"] || 2);
+      } else if (sortBy === "createdAt") {
         const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return dateB - dateA; // Most recent first
@@ -342,7 +355,7 @@ export default function Projects() {
       }
       return 0;
     });
-  }, [projects, externalProjects, search, sourceFilter, sortBy, selectedPortfolio, filterView, user?.id]);
+  }, [projects, externalProjects, search, sourceFilter, sortBy, selectedPortfolio, filterView, user?.id, statusFilter, healthFilter, priorityFilter]);
 
   const handleStatusChange = (projectId: number, newStatus: string) => {
     updateProject.mutate(
@@ -454,31 +467,64 @@ export default function Projects() {
             </SelectContent>
           </Select>
         </div>
+        {/* Status Filter */}
+        <div className="w-full sm:w-[140px]">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger data-testid="select-filter-status">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Initiation">Initiation</SelectItem>
+              <SelectItem value="Planning">Planning</SelectItem>
+              <SelectItem value="Execution">Execution</SelectItem>
+              <SelectItem value="Monitoring">Monitoring</SelectItem>
+              <SelectItem value="Closing">Closing</SelectItem>
+              <SelectItem value="Billing">Billing</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Health Filter */}
+        <div className="w-full sm:w-[130px]">
+          <Select value={healthFilter} onValueChange={setHealthFilter}>
+            <SelectTrigger data-testid="select-filter-health">
+              <SelectValue placeholder="Health" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Health</SelectItem>
+              <SelectItem value="Green">Green</SelectItem>
+              <SelectItem value="Yellow">Yellow</SelectItem>
+              <SelectItem value="Red">Red</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Priority Filter */}
+        <div className="w-full sm:w-[130px]">
+          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <SelectTrigger data-testid="select-filter-priority">
+              <SelectValue placeholder="Priority" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Priority</SelectItem>
+              <SelectItem value="Low">Low</SelectItem>
+              <SelectItem value="Medium">Medium</SelectItem>
+              <SelectItem value="High">High</SelectItem>
+              <SelectItem value="Critical">Critical</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         {/* Sort Dropdown */}
-        <div className="w-full sm:w-[180px]">
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "createdAt" | "startDate" | "updatedAt")}>
+        <div className="w-full sm:w-[160px]">
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "name" | "createdAt" | "startDate" | "updatedAt" | "priority")}>
             <SelectTrigger data-testid="select-sort-by">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="createdAt">
-                <span className="flex items-center gap-2">
-                  <Calendar className="h-3 w-3" />
-                  Date Created
-                </span>
-              </SelectItem>
-              <SelectItem value="startDate">
-                <span className="flex items-center gap-2">
-                  <Calendar className="h-3 w-3" />
-                  Start Date
-                </span>
-              </SelectItem>
-              <SelectItem value="updatedAt">
-                <span className="flex items-center gap-2">
-                  <Calendar className="h-3 w-3" />
-                  Date Updated
-                </span>
-              </SelectItem>
+              <SelectItem value="name">Name (A-Z)</SelectItem>
+              <SelectItem value="priority">Priority</SelectItem>
+              <SelectItem value="createdAt">Date Created</SelectItem>
+              <SelectItem value="startDate">Start Date</SelectItem>
+              <SelectItem value="updatedAt">Date Updated</SelectItem>
             </SelectContent>
           </Select>
         </div>
