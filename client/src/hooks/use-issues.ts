@@ -104,3 +104,26 @@ export function useIssueHistory(issueId: number) {
     enabled: issueId > 0,
   });
 }
+
+export function useEscalateIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, escalate }: { id: number; projectId: number; escalate: boolean }) => {
+      const res = await fetch(`/api/issues/${id}/escalate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escalate }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to update escalation status");
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.issues.list.path, variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: [api.issues.listAll.path] });
+    },
+  });
+}

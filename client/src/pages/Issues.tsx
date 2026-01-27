@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory } from "@/hooks/use-issues";
+import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory, useEscalateIssue } from "@/hooks/use-issues";
 import { useCreateRisk, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { useProjects } from "@/hooks/use-projects";
 import { useOrganization } from "@/hooks/use-organization";
@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users, AlertTriangle, History, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users, AlertTriangle, History, ChevronDown, ChevronUp, ArrowUpToLine, ArrowDownFromLine } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -106,6 +106,7 @@ export default function Issues() {
   const aiMitigationSuggestion = useAiMitigationSuggestion();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
+  const escalateIssue = useEscalateIssue();
   const updateIssueResources = useUpdateIssueResourceAssignments();
   const { toast } = useToast();
   const [deleteIssueData, setDeleteIssueData] = useState<{ id: number; projectId: number } | null>(null);
@@ -679,6 +680,12 @@ export default function Issues() {
                         <Badge variant="outline" className={cn("text-xs", statusColors[issue.status as keyof typeof statusColors])}>
                           {issue.status}
                         </Badge>
+                        {issue.escalatedToPortfolio && (
+                          <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                            <ArrowUpToLine className="h-3 w-3 mr-1" />
+                            Escalated
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground">{issue.description}</p>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -725,6 +732,45 @@ export default function Issues() {
                           Convert to Issue
                         </DropdownMenuItem>
                       )}
+                      {(() => {
+                        const project = projects?.find(p => p.id === issue.projectId);
+                        if (!project?.portfolioId) return null;
+                        return (
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              escalateIssue.mutate(
+                                { id: issue.id, projectId: issue.projectId, escalate: !issue.escalatedToPortfolio },
+                                {
+                                  onSuccess: () => {
+                                    toast({ 
+                                      title: "Success", 
+                                      description: issue.escalatedToPortfolio 
+                                        ? "De-escalated from portfolio" 
+                                        : "Escalated to portfolio" 
+                                    });
+                                  },
+                                  onError: (err: any) => {
+                                    toast({ title: "Error", description: err.message, variant: "destructive" });
+                                  }
+                                }
+                              );
+                            }}
+                            data-testid={`menu-escalate-issue-${issue.id}`}
+                          >
+                            {issue.escalatedToPortfolio ? (
+                              <>
+                                <ArrowDownFromLine className="h-4 w-4 mr-2" />
+                                De-escalate from Portfolio
+                              </>
+                            ) : (
+                              <>
+                                <ArrowUpToLine className="h-4 w-4 mr-2" />
+                                Escalate to Portfolio
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        );
+                      })()}
                       <DropdownMenuItem 
                         onClick={() => setDeleteIssueData({ id: issue.id, projectId: issue.projectId })}
                         className="text-red-600 focus:text-red-600"
