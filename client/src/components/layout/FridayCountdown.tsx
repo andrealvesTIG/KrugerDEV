@@ -68,7 +68,7 @@ export function FridayCountdown() {
       title="Time until Friday"
       data-testid="friday-countdown"
     >
-      <img src={running_man} alt="Running" className="h-6 w-6 object-contain" />
+      <img src={`${running_man}?t=${Date.now()}`} alt="Running" className="h-10 w-10 object-contain" />
       <Clock className="h-3.5 w-3.5" />
       <span>{pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
       <span className="text-muted-foreground">to Friday</span>
