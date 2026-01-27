@@ -39,9 +39,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -949,16 +949,59 @@ function ProjectTimeline({
   const [isOpen, setIsOpen] = useState(true);
   const { data: tasks } = useTasks(projectId);
   
+  // Hidden tasks state - persisted per project in localStorage
+  const getHiddenTasksKey = () => `project-timeline-hidden-${projectId}`;
+  const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<number>>(() => {
+    try {
+      const saved = localStorage.getItem(getHiddenTasksKey());
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  
+  const hideTaskFromTimeline = (taskId: number) => {
+    const newHidden = new Set(hiddenTaskIds);
+    newHidden.add(taskId);
+    setHiddenTaskIds(newHidden);
+    try {
+      localStorage.setItem(getHiddenTasksKey(), JSON.stringify([...newHidden]));
+    } catch {}
+  };
+  
+  const showTaskOnTimeline = (taskId: number) => {
+    const newHidden = new Set(hiddenTaskIds);
+    newHidden.delete(taskId);
+    setHiddenTaskIds(newHidden);
+    try {
+      localStorage.setItem(getHiddenTasksKey(), JSON.stringify([...newHidden]));
+    } catch {}
+  };
+  
+  const showAllTasks = () => {
+    setHiddenTaskIds(new Set());
+    try {
+      localStorage.removeItem(getHiddenTasksKey());
+    } catch {}
+  };
+  
   // Parse project dates
   const projectStart = startDate ? parseISO(startDate) : null;
   const projectEnd = endDate ? parseISO(endDate) : null;
   
-  // Get only tasks marked as milestones
+  // Get tasks marked as milestones OR with 0 duration (start == end date)
   const allEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
     
-    // Add tasks marked as milestones (use end date or start date as the milestone date)
-    tasks?.filter(t => t.isMilestone && (t.endDate || t.startDate)).forEach((t) => {
+    // Add tasks that are milestones OR have 0 duration (start date == end date)
+    tasks?.filter(t => {
+      if (!t.startDate && !t.endDate) return false;
+      // Include if marked as milestone
+      if (t.isMilestone) return true;
+      // Include if 0 duration (start == end)
+      if (t.startDate && t.endDate && t.startDate === t.endDate) return true;
+      return false;
+    }).forEach((t) => {
       const dateStr = t.endDate || t.startDate;
       if (!dateStr) return;
       events.push({
@@ -973,6 +1016,16 @@ function ProjectTimeline({
     // Sort by date
     return events.sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [tasks]);
+  
+  // Filter out hidden tasks for display
+  const visibleEvents = useMemo(() => {
+    return allEvents.filter(e => !hiddenTaskIds.has(e.id));
+  }, [allEvents, hiddenTaskIds]);
+  
+  // Get hidden events for the "show hidden" dropdown
+  const hiddenEvents = useMemo(() => {
+    return allEvents.filter(e => hiddenTaskIds.has(e.id));
+  }, [allEvents, hiddenTaskIds]);
   
   // Calculate timeline range
   const timelineRange = useMemo(() => {
@@ -1101,7 +1154,7 @@ function ProjectTimeline({
               )}
               
               {/* Milestone markers */}
-              {allEvents.map((event) => {
+              {visibleEvents.map((event) => {
                 const position = (differenceInDays(event.date, timelineRange.start) / timelineRange.totalDays) * 100;
                 
                 if (position < 0 || position > 100) return null;
@@ -1120,7 +1173,7 @@ function ProjectTimeline({
                         data-testid={`timeline-milestone-${event.id}`}
                       />
                     </TooltipTrigger>
-                    <TooltipContent>
+                    <TooltipContent className="space-y-2">
                       <button
                         className="font-medium text-primary hover:underline cursor-pointer text-left"
                         onClick={() => onMilestoneClick?.(event.id)}
@@ -1132,6 +1185,19 @@ function ProjectTimeline({
                         {format(event.date, 'MMM d, yyyy')}
                         {event.completed && ' - Completed'}
                       </p>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="w-full h-6 text-xs text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          hideTaskFromTimeline(event.id);
+                        }}
+                        data-testid={`button-hide-milestone-${event.id}`}
+                      >
+                        <EyeOff className="h-3 w-3 mr-1" />
+                        Hide from timeline
+                      </Button>
                     </TooltipContent>
                   </Tooltip>
                 );
@@ -1159,13 +1225,45 @@ function ProjectTimeline({
                   <div className="w-2 h-2 bg-red-500 rounded-sm rotate-45" />
                   <span>Pending</span>
                 </div>
+                {hiddenEvents.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" data-testid="button-show-hidden-milestones">
+                        <EyeOff className="h-3 w-3" />
+                        {hiddenEvents.length} hidden
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-64">
+                      <DropdownMenuLabel className="text-xs">Hidden from timeline</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {hiddenEvents.map((event) => (
+                        <DropdownMenuItem
+                          key={event.id}
+                          onClick={() => showTaskOnTimeline(event.id)}
+                          className="text-xs cursor-pointer"
+                          data-testid={`button-show-milestone-${event.id}`}
+                        >
+                          <Eye className="h-3 w-3 mr-2" />
+                          <span className="truncate flex-1">{event.title}</span>
+                          <span className="text-muted-foreground ml-2">{format(event.date, 'MMM d')}</span>
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={showAllTasks} className="text-xs cursor-pointer" data-testid="button-show-all-milestones">
+                        <Eye className="h-3 w-3 mr-2" />
+                        Show all
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
                 <div className="flex items-center gap-1.5">
                   <div className="w-3 h-0.5 bg-green-600" />
                   <span>Today</span>
                 </div>
               </div>
               <span className="text-muted-foreground/70">
-                {allEvents.length} milestone{allEvents.length !== 1 ? 's' : ''}
+                {visibleEvents.length} milestone{visibleEvents.length !== 1 ? 's' : ''}
+                {hiddenEvents.length > 0 && ` (${hiddenEvents.length} hidden)`}
               </span>
             </div>
           </CardContent>
