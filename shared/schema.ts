@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, numeric, varchar, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, numeric, varchar, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -72,7 +72,9 @@ export const organizationMembers = pgTable("organization_members", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   role: text("role").notNull().default("member"), // 'org_admin', 'member', 'viewer'
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  uniqueOrgUser: uniqueIndex("unique_org_user").on(table.organizationId, table.userId),
+}));
 
 // Organization Invites (Pending invitations by email)
 export const organizationInvites = pgTable("organization_invites", {
@@ -86,7 +88,9 @@ export const organizationInvites = pgTable("organization_invites", {
   expiresAt: timestamp("expires_at"), // When the invite expires
   createdAt: timestamp("created_at").defaultNow(),
   acceptedAt: timestamp("accepted_at"),
-});
+}, (table) => ({
+  uniquePendingInvite: uniqueIndex("unique_pending_invite").on(table.organizationId, table.email),
+}));
 
 // Organization Access Requests (Users requesting admin access)
 export const organizationAccessRequests = pgTable("organization_access_requests", {
@@ -99,7 +103,9 @@ export const organizationAccessRequests = pgTable("organization_access_requests"
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  uniqueAccessRequest: uniqueIndex("unique_access_request").on(table.organizationId, table.userId),
+}));
 
 // External Shares - Cross-organization object sharing
 // When a user from OrgA assigns a resource from OrgB, the object is "shared" externally
@@ -585,10 +591,10 @@ export const notifications = pgTable("notifications", {
   message: text("message").notNull(),
   projectId: integer("project_id").references(() => projects.id),
   portfolioId: integer("portfolio_id").references(() => portfolios.id),
-  taskId: integer("task_id"),
-  riskIssueId: integer("risk_issue_id"),
-  milestoneId: integer("milestone_id"),
-  commentId: integer("comment_id"),
+  taskId: integer("task_id").references(() => tasks.id),
+  riskIssueId: integer("risk_issue_id"), // Polymorphic: can reference risks or issues
+  milestoneId: integer("milestone_id").references(() => milestones.id),
+  commentId: integer("comment_id").references(() => projectComments.id),
   fromUserId: varchar("from_user_id").references(() => users.id),
   fromUserName: text("from_user_name"),
   severity: text("severity").default("info"), // info, warning, critical
