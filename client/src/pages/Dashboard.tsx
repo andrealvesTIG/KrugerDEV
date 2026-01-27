@@ -57,6 +57,7 @@ import {
   CalendarDays,
   FileBarChart,
   Timer,
+  GripVertical,
 } from "lucide-react";
 import { SiTableau, SiLooker, SiMetabase } from "react-icons/si";
 import { useOrganization } from "@/hooks/use-organization";
@@ -179,11 +180,13 @@ type UnifiedTab = {
 interface SortableTabProps {
   tab: UnifiedTab;
   isAdmin: boolean;
+  isReorderMode: boolean;
   activeSubmenu: string;
   onSubmenuChange: (submenuId: string) => void;
 }
 
-function SortableTab({ tab, isAdmin, activeSubmenu, onSubmenuChange }: SortableTabProps) {
+function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChange }: SortableTabProps) {
+  const canDrag = isAdmin && isReorderMode;
   const {
     attributes,
     listeners,
@@ -191,13 +194,13 @@ function SortableTab({ tab, isAdmin, activeSubmenu, onSubmenuChange }: SortableT
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: tab.id, disabled: !isAdmin });
+  } = useSortable({ id: tab.id, disabled: !canDrag });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    cursor: isAdmin ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
+    cursor: canDrag ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
   };
 
   if (tab.type === 'custom') {
@@ -207,8 +210,11 @@ function SortableTab({ tab, isAdmin, activeSubmenu, onSubmenuChange }: SortableT
         ref={setNodeRef}
         style={style}
         className="flex items-center"
-        {...(isAdmin ? { ...attributes, ...listeners } : {})}
+        {...(canDrag ? { ...attributes, ...listeners } : {})}
       >
+        {canDrag && (
+          <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -232,8 +238,11 @@ function SortableTab({ tab, isAdmin, activeSubmenu, onSubmenuChange }: SortableT
       ref={setNodeRef}
       style={style}
       className="flex items-center"
-      {...(isAdmin ? { ...attributes, ...listeners } : {})}
+      {...(canDrag ? { ...attributes, ...listeners } : {})}
     >
+      {canDrag && (
+        <GripVertical className="h-4 w-4 text-muted-foreground mr-1" />
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -283,6 +292,7 @@ export default function Dashboard() {
   const [showPowerBIDialog, setShowPowerBIDialog] = useState(false);
   const [showComingSoonDialog, setShowComingSoonDialog] = useState<string | null>(null);
   const [selectedCustomDashboard, setSelectedCustomDashboard] = useState<number | null>(null);
+  const [isReorderMode, setIsReorderMode] = useState(false);
   const [hiddenCustomDashboards, setHiddenCustomDashboards] = useState<number[]>(() => {
     const stored = localStorage.getItem(`hidden-custom-dashboards-${currentOrganization?.id}`);
     return stored ? JSON.parse(stored) : [];
@@ -403,11 +413,12 @@ export default function Dashboard() {
     return { visibleTabs: visible, hiddenTabs: hidden };
   }, [tabOrderData?.tabOrder, tabOrderData?.hiddenTabs, customDashboards, hiddenCustomDashboards]);
 
-  // DnD sensors
-  const sensors = useSensors(
+  // DnD sensors - only used when reorder mode is enabled
+  const activeSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { delay: 1000, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+  const noSensors = useSensors();
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -506,7 +517,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="w-full flex flex-wrap items-center h-auto gap-1 bg-muted/50 p-1 rounded-lg" data-testid="dashboard-tabs">
         <DndContext
-          sensors={sensors}
+          sensors={isOrgAdmin && isReorderMode ? activeSensors : noSensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
@@ -519,12 +530,13 @@ export default function Dashboard() {
                 key={tab.id}
                 tab={tab}
                 isAdmin={isOrgAdmin}
+                isReorderMode={isReorderMode}
                 activeSubmenu={activeSubmenu}
                 onSubmenuChange={handleSubmenuChange}
               />
             ))}
-            </SortableContext>
-          </DndContext>
+          </SortableContext>
+        </DndContext>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -538,6 +550,16 @@ export default function Dashboard() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64 min-w-64">
+              {isOrgAdmin && (
+                <DropdownMenuItem 
+                  onClick={() => setIsReorderMode(!isReorderMode)}
+                  data-testid="menu-item-reorder"
+                >
+                  <GripVertical className="h-4 w-4 mr-2" />
+                  {isReorderMode ? 'Done Reordering' : 'Reorder'}
+                </DropdownMenuItem>
+              )}
+              {isOrgAdmin && <DropdownMenuSeparator />}
               <DropdownMenuItem 
                 onClick={() => setShowCreateDialog(true)}
                 data-testid="menu-item-create-dashboard"
