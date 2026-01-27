@@ -865,6 +865,9 @@ function PortfolioProjectsGanttView({ projects }: { projects: Project[] }) {
 
 function RisksTab({ portfolioId }: { portfolioId: number }) {
   const { data: risks, isLoading } = usePortfolioRisks(portfolioId);
+  const [, setLocation] = useLocation();
+  const [sortBy, setSortBy] = useState<"title" | "probability" | "impact" | "status">("probability");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
@@ -880,14 +883,54 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
     High: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
   };
 
+  const probabilityOrder: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+  const impactOrder: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+
+  const filteredRisks = risks
+    ?.filter(risk => statusFilter === "all" || risk.status === statusFilter)
+    .sort((a, b) => {
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      if (sortBy === "probability") return (probabilityOrder[a.probability || "Medium"] || 1) - (probabilityOrder[b.probability || "Medium"] || 1);
+      if (sortBy === "impact") return (impactOrder[a.impact || "Medium"] || 1) - (impactOrder[b.impact || "Medium"] || 1);
+      return a.status?.localeCompare(b.status || "") || 0;
+    });
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-amber-600" />
-          Portfolio Risks
-        </CardTitle>
-        <CardDescription>Aggregated risks from all projects in this portfolio</CardDescription>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Portfolio Risks
+            </CardTitle>
+            <CardDescription>Aggregated risks from all projects in this portfolio</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[130px]" data-testid="select-risk-filter-status">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Open">Open</SelectItem>
+                <SelectItem value="Mitigated">Mitigated</SelectItem>
+                <SelectItem value="Closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <SelectTrigger className="w-[140px]" data-testid="select-risk-sort-by">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="probability">Probability</SelectItem>
+                <SelectItem value="impact">Impact</SelectItem>
+                <SelectItem value="title">Title (A-Z)</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">
@@ -902,8 +945,13 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
               </tr>
             </thead>
             <tbody>
-              {risks?.map((risk: PortfolioRisk) => (
-                <tr key={risk.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-risk-${risk.id}`}>
+              {filteredRisks?.map((risk: PortfolioRisk) => (
+                <tr 
+                  key={risk.id} 
+                  className="border-b hover:bg-muted/30 transition-colors cursor-pointer" 
+                  data-testid={`row-risk-${risk.id}`}
+                  onClick={() => setLocation(`/projects/${risk.projectId}`)}
+                >
                   <td className="p-3">
                     <div>
                       <p className="font-medium">{risk.title}</p>
@@ -928,7 +976,7 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
               ))}
             </tbody>
           </table>
-          {risks?.length === 0 && (
+          {filteredRisks?.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               No risks recorded across portfolio projects.
             </div>
@@ -941,6 +989,9 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
 
 function IssuesTab({ portfolioId }: { portfolioId: number }) {
   const { data: issues, isLoading } = usePortfolioIssues(portfolioId);
+  const [, setLocation] = useLocation();
+  const [sortBy, setSortBy] = useState<"title" | "priority" | "status">("priority");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
@@ -958,14 +1009,53 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
     Closed: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   };
 
+  const priorityOrder: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+  const statusOrder: Record<string, number> = { Open: 0, "In Progress": 1, Resolved: 2, Closed: 3 };
+
+  const filteredIssues = issues
+    ?.filter(issue => statusFilter === "all" || issue.status === statusFilter)
+    .sort((a, b) => {
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      if (sortBy === "priority") return (priorityOrder[a.priority || "Medium"] || 2) - (priorityOrder[b.priority || "Medium"] || 2);
+      return (statusOrder[a.status || "Open"] || 0) - (statusOrder[b.status || "Open"] || 0);
+    });
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bug className="h-5 w-5 text-rose-600" />
-          Portfolio Issues
-        </CardTitle>
-        <CardDescription>Aggregated issues from all projects in this portfolio</CardDescription>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Bug className="h-5 w-5 text-rose-600" />
+              Portfolio Issues
+            </CardTitle>
+            <CardDescription>Aggregated issues from all projects in this portfolio</CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[130px]" data-testid="select-issue-filter-status">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Open">Open</SelectItem>
+                <SelectItem value="In Progress">In Progress</SelectItem>
+                <SelectItem value="Resolved">Resolved</SelectItem>
+                <SelectItem value="Closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <SelectTrigger className="w-[140px]" data-testid="select-issue-sort-by">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="title">Title (A-Z)</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">
@@ -981,8 +1071,13 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
               </tr>
             </thead>
             <tbody>
-              {issues?.map((issue: PortfolioIssue) => (
-                <tr key={issue.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-issue-${issue.id}`}>
+              {filteredIssues?.map((issue: PortfolioIssue) => (
+                <tr 
+                  key={issue.id} 
+                  className="border-b hover:bg-muted/30 transition-colors cursor-pointer" 
+                  data-testid={`row-issue-${issue.id}`}
+                  onClick={() => setLocation(`/projects/${issue.projectId}`)}
+                >
                   <td className="p-3">
                     <div>
                       <p className="font-medium">{issue.title}</p>
@@ -1006,7 +1101,7 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
               ))}
             </tbody>
           </table>
-          {issues?.length === 0 && (
+          {filteredIssues?.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               No issues recorded across portfolio projects.
             </div>

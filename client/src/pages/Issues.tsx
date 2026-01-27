@@ -100,6 +100,7 @@ export default function Issues() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "issue" | "risk">("all");
+  const [sortBy, setSortBy] = useState<"title" | "priority" | "status" | "createdAt">("createdAt");
   const createIssue = useCreateIssue();
   const createRisk = useCreateRisk();
   const convertRiskToIssue = useConvertRiskToIssue();
@@ -267,17 +268,35 @@ export default function Issues() {
     });
   };
 
-  const filteredIssues = issues?.filter(issue => {
-    const matchesSearch = issue.title.toLowerCase().includes(search.toLowerCase()) ||
-      issue.description?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || issue.status === statusFilter;
-    const matchesPriority = priorityFilter === "all" || issue.priority === priorityFilter;
-    // Handle both null and "issue" as regular issues (null is legacy, "issue" is new format)
-    const matchesType = typeFilter === "all" || 
-      (typeFilter === "issue" && (issue.itemType === null || issue.itemType === "issue")) ||
-      (typeFilter === "risk" && issue.itemType === "risk");
-    return matchesSearch && matchesStatus && matchesPriority && matchesType;
-  });
+  const priorityOrder: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+  const statusOrder: Record<string, number> = { Open: 0, "In Progress": 1, Resolved: 2, Closed: 3 };
+
+  const filteredIssues = issues
+    ?.filter(issue => {
+      const matchesSearch = issue.title.toLowerCase().includes(search.toLowerCase()) ||
+        issue.description?.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === "all" || issue.status === statusFilter;
+      const matchesPriority = priorityFilter === "all" || issue.priority === priorityFilter;
+      // Handle both null and "issue" as regular issues (null is legacy, "issue" is new format)
+      const matchesType = typeFilter === "all" || 
+        (typeFilter === "issue" && (issue.itemType === null || issue.itemType === "issue")) ||
+        (typeFilter === "risk" && issue.itemType === "risk");
+      return matchesSearch && matchesStatus && matchesPriority && matchesType;
+    })
+    .sort((a, b) => {
+      if (sortBy === "title") {
+        return a.title.localeCompare(b.title);
+      } else if (sortBy === "priority") {
+        return (priorityOrder[a.priority || "Medium"] || 2) - (priorityOrder[b.priority || "Medium"] || 2);
+      } else if (sortBy === "status") {
+        return (statusOrder[a.status || "Open"] || 0) - (statusOrder[b.status || "Open"] || 0);
+      } else {
+        // Sort by createdAt - newest first
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      }
+    });
 
   const getProjectName = (projectId: number) => {
     return projects?.find(p => p.id === projectId)?.name || "Unknown Project";
@@ -639,6 +658,19 @@ export default function Issues() {
               <SelectItem value="Medium">Medium</SelectItem>
               <SelectItem value="High">High</SelectItem>
               <SelectItem value="Critical">Critical</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full sm:w-[160px]">
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "title" | "priority" | "status" | "createdAt")}>
+            <SelectTrigger data-testid="select-sort-by">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="createdAt">Newest First</SelectItem>
+              <SelectItem value="title">Title (A-Z)</SelectItem>
+              <SelectItem value="priority">Priority</SelectItem>
+              <SelectItem value="status">Status</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List, Users, X, Calendar, DollarSign, Building2, Target } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,6 +29,8 @@ import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
+type SortOption = "name" | "createdAt" | "projectCount";
+
 export default function Portfolios() {
   const { currentOrganization } = useOrganization();
   const { data: portfolios, isLoading } = usePortfolios(currentOrganization?.id);
@@ -37,6 +40,8 @@ export default function Portfolios() {
   const [deletePortfolioId, setDeletePortfolioId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [sortBy, setSortBy] = useState<SortOption>("createdAt");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
 
   const deletePortfolio = useMutation({
@@ -53,15 +58,27 @@ export default function Portfolios() {
     }
   });
 
+  const getProjectCountForPortfolioSort = (portfolioId: number) => {
+    return projects?.filter(p => p.portfolioId === portfolioId).length || 0;
+  };
+
   const filteredPortfolios = portfolios
-    ?.filter(p => 
-      p.name.toLowerCase().includes(search.toLowerCase()) || 
-      p.description?.toLowerCase().includes(search.toLowerCase())
-    )
+    ?.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
+        p.description?.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
     .sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return dateB - dateA;
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name);
+      } else if (sortBy === "projectCount") {
+        return getProjectCountForPortfolioSort(b.id) - getProjectCountForPortfolioSort(a.id);
+      } else {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      }
     });
 
   const getProjectCountForPortfolio = (portfolioId: number) => {
@@ -124,23 +141,47 @@ export default function Portfolios() {
             data-testid="input-search-portfolios"
           />
         </div>
-        <div className="flex items-center gap-1 border rounded-lg p-1 bg-muted/30">
-          <Button
-            variant={viewMode === "cards" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("cards")}
-            data-testid="button-view-cards"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "table" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("table")}
-            data-testid="button-view-table"
-          >
-            <List className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px]" data-testid="select-filter-status">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Active">Active</SelectItem>
+              <SelectItem value="On Hold">On Hold</SelectItem>
+              <SelectItem value="Completed">Completed</SelectItem>
+              <SelectItem value="Archived">Archived</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+            <SelectTrigger className="w-[160px]" data-testid="select-sort-by">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="createdAt">Newest First</SelectItem>
+              <SelectItem value="name">Name (A-Z)</SelectItem>
+              <SelectItem value="projectCount">Most Projects</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1 border rounded-lg p-1 bg-muted/30">
+            <Button
+              variant={viewMode === "cards" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("cards")}
+              data-testid="button-view-cards"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              data-testid="button-view-table"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
