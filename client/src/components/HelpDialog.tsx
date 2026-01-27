@@ -102,22 +102,36 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
     const uploadedUrls: string[] = [];
     
     for (const { file } of images) {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "help-tickets");
-
-      const response = await fetch("/api/upload", {
+      // Step 1: Request presigned URL
+      const urlResponse = await fetch("/api/uploads/request-url", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          contentType: file.type || "image/png",
+        }),
       });
 
-      if (!response.ok) {
+      if (!urlResponse.ok) {
+        throw new Error("Failed to get upload URL");
+      }
+
+      const { uploadURL, objectPath } = await urlResponse.json();
+
+      // Step 2: Upload file directly to presigned URL
+      const uploadResponse = await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type || "image/png" },
+      });
+
+      if (!uploadResponse.ok) {
         throw new Error("Failed to upload image");
       }
 
-      const data = await response.json();
-      uploadedUrls.push(data.url);
+      uploadedUrls.push(objectPath);
     }
 
     return uploadedUrls;
