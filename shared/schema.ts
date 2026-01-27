@@ -314,6 +314,10 @@ export const issues = pgTable("issues", {
   reviewerId: varchar("reviewer_id").references(() => users.id), // Risk reviewer
   identifiedDate: date("identified_date"), // When risk was identified
   proximity: text("proximity"), // Imminent, Near-term, Mid-term, Long-term
+  // Portfolio escalation fields
+  escalatedToPortfolio: boolean("escalated_to_portfolio").default(false), // Whether escalated to portfolio level
+  escalatedAt: timestamp("escalated_at"), // When it was escalated
+  escalatedBy: varchar("escalated_by").references(() => users.id), // Who escalated it
 });
 
 // Tasks (for Gantt Chart)
