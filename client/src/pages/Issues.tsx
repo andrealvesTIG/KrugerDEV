@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAllIssues, useCreateIssue, useUpdateIssue, useDeleteIssue, useIssueHistory, useEscalateIssue } from "@/hooks/use-issues";
 import { useCreateRisk, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { useProjects } from "@/hooks/use-projects";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { useUpdateIssueResourceAssignments, useIssueResourceAssignments, useResources } from "@/hooks/use-resources";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
@@ -93,6 +94,7 @@ export default function Issues() {
   const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useAllIssues(currentOrganization?.id);
   const { data: projects } = useProjects(currentOrganization?.id);
+  const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
@@ -800,6 +802,30 @@ export default function Issues() {
             <DialogTitle>Edit {editingIssue?.itemType === 'risk' ? 'Risk' : 'Issue'}</DialogTitle>
             <DialogDescription>Update the {editingIssue?.itemType === 'risk' ? 'risk' : 'issue'} details below</DialogDescription>
           </DialogHeader>
+          
+          {/* Project and Portfolio Links */}
+          {editingIssue && (() => {
+            const project = projects?.find(p => p.id === editingIssue.projectId);
+            const portfolio = project?.portfolioId ? portfolios?.find(pf => pf.id === project.portfolioId) : null;
+            return (
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground border-b pb-3">
+                <span>Project:</span>
+                <Link href={`/projects/${editingIssue.projectId}`} className="text-primary hover:underline font-medium" data-testid="link-issue-project">
+                  {project?.name || `Project #${editingIssue.projectId}`}
+                </Link>
+                {portfolio && (
+                  <>
+                    <span className="text-muted-foreground/50">|</span>
+                    <span>Portfolio:</span>
+                    <Link href={`/portfolios/${portfolio.id}`} className="text-primary hover:underline font-medium" data-testid="link-issue-portfolio">
+                      {portfolio.name}
+                    </Link>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
           <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label>Title</Label>
