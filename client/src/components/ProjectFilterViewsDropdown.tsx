@@ -34,25 +34,25 @@ const FILTER_OPTIONS: FilterOption[] = [
     id: "active",
     label: "Active Projects",
     icon: Users,
-    description: "All non-closed projects",
+    description: "Projects not in 'Closing' status",
   },
   {
     id: "my-active",
     label: "My Active Projects",
     icon: User,
-    description: "Your assigned active projects",
+    description: "Your assigned projects not in 'Closing' status",
   },
   {
     id: "closed",
     label: "Closed Projects",
     icon: Archive,
-    description: "All closed projects",
+    description: "Projects with 'Closing' status",
   },
   {
     id: "my-closed",
     label: "My Closed Projects",
     icon: FolderCheck,
-    description: "Your assigned closed projects",
+    description: "Your assigned projects with 'Closing' status",
   },
 ];
 
@@ -89,12 +89,15 @@ export function ProjectFilterViewsDropdown({
               <DropdownMenuItem
                 onClick={() => onChange(option.id)}
                 data-testid={`filter-view-option-${option.id}`}
-                className="flex items-center justify-between"
+                className="flex items-center justify-between py-2"
               >
-                <span className={cn("flex items-center gap-2", isSelected && "font-medium")}>
-                  <OptionIcon className="h-4 w-4" />
-                  {option.label}
-                </span>
+                <div className="flex flex-col">
+                  <span className={cn("flex items-center gap-2", isSelected && "font-medium")}>
+                    <OptionIcon className="h-4 w-4" />
+                    {option.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground ml-6">{option.description}</span>
+                </div>
                 {isSelected && <Check className="h-4 w-4 text-primary" />}
               </DropdownMenuItem>
             </div>
