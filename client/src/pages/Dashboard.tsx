@@ -44,6 +44,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import { SiTableau, SiLooker, SiMetabase } from "react-icons/si";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -379,28 +380,28 @@ export default function Dashboard() {
                 onClick={() => setShowComingSoonDialog("Tableau")}
                 data-testid="menu-item-add-tableau"
               >
-                <BarChart3 className="h-4 w-4 mr-2 text-blue-500" />
+                <SiTableau className="h-4 w-4 mr-2 text-[#E97627]" />
                 Add Tableau Dashboard
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => setShowComingSoonDialog("Looker")}
                 data-testid="menu-item-add-looker"
               >
-                <BarChart3 className="h-4 w-4 mr-2 text-green-500" />
+                <SiLooker className="h-4 w-4 mr-2 text-[#4285F4]" />
                 Add Looker Report
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => setShowComingSoonDialog("Qlik")}
                 data-testid="menu-item-add-qlik"
               >
-                <BarChart3 className="h-4 w-4 mr-2 text-emerald-500" />
+                <BarChart3 className="h-4 w-4 mr-2 text-[#009845]" />
                 Add Qlik Visualization
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => setShowComingSoonDialog("Metabase")}
                 data-testid="menu-item-add-metabase"
               >
-                <BarChart3 className="h-4 w-4 mr-2 text-indigo-500" />
+                <SiMetabase className="h-4 w-4 mr-2 text-[#509EE3]" />
                 Add Metabase Dashboard
               </DropdownMenuItem>
               
