@@ -29,17 +29,18 @@ export function StrategicKPIsDashboard() {
     enabled: !!currentOrganization?.id,
   });
 
-  const { data: allTasks = [] } = useQuery<Task[]>({
+  const { data: allTasksData } = useQuery<{ tasks: Task[]; total: number; hasMore: boolean }>({
     queryKey: ['/api/tasks', currentOrganization?.id],
     queryFn: async () => {
       const res = await fetch(`/api/tasks?organizationId=${currentOrganization?.id}`);
-      if (!res.ok) return [];
+      if (!res.ok) return { tasks: [], total: 0, hasMore: false };
       return res.json();
     },
     enabled: !!currentOrganization?.id,
   });
 
   const projects = projectsData || [];
+  const allTasks = allTasksData?.tasks || [];
 
   const kpis = useMemo(() => {
     const totalProjects = projects.length;
@@ -84,7 +85,7 @@ export function StrategicKPIsDashboard() {
       schedulePerformanceIndex,
       portfolioCount: portfolios?.length || 0,
     };
-  }, [projects, allRisks, allTasks, portfolios]);
+  }, [projects, allRisks, allTasks, portfolios, allTasksData]);
 
   const healthDistribution = [
     { name: 'On Track', value: kpis.onTrackProjects, color: '#10b981' },
