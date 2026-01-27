@@ -52,7 +52,8 @@ import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/Turnstile
 import { HoneypotField } from "@/components/HoneypotField";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
-import demoVideo from "@assets/Firdayreport_ai_video_V1_1769458879141.mp4";
+// Video served from public folder for production compatibility
+const demoVideo = "/videos/demo.mp4";
 
 const features = [
   {
