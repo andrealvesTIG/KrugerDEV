@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   users, portfolios, projects, milestones, issues, tasks,
   organizations, organizationMembers, organizationInvites, organizationAccessRequests, externalShares, taskChangeLogs, taskDependencies, projectFinancials,
-  projectChangeLogs, issueChangeLogs,
+  projectChangeLogs, issueChangeLogs, organizationIntegrations,
   resources, taskResourceAssignments, issueResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
   changeRequests, projectDocuments, projectComments, notifications, statusReportHistory, healthStatusHistory,
@@ -756,6 +756,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(organizationAccessRequests)
       .where(eq(organizationAccessRequests.organizationId, organizationId))
       .orderBy(desc(organizationAccessRequests.createdAt));
+  }
+
+  async getOrganizationIntegrations(organizationId: number) {
+    return await db.select().from(organizationIntegrations)
+      .where(eq(organizationIntegrations.organizationId, organizationId));
   }
 
   async getPendingAccessRequestByUser(organizationId: number, userId: string): Promise<OrganizationAccessRequest | undefined> {

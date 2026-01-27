@@ -1510,6 +1510,25 @@ export async function registerRoutes(
     }
   });
 
+  // Get all organization integrations with status
+  app.get('/api/organizations/:id/integrations', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      // Get all integrations for this organization
+      const integrations = await storage.getOrganizationIntegrations(orgId);
+      res.json(integrations);
+    } catch (err) {
+      console.error('Error fetching organization integrations:', err);
+      res.status(500).json({ message: 'Failed to fetch integrations' });
+    }
+  });
+
   // Dashboard tab order - admin only
   app.put('/api/organizations/:id/dashboard-tab-order', async (req, res) => {
     try {
