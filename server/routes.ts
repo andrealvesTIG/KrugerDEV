@@ -15227,14 +15227,19 @@ Return ONLY valid JSON.`;
         return res.status(404).json({ message: 'User not found' });
       }
 
-      const { subject, description, imageUrls } = req.body;
+      const { subject, description, imageUrls, organizationId } = req.body;
       
       if (!subject?.trim() || !description?.trim()) {
         return res.status(400).json({ message: 'Subject and description are required' });
       }
 
+      // Validate imageUrls is an array of strings if provided
+      const validImageUrls = Array.isArray(imageUrls) 
+        ? imageUrls.filter((url: unknown) => typeof url === 'string')
+        : [];
+
       // Get current organization if any
-      const orgId = req.body.organizationId || null;
+      const orgId = typeof organizationId === 'number' ? organizationId : null;
       let orgName = null;
       if (orgId) {
         const org = await storage.getOrganization(orgId);
@@ -15249,7 +15254,7 @@ Return ONLY valid JSON.`;
         organizationName: orgName,
         subject: subject.trim(),
         description: description.trim(),
-        imageUrls: imageUrls || [],
+        imageUrls: validImageUrls,
         status: 'new',
         priority: 'normal',
       };
@@ -15259,7 +15264,7 @@ Return ONLY valid JSON.`;
       // Send email notification to support
       try {
         await sendEmail({
-          to: 'support@friendreport.ai',
+          to: 'support@fridayreport.ai',
           subject: `[Help Ticket #${ticket.id}] ${subject}`,
           html: `
             <h2>New Help Ticket Submitted</h2>

@@ -28,7 +28,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const createTicketMutation = useMutation({
-    mutationFn: async (data: { subject: string; description: string; imageUrls: string[] }) => {
+    mutationFn: async (data: { subject: string; description: string; imageUrls: string[]; organizationId?: number }) => {
       const response = await apiRequest("POST", "/api/help-tickets", data);
       return response.json();
     },
@@ -142,6 +142,7 @@ export function HelpDialog({ open, onOpenChange }: HelpDialogProps) {
         subject: subject.trim(),
         description: description.trim(),
         imageUrls,
+        organizationId: currentOrganization?.id,
       });
     } catch (error) {
       toast({

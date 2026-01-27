@@ -89,6 +89,15 @@ The application manages comprehensive data entities including:
 - **Microsoft Planner**: Integration via Microsoft Graph API for importing and syncing projects and tasks. Supports OAuth for secure access and task synchronization, with tasks from Planner being read-only within the application.
 - **Analytics API**: REST endpoints for integrating with external analytics tools like Power BI, providing project, portfolio, risk, issue, milestone, intake, and KPI data. Secured with API key authentication.
 
+### Help & Feedback System
+- **Help Button**: Located in the top header bar, accessible from all pages.
+- **Help Dialog**: Users can submit text descriptions and paste/upload screenshots directly.
+- **Image Support**: Supports clipboard paste (Ctrl+V/Cmd+V) and file upload for screenshots.
+- **Ticket Tracking**: All submissions are stored in the `help_tickets` table with user info, organization, status, and priority.
+- **Email Notifications**: Tickets are automatically emailed to support@fridayreport.ai.
+- **Super Admin Management**: Help Tickets tab in Super Admin Console for viewing, filtering, updating status/priority, and resolving tickets.
+- **Status Workflow**: new → in_progress → resolved → closed.
+
 ### Organization-Scoped Integration Settings
 - **Integration Credentials Storage**: The `organization_integrations` table stores OAuth tokens and connection status per organization and integration type.
 - **Multi-Tenant Integration Architecture**: Each organization has separate integration connections (Microsoft Planner, etc.) that are not shared across organizations.
