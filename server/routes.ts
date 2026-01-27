@@ -13636,6 +13636,37 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // Create a new custom dashboard directly
+  app.post('/api/custom-dashboards', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { organizationId, name, description, config } = req.body;
+      if (!organizationId || !name || !config) {
+        return res.status(400).json({ message: 'Organization ID, name, and config are required' });
+      }
+
+      const [newDashboard] = await db
+        .insert(customDashboards)
+        .values({
+          organizationId: Number(organizationId),
+          userId,
+          name,
+          description: description || '',
+          config,
+        })
+        .returning();
+
+      res.status(201).json(newDashboard);
+    } catch (error) {
+      console.error('Error creating custom dashboard:', error);
+      res.status(500).json({ message: 'Failed to create custom dashboard' });
+    }
+  });
+
   // Generate a new custom dashboard using AI
   app.post('/api/custom-dashboards/generate', async (req, res) => {
     const userId = getUserIdFromRequest(req);
