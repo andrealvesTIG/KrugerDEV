@@ -538,7 +538,7 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
                   <div
                     key={project.id}
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors overflow-hidden",
                       selectedProjectIds.includes(project.id)
                         ? "bg-primary/5 border-primary"
                         : "hover:bg-muted/50"
@@ -549,8 +549,9 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
                     <Checkbox
                       checked={selectedProjectIds.includes(project.id)}
                       onCheckedChange={() => handleToggleProject(project.id)}
+                      className="flex-shrink-0"
                     />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 overflow-hidden">
                       <p className="font-medium truncate">{project.name}</p>
                       <p className="text-sm text-muted-foreground truncate">{project.description || "No description"}</p>
                     </div>
