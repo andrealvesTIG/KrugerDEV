@@ -1328,33 +1328,39 @@ function ProjectTimeline({
                 </Button>
               </div>
               <span className="flex items-center gap-1.5">
-                {/* F1 Start flag - green/white grid */}
-                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
-                  <rect x="1" y="2" width="3" height="3" fill="#22c55e"/>
-                  <rect x="4" y="2" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="1" y="5" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="4" y="5" width="3" height="3" fill="#22c55e"/>
-                  <rect x="1" y="8" width="3" height="3" fill="#22c55e"/>
-                  <rect x="4" y="8" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="1" y="11" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="4" y="11" width="3" height="3" fill="#22c55e"/>
-                  <rect x="7" y="2" width="2" height="12" fill="#374151"/>
+                {/* F1 Start flag - green/white checkered on pole */}
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
+                  {/* Flag pole */}
+                  <line x1="3" y1="2" x2="3" y2="22" stroke="#78716c" strokeWidth="1.5" strokeLinecap="round"/>
+                  {/* Waving flag cloth */}
+                  <path d="M4 3 C8 2, 12 4, 16 3 C18 2.5, 20 3, 21 3.5 L20 10.5 C18 11, 16 10.5, 14 11 C10 12, 6 10, 4 11 Z" fill="#22c55e" stroke="#16a34a" strokeWidth="0.5"/>
+                  {/* Checkered pattern */}
+                  <rect x="5" y="4" width="3" height="2.5" fill="white"/>
+                  <rect x="11" y="4" width="3" height="2.5" fill="white"/>
+                  <rect x="17" y="3.5" width="2.5" height="2.5" fill="white"/>
+                  <rect x="8" y="6.5" width="3" height="2.5" fill="white"/>
+                  <rect x="14" y="6" width="3" height="2.5" fill="white"/>
+                  <rect x="5" y="8.5" width="3" height="2" fill="white"/>
+                  <rect x="11" y="8" width="3" height="2" fill="white"/>
                 </svg>
                 {format(projectStart, 'MMM d, yyyy')}
               </span>
               <span className="flex items-center gap-1.5">
                 {format(projectEnd, 'MMM d, yyyy')}
-                {/* F1 Checkered finish flag - black/white grid */}
-                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
-                  <rect x="1" y="2" width="3" height="3" fill="black"/>
-                  <rect x="4" y="2" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="1" y="5" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="4" y="5" width="3" height="3" fill="black"/>
-                  <rect x="1" y="8" width="3" height="3" fill="black"/>
-                  <rect x="4" y="8" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="1" y="11" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="4" y="11" width="3" height="3" fill="black"/>
-                  <rect x="7" y="2" width="2" height="12" fill="#374151"/>
+                {/* F1 Finish flag - black/white checkered on pole */}
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
+                  {/* Flag pole */}
+                  <line x1="3" y1="2" x2="3" y2="22" stroke="#78716c" strokeWidth="1.5" strokeLinecap="round"/>
+                  {/* Waving flag cloth */}
+                  <path d="M4 3 C8 2, 12 4, 16 3 C18 2.5, 20 3, 21 3.5 L20 10.5 C18 11, 16 10.5, 14 11 C10 12, 6 10, 4 11 Z" fill="white" stroke="#d1d5db" strokeWidth="0.5"/>
+                  {/* Checkered pattern - black squares */}
+                  <rect x="5" y="4" width="3" height="2.5" fill="black"/>
+                  <rect x="11" y="4" width="3" height="2.5" fill="black"/>
+                  <rect x="17" y="3.5" width="2.5" height="2.5" fill="black"/>
+                  <rect x="8" y="6.5" width="3" height="2.5" fill="black"/>
+                  <rect x="14" y="6" width="3" height="2.5" fill="black"/>
+                  <rect x="5" y="8.5" width="3" height="2" fill="black"/>
+                  <rect x="11" y="8" width="3" height="2" fill="black"/>
                 </svg>
               </span>
             </div>
@@ -1516,32 +1522,32 @@ function ProjectTimeline({
               })}
               
               {/* Start marker - F1 green checkered flag */}
-              <div className="absolute -left-4" style={{ top: '4px' }}>
-                <svg className="h-5 w-5" viewBox="0 0 16 16" fill="none">
-                  <rect x="1" y="2" width="3" height="3" fill="#22c55e"/>
-                  <rect x="4" y="2" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="1" y="5" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="4" y="5" width="3" height="3" fill="#22c55e"/>
-                  <rect x="1" y="8" width="3" height="3" fill="#22c55e"/>
-                  <rect x="4" y="8" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="1" y="11" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="4" y="11" width="3" height="3" fill="#22c55e"/>
-                  <rect x="7" y="2" width="2" height="12" fill="#374151"/>
+              <div className="absolute -left-5" style={{ top: '-2px' }}>
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
+                  <line x1="3" y1="2" x2="3" y2="22" stroke="#78716c" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M4 3 C8 2, 12 4, 16 3 C18 2.5, 20 3, 21 3.5 L20 10.5 C18 11, 16 10.5, 14 11 C10 12, 6 10, 4 11 Z" fill="#22c55e" stroke="#16a34a" strokeWidth="0.5"/>
+                  <rect x="5" y="4" width="3" height="2.5" fill="white"/>
+                  <rect x="11" y="4" width="3" height="2.5" fill="white"/>
+                  <rect x="17" y="3.5" width="2.5" height="2.5" fill="white"/>
+                  <rect x="8" y="6.5" width="3" height="2.5" fill="white"/>
+                  <rect x="14" y="6" width="3" height="2.5" fill="white"/>
+                  <rect x="5" y="8.5" width="3" height="2" fill="white"/>
+                  <rect x="11" y="8" width="3" height="2" fill="white"/>
                 </svg>
               </div>
               
               {/* End marker - F1 black/white checkered flag */}
-              <div className="absolute -right-4" style={{ top: '4px' }}>
-                <svg className="h-5 w-5" viewBox="0 0 16 16" fill="none">
-                  <rect x="1" y="2" width="3" height="3" fill="black"/>
-                  <rect x="4" y="2" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="1" y="5" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="4" y="5" width="3" height="3" fill="black"/>
-                  <rect x="1" y="8" width="3" height="3" fill="black"/>
-                  <rect x="4" y="8" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="1" y="11" width="3" height="3" fill="white" stroke="#e5e7eb" strokeWidth="0.3"/>
-                  <rect x="4" y="11" width="3" height="3" fill="black"/>
-                  <rect x="7" y="2" width="2" height="12" fill="#374151"/>
+              <div className="absolute -right-5" style={{ top: '-2px' }}>
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
+                  <line x1="3" y1="2" x2="3" y2="22" stroke="#78716c" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M4 3 C8 2, 12 4, 16 3 C18 2.5, 20 3, 21 3.5 L20 10.5 C18 11, 16 10.5, 14 11 C10 12, 6 10, 4 11 Z" fill="white" stroke="#d1d5db" strokeWidth="0.5"/>
+                  <rect x="5" y="4" width="3" height="2.5" fill="black"/>
+                  <rect x="11" y="4" width="3" height="2.5" fill="black"/>
+                  <rect x="17" y="3.5" width="2.5" height="2.5" fill="black"/>
+                  <rect x="8" y="6.5" width="3" height="2.5" fill="black"/>
+                  <rect x="14" y="6" width="3" height="2.5" fill="black"/>
+                  <rect x="5" y="8.5" width="3" height="2" fill="black"/>
+                  <rect x="11" y="8" width="3" height="2" fill="black"/>
                 </svg>
               </div>
             </div>
