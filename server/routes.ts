@@ -6707,6 +6707,80 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  // Escalate issue/risk to portfolio
+  app.post('/api/issues/:id/escalate', async (req, res) => {
+    try {
+      const issueId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      const { escalate } = req.body; // true to escalate, false to de-escalate
+      
+      const issue = await storage.getIssue(issueId);
+      if (!issue) return res.status(404).json({ message: "Issue not found" });
+      
+      // Get project to check if it has a portfolio
+      const project = await storage.getProject(issue.projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      
+      if (escalate && !project.portfolioId) {
+        return res.status(400).json({ message: "Cannot escalate - project is not part of a portfolio" });
+      }
+      
+      const updated = await storage.updateIssue(issueId, {
+        escalatedToPortfolio: escalate,
+        escalatedAt: escalate ? new Date() : null,
+        escalatedBy: escalate ? userId : null,
+      });
+      
+      // Log the escalation change
+      const user = userId ? await storage.getUser(userId) : null;
+      await storage.createIssueChangeLog({
+        issueId,
+        changedBy: userId || undefined,
+        changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
+        changeType: 'updated',
+        changeDetails: escalate ? 'Escalated to portfolio' : 'De-escalated from portfolio',
+        previousValues: { escalatedToPortfolio: !escalate },
+        newValues: { escalatedToPortfolio: escalate },
+      });
+      
+      res.json(updated);
+    } catch (err) {
+      console.error('Error escalating issue:', err);
+      res.status(500).json({ message: "Error updating escalation status" });
+    }
+  });
+
+  // Get portfolio escalated issues
+  app.get('/api/portfolios/:id/escalated-items', async (req, res) => {
+    try {
+      const portfolioId = Number(req.params.id);
+      const portfolioProjects = await storage.getPortfolioProjects(portfolioId);
+      const projectIds = portfolioProjects.map(p => p.id);
+      
+      if (projectIds.length === 0) {
+        return res.json({ risks: [], issues: [] });
+      }
+      
+      // Get all escalated items from portfolio projects
+      const allItems = await storage.getEscalatedItemsByProjects(projectIds);
+      
+      // Add project names to items
+      const projectMap = new Map(portfolioProjects.map(p => [p.id, p.name]));
+      const itemsWithProjectNames = allItems.map(item => ({
+        ...item,
+        projectName: projectMap.get(item.projectId) || 'Unknown'
+      }));
+      
+      const risks = itemsWithProjectNames.filter(item => item.itemType === 'risk');
+      const issues = itemsWithProjectNames.filter(item => item.itemType === 'issue');
+      
+      res.json({ risks, issues });
+    } catch (err) {
+      console.error('Error fetching escalated items:', err);
+      res.status(500).json({ message: "Error fetching escalated items" });
+    }
+  });
+
   // --- Tasks ---
   
   // Helper function to recalculate WBS numbers for all tasks in a project (MS Project style)

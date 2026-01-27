@@ -1048,6 +1048,17 @@ export class DatabaseStorage implements IStorage {
     await db.delete(issues).where(eq(issues.id, id));
   }
 
+  async getEscalatedItemsByProjects(projectIds: number[]): Promise<Issue[]> {
+    if (projectIds.length === 0) return [];
+    return await db.select().from(issues).where(
+      and(
+        inArray(issues.projectId, projectIds),
+        eq(issues.escalatedToPortfolio, true),
+        isNull(issues.deletedAt)
+      )
+    );
+  }
+
   // Tasks
   async getTasks(projectId: number): Promise<Task[]> {
     return await db.select().from(tasks).where(
