@@ -208,7 +208,7 @@ export default function Portfolios() {
                             <FolderOpen className="h-5 w-5" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <CardTitle className="text-base truncate">{portfolio.name}</CardTitle>
+                            <CardTitle className="text-base truncate" title={portfolio.name}>{portfolio.name}</CardTitle>
                             <div className="flex items-center gap-2 mt-0.5">
                               {portfolio.status && (
                                 <Badge 
