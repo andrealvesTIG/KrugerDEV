@@ -114,6 +114,9 @@ export interface IStorage {
   createOrganizationAccessRequest(request: InsertOrganizationAccessRequest): Promise<OrganizationAccessRequest>;
   updateAccessRequestStatus(id: number, status: string, reviewedBy: string): Promise<OrganizationAccessRequest>;
 
+  // Organization Integrations
+  getOrganizationIntegrations(organizationId: number): Promise<{ id: number; organizationId: number; integrationType: string; connectionStatus: string | null }[]>;
+
   // External Shares - Cross-organization object sharing
   getExternalSharesForUser(userId: string): Promise<ExternalShare[]>;
   getExternalSharesForObject(objectType: string, objectId: number): Promise<ExternalShare[]>;

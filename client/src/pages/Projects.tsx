@@ -398,14 +398,12 @@ export default function Projects() {
                 <Table2 className="mr-2 h-4 w-4" />
                 Import from Excel
               </DropdownMenuItem>
-              {orgIntegrations?.some(i => i.integrationType === 'ms-project' && i.connectionStatus === 'connected') && (
-                <DropdownMenuItem asChild data-testid="dropdown-import-msproject">
-                  <Link href="/integrations?integration=ms-project">
-                    <FileSpreadsheet className="mr-2 h-4 w-4" />
-                    Import from MS Project
-                  </Link>
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem asChild data-testid="dropdown-import-msproject">
+                <Link href="/integrations?integration=ms-project">
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Import from MS Project
+                </Link>
+              </DropdownMenuItem>
               {orgIntegrations?.some(i => i.integrationType === 'planner' && i.connectionStatus === 'connected') && (
                 <DropdownMenuItem asChild data-testid="dropdown-import-planner">
                   <Link href="/integrations?integration=planner">
@@ -414,7 +412,7 @@ export default function Projects() {
                   </Link>
                 </DropdownMenuItem>
               )}
-              {orgIntegrations?.some(i => i.integrationType === 'planner_premium' && i.connectionStatus === 'connected') && (
+              {orgIntegrations?.some(i => i.integrationType === 'planner-premium' && i.connectionStatus === 'connected') && (
                 <DropdownMenuItem asChild data-testid="dropdown-import-planner-premium">
                   <Link href="/integrations?integration=planner-premium">
                     <Rocket className="mr-2 h-4 w-4" />
@@ -422,7 +420,7 @@ export default function Projects() {
                   </Link>
                 </DropdownMenuItem>
               )}
-              {orgIntegrations?.some(i => i.integrationType === 'project_online' && i.connectionStatus === 'connected') && (
+              {orgIntegrations?.some(i => i.integrationType === 'project-online' && i.connectionStatus === 'connected') && (
                 <DropdownMenuItem asChild data-testid="dropdown-import-project-online">
                   <Link href="/integrations?integration=project-online">
                     <Cloud className="mr-2 h-4 w-4" />
