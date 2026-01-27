@@ -69,6 +69,7 @@ export function FridayCountdown() {
       <Clock className="h-3.5 w-3.5" />
       <span>{pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}</span>
       <span className="text-muted-foreground">to Friday</span>
+      <img src="/running-man.gif" alt="Running" className="h-4 w-4 object-contain" />
     </div>
   );
 }
