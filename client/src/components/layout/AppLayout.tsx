@@ -16,6 +16,7 @@ import { formatDistanceToNow } from "date-fns";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 import { HelpDialog } from "@/components/HelpDialog";
 import { AICreateButton } from "./AICreateButton";
+import { FridayCountdown } from "./FridayCountdown";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -116,6 +117,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             <SearchCommand />
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <FridayCountdown />
             <AICreateButton />
             <QuickAddMenu />
             <Button
