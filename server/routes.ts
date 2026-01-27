@@ -5282,6 +5282,14 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Project not found" });
       
       const input = api.projects.update.input.parse(req.body);
+      
+      // Server-side workflow lock: reject status changes when project is completed
+      if (existing.completedAt && 'status' in input) {
+        return res.status(403).json({ 
+          message: "Cannot change status of a completed project. Use the reactivate endpoint to unlock the workflow." 
+        });
+      }
+      
       const sanitizedInput: Record<string, any> = {
         ...input,
         updatedAt: new Date(),
