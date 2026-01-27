@@ -311,9 +311,19 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-b from-slate-800 via-slate-700 to-slate-800">
+      {/* Pricing Banner */}
+      <div className="bg-gradient-to-r from-primary via-orange-500 to-primary py-2.5 text-center">
+        <p className="text-white text-sm font-medium">
+          <span className="font-bold">Free Forever</span> — Start managing projects at no cost. No credit card required.
+          <button onClick={scrollToSignIn} className="ml-2 underline hover:no-underline font-semibold" data-testid="link-pricing-banner">
+            Get Started
+          </button>
+        </p>
+      </div>
+      
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+      <nav className="sticky top-0 left-0 right-0 z-50 bg-slate-800/90 backdrop-blur-md border-b border-slate-600">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -321,13 +331,13 @@ export default function SignInPage() {
               <span className="text-base sm:text-xl font-bold text-white truncate">FridayReport.AI</span>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-              <Link href="/guide" className="text-slate-300 hover:text-white text-xs sm:text-sm font-medium transition-colors hidden sm:block" data-testid="link-nav-guide">
+              <Link href="/guide" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors hidden sm:block" data-testid="link-nav-guide">
                 User Guide
               </Link>
-              <Link href="/auth" className="text-slate-300 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
+              <Link href="/auth" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
                 Login
               </Link>
-              <Button onClick={scrollToSignIn} size="sm" className="bg-primary hover:bg-primary/90 text-xs sm:text-sm px-2 sm:px-3" data-testid="button-nav-get-started">
+              <Button onClick={scrollToSignIn} size="sm" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 shadow-lg shadow-orange-500/30" data-testid="button-nav-get-started">
                 <span className="hidden sm:inline">Get Started Free</span>
                 <span className="sm:hidden">Start Free</span>
               </Button>
@@ -336,33 +346,33 @@ export default function SignInPage() {
         </div>
       </nav>
       {/* Hero Section with Video */}
-      <section className="relative pt-20 pb-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <section className="relative pt-8 pb-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/30 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-orange-500/20 rounded-full blur-3xl" />
         </div>
         
         <div className="max-w-7xl mx-auto relative">
           <div className="text-center max-w-3xl mx-auto mb-6">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 leading-tight">
               The Most Flexible,
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400"> AI-First PMO Platform</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300"> AI-First PMO Platform</span>
             </h1>
-            <p className="text-lg sm:text-xl font-medium text-slate-200 mb-2">
+            <p className="text-lg sm:text-xl font-medium text-slate-100 mb-2">
               Built to adapt. Designed to predict.
             </p>
-            <p className="text-sm sm:text-base text-slate-400 mb-4 max-w-xl mx-auto">
+            <p className="text-sm sm:text-base text-slate-300 mb-4 max-w-xl mx-auto">
               FridayReport.ai brings AI-native intelligence to portfolio and project management—without forcing you into a rigid framework.
             </p>
             
             <Button 
-              size="default" 
+              size="lg" 
               onClick={scrollToSignIn}
-              className="bg-primary hover:bg-primary/90 text-white px-6 shadow-lg shadow-primary/25"
+              className="bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 text-white font-semibold px-8 shadow-xl shadow-orange-500/40"
               data-testid="button-hero-start-trial"
             >
               Get Started Free
-              <ArrowRight className="ml-2 h-4 w-4" />
+              <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </div>
           
@@ -387,14 +397,14 @@ export default function SignInPage() {
         </div>
       </section>
       {/* Trust Indicators */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 border-y border-slate-800 bg-slate-900/50">
+      <section className="py-12 px-4 sm:px-6 lg:px-8 border-y border-slate-600 bg-slate-700/50">
         <div className="max-w-7xl mx-auto">
-          <p className="text-center text-sm text-slate-400 mb-8 uppercase tracking-wider font-medium">
+          <p className="text-center text-sm text-slate-300 mb-8 uppercase tracking-wider font-medium">
             Trusted by professional PMO organizations worldwide
           </p>
           <div className="flex flex-wrap justify-center items-center gap-8 sm:gap-12">
             {trustedBy.map((org, index) => (
-              <div key={index} className="flex items-center gap-2 text-slate-400">
+              <div key={index} className="flex items-center gap-2 text-slate-300">
                 <Building2 className="h-5 w-5" />
                 <span className="font-medium">{org}</span>
               </div>
@@ -407,25 +417,25 @@ export default function SignInPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-3 gap-8">
             {benefits.map((benefit, index) => (
-              <div key={index} className="text-center p-8 rounded-2xl bg-slate-800/50 border border-slate-700 hover:border-primary/50 transition-colors">
-                <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400 mb-2">
+              <div key={index} className="text-center p-8 rounded-2xl bg-slate-700/50 border border-slate-600 hover:border-orange-400/50 transition-colors">
+                <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 mb-2">
                   {benefit.metric}
                 </div>
                 <div className="text-xl font-semibold text-white mb-2">{benefit.label}</div>
-                <div className="text-slate-400">{benefit.description}</div>
+                <div className="text-slate-300">{benefit.description}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
       {/* Features Grid */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/30">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Everything Your PMO Needs
             </h2>
-            <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
               A complete suite of tools designed for enterprise project portfolio management
             </p>
           </div>
@@ -434,13 +444,13 @@ export default function SignInPage() {
             {features.map((feature, index) => (
               <div 
                 key={index} 
-                className="p-6 rounded-xl bg-slate-900/50 border border-slate-700 hover:border-primary/50 hover:bg-slate-900/80 transition-all group"
+                className="p-6 rounded-xl bg-slate-800/50 border border-slate-600 hover:border-orange-400/50 hover:bg-slate-800/80 transition-all group"
               >
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                  <feature.icon className="h-6 w-6 text-primary" />
+                <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center mb-4 group-hover:bg-orange-500/20 transition-colors">
+                  <feature.icon className="h-6 w-6 text-orange-400" />
                 </div>
                 <h3 className="text-xl font-semibold text-white mb-2">{feature.title}</h3>
-                <p className="text-slate-400 leading-relaxed">{feature.description}</p>
+                <p className="text-slate-300 leading-relaxed">{feature.description}</p>
               </div>
             ))}
           </div>
@@ -451,14 +461,14 @@ export default function SignInPage() {
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 bg-primary/10 text-primary border-primary/20">
+            <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
               <Plug className="h-3 w-3 mr-1" />
               Seamless Integrations
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Connect Your Favorite Tools
             </h2>
-            <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
               Integrate with the project management, ERP, and analytics tools your organization already uses
             </p>
           </div>
@@ -474,7 +484,7 @@ export default function SignInPage() {
                 data-testid={`integration-link-${integration.id}`}
               >
                 <Card 
-                  className="flex flex-col items-center p-4 bg-slate-800/50 border-slate-700 hover-elevate group h-full"
+                  className="flex flex-col items-center p-4 bg-slate-700/50 border-slate-600 hover-elevate group h-full"
                   data-testid={`integration-card-${integration.id}`}
                 >
                   <div className={`w-12 h-12 rounded-lg ${integration.bgColor} flex items-center justify-center mb-2 group-hover:scale-105 transition-transform`}>
@@ -489,7 +499,7 @@ export default function SignInPage() {
           <div className="mt-8 text-center">
             <Link 
               href="/guide#integrations" 
-              className="inline-flex items-center text-primary hover:underline"
+              className="inline-flex items-center text-orange-400 hover:underline"
               data-testid="link-view-all-integrations"
             >
               View all integrations in User Guide
@@ -504,7 +514,7 @@ export default function SignInPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <Badge variant="secondary" className="mb-4 bg-green-500/10 text-green-400 border-green-500/20">
+              <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
                 <TrendingUp className="h-3 w-3 mr-1" />
                 Why Choose FridayReport.AI
               </Badge>
@@ -519,17 +529,17 @@ export default function SignInPage() {
                   { icon: BarChart3, text: "Power BI ready with built-in analytics API" }
                 ].map((item, index) => (
                   <div key={index} className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <item.icon className="h-4 w-4 text-primary" />
+                    <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                      <item.icon className="h-4 w-4 text-orange-400" />
                     </div>
-                    <p className="text-slate-300 leading-relaxed">{item.text}</p>
+                    <p className="text-slate-200 leading-relaxed">{item.text}</p>
                   </div>
                 ))}
               </div>
             </div>
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-orange-500/20 rounded-3xl blur-2xl" />
-              <div className="relative bg-slate-800 rounded-2xl border border-slate-700 p-8">
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-yellow-500/20 rounded-3xl blur-2xl" />
+              <div className="relative bg-slate-700 rounded-2xl border border-slate-600 p-8">
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
@@ -537,7 +547,7 @@ export default function SignInPage() {
                     </div>
                     <div>
                       <div className="font-medium text-white">Project Alpha</div>
-                      <div className="text-sm text-slate-400">On track - 85% complete</div>
+                      <div className="text-sm text-slate-300">On track - 85% complete</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -546,16 +556,16 @@ export default function SignInPage() {
                     </div>
                     <div>
                       <div className="font-medium text-white">Project Beta</div>
-                      <div className="text-sm text-slate-400">At risk - 2 open issues</div>
+                      <div className="text-sm text-slate-300">At risk - 2 open issues</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                      <Briefcase className="h-5 w-5 text-primary" />
+                    <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                      <Briefcase className="h-5 w-5 text-orange-400" />
                     </div>
                     <div>
                       <div className="font-medium text-white">Project Gamma</div>
-                      <div className="text-sm text-slate-400">Planning phase - Q2 launch</div>
+                      <div className="text-sm text-slate-300">Planning phase - Q2 launch</div>
                     </div>
                   </div>
                 </div>
@@ -565,100 +575,100 @@ export default function SignInPage() {
         </div>
       </section>
       {/* Pricing Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/30">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 bg-primary/10 text-primary border-primary/20">
+            <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
               Simple Pricing
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Free Forever, Scale When Ready
             </h2>
-            <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
               Start for free with unlimited projects. Upgrade only when you need advanced features.
             </p>
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
             {/* Free Plan */}
-            <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-700">
+            <div className="p-6 rounded-2xl bg-slate-800/50 border border-slate-600">
               <div className="text-center mb-6">
                 <h3 className="text-xl font-semibold text-white mb-2">Free</h3>
                 <div className="text-4xl font-bold text-white mb-1">$0</div>
-                <p className="text-slate-400 text-sm">Forever free</p>
+                <p className="text-slate-300 text-sm">Forever free</p>
               </div>
               <ul className="space-y-3 mb-6">
                 {["200 AI credits/month", "Up to 40 projects", "200 tasks, 200 issues", "1 seat included", "Basic dashboards"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
+                  <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700" onClick={scrollToSignIn} data-testid="button-pricing-free">
+              <Button variant="outline" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-free">
                 Get Started
               </Button>
             </div>
             
             {/* Professional Plan */}
-            <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-700">
+            <div className="p-6 rounded-2xl bg-slate-800/50 border border-slate-600">
               <div className="text-center mb-6">
                 <h3 className="text-xl font-semibold text-white mb-2">Professional</h3>
                 <div className="text-4xl font-bold text-white mb-1">$12</div>
-                <p className="text-slate-400 text-sm">per month</p>
+                <p className="text-slate-300 text-sm">per month</p>
               </div>
               <ul className="space-y-3 mb-6">
                 {["500 AI credits/month", "Up to 100 projects", "500 tasks, 500 issues", "Up to 3 seats", "Advanced reporting"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
+                  <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700" onClick={scrollToSignIn} data-testid="button-pricing-professional">
+              <Button variant="outline" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-professional">
                 Start Free
               </Button>
             </div>
             
             {/* Business Plan */}
-            <div className="p-6 rounded-2xl bg-gradient-to-b from-primary/10 to-slate-900/50 border-2 border-primary relative">
+            <div className="p-6 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge className="bg-primary text-white">Most Popular</Badge>
+                <Badge className="bg-orange-500 text-white">Most Popular</Badge>
               </div>
               <div className="text-center mb-6">
                 <h3 className="text-xl font-semibold text-white mb-2">Business</h3>
                 <div className="text-4xl font-bold text-white mb-1">$28</div>
-                <p className="text-slate-400 text-sm">per month</p>
+                <p className="text-slate-300 text-sm">per month</p>
               </div>
               <ul className="space-y-3 mb-6">
                 {["1,000 AI credits/month", "Up to 200 projects", "1,000 tasks, 1,000 issues", "Up to 25 seats", "Priority support", "Power BI integration"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
-                    <CheckCircle className="h-4 w-4 text-primary flex-shrink-0" />
+                  <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
+                    <CheckCircle className="h-4 w-4 text-orange-400 flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <Button className="w-full bg-primary hover:bg-primary/90" onClick={scrollToSignIn} data-testid="button-pricing-business">
+              <Button className="w-full bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 font-semibold" onClick={scrollToSignIn} data-testid="button-pricing-business">
                 Start Free
               </Button>
             </div>
             
             {/* Enterprise Plan */}
-            <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-700">
+            <div className="p-6 rounded-2xl bg-slate-800/50 border border-slate-600">
               <div className="text-center mb-6">
                 <h3 className="text-xl font-semibold text-white mb-2">Enterprise</h3>
                 <div className="text-4xl font-bold text-white mb-1">Custom</div>
-                <p className="text-slate-400 text-sm">Contact for pricing</p>
+                <p className="text-slate-300 text-sm">Contact for pricing</p>
               </div>
               <ul className="space-y-3 mb-6">
                 {["Unlimited AI credits", "Unlimited projects", "Unlimited tasks & issues", "Unlimited seats", "SSO / SAML", "Dedicated support"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-300 text-sm">
+                  <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700" onClick={scrollToSignIn} data-testid="button-pricing-enterprise">
+              <Button variant="outline" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-enterprise">
                 Contact Sales
               </Button>
             </div>
@@ -666,18 +676,18 @@ export default function SignInPage() {
         </div>
       </section>
       {/* CTA / Sign In Section */}
-      <section id="signin-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-800/50 to-slate-900">
+      <section id="signin-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-700/50 to-slate-800">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
                 Ready to Transform Your PMO?
               </h2>
-              <p className="text-lg text-slate-300 mb-6">
+              <p className="text-lg text-slate-200 mb-6">
                 Join thousands of project professionals who deliver better outcomes with FridayReport.AI. 
                 Get started in minutes with passwordless sign-in.
               </p>
-              <div className="flex flex-wrap gap-4 text-sm text-slate-400">
+              <div className="flex flex-wrap gap-4 text-sm text-slate-300">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-400" />
                   <span>Free forever for small teams</span>
@@ -693,7 +703,7 @@ export default function SignInPage() {
               </div>
             </div>
             
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+            <Card className="bg-slate-700/50 border-slate-600 backdrop-blur-sm">
               {emailSent ? (
                 <>
                   <CardHeader className="text-center">
@@ -1044,16 +1054,16 @@ export default function SignInPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-20 px-4 bg-slate-800/30">
+      <section className="py-20 px-4 bg-slate-700/30">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
-            <Badge variant="secondary" className="mb-4 bg-primary/10 text-primary border-primary/20">
+            <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
               Questions & Answers
             </Badge>
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
               Frequently Asked Questions
             </h2>
-            <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
               Everything you need to know about managing your project portfolio with FridayReport.AI
             </p>
           </div>
@@ -1063,13 +1073,13 @@ export default function SignInPage() {
               <AccordionItem 
                 key={index} 
                 value={`faq-${index}`}
-                className="bg-slate-800/50 border border-slate-700 rounded-lg px-6 data-[state=open]:bg-slate-800/70"
+                className="bg-slate-700/50 border border-slate-600 rounded-lg px-6 data-[state=open]:bg-slate-700/70"
                 data-testid={`accordion-faq-${index}`}
               >
-                <AccordionTrigger className="text-left text-white hover:text-primary hover:no-underline py-5">
+                <AccordionTrigger className="text-left text-white hover:text-orange-400 hover:no-underline py-5">
                   <span className="text-base font-medium">{faq.question}</span>
                 </AccordionTrigger>
-                <AccordionContent className="text-slate-400 pb-5 leading-relaxed">
+                <AccordionContent className="text-slate-300 pb-5 leading-relaxed">
                   {faq.answer}
                 </AccordionContent>
               </AccordionItem>
@@ -1077,10 +1087,10 @@ export default function SignInPage() {
           </Accordion>
 
           <div className="mt-12 text-center">
-            <p className="text-slate-400 mb-4">Still have questions?</p>
+            <p className="text-slate-300 mb-4">Still have questions?</p>
             <Button 
               variant="outline" 
-              className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              className="border-slate-500 text-slate-200 hover:bg-slate-600"
               onClick={scrollToSignIn}
               data-testid="button-faq-get-started"
             >
