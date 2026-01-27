@@ -1221,7 +1221,7 @@ export const customDashboards = pgTable("custom_dashboards", {
 // Custom Dashboard Configuration Types
 export interface DashboardWidget {
   id: string;
-  type: 'kpi' | 'bar-chart' | 'line-chart' | 'pie-chart' | 'area-chart' | 'table' | 'progress' | 'powerbi-embed';
+  type: 'kpi' | 'bar-chart' | 'line-chart' | 'pie-chart' | 'area-chart' | 'table' | 'progress' | 'powerbi-embed' | 'gantt' | 'narrative' | 'recent-tasks' | 'stat-card' | 'heatmap' | 'trend-card' | 'milestone-timeline';
   title: string;
   dataSource: 'projects' | 'portfolios' | 'tasks' | 'risks' | 'issues' | 'milestones' | 'resources' | 'timesheets' | 'external';
   metrics?: string[];
@@ -1230,6 +1230,10 @@ export interface DashboardWidget {
   groupBy?: string;
   size: 'small' | 'medium' | 'large' | 'full';
   embedUrl?: string; // For Power BI or other iframe embeds
+  limit?: number; // For widgets that show limited items (e.g., recent-tasks)
+  narrativeTemplate?: string; // For narrative widgets
+  trendField?: string; // For trend cards to show change over time
+  colorScheme?: 'green' | 'blue' | 'amber' | 'red' | 'purple'; // Color scheme for stat cards
 }
 
 export interface CustomDashboardConfig {
