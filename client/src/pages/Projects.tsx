@@ -2792,7 +2792,7 @@ function ProjectsGridView({
                   <p className="text-sm font-medium">Show Columns</p>
                   <p className="text-xs text-muted-foreground">Drag column headers to reorder</p>
                   <div className="space-y-1">
-                    {ALL_GRID_COLUMNS.map(column => (
+                    {[...ALL_GRID_COLUMNS].sort((a, b) => a.label.localeCompare(b.label)).map(column => (
                       <div
                         key={column.id}
                         className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted cursor-pointer"
@@ -2873,7 +2873,7 @@ function ProjectsGridView({
               </div>
               <div className="max-h-64 overflow-y-auto p-2">
                 <div className="space-y-1">
-                  {ALL_GRID_COLUMNS.map(column => (
+                  {[...ALL_GRID_COLUMNS].sort((a, b) => a.label.localeCompare(b.label)).map(column => (
                     <div
                       key={column.id}
                       className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted cursor-pointer"
