@@ -2,7 +2,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
   Loader2, Briefcase, AlertTriangle, TrendingUp, CheckCircle2, 
   FileInput, Clock, Upload, PenTool, Sparkles, DollarSign,
-  FolderKanban, ArrowRight, Activity, Target, BarChart3, Zap
+  FolderKanban, ArrowRight, Activity, Target, BarChart3, Zap, Mic, MicOff
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, Area, AreaChart } from "recharts";
 import { isWithinInterval, parseISO } from "date-fns";
@@ -47,8 +47,81 @@ export function ExecutiveDashboard() {
   const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  // Voice input using Web Speech API
+  const toggleVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      toast({
+        title: "Voice Input Unavailable",
+        description: "Your browser doesn't support voice input. Try Chrome or Edge.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isRecording) {
+      // Stop recording
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      // Start recording
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setAiPrompt(prev => prev + (prev ? ' ' : '') + finalTranscript);
+        }
+      };
+      
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+        if (event.error === 'not-allowed') {
+          toast({
+            title: "Microphone Access Denied",
+            description: "Please allow microphone access to use voice input.",
+            variant: "destructive",
+          });
+        }
+      };
+      
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+      
+      recognitionRef.current = recognition;
+      recognition.start();
+      setIsRecording(true);
+    }
+  };
+  
+  // Cleanup speech recognition when dialog closes
+  useEffect(() => {
+    if (!aiDialogOpen && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+  }, [aiDialogOpen]);
   
   // Fetch AI costs for credit warning
   const { data: aiCosts } = useQuery<AICostsData>({
@@ -275,19 +348,49 @@ export function ExecutiveDashboard() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="ai-prompt">What would you like to create?</Label>
-                  <Textarea
-                    id="ai-prompt"
-                    data-testid="textarea-ai-prompt"
-                    placeholder="Examples:
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="ai-prompt">What would you like to create?</Label>
+                    <Button
+                      type="button"
+                      variant={isRecording ? "destructive" : "outline"}
+                      size="sm"
+                      onClick={toggleVoiceInput}
+                      data-testid="button-voice-input"
+                      className="gap-1.5"
+                    >
+                      {isRecording ? (
+                        <>
+                          <MicOff className="h-3.5 w-3.5" />
+                          Stop
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-3.5 w-3.5" />
+                          Voice
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <div className="relative">
+                    <Textarea
+                      id="ai-prompt"
+                      data-testid="textarea-ai-prompt"
+                      placeholder="Examples:
 • Create a mobile app project with tasks for design, development, and testing
 • Add 5 team members for a software development team
 • Generate risks for a cloud migration initiative
 • Create milestones for a product launch..."
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    className="min-h-[140px]"
-                  />
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      className="min-h-[140px]"
+                    />
+                    {isRecording && (
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1.5 text-xs text-red-500">
+                        <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                        Listening...
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <DialogFooter>
