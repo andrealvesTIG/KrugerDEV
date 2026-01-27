@@ -39,6 +39,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import ExcelJS from "exceljs";
 import { ViewsDropdown } from "@/components/ViewsDropdown";
+import { ProjectFilterViewsDropdown, type ProjectFilterView } from "@/components/ProjectFilterViewsDropdown";
 import { useColumnState, sortData, type SortDirection, type ColumnSort } from "@/hooks/use-column-state";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 
@@ -49,6 +50,7 @@ export default function Projects() {
   const { user } = useAuth();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [filterView, setFilterView] = useState<ProjectFilterView>("all");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("createdAt");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: externalProjects } = useExternalProjects();
@@ -293,7 +295,34 @@ export default function Projects() {
       // If portfolio is selected, only show org projects from that portfolio
       const matchesPortfolio = selectedPortfolio === "all" || 
         (!(p as any).isExternal && p.portfolioId === parseInt(selectedPortfolio));
-      return matchesSearch && matchesSource && matchesPortfolio;
+      
+      // Filter view logic
+      const isClosed = p.status === "Closing";
+      const isMyProject = p.managerId === user?.id || 
+        p.businessSponsorId === user?.id || 
+        p.businessOwnerId === user?.id ||
+        p.technicalLeadId === user?.id;
+      
+      let matchesFilterView = true;
+      switch (filterView) {
+        case "all":
+          matchesFilterView = true;
+          break;
+        case "active":
+          matchesFilterView = !isClosed;
+          break;
+        case "my-active":
+          matchesFilterView = isMyProject && !isClosed;
+          break;
+        case "closed":
+          matchesFilterView = isClosed;
+          break;
+        case "my-closed":
+          matchesFilterView = isMyProject && isClosed;
+          break;
+      }
+      
+      return matchesSearch && matchesSource && matchesPortfolio && matchesFilterView;
     });
     
     // Then sort (most recent first for all date-based sorts)
@@ -314,7 +343,7 @@ export default function Projects() {
       }
       return 0;
     });
-  }, [projects, externalProjects, search, sourceFilter, sortBy, selectedPortfolio]);
+  }, [projects, externalProjects, search, sourceFilter, sortBy, selectedPortfolio, filterView, user?.id]);
 
   const handleStatusChange = (projectId: number, newStatus: string) => {
     updateProject.mutate(
@@ -385,6 +414,10 @@ export default function Projects() {
             data-testid="input-search-projects"
           />
         </div>
+        <ProjectFilterViewsDropdown 
+          value={filterView}
+          onChange={setFilterView}
+        />
         <div className="w-full sm:w-[200px]">
           <Select value={selectedPortfolio} onValueChange={setSelectedPortfolio}>
             <SelectTrigger data-testid="select-portfolio-filter">
