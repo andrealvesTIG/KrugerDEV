@@ -3,7 +3,7 @@ import { Sidebar, SidebarProvider, useSidebarState, logoIcon } from "./Sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
+import { HelpDialog } from "@/components/HelpDialog";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -45,6 +46,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const { isCollapsed, setIsMobileOpen } = useSidebarState();
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
   const [location] = useLocation();
+  const [helpDialogOpen, setHelpDialogOpen] = useState(false);
   
   const isFullBleedPage = location.startsWith('/embed');
 
@@ -114,9 +116,19 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <QuickAddMenu />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setHelpDialogOpen(true)}
+              className="text-muted-foreground hover:text-foreground"
+              data-testid="button-help"
+            >
+              <HelpCircle className="h-5 w-5" />
+            </Button>
             <NotificationBell />
             <ThemeToggle />
           </div>
+          <HelpDialog open={helpDialogOpen} onOpenChange={setHelpDialogOpen} />
         </header>
         <main className="flex-1 overflow-hidden flex flex-col">
           {isFullBleedPage ? (

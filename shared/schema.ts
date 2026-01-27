@@ -1706,3 +1706,36 @@ export const errorLogs = pgTable("error_logs", {
 });
 
 export type ErrorLog = typeof errorLogs.$inferSelect;
+
+// Help Tickets - user feedback and support requests
+export const helpTickets = pgTable("help_tickets", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  userEmail: text("user_email").notNull(),
+  userName: text("user_name"),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  organizationName: text("organization_name"),
+  subject: text("subject").notNull(),
+  description: text("description").notNull(),
+  imageUrls: text("image_urls").array(), // Array of image URLs stored in object storage
+  status: text("status").notNull().default("new"), // new, in_progress, resolved, closed
+  priority: text("priority").default("normal"), // low, normal, high, urgent
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  resolution: text("resolution"),
+  emailSent: boolean("email_sent").default(false),
+  emailSentAt: timestamp("email_sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+export const insertHelpTicketSchema = createInsertSchema(helpTickets).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  resolvedAt: true,
+  emailSent: true,
+  emailSentAt: true 
+});
+export type InsertHelpTicket = z.infer<typeof insertHelpTicketSchema>;
+export type HelpTicket = typeof helpTickets.$inferSelect;

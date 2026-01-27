@@ -12,7 +12,7 @@ import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPerc
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -15209,6 +15209,179 @@ Return ONLY valid JSON.`;
     } catch (error) {
       console.error('Error fetching organization usage:', error);
       res.status(500).json({ message: 'Failed to fetch organization usage' });
+    }
+  });
+
+  // ========== HELP TICKETS API ==========
+  
+  // Create a new help ticket
+  app.post('/api/help-tickets', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    try {
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      const { subject, description, imageUrls } = req.body;
+      
+      if (!subject?.trim() || !description?.trim()) {
+        return res.status(400).json({ message: 'Subject and description are required' });
+      }
+
+      // Get current organization if any
+      const orgId = req.body.organizationId || null;
+      let orgName = null;
+      if (orgId) {
+        const org = await storage.getOrganization(orgId);
+        orgName = org?.name || null;
+      }
+
+      const ticketData = {
+        userId,
+        userEmail: user.email,
+        userName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+        organizationId: orgId,
+        organizationName: orgName,
+        subject: subject.trim(),
+        description: description.trim(),
+        imageUrls: imageUrls || [],
+        status: 'new',
+        priority: 'normal',
+      };
+
+      const [ticket] = await db.insert(helpTickets).values(ticketData).returning();
+
+      // Send email notification to support
+      try {
+        await sendEmail({
+          to: 'support@friendreport.ai',
+          subject: `[Help Ticket #${ticket.id}] ${subject}`,
+          html: `
+            <h2>New Help Ticket Submitted</h2>
+            <p><strong>From:</strong> ${ticketData.userName} (${ticketData.userEmail})</p>
+            ${orgName ? `<p><strong>Organization:</strong> ${orgName}</p>` : ''}
+            <p><strong>Subject:</strong> ${subject}</p>
+            <hr>
+            <p><strong>Description:</strong></p>
+            <p>${description.replace(/\n/g, '<br>')}</p>
+            ${imageUrls?.length ? `<p><strong>Attachments:</strong> ${imageUrls.length} image(s)</p>` : ''}
+            <hr>
+            <p><em>Ticket ID: ${ticket.id}</em></p>
+          `,
+        });
+        
+        // Mark email as sent
+        await db.update(helpTickets)
+          .set({ emailSent: true, emailSentAt: new Date() })
+          .where(eq(helpTickets.id, ticket.id));
+      } catch (emailError) {
+        console.error('Failed to send help ticket email:', emailError);
+        // Don't fail the request if email fails
+      }
+
+      res.status(201).json(ticket);
+    } catch (error) {
+      console.error('Error creating help ticket:', error);
+      res.status(500).json({ message: 'Failed to create help ticket' });
+    }
+  });
+
+  // Get all help tickets (superadmin only)
+  app.get('/api/admin/help-tickets', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const tickets = await db.select().from(helpTickets).orderBy(desc(helpTickets.createdAt));
+      res.json(tickets);
+    } catch (error) {
+      console.error('Error fetching help tickets:', error);
+      res.status(500).json({ message: 'Failed to fetch help tickets' });
+    }
+  });
+
+  // Get a single help ticket (superadmin only)
+  app.get('/api/admin/help-tickets/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const ticketId = parseInt(req.params.id);
+      const [ticket] = await db.select().from(helpTickets).where(eq(helpTickets.id, ticketId));
+      
+      if (!ticket) {
+        return res.status(404).json({ message: 'Ticket not found' });
+      }
+
+      res.json(ticket);
+    } catch (error) {
+      console.error('Error fetching help ticket:', error);
+      res.status(500).json({ message: 'Failed to fetch help ticket' });
+    }
+  });
+
+  // Update a help ticket (superadmin only)
+  app.patch('/api/admin/help-tickets/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const ticketId = parseInt(req.params.id);
+      const { status, priority, resolution, assignedTo } = req.body;
+
+      const updateData: Record<string, any> = { updatedAt: new Date() };
+      
+      if (status) updateData.status = status;
+      if (priority) updateData.priority = priority;
+      if (resolution !== undefined) updateData.resolution = resolution;
+      if (assignedTo !== undefined) updateData.assignedTo = assignedTo;
+      
+      // Set resolvedAt if status is resolved
+      if (status === 'resolved' || status === 'closed') {
+        updateData.resolvedAt = new Date();
+      }
+
+      const [updatedTicket] = await db.update(helpTickets)
+        .set(updateData)
+        .where(eq(helpTickets.id, ticketId))
+        .returning();
+
+      if (!updatedTicket) {
+        return res.status(404).json({ message: 'Ticket not found' });
+      }
+
+      res.json(updatedTicket);
+    } catch (error) {
+      console.error('Error updating help ticket:', error);
+      res.status(500).json({ message: 'Failed to update help ticket' });
+    }
+  });
+
+  // Delete a help ticket (superadmin only)
+  app.delete('/api/admin/help-tickets/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const ticketId = parseInt(req.params.id);
+      await db.delete(helpTickets).where(eq(helpTickets.id, ticketId));
+      res.json({ message: 'Ticket deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting help ticket:', error);
+      res.status(500).json({ message: 'Failed to delete help ticket' });
     }
   });
 
