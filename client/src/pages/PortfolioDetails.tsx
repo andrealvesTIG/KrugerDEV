@@ -297,6 +297,13 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  
+  // Filter and sort state for included projects
+  const [projectSearch, setProjectSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [healthFilter, setHealthFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"name" | "priority" | "status" | "health" | "createdAt">("name");
   const updateProject = useUpdateProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -309,6 +316,41 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
       (p.portfolioId === null || p.portfolioId === undefined)
     );
   }, [allProjects, projects]);
+
+  // Filter and sort included projects
+  const filteredProjects = useMemo(() => {
+    if (!projects) return [];
+    
+    const priorityOrder: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+    
+    const filtered = projects.filter(p => {
+      const matchesSearch = !projectSearch || 
+        p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+        p.description?.toLowerCase().includes(projectSearch.toLowerCase());
+      const matchesStatus = statusFilter === "all" || (p.status || "") === statusFilter;
+      const matchesHealth = healthFilter === "all" || (p.health || "") === healthFilter;
+      const matchesPriority = priorityFilter === "all" || (p.priority || "") === priorityFilter;
+      return matchesSearch && matchesStatus && matchesHealth && matchesPriority;
+    });
+    
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name);
+      } else if (sortBy === "priority") {
+        return (priorityOrder[a.priority || "Medium"] || 2) - (priorityOrder[b.priority || "Medium"] || 2);
+      } else if (sortBy === "status") {
+        return (a.status || "").localeCompare(b.status || "");
+      } else if (sortBy === "health") {
+        const healthOrder: Record<string, number> = { Red: 0, Yellow: 1, Green: 2 };
+        return (healthOrder[a.health || "Green"] || 2) - (healthOrder[b.health || "Green"] || 2);
+      } else if (sortBy === "createdAt") {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      }
+      return 0;
+    });
+  }, [projects, projectSearch, statusFilter, healthFilter, priorityFilter, sortBy]);
 
   const filteredAvailableProjects = useMemo(() => {
     if (!searchQuery.trim()) return availableProjects;
@@ -391,42 +433,107 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
   return (
     <>
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <div>
-          <CardTitle>Included Projects</CardTitle>
-          <CardDescription>All projects within this portfolio</CardDescription>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            size="sm"
-            onClick={() => setIsAddDialogOpen(true)}
-            data-testid="button-add-project-to-portfolio"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Project
-          </Button>
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            <Button
-              variant={view === "list" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setView("list")}
-              className="rounded-none"
-              data-testid="button-portfolio-view-list"
-            >
-              <List className="h-4 w-4 mr-2" />
-              List
-            </Button>
-            <Button
-              variant={view === "gantt" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setView("gantt")}
-              className="rounded-none"
-              data-testid="button-portfolio-view-gantt"
-            >
-              <GanttChart className="h-4 w-4 mr-2" />
-              Gantt
-            </Button>
+      <CardHeader className="flex flex-col gap-4">
+        <div className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Included Projects</CardTitle>
+            <CardDescription>All projects within this portfolio</CardDescription>
           </div>
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              onClick={() => setIsAddDialogOpen(true)}
+              data-testid="button-add-project-to-portfolio"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Project
+            </Button>
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <Button
+                variant={view === "list" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setView("list")}
+                className="rounded-none"
+                data-testid="button-portfolio-view-list"
+              >
+                <List className="h-4 w-4 mr-2" />
+                List
+              </Button>
+              <Button
+                variant={view === "gantt" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setView("gantt")}
+                className="rounded-none"
+                data-testid="button-portfolio-view-gantt"
+              >
+                <GanttChart className="h-4 w-4 mr-2" />
+                Gantt
+              </Button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Search, Filters, and Sort Controls */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search projects..."
+              value={projectSearch}
+              onChange={(e) => setProjectSearch(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-included-projects"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px]" data-testid="select-included-status-filter">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Initiation">Initiation</SelectItem>
+              <SelectItem value="Planning">Planning</SelectItem>
+              <SelectItem value="Execution">Execution</SelectItem>
+              <SelectItem value="Monitoring">Monitoring</SelectItem>
+              <SelectItem value="Closing">Closing</SelectItem>
+              <SelectItem value="Billing">Billing</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={healthFilter} onValueChange={setHealthFilter}>
+            <SelectTrigger className="w-[130px]" data-testid="select-included-health-filter">
+              <SelectValue placeholder="Health" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Health</SelectItem>
+              <SelectItem value="Green">Green</SelectItem>
+              <SelectItem value="Yellow">Yellow</SelectItem>
+              <SelectItem value="Red">Red</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <SelectTrigger className="w-[130px]" data-testid="select-included-priority-filter">
+              <SelectValue placeholder="Priority" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Priority</SelectItem>
+              <SelectItem value="Low">Low</SelectItem>
+              <SelectItem value="Medium">Medium</SelectItem>
+              <SelectItem value="High">High</SelectItem>
+              <SelectItem value="Critical">Critical</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+            <SelectTrigger className="w-[150px]" data-testid="select-included-sort-by">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Name (A-Z)</SelectItem>
+              <SelectItem value="priority">Priority</SelectItem>
+              <SelectItem value="status">Status</SelectItem>
+              <SelectItem value="health">Health</SelectItem>
+              <SelectItem value="createdAt">Date Created</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent>
@@ -444,8 +551,8 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
                 </tr>
               </thead>
               <tbody>
-                {projects?.map((project: Project) => (
-                  <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-project-${project.id}`}>
+                {filteredProjects.map((project: Project) => (
+                  <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors cursor-pointer" data-testid={`row-project-${project.id}`}>
                     <td className="p-3">
                       <Link href={`/projects/${project.id}`}>
                         <div className="hover:text-primary cursor-pointer">
@@ -477,7 +584,7 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRemoveProject(project.id)}
+                          onClick={(e) => { e.stopPropagation(); handleRemoveProject(project.id); }}
                           className="text-muted-foreground hover:text-destructive"
                           data-testid={`button-remove-project-${project.id}`}
                         >
@@ -489,14 +596,16 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
                 ))}
               </tbody>
             </table>
-            {projects?.length === 0 && (
+            {filteredProjects.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No projects in this portfolio. Click "Add Project" to add existing projects.
+                {projects?.length === 0 
+                  ? 'No projects in this portfolio. Click "Add Project" to add existing projects.'
+                  : 'No projects match your current filters.'}
               </div>
             )}
           </div>
         ) : (
-          <PortfolioProjectsGanttView projects={projects || []} />
+          <PortfolioProjectsGanttView projects={filteredProjects} />
         )}
       </CardContent>
     </Card>
