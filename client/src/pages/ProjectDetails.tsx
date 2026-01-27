@@ -966,13 +966,13 @@ export default function ProjectDetails() {
             <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
-            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} urlTaskId={urlTaskId} />
+            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} urlTaskId={urlTaskId} isProjectLocked={isProjectLocked} />
           </TabsContent>
           <TabsContent value="risks">
-            <RisksTab projectId={project.id} projectName={project.name} urlRiskId={urlRiskId} />
+            <RisksTab projectId={project.id} projectName={project.name} urlRiskId={urlRiskId} isProjectLocked={isProjectLocked} />
           </TabsContent>
           <TabsContent value="issues">
-            <IssuesTab projectId={project.id} projectName={project.name} urlIssueId={urlIssueId} />
+            <IssuesTab projectId={project.id} projectName={project.name} urlIssueId={urlIssueId} isProjectLocked={isProjectLocked} />
           </TabsContent>
           <TabsContent value="financials">
             <FinancialsTab projectId={project.id} />
@@ -3272,7 +3272,7 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
   );
 }
 
-function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; projectName?: string; urlRiskId?: string | null }) {
+function RisksTab({ projectId, projectName, urlRiskId, isProjectLocked = false }: { projectId: number; projectName?: string; urlRiskId?: string | null; isProjectLocked?: boolean }) {
   const { currentOrganization } = useOrganization();
   const { data: risks, isLoading } = useRisks(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -3290,6 +3290,14 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
   const { data: riskHistory, isLoading: historyLoading } = useRiskHistory(editingRisk?.id || 0);
   const { data: riskAssignments } = useRiskResourceAssignments(editingRisk?.id ?? null);
   const { toast } = useToast();
+  
+  const showLockedMessage = () => {
+    toast({ 
+      title: "Project Locked", 
+      description: "This project is completed. Reactivate it to make changes.",
+      variant: "destructive"
+    });
+  };
 
   useEffect(() => {
     if (riskAssignments && editingRisk) {
@@ -3399,14 +3407,22 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
   if (isLoading) return <Loader2 className="animate-spin" />;
 
   return (
-    <Card>
+    <Card className={cn(isProjectLocked && "opacity-75")}>
+      {isProjectLocked && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2 rounded-t-lg">
+          <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
+            <Lock className="h-4 w-4" />
+            <span>This project is completed and locked. Reactivate from the workflow section to make changes.</span>
+          </div>
+        </div>
+      )}
       <CardHeader className="flex flex-row items-center justify-between gap-2">
         <div>
           <CardTitle>Project Risks</CardTitle>
           <CardDescription>Track and mitigate potential issues.</CardDescription>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}>
-          <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
+          <DialogTrigger asChild><Button size="sm" onClick={() => isProjectLocked ? showLockedMessage() : openCreateDialog()} disabled={isProjectLocked} className={cn(isProjectLocked && "opacity-50 cursor-not-allowed")}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>{editingRisk ? "Edit Risk" : "Add New Risk"}</DialogTitle>
@@ -3844,7 +3860,7 @@ function computeWbsValues(tasks: Task[]): Map<number, string> {
   return wbsMap;
 }
 
-function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId }: { 
+function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, isProjectLocked = false }: { 
   projectId: number; 
   projectName?: string; 
   projectStartDate?: string | null; 
@@ -3856,6 +3872,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   dataverseOrgId?: string | null;
   dataverseTenantId?: string | null;
   urlTaskId?: string | null;
+  isProjectLocked?: boolean;
 }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
@@ -3866,6 +3883,14 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const deleteTask = useDeleteTask();
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { toast } = useToast();
+  
+  const showLockedMessage = () => {
+    toast({ 
+      title: "Project Locked", 
+      description: "This project is completed. Reactivate it to make changes.",
+      variant: "destructive"
+    });
+  };
   
   const isPlannerProject = (projectSource === "planner" || projectSource === "planner_premium") && !!plannerPlanId;
   // Detect Premium plans by source OR by GUID-style plannerPlanId (Dataverse uses GUIDs)
@@ -4296,10 +4321,20 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     <div 
       className={cn(
         "space-y-4",
-        isFullscreen && "fixed top-0 right-0 bottom-0 z-40 bg-background p-4 overflow-auto"
+        isFullscreen && "fixed top-0 right-0 bottom-0 z-40 bg-background p-4 overflow-auto",
+        isProjectLocked && "opacity-75"
       )}
       style={isFullscreen ? { left: sidebarWidth } : undefined}
     >
+      {/* Locked project banner */}
+      {isProjectLocked && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3 rounded-lg">
+          <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
+            <Lock className="h-4 w-4" />
+            <span>This project is completed and locked. Reactivate from the workflow section to make changes.</span>
+          </div>
+        </div>
+      )}
       {/* Planner project banner */}
       {isPlannerProject && (
         <div className="space-y-2">
@@ -4659,7 +4694,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </div>
           {<Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
             <DialogTrigger asChild>
-              <Button onClick={openCreateDialog} data-testid="button-add-task">
+              <Button onClick={() => isProjectLocked ? showLockedMessage() : openCreateDialog()} disabled={isProjectLocked} className={cn(isProjectLocked && "opacity-50 cursor-not-allowed")} data-testid="button-add-task">
                 <Plus className="mr-2 h-4 w-4" /> Add Task
               </Button>
             </DialogTrigger>
@@ -9361,7 +9396,7 @@ const typeIcons = {
   Question: HelpCircle,
 };
 
-function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; projectName?: string; urlIssueId?: string | null }) {
+function IssuesTab({ projectId, projectName, urlIssueId, isProjectLocked = false }: { projectId: number; projectName?: string; urlIssueId?: string | null; isProjectLocked?: boolean }) {
   const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useIssues(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -9375,6 +9410,14 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
   const updateIssueResources = useUpdateIssueResourceAssignments();
   const { data: issueAssignments } = useIssueResourceAssignments(editingIssue?.id ?? null);
   const { toast } = useToast();
+  
+  const showLockedMessage = () => {
+    toast({ 
+      title: "Project Locked", 
+      description: "This project is completed. Reactivate it to make changes.",
+      variant: "destructive"
+    });
+  };
   
   useEffect(() => {
     if (issueAssignments && editingIssue) {
@@ -9470,14 +9513,22 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
   if (isLoading) return <Loader2 className="animate-spin" />;
 
   return (
-    <Card>
+    <Card className={cn(isProjectLocked && "opacity-75")}>
+      {isProjectLocked && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2 rounded-t-lg">
+          <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
+            <Lock className="h-4 w-4" />
+            <span>This project is completed and locked. Reactivate from the workflow section to make changes.</span>
+          </div>
+        </div>
+      )}
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div>
           <CardTitle>Project Issues</CardTitle>
           <CardDescription>Track bugs, tasks, and enhancements.</CardDescription>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingIssue(null); }}>
-          <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} data-testid="button-add-issue"><Plus className="mr-2 h-4 w-4" /> Add Issue</Button></DialogTrigger>
+          <DialogTrigger asChild><Button size="sm" onClick={() => isProjectLocked ? showLockedMessage() : openCreateDialog()} disabled={isProjectLocked} className={cn(isProjectLocked && "opacity-50 cursor-not-allowed")} data-testid="button-add-issue"><Plus className="mr-2 h-4 w-4" /> Add Issue</Button></DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>{editingIssue ? "Edit Issue" : "Add New Issue"}</DialogTitle>
