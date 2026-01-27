@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,10 +32,29 @@ import {
   MoreVertical,
   Plus,
   Sparkles,
-  Trash2,
+  GripVertical,
 } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
+import { useAuth } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { CustomDashboard as CustomDashboardType } from "@shared/schema";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const DASHBOARD_TABS = [
   { id: "executive", label: "Executive", icon: LayoutDashboard },
@@ -51,16 +70,131 @@ type TabId = typeof DASHBOARD_TABS[number]["id"] | `custom-${number}`;
 
 const STORAGE_KEY = "dashboard-active-tab";
 
+interface SortableTabProps {
+  tab: typeof DASHBOARD_TABS[number];
+  isAdmin: boolean;
+}
+
+function SortableTab({ tab, isAdmin }: SortableTabProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tab.id, disabled: !isAdmin });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const Icon = tab.icon;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center"
+    >
+      {isAdmin && (
+        <span
+          {...attributes}
+          {...listeners}
+          className="cursor-grab hover:text-foreground text-muted-foreground px-1"
+          data-testid={`drag-handle-${tab.id}`}
+        >
+          <GripVertical className="h-3 w-3" />
+        </span>
+      )}
+      <TabsTrigger
+        value={tab.id}
+        className="flex items-center gap-2 data-[state=active]:bg-background"
+        data-testid={`tab-${tab.id}`}
+      >
+        <Icon className="h-4 w-4" />
+        <span className="hidden sm:inline">{tab.label}</span>
+      </TabsTrigger>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const searchString = useSearch();
   const searchParams = new URLSearchParams(searchString);
   const viewParam = searchParams.get("view") as TabId | null;
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, memberships } = useOrganization();
+  const { user } = useAuth();
   
   const [activeTab, setActiveTab] = useState<TabId>("executive");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedCustomDashboard, setSelectedCustomDashboard] = useState<number | null>(null);
+
+  // Check if user is org admin or super admin
+  const isOrgAdmin = useMemo(() => {
+    if (!currentOrganization || !user) return false;
+    if (user.role === 'super_admin') return true;
+    return memberships.some(
+      m => m.organizationId === currentOrganization.id && m.role === 'org_admin'
+    );
+  }, [currentOrganization, user, memberships]);
+
+  // Fetch tab order for current organization
+  const { data: tabOrderData } = useQuery<{ tabOrder: string[] }>({
+    queryKey: ['/api/organizations', currentOrganization?.id, 'dashboard-tab-order'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${currentOrganization?.id}/dashboard-tab-order`);
+      if (!res.ok) throw new Error('Failed to fetch tab order');
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Mutation to update tab order
+  const updateTabOrderMutation = useMutation({
+    mutationFn: async (tabOrder: string[]) => {
+      return apiRequest('PUT', `/api/organizations/${currentOrganization?.id}/dashboard-tab-order`, { tabOrder });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'dashboard-tab-order'] });
+    },
+  });
+
+  // Get sorted tabs based on saved order
+  const sortedTabs = useMemo(() => {
+    const savedOrder = tabOrderData?.tabOrder || [];
+    if (savedOrder.length === 0) return [...DASHBOARD_TABS];
+    
+    // Sort tabs based on saved order, unknown tabs go to the end
+    return [...DASHBOARD_TABS].sort((a, b) => {
+      const aIndex = savedOrder.indexOf(a.id);
+      const bIndex = savedOrder.indexOf(b.id);
+      if (aIndex === -1 && bIndex === -1) return 0;
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+  }, [tabOrderData?.tabOrder]);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = sortedTabs.findIndex(t => t.id === active.id);
+    const newIndex = sortedTabs.findIndex(t => t.id === over.id);
+    
+    const newOrder = arrayMove(sortedTabs.map(t => t.id), oldIndex, newIndex);
+    updateTabOrderMutation.mutate(newOrder);
+  };
 
   const { data: customDashboards } = useQuery<CustomDashboardType[]>({
     queryKey: [`/api/custom-dashboards?organizationId=${currentOrganization?.id}`],
@@ -128,20 +262,24 @@ export default function Dashboard() {
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="w-full flex flex-wrap h-auto gap-1 bg-muted/50 p-1" data-testid="dashboard-tabs">
-          {DASHBOARD_TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="flex items-center gap-2 data-[state=active]:bg-background"
-                data-testid={`tab-${tab.id}`}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </TabsTrigger>
-            );
-          })}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={sortedTabs.map(t => t.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {sortedTabs.map((tab) => (
+                <SortableTab
+                  key={tab.id}
+                  tab={tab}
+                  isAdmin={isOrgAdmin}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
           
           {selectedCustomDashboard && (
             <TabsTrigger
