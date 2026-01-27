@@ -76,6 +76,26 @@ export default function Portfolios() {
     return { green, yellow, red, total: portfolioProjects.length };
   };
 
+  const getTopProjects = (portfolioId: number, limit = 3) => {
+    return projects
+      ?.filter(p => p.portfolioId === portfolioId)
+      .sort((a, b) => {
+        const priorityOrder = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+        return (priorityOrder[a.priority as keyof typeof priorityOrder] || 3) - 
+               (priorityOrder[b.priority as keyof typeof priorityOrder] || 3);
+      })
+      .slice(0, limit) || [];
+  };
+
+  const getHealthColor = (health: string | null) => {
+    switch (health) {
+      case 'Green': return 'bg-emerald-500';
+      case 'Yellow': return 'bg-amber-500';
+      case 'Red': return 'bg-rose-500';
+      default: return 'bg-slate-400';
+    }
+  };
+
   const handleEditClick = (e: React.MouseEvent, portfolio: Portfolio) => {
     e.preventDefault();
     e.stopPropagation();
@@ -129,6 +149,7 @@ export default function Portfolios() {
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filteredPortfolios?.map((portfolio, index) => {
             const healthSummary = getProjectHealthSummary(portfolio.id);
+            const topProjects = getTopProjects(portfolio.id);
             return (
               <motion.div
                 key={portfolio.id}
@@ -139,17 +160,38 @@ export default function Portfolios() {
               >
                 <Link href={`/portfolios/${portfolio.id}`} className="h-full block">
                   <Card className="group cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-300 h-full flex flex-col" data-testid={`card-portfolio-${portfolio.id}`}>
-                    <CardHeader className="pb-3">
+                    <CardHeader className="pb-2">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="rounded-lg bg-primary/10 p-2 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                          <FolderOpen className="h-6 w-6" />
+                        <div className="flex items-center gap-3">
+                          <div className="rounded-lg bg-primary/10 p-1.5 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                            <FolderOpen className="h-5 w-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-base truncate">{portfolio.name}</CardTitle>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {portfolio.status && (
+                                <Badge 
+                                  variant="secondary" 
+                                  className={`text-[10px] px-1.5 py-0 ${
+                                    portfolio.status === "Active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                                    portfolio.status === "On Hold" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                                    "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                  }`}
+                                  data-testid={`badge-status-${portfolio.id}`}
+                                >
+                                  {portfolio.status}
+                                </Badge>
+                              )}
+                              <span className="text-[10px] text-muted-foreground">{healthSummary.total} projects</span>
+                            </div>
+                          </div>
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
                             <Button 
                               size="icon" 
                               variant="ghost" 
-                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                               data-testid={`button-menu-portfolio-${portfolio.id}`}
                             >
                               <MoreVertical className="h-4 w-4" />
@@ -172,103 +214,54 @@ export default function Portfolios() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
-                      <CardTitle className="mt-4 text-xl">{portfolio.name}</CardTitle>
-                      <CardDescription className="line-clamp-2 mt-2">{portfolio.description}</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3 flex-1 flex flex-col">
-                      {/* Status and Department Row */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {portfolio.status && (
-                          <Badge 
-                            variant="secondary" 
-                            className={
-                              portfolio.status === "Active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
-                              portfolio.status === "On Hold" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                              portfolio.status === "Closed" ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" :
-                              "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                            }
-                            data-testid={`badge-status-${portfolio.id}`}
-                          >
-                            {portfolio.status}
-                          </Badge>
-                        )}
-                        {portfolio.department && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground" data-testid={`text-department-${portfolio.id}`}>
-                            <Building2 className="h-3 w-3" />
-                            <span>{portfolio.department}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Projects Count */}
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Briefcase className="h-4 w-4" />
-                        <span>{healthSummary.total} Project{healthSummary.total !== 1 ? 's' : ''}</span>
-                      </div>
-                      
-                      {/* Health Summary Badges */}
-                      {healthSummary.total > 0 && (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {healthSummary.green > 0 && (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs">
-                              {healthSummary.green} Healthy
-                            </Badge>
-                          )}
-                          {healthSummary.yellow > 0 && (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
-                              {healthSummary.yellow} At Risk
-                            </Badge>
-                          )}
-                          {healthSummary.red > 0 && (
-                            <Badge variant="secondary" className="bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 text-xs">
-                              {healthSummary.red} Critical
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Budget Progress */}
-                      {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 && (
-                        <div className="space-y-1.5" data-testid={`budget-info-${portfolio.id}`}>
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <DollarSign className="h-3 w-3" />
-                              <span>Budget</span>
-                            </div>
-                            <span className="font-medium">
-                              ${Number(portfolio.budgetSpent || 0).toLocaleString()} / ${Number(portfolio.budgetAllocated).toLocaleString()}
-                            </span>
-                          </div>
-                          <Progress 
-                            value={Math.min((Number(portfolio.budgetSpent || 0) / Number(portfolio.budgetAllocated)) * 100, 100)} 
-                            className="h-1.5"
-                          />
-                        </div>
-                      )}
-
-                      {/* Timeline */}
-                      {(portfolio.targetStartDate || portfolio.targetEndDate) && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid={`timeline-info-${portfolio.id}`}>
-                          <Calendar className="h-3 w-3" />
+                    <CardContent className="pt-0 pb-3 flex-1 flex flex-col space-y-2">
+                      {/* Budget & Timeline Row */}
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground border-b pb-2">
+                        <div className="flex items-center gap-1">
+                          <DollarSign className="h-3 w-3" />
                           <span>
-                            {portfolio.targetStartDate ? new Date(portfolio.targetStartDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'TBD'}
-                            {' — '}
-                            {portfolio.targetEndDate ? new Date(portfolio.targetEndDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'TBD'}
+                            {portfolio.budgetAllocated && Number(portfolio.budgetAllocated) > 0 
+                              ? `$${(Number(portfolio.budgetSpent || 0) / 1000).toFixed(0)}k / $${(Number(portfolio.budgetAllocated) / 1000).toFixed(0)}k`
+                              : 'No budget'}
                           </span>
                         </div>
-                      )}
-
-                      {/* Strategic Objective Preview */}
-                      {portfolio.strategicObjective && (
-                        <div className="flex items-start gap-2 text-xs text-muted-foreground" data-testid={`objective-info-${portfolio.id}`}>
-                          <Target className="h-3 w-3 mt-0.5 shrink-0" />
-                          <span className="line-clamp-1">{portfolio.strategicObjective}</span>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          <span>
+                            {portfolio.targetStartDate || portfolio.targetEndDate
+                              ? `${portfolio.targetStartDate ? new Date(portfolio.targetStartDate).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : 'TBD'} - ${portfolio.targetEndDate ? new Date(portfolio.targetEndDate).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : 'TBD'}`
+                              : 'No timeline'}
+                          </span>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Top 3 Projects */}
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Top Projects</div>
+                        {topProjects.length > 0 ? (
+                          <div className="space-y-1">
+                            {topProjects.map((project) => (
+                              <div key={project.id} className="flex items-center gap-2 text-xs">
+                                <div className={`h-2 w-2 rounded-full shrink-0 ${getHealthColor(project.health)}`} />
+                                <span className="truncate flex-1">{project.name}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">
+                                  {project.percentComplete ?? 0}%
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground italic">No projects yet</div>
+                        )}
+                        {healthSummary.total > 3 && (
+                          <div className="text-[10px] text-muted-foreground">+{healthSummary.total - 3} more</div>
+                        )}
+                      </div>
 
                       <div className="flex-1" />
-                      <div className="flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity pt-2">
-                        View Details <ArrowRight className="ml-1 h-4 w-4" />
+                      <div className="flex items-center text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity pt-1">
+                        View Details <ArrowRight className="ml-1 h-3 w-3" />
                       </div>
                     </CardContent>
                   </Card>
