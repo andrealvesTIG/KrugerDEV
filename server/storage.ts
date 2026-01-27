@@ -40,6 +40,9 @@ import {
   type ProjectComment, type InsertProjectComment,
   type BillableStatusComment, type InsertBillableStatusComment,
   type HealthStatusHistory, type InsertHealthStatusHistory,
+  type ProjectInvoice, type InsertProjectInvoice,
+  type InvoiceNote, type InsertInvoiceNote,
+  projectInvoices, invoiceNotes,
   type Notification, type InsertNotification,
   type StatusReportHistory, type InsertStatusReportHistory,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
@@ -305,6 +308,17 @@ export interface IStorage {
   // Health Status History
   getHealthStatusHistory(projectId: number): Promise<HealthStatusHistory[]>;
   createHealthStatusHistory(entry: InsertHealthStatusHistory): Promise<HealthStatusHistory>;
+
+  // Project Invoices
+  getProjectInvoices(projectId: number): Promise<ProjectInvoice[]>;
+  getProjectInvoice(id: number): Promise<ProjectInvoice | undefined>;
+  createProjectInvoice(invoice: InsertProjectInvoice): Promise<ProjectInvoice>;
+  updateProjectInvoice(id: number, updates: Partial<InsertProjectInvoice>): Promise<ProjectInvoice>;
+  deleteProjectInvoice(id: number): Promise<void>;
+
+  // Invoice Notes
+  getInvoiceNotes(invoiceId: number): Promise<InvoiceNote[]>;
+  createInvoiceNote(note: InsertInvoiceNote): Promise<InvoiceNote>;
 
   // Project Views
   getProjectViews(organizationId: number, userId: string, mode: string): Promise<ProjectView[]>;
@@ -2763,6 +2777,53 @@ export class DatabaseStorage implements IStorage {
 
   async createHealthStatusHistory(entry: InsertHealthStatusHistory): Promise<HealthStatusHistory> {
     const [created] = await db.insert(healthStatusHistory).values(entry).returning();
+    return created;
+  }
+
+  // Project Invoices
+  async getProjectInvoices(projectId: number): Promise<ProjectInvoice[]> {
+    return await db.select().from(projectInvoices)
+      .where(and(
+        eq(projectInvoices.projectId, projectId),
+        isNull(projectInvoices.deletedAt)
+      ))
+      .orderBy(desc(projectInvoices.createdAt));
+  }
+
+  async getProjectInvoice(id: number): Promise<ProjectInvoice | undefined> {
+    const [invoice] = await db.select().from(projectInvoices)
+      .where(eq(projectInvoices.id, id));
+    return invoice;
+  }
+
+  async createProjectInvoice(invoice: InsertProjectInvoice): Promise<ProjectInvoice> {
+    const [created] = await db.insert(projectInvoices).values(invoice).returning();
+    return created;
+  }
+
+  async updateProjectInvoice(id: number, updates: Partial<InsertProjectInvoice>): Promise<ProjectInvoice> {
+    const [updated] = await db.update(projectInvoices)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(projectInvoices.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProjectInvoice(id: number): Promise<void> {
+    await db.update(projectInvoices)
+      .set({ deletedAt: new Date() })
+      .where(eq(projectInvoices.id, id));
+  }
+
+  // Invoice Notes
+  async getInvoiceNotes(invoiceId: number): Promise<InvoiceNote[]> {
+    return await db.select().from(invoiceNotes)
+      .where(eq(invoiceNotes.invoiceId, invoiceId))
+      .orderBy(desc(invoiceNotes.createdAt));
+  }
+
+  async createInvoiceNote(note: InsertInvoiceNote): Promise<InvoiceNote> {
+    const [created] = await db.insert(invoiceNotes).values(note).returning();
     return created;
   }
 

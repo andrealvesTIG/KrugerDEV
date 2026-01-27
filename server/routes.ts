@@ -9876,6 +9876,223 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     }
   });
 
+  // =========== PROJECT INVOICES ===========
+  
+  // Get all invoices for a project
+  app.get('/api/projects/:projectId/invoices', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const projectId = Number(req.params.projectId);
+      
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      if (userId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(project.organizationId)) {
+          return res.status(404).json({ message: "Project not found" });
+        }
+      }
+      
+      const invoices = await storage.getProjectInvoices(projectId);
+      res.json(invoices);
+    } catch (err) {
+      console.error("Error fetching invoices:", err);
+      res.status(500).json({ message: "Error fetching invoices" });
+    }
+  });
+
+  // Create a new invoice
+  app.post('/api/projects/:projectId/invoices', async (req, res) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const user = await storage.getUser(userId);
+      const userName = user?.firstName && user?.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user?.email || 'Unknown';
+      
+      const invoice = await storage.createProjectInvoice({
+        ...req.body,
+        projectId,
+        organizationId: project.organizationId,
+        createdBy: userId,
+        createdByName: userName,
+      });
+      
+      res.status(201).json(invoice);
+    } catch (err) {
+      console.error("Error creating invoice:", err);
+      res.status(500).json({ message: "Error creating invoice" });
+    }
+  });
+
+  // Update an invoice
+  app.patch('/api/invoices/:invoiceId', async (req, res) => {
+    try {
+      const invoiceId = Number(req.params.invoiceId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const invoice = await storage.getProjectInvoice(invoiceId);
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      const project = await storage.getProject(invoice.projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const updated = await storage.updateProjectInvoice(invoiceId, req.body);
+      res.json(updated);
+    } catch (err) {
+      console.error("Error updating invoice:", err);
+      res.status(500).json({ message: "Error updating invoice" });
+    }
+  });
+
+  // Delete an invoice
+  app.delete('/api/invoices/:invoiceId', async (req, res) => {
+    try {
+      const invoiceId = Number(req.params.invoiceId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const invoice = await storage.getProjectInvoice(invoiceId);
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      const project = await storage.getProject(invoice.projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.deleteProjectInvoice(invoiceId);
+      res.status(204).send();
+    } catch (err) {
+      console.error("Error deleting invoice:", err);
+      res.status(500).json({ message: "Error deleting invoice" });
+    }
+  });
+
+  // =========== INVOICE NOTES ===========
+  
+  // Get all notes for an invoice
+  app.get('/api/invoices/:invoiceId/notes', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const invoiceId = Number(req.params.invoiceId);
+      
+      const invoice = await storage.getProjectInvoice(invoiceId);
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      const project = await storage.getProject(invoice.projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      if (userId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(project.organizationId)) {
+          return res.status(404).json({ message: "Invoice not found" });
+        }
+      }
+      
+      const notes = await storage.getInvoiceNotes(invoiceId);
+      res.json(notes);
+    } catch (err) {
+      console.error("Error fetching invoice notes:", err);
+      res.status(500).json({ message: "Error fetching invoice notes" });
+    }
+  });
+
+  // Create a note for an invoice
+  app.post('/api/invoices/:invoiceId/notes', async (req, res) => {
+    try {
+      const invoiceId = Number(req.params.invoiceId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const invoice = await storage.getProjectInvoice(invoiceId);
+      if (!invoice) {
+        return res.status(404).json({ message: "Invoice not found" });
+      }
+      
+      const project = await storage.getProject(invoice.projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const content = req.body.note?.trim();
+      if (!content || content.length === 0) {
+        return res.status(400).json({ message: "Note content is required" });
+      }
+      
+      const user = await storage.getUser(userId);
+      const userName = user?.firstName && user?.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user?.email || 'Unknown';
+      
+      const note = await storage.createInvoiceNote({
+        invoiceId,
+        status: invoice.status,
+        note: content,
+        userId,
+        userName,
+      });
+      
+      res.status(201).json(note);
+    } catch (err) {
+      console.error("Error creating invoice note:", err);
+      res.status(500).json({ message: "Error creating invoice note" });
+    }
+  });
+
   // =========== PROJECT VIEWS ===========
   
   // Get all views for a user in a specific mode (grid or gantt)
