@@ -331,7 +331,13 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    setActiveTab(getInitialTab());
+    const initialTab = getInitialTab();
+    setActiveTab(initialTab);
+    // Also set selectedCustomDashboard if it's a custom tab
+    if (initialTab.startsWith('custom-')) {
+      const dashboardId = Number(initialTab.replace('custom-', ''));
+      setSelectedCustomDashboard(dashboardId);
+    }
   }, [viewParam]);
 
   const handleTabChange = (value: string) => {
@@ -547,10 +553,16 @@ export default function Dashboard() {
           <TimesheetReportDashboard />
         </TabsContent>
 
-        {isCustomTab && selectedCustomDashboard && (
-          <TabsContent value={`custom-${selectedCustomDashboard}`} className="mt-6" data-testid={`content-custom-${selectedCustomDashboard}`}>
+        {/* Render TabsContent for all visible custom dashboards */}
+        {customDashboards?.filter(d => !hiddenCustomDashboards.includes(d.id)).map((dashboard) => (
+          <TabsContent 
+            key={dashboard.id}
+            value={`custom-${dashboard.id}`} 
+            className="mt-6" 
+            data-testid={`content-custom-${dashboard.id}`}
+          >
             <CustomDashboard 
-              dashboardId={selectedCustomDashboard} 
+              dashboardId={dashboard.id} 
               onDelete={() => {
                 setActiveTab("executive");
                 setSelectedCustomDashboard(null);
@@ -558,7 +570,7 @@ export default function Dashboard() {
               }}
             />
           </TabsContent>
-        )}
+        ))}
       </Tabs>
 
       <CreateCustomDashboardDialog
