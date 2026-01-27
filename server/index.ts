@@ -12,6 +12,8 @@ const httpServer = createServer(app);
 
 // Serve static files from public directory (avatars, etc.)
 app.use('/avatars', express.static(path.join(process.cwd(), 'public', 'avatars')));
+// Serve videos from client/public/videos (large files not bundled by Vite)
+app.use('/videos', express.static(path.join(process.cwd(), 'client', 'public', 'videos')));
 
 declare module "http" {
   interface IncomingMessage {
