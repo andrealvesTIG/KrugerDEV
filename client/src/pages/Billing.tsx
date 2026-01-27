@@ -799,6 +799,10 @@ export function BillingContent() {
                       const maxTasks = creditsLimit ? Math.floor(creditsLimit / taskCost) : null;
                       const maxIssues = creditsLimit ? Math.floor(creditsLimit / issueCost) : null;
                       
+                      // Find overage pricing rule
+                      const overageRule = creditsRules.find((r: any) => r.ruleType === 'METERED_OVERAGE');
+                      const overagePriceMicrocents = overageRule?.overageUnitPriceMicrocents;
+                      
                       return (
                         <div className="pt-2 border-t space-y-1.5">
                           <div className="flex items-center gap-2 text-xs">
@@ -810,6 +814,12 @@ export function BillingContent() {
                           {creditsLimit > 0 && (
                             <div className="ml-5 text-[10px] text-muted-foreground">
                               Up to {maxProjects?.toLocaleString()} projects, {maxTasks?.toLocaleString()} tasks, {maxIssues?.toLocaleString()} issues
+                            </div>
+                          )}
+                          {overagePriceMicrocents && overagePriceMicrocents > 0 && (
+                            <div className="ml-5 text-[10px] text-muted-foreground flex items-center gap-1">
+                              <DollarSign className="h-2.5 w-2.5" />
+                              <span>Overage: {formatPrice(overagePriceMicrocents)}/credit</span>
                             </div>
                           )}
                           {plan.maxSeats && (
