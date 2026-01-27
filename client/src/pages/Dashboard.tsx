@@ -34,6 +34,8 @@ import {
   Plus,
   Sparkles,
   BarChart3,
+  Pin,
+  EyeOff,
 } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
@@ -136,8 +138,8 @@ export default function Dashboard() {
     );
   }, [currentOrganization, user, memberships]);
 
-  // Fetch tab order for current organization
-  const { data: tabOrderData } = useQuery<{ tabOrder: string[] }>({
+  // Fetch tab order and hidden tabs for current organization
+  const { data: tabOrderData } = useQuery<{ tabOrder: string[]; hiddenTabs: string[] }>({
     queryKey: ['/api/organizations', currentOrganization?.id, 'dashboard-tab-order'],
     queryFn: async () => {
       const res = await fetch(`/api/organizations/${currentOrganization?.id}/dashboard-tab-order`);
@@ -147,23 +149,38 @@ export default function Dashboard() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Mutation to update tab order
+  // Mutation to update tab order and hidden tabs
   const updateTabOrderMutation = useMutation({
-    mutationFn: async (tabOrder: string[]) => {
-      return apiRequest('PUT', `/api/organizations/${currentOrganization?.id}/dashboard-tab-order`, { tabOrder });
+    mutationFn: async (data: { tabOrder?: string[]; hiddenTabs?: string[] }) => {
+      return apiRequest('PUT', `/api/organizations/${currentOrganization?.id}/dashboard-tab-order`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'dashboard-tab-order'] });
     },
   });
 
-  // Get sorted tabs based on saved order
-  const sortedTabs = useMemo(() => {
+  // Pin a tab (remove from hidden)
+  const handlePinTab = (tabId: string) => {
+    const currentHidden = tabOrderData?.hiddenTabs || [];
+    const newHidden = currentHidden.filter(id => id !== tabId);
+    updateTabOrderMutation.mutate({ hiddenTabs: newHidden });
+  };
+
+  // Hide a tab (add to hidden)
+  const handleHideTab = (tabId: string) => {
+    const currentHidden = tabOrderData?.hiddenTabs || [];
+    if (!currentHidden.includes(tabId)) {
+      updateTabOrderMutation.mutate({ hiddenTabs: [...currentHidden, tabId] });
+    }
+  };
+
+  // Get sorted tabs based on saved order, separating visible and hidden
+  const { visibleTabs, hiddenTabs } = useMemo(() => {
     const savedOrder = tabOrderData?.tabOrder || [];
-    if (savedOrder.length === 0) return [...DASHBOARD_TABS];
+    const hiddenTabIds = tabOrderData?.hiddenTabs || [];
     
-    // Sort tabs based on saved order, unknown tabs go to the end
-    return [...DASHBOARD_TABS].sort((a, b) => {
+    // Sort all tabs based on saved order
+    const allSorted = [...DASHBOARD_TABS].sort((a, b) => {
       const aIndex = savedOrder.indexOf(a.id);
       const bIndex = savedOrder.indexOf(b.id);
       if (aIndex === -1 && bIndex === -1) return 0;
@@ -171,7 +188,13 @@ export default function Dashboard() {
       if (bIndex === -1) return -1;
       return aIndex - bIndex;
     });
-  }, [tabOrderData?.tabOrder]);
+    
+    // Separate visible and hidden tabs
+    const visible = allSorted.filter(tab => !hiddenTabIds.includes(tab.id));
+    const hidden = allSorted.filter(tab => hiddenTabIds.includes(tab.id));
+    
+    return { visibleTabs: visible, hiddenTabs: hidden };
+  }, [tabOrderData?.tabOrder, tabOrderData?.hiddenTabs]);
 
   // DnD sensors
   const sensors = useSensors(
@@ -183,11 +206,19 @@ export default function Dashboard() {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = sortedTabs.findIndex(t => t.id === active.id);
-    const newIndex = sortedTabs.findIndex(t => t.id === over.id);
+    // Check if dropping on the "hide" dropzone
+    if (over.id === 'hide-dropzone') {
+      handleHideTab(active.id as string);
+      return;
+    }
+
+    const oldIndex = visibleTabs.findIndex(t => t.id === active.id);
+    const newIndex = visibleTabs.findIndex(t => t.id === over.id);
     
-    const newOrder = arrayMove(sortedTabs.map(t => t.id), oldIndex, newIndex);
-    updateTabOrderMutation.mutate(newOrder);
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOrder = arrayMove(visibleTabs.map(t => t.id), oldIndex, newIndex);
+      updateTabOrderMutation.mutate({ tabOrder: newOrder });
+    }
   };
 
   const { data: customDashboards } = useQuery<CustomDashboardType[]>({
@@ -262,10 +293,10 @@ export default function Dashboard() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={sortedTabs.map(t => t.id)}
+              items={visibleTabs.map(t => t.id)}
               strategy={horizontalListSortingStrategy}
             >
-              {sortedTabs.map((tab) => (
+              {visibleTabs.map((tab) => (
                 <SortableTab
                   key={tab.id}
                   tab={tab}
@@ -315,6 +346,54 @@ export default function Dashboard() {
                 Add Power BI Report
               </DropdownMenuItem>
               
+              {/* Visible Tabs Section - Admin can hide */}
+              {isOrgAdmin && visibleTabs.length > 1 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    Visible Tabs (Click to Hide)
+                  </div>
+                  {visibleTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={tab.id}
+                        onClick={() => handleHideTab(tab.id)}
+                        data-testid={`menu-item-hide-${tab.id}`}
+                      >
+                        <EyeOff className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <Icon className="h-4 w-4 mr-2" />
+                        <span className="flex-1">{tab.label}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </>
+              )}
+
+              {/* Hidden Tabs Section - Admin only */}
+              {isOrgAdmin && hiddenTabs.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    Hidden Tabs (Click to Pin)
+                  </div>
+                  {hiddenTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={tab.id}
+                        onClick={() => handlePinTab(tab.id)}
+                        data-testid={`menu-item-pin-${tab.id}`}
+                      >
+                        <Pin className="h-4 w-4 mr-2 text-blue-500" />
+                        <Icon className="h-4 w-4 mr-2" />
+                        <span className="flex-1">{tab.label}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </>
+              )}
+
               {customDashboards && customDashboards.length > 0 && (
                 <>
                   <DropdownMenuSeparator />

@@ -60,6 +60,7 @@ export const organizations = pgTable("organizations", {
   hiddenGroups: text("hidden_groups").array(), // Legacy: Array of group keys to hide from sidebar
   sidebarStructure: jsonb("sidebar_structure").$type<SidebarStructure>(), // New: Full sidebar config
   dashboardTabOrder: text("dashboard_tab_order").array(), // Array of tab IDs defining dashboard report order
+  dashboardHiddenTabs: text("dashboard_hidden_tabs").array(), // Array of tab IDs hidden in overflow menu
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
 });

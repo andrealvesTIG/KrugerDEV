@@ -1531,13 +1531,26 @@ export async function registerRoutes(
         return res.status(403).json({ message: 'Only organization admins can reorder dashboard tabs' });
       }
       
-      const { tabOrder } = req.body;
-      if (!Array.isArray(tabOrder)) {
-        return res.status(400).json({ message: 'tabOrder must be an array of tab IDs' });
+      const { tabOrder, hiddenTabs } = req.body;
+      
+      const updateData: { dashboardTabOrder?: string[]; dashboardHiddenTabs?: string[] } = {};
+      
+      if (tabOrder !== undefined) {
+        if (!Array.isArray(tabOrder)) {
+          return res.status(400).json({ message: 'tabOrder must be an array of tab IDs' });
+        }
+        updateData.dashboardTabOrder = tabOrder;
       }
       
-      const updated = await storage.updateOrganization(orgId, { dashboardTabOrder: tabOrder });
-      res.json({ tabOrder: updated.dashboardTabOrder });
+      if (hiddenTabs !== undefined) {
+        if (!Array.isArray(hiddenTabs)) {
+          return res.status(400).json({ message: 'hiddenTabs must be an array of tab IDs' });
+        }
+        updateData.dashboardHiddenTabs = hiddenTabs;
+      }
+      
+      const updated = await storage.updateOrganization(orgId, updateData);
+      res.json({ tabOrder: updated.dashboardTabOrder, hiddenTabs: updated.dashboardHiddenTabs });
     } catch (err) {
       console.error('Error updating dashboard tab order:', err);
       res.status(500).json({ message: 'Failed to update dashboard tab order' });
@@ -1555,7 +1568,7 @@ export async function registerRoutes(
       }
       
       const org = await storage.getOrganization(orgId);
-      res.json({ tabOrder: org?.dashboardTabOrder || [] });
+      res.json({ tabOrder: org?.dashboardTabOrder || [], hiddenTabs: org?.dashboardHiddenTabs || [] });
     } catch (err) {
       res.status(500).json({ message: 'Failed to get dashboard tab order' });
     }
