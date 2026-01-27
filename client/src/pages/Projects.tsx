@@ -324,9 +324,9 @@ export default function Projects() {
           break;
       }
       
-      const matchesStatus = statusFilter === "all" || p.status === statusFilter;
-      const matchesHealth = healthFilter === "all" || p.health === healthFilter;
-      const matchesPriority = priorityFilter === "all" || p.priority === priorityFilter;
+      const matchesStatus = statusFilter === "all" || (p.status || "") === statusFilter;
+      const matchesHealth = healthFilter === "all" || (p.health || "") === healthFilter;
+      const matchesPriority = priorityFilter === "all" || (p.priority || "") === priorityFilter;
       
       return matchesSearch && matchesSource && matchesPortfolio && matchesFilterView && matchesStatus && matchesHealth && matchesPriority;
     });
