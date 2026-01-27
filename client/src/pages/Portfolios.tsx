@@ -241,9 +241,9 @@ export default function Portfolios() {
                               const budget = getPortfolioBudget(portfolio.id);
                               if (budget.allocated > 0) {
                                 const formatBudget = (val: number) => {
-                                  if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
-                                  if (val >= 1000) return `$${(val / 1000).toFixed(0)}k`;
-                                  return `$${val.toFixed(0)}`;
+                                  if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+                                  if (val >= 1000) return `${(val / 1000).toFixed(0)}k`;
+                                  return `${val.toFixed(0)}`;
                                 };
                                 return `${formatBudget(budget.spent)} / ${formatBudget(budget.allocated)}`;
                               }
