@@ -1501,11 +1501,63 @@ export async function registerRoutes(
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl } = req.body;
-      const updated = await storage.updateOrganization(orgId, { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl });
+      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, dashboardTabOrder } = req.body;
+      const updated = await storage.updateOrganization(orgId, { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, dashboardTabOrder });
       res.json(updated);
     } catch (err) {
       res.status(500).json({ message: 'Failed to update organization' });
+    }
+  });
+
+  // Dashboard tab order - admin only
+  app.put('/api/organizations/:id/dashboard-tab-order', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      // Check if user is org admin
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === orgId && m.role === 'org_admin');
+      
+      // Also allow super_admin
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      
+      if (!isOrgAdmin && !isSuperAdmin) {
+        return res.status(403).json({ message: 'Only organization admins can reorder dashboard tabs' });
+      }
+      
+      const { tabOrder } = req.body;
+      if (!Array.isArray(tabOrder)) {
+        return res.status(400).json({ message: 'tabOrder must be an array of tab IDs' });
+      }
+      
+      const updated = await storage.updateOrganization(orgId, { dashboardTabOrder: tabOrder });
+      res.json({ tabOrder: updated.dashboardTabOrder });
+    } catch (err) {
+      console.error('Error updating dashboard tab order:', err);
+      res.status(500).json({ message: 'Failed to update dashboard tab order' });
+    }
+  });
+
+  // Get dashboard tab order
+  app.get('/api/organizations/:id/dashboard-tab-order', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
+      const org = await storage.getOrganization(orgId);
+      res.json({ tabOrder: org?.dashboardTabOrder || [] });
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to get dashboard tab order' });
     }
   });
 
