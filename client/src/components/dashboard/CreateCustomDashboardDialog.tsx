@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   Dialog,
@@ -11,15 +11,60 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, Mic, MicOff } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 
 interface CreateCustomDashboardDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (dashboardId: number) => void;
+}
+
+// Type declaration for Web Speech API
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onend: (() => void) | null;
+  onstart: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
 }
 
 export function CreateCustomDashboardDialog({
@@ -30,6 +75,100 @@ export function CreateCustomDashboardDialog({
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const [description, setDescription] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState("");
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  // Check if speech recognition is supported
+  const isSpeechRecognitionSupported = typeof window !== 'undefined' && 
+    (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (!isSpeechRecognitionSupported) return;
+
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognitionAPI();
+    
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = '';
+      let final = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          final += result[0].transcript;
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+
+      if (final) {
+        setDescription(prev => prev + (prev ? ' ' : '') + final.trim());
+        setInterimTranscript('');
+      } else {
+        setInterimTranscript(interim);
+      }
+    };
+
+    recognition.onerror = (event: Event) => {
+      console.error('Speech recognition error:', event);
+      setIsListening(false);
+      setInterimTranscript('');
+      toast({
+        title: "Voice input error",
+        description: "Could not recognize speech. Please try again.",
+        variant: "destructive",
+      });
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      setInterimTranscript('');
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, [isSpeechRecognitionSupported, toast]);
+
+  // Stop listening when dialog closes
+  useEffect(() => {
+    if (!open && isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+  }, [open, isListening]);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      try {
+        recognitionRef.current.start();
+      } catch (error) {
+        console.error('Failed to start speech recognition:', error);
+        toast({
+          title: "Voice input unavailable",
+          description: "Please check your microphone permissions.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
 
   const createMutation = useMutation({
     mutationFn: async (description: string) => {
@@ -85,15 +224,56 @@ export function CreateCustomDashboardDialog({
         
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="description">What would you like to see in your dashboard?</Label>
-            <Textarea
-              id="description"
-              placeholder="e.g., Show me project health distribution and task completion trends..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="min-h-[100px]"
-              data-testid="input-dashboard-description"
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description">What would you like to see in your dashboard?</Label>
+              {isSpeechRecognitionSupported && (
+                <Button
+                  type="button"
+                  variant={isListening ? "default" : "outline"}
+                  size="sm"
+                  onClick={toggleListening}
+                  className={cn(
+                    "h-8 gap-1.5",
+                    isListening && "bg-red-500 hover:bg-red-600 text-white"
+                  )}
+                  data-testid="button-voice-input"
+                >
+                  {isListening ? (
+                    <>
+                      <MicOff className="h-3.5 w-3.5" />
+                      <span className="text-xs">Stop</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="h-3.5 w-3.5" />
+                      <span className="text-xs">Voice</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+            <div className="relative">
+              <Textarea
+                id="description"
+                placeholder="e.g., Show me project health distribution and task completion trends..."
+                value={description + (interimTranscript ? (description ? ' ' : '') + interimTranscript : '')}
+                onChange={(e) => setDescription(e.target.value)}
+                className={cn(
+                  "min-h-[100px]",
+                  isListening && "border-red-500 ring-1 ring-red-500"
+                )}
+                data-testid="input-dashboard-description"
+              />
+              {isListening && (
+                <div className="absolute bottom-2 right-2 flex items-center gap-1.5 text-xs text-red-500">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                  Listening...
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
