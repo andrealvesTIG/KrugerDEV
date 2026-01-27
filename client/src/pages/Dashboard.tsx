@@ -326,18 +326,20 @@ export default function Dashboard() {
             </SortableContext>
           </DndContext>
           
-          {selectedCustomDashboard && (
+          {/* Show visible (non-hidden) custom dashboards as tabs */}
+          {customDashboards?.filter(d => !hiddenCustomDashboards.includes(d.id)).map((dashboard) => (
             <TabsTrigger
-              value={`custom-${selectedCustomDashboard}`}
+              key={dashboard.id}
+              value={`custom-${dashboard.id}`}
               className="flex items-center gap-2 data-[state=active]:bg-background"
-              data-testid={`tab-custom-${selectedCustomDashboard}`}
+              data-testid={`tab-custom-${dashboard.id}`}
             >
               <Sparkles className="h-4 w-4" />
-              <span className="hidden sm:inline">
-                {customDashboards?.find(d => d.id === selectedCustomDashboard)?.name || 'Custom'}
+              <span className="hidden sm:inline truncate max-w-32">
+                {dashboard.name}
               </span>
             </TabsTrigger>
-          )}
+          ))}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
