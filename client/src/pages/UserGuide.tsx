@@ -1004,6 +1004,28 @@ function ActionItem({ icon: Icon, title, description }: {
   );
 }
 
+function ScreenshotImage({ src, alt, caption }: {
+  src: string;
+  alt: string;
+  caption?: string;
+}) {
+  return (
+    <div className="my-6 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+      <img 
+        src={src} 
+        alt={alt} 
+        className="w-full h-auto"
+        loading="lazy"
+      />
+      {caption && (
+        <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+          <p className="text-sm text-muted-foreground text-center">{caption}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function UserGuide() {
   const [activeSection, setActiveSection] = useState("overview");
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -1173,6 +1195,12 @@ export default function UserGuide() {
                     It displays key metrics, recent activity, and quick access to important information.
                   </p>
                   
+                  <ScreenshotImage 
+                    src="/images/guide/dashboard.png" 
+                    alt="Dashboard Overview" 
+                    caption="Dashboard showing key metrics, project health charts, and recent activity"
+                  />
+                  
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                     <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center">
                       <FolderKanban className="h-6 w-6 mx-auto text-blue-600 dark:text-blue-400" />
@@ -1234,6 +1262,12 @@ export default function UserGuide() {
                     Each portfolio can have its own strategy, manager, and set of projects.
                   </p>
                   
+                  <ScreenshotImage 
+                    src="/images/guide/portfolios.png" 
+                    alt="Portfolios List View" 
+                    caption="Portfolio grid view showing strategy, project count, health status, and budget information"
+                  />
+                  
                   <h4 className="font-semibold text-foreground mt-4">Managing Portfolios:</h4>
                   <div className="space-y-3">
                     <ActionItem 
@@ -1279,6 +1313,12 @@ export default function UserGuide() {
                     Projects are the heart of FridayReport.AI. Track individual initiatives with detailed information 
                     including status, priority, health, budget, and completion percentage.
                   </p>
+                  
+                  <ScreenshotImage 
+                    src="/images/guide/projects.png" 
+                    alt="Projects Table View" 
+                    caption="Projects list with sortable columns, status badges, health indicators, and progress tracking"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Project Attributes:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
@@ -1705,6 +1745,12 @@ export default function UserGuide() {
                     with specific projects and assigned to team members.
                   </p>
                   
+                  <ScreenshotImage 
+                    src="/images/guide/tasks.png" 
+                    alt="Tasks Kanban Board" 
+                    caption="Task management with Kanban board view showing tasks organized by status columns"
+                  />
+                  
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     <FeatureHighlight 
                       icon={GanttChart}
@@ -1761,6 +1807,12 @@ export default function UserGuide() {
                     Issues help you track bugs, problems, and enhancement requests across your projects. 
                     Each issue is linked to a specific project for organized tracking.
                   </p>
+                  
+                  <ScreenshotImage 
+                    src="/images/guide/issues.png" 
+                    alt="Issues List View" 
+                    caption="Issues tracking table with type badges, priority levels, and status workflow"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Issue Types:</h4>
                   <div className="flex flex-wrap gap-2">
@@ -1880,6 +1932,12 @@ export default function UserGuide() {
                     Resources can be assigned to tasks, issues, and risks for better workload tracking.
                   </p>
                   
+                  <ScreenshotImage 
+                    src="/images/guide/resources.png" 
+                    alt="Resources List" 
+                    caption="Team member management with roles, departments, skills, and availability tracking"
+                  />
+                  
                   <h4 className="font-semibold text-foreground mt-4">Resource Management:</h4>
                   <ul className="space-y-2 text-muted-foreground">
                     <li className="flex items-start gap-2">
@@ -1975,6 +2033,12 @@ export default function UserGuide() {
                     The Calendar view provides a visual timeline of your projects, milestones, and key dates. 
                     Navigate through months to see upcoming deadlines and important events.
                   </p>
+                  
+                  <ScreenshotImage 
+                    src="/images/guide/calendar.png" 
+                    alt="Calendar View" 
+                    caption="Monthly calendar with color-coded project milestones and deadline markers"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Calendar Features:</h4>
                   <ul className="space-y-2 text-muted-foreground">
@@ -2509,6 +2573,12 @@ export default function UserGuide() {
                     Configure application settings, organization preferences, and user-specific options 
                     through the various settings pages.
                   </p>
+                  
+                  <ScreenshotImage 
+                    src="/images/guide/settings.png" 
+                    alt="Settings Page" 
+                    caption="Settings page with navigation sidebar and configuration options"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Settings Areas:</h4>
                   <div className="space-y-3">
