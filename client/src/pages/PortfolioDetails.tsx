@@ -13,6 +13,10 @@ import {
   type PortfolioIssue
 } from "@/hooks/use-portfolio-details";
 import { useProjects, useUpdateProject } from "@/hooks/use-projects";
+import { useUpdateRisk, useDeleteRisk } from "@/hooks/use-risks";
+import { useUpdateIssue, useDeleteIssue } from "@/hooks/use-issues";
+import { useForm, Controller } from "react-hook-form";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -912,7 +916,63 @@ function PortfolioProjectsGanttView({ projects }: { projects: Project[] }) {
 }
 
 function RisksTab({ portfolioId }: { portfolioId: number }) {
-  const { data: risks, isLoading } = usePortfolioRisks(portfolioId);
+  const { data: risks, isLoading, refetch } = usePortfolioRisks(portfolioId);
+  const [editingRisk, setEditingRisk] = useState<PortfolioRisk | null>(null);
+  const [deleteRisk, setDeleteRisk] = useState<PortfolioRisk | null>(null);
+  const updateRisk = useUpdateRisk();
+  const deleteRiskMutation = useDeleteRisk();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const editForm = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      probability: "Medium",
+      impact: "Medium",
+      status: "Open",
+      mitigationPlan: "",
+    }
+  });
+
+  useEffect(() => {
+    if (editingRisk) {
+      editForm.reset({
+        title: editingRisk.title || "",
+        description: editingRisk.description || "",
+        probability: editingRisk.probability || "Medium",
+        impact: editingRisk.impact || "Medium",
+        status: editingRisk.status || "Open",
+        mitigationPlan: editingRisk.mitigationPlan || "",
+      });
+    }
+  }, [editingRisk]);
+
+  const onEditSubmit = async (data: any) => {
+    if (!editingRisk) return;
+    try {
+      await updateRisk.mutateAsync({ id: editingRisk.id, projectId: editingRisk.projectId, ...data });
+      toast({ title: "Success", description: "Risk updated successfully" });
+      setEditingRisk(null);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteRisk) return;
+    try {
+      await deleteRiskMutation.mutateAsync({ id: deleteRisk.id, projectId: deleteRisk.projectId });
+      toast({ title: "Success", description: "Risk deleted successfully" });
+      setDeleteRisk(null);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
@@ -929,66 +989,261 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-amber-600" />
-          Portfolio Risks
-        </CardTitle>
-        <CardDescription>Aggregated risks from all projects in this portfolio</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr className="border-b">
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Risk</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Probability</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Impact</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {risks?.map((risk: PortfolioRisk) => (
-                <tr key={risk.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-risk-${risk.id}`}>
-                  <td className="p-3">
-                    <div>
-                      <p className="font-medium">{risk.title}</p>
-                      <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="outline" className="text-xs">{risk.projectName}</Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge className={cn("text-xs", probabilityColors[risk.probability || "Medium"])}>{risk.probability}</Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge className={cn("text-xs", impactColors[risk.impact || "Medium"])}>{risk.impact}</Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="outline" className={cn("text-xs", risk.status === "Open" ? "border-amber-500 text-amber-700" : "border-emerald-500 text-emerald-700")}>
-                      {risk.status}
-                    </Badge>
-                  </td>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+            Portfolio Risks
+          </CardTitle>
+          <CardDescription>Aggregated risks from all projects in this portfolio</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr className="border-b">
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Risk</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Probability</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Impact</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="p-3 w-12"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {risks?.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No risks recorded across portfolio projects.
+              </thead>
+              <tbody>
+                {risks?.map((risk: PortfolioRisk) => (
+                  <tr 
+                    key={risk.id} 
+                    className="border-b hover:bg-muted/30 transition-colors cursor-pointer group" 
+                    data-testid={`row-risk-${risk.id}`}
+                    onClick={() => setEditingRisk(risk)}
+                  >
+                    <td className="p-3">
+                      <div>
+                        <p className="font-medium hover:text-primary">{risk.title}</p>
+                        <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <Badge variant="outline" className="text-xs">{risk.projectName}</Badge>
+                    </td>
+                    <td className="p-3">
+                      <Badge className={cn("text-xs", probabilityColors[risk.probability || "Medium"])}>{risk.probability}</Badge>
+                    </td>
+                    <td className="p-3">
+                      <Badge className={cn("text-xs", impactColors[risk.impact || "Medium"])}>{risk.impact}</Badge>
+                    </td>
+                    <td className="p-3">
+                      <Badge variant="outline" className={cn("text-xs", risk.status === "Open" ? "border-amber-500 text-amber-700" : "border-emerald-500 text-emerald-700")}>
+                        {risk.status}
+                      </Badge>
+                    </td>
+                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" data-testid={`menu-risk-${risk.id}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setEditingRisk(risk)} data-testid={`edit-risk-${risk.id}`}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeleteRisk(risk)} className="text-red-600" data-testid={`delete-risk-${risk.id}`}>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {risks?.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No risks recorded across portfolio projects.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!editingRisk} onOpenChange={(open) => !open && setEditingRisk(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Risk</DialogTitle>
+            <DialogDescription>Update risk details</DialogDescription>
+          </DialogHeader>
+          {editingRisk && (
+            <div className="text-sm text-muted-foreground border-b pb-3 mb-3">
+              <span>Project: </span>
+              <Link href={`/projects/${editingRisk.projectId}`} className="text-primary hover:underline font-medium">
+                {editingRisk.projectName}
+              </Link>
             </div>
           )}
-        </div>
-      </CardContent>
-    </Card>
+          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input {...editForm.register("title")} data-testid="input-edit-risk-title" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Probability</Label>
+                <Controller
+                  control={editForm.control}
+                  name="probability"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger data-testid="select-edit-probability">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Impact</Label>
+                <Controller
+                  control={editForm.control}
+                  name="impact"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger data-testid="select-edit-impact">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Controller
+                control={editForm.control}
+                name="status"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger data-testid="select-edit-risk-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Open">Open</SelectItem>
+                      <SelectItem value="Mitigated">Mitigated</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea {...editForm.register("description")} data-testid="input-edit-risk-description" />
+            </div>
+            <div className="space-y-2">
+              <Label>Mitigation Plan</Label>
+              <Textarea {...editForm.register("mitigationPlan")} data-testid="input-edit-risk-mitigation" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditingRisk(null)}>Cancel</Button>
+              <Button type="submit" disabled={updateRisk.isPending} data-testid="button-update-risk">
+                {updateRisk.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Risk
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteRisk} onOpenChange={(open) => !open && setDeleteRisk(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Risk</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteRisk?.title}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700" data-testid="button-confirm-delete-risk">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
 function IssuesTab({ portfolioId }: { portfolioId: number }) {
-  const { data: issues, isLoading } = usePortfolioIssues(portfolioId);
+  const { data: issues, isLoading, refetch } = usePortfolioIssues(portfolioId);
+  const [editingIssue, setEditingIssue] = useState<PortfolioIssue | null>(null);
+  const [deleteIssue, setDeleteIssue] = useState<PortfolioIssue | null>(null);
+  const updateIssue = useUpdateIssue();
+  const deleteIssueMutation = useDeleteIssue();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const editForm = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      type: "Bug",
+      priority: "Medium",
+      status: "Open",
+    }
+  });
+
+  useEffect(() => {
+    if (editingIssue) {
+      editForm.reset({
+        title: editingIssue.title || "",
+        description: editingIssue.description || "",
+        type: editingIssue.type || "Bug",
+        priority: editingIssue.priority || "Medium",
+        status: editingIssue.status || "Open",
+      });
+    }
+  }, [editingIssue]);
+
+  const onEditSubmit = async (data: any) => {
+    if (!editingIssue) return;
+    try {
+      await updateIssue.mutateAsync({ id: editingIssue.id, projectId: editingIssue.projectId, ...data });
+      toast({ title: "Success", description: "Issue updated successfully" });
+      setEditingIssue(null);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteIssue) return;
+    try {
+      await deleteIssueMutation.mutateAsync({ id: deleteIssue.id, projectId: deleteIssue.projectId });
+      toast({ title: "Success", description: "Issue deleted successfully" });
+      setDeleteIssue(null);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
@@ -1007,61 +1262,201 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bug className="h-5 w-5 text-rose-600" />
-          Portfolio Issues
-        </CardTitle>
-        <CardDescription>Aggregated issues from all projects in this portfolio</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr className="border-b">
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Issue</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Type</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Priority</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                <th className="p-3 text-left text-sm font-medium text-muted-foreground">Assignee</th>
-              </tr>
-            </thead>
-            <tbody>
-              {issues?.map((issue: PortfolioIssue) => (
-                <tr key={issue.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-issue-${issue.id}`}>
-                  <td className="p-3">
-                    <div>
-                      <p className="font-medium">{issue.title}</p>
-                      <p className="text-sm text-muted-foreground line-clamp-1">{issue.description}</p>
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="outline" className="text-xs">{issue.projectName}</Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="secondary" className="text-xs">{issue.type}</Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge className={cn("text-xs", priorityColors[issue.priority || "Medium"])}>{issue.priority}</Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge className={cn("text-xs", statusColors[issue.status || "Open"])}>{issue.status}</Badge>
-                  </td>
-                  <td className="p-3 text-sm text-muted-foreground">{issue.assignee || "-"}</td>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bug className="h-5 w-5 text-rose-600" />
+            Portfolio Issues
+          </CardTitle>
+          <CardDescription>Aggregated issues from all projects in this portfolio</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr className="border-b">
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Issue</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Project</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Type</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Priority</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="p-3 text-left text-sm font-medium text-muted-foreground">Assignee</th>
+                  <th className="p-3 w-12"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {issues?.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No issues recorded across portfolio projects.
+              </thead>
+              <tbody>
+                {issues?.map((issue: PortfolioIssue) => (
+                  <tr 
+                    key={issue.id} 
+                    className="border-b hover:bg-muted/30 transition-colors cursor-pointer group" 
+                    data-testid={`row-issue-${issue.id}`}
+                    onClick={() => setEditingIssue(issue)}
+                  >
+                    <td className="p-3">
+                      <div>
+                        <p className="font-medium hover:text-primary">{issue.title}</p>
+                        <p className="text-sm text-muted-foreground line-clamp-1">{issue.description}</p>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <Badge variant="outline" className="text-xs">{issue.projectName}</Badge>
+                    </td>
+                    <td className="p-3">
+                      <Badge variant="secondary" className="text-xs">{issue.type}</Badge>
+                    </td>
+                    <td className="p-3">
+                      <Badge className={cn("text-xs", priorityColors[issue.priority || "Medium"])}>{issue.priority}</Badge>
+                    </td>
+                    <td className="p-3">
+                      <Badge className={cn("text-xs", statusColors[issue.status || "Open"])}>{issue.status}</Badge>
+                    </td>
+                    <td className="p-3 text-sm text-muted-foreground">{issue.assignee || "-"}</td>
+                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" data-testid={`menu-issue-${issue.id}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setEditingIssue(issue)} data-testid={`edit-issue-${issue.id}`}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeleteIssue(issue)} className="text-red-600" data-testid={`delete-issue-${issue.id}`}>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {issues?.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No issues recorded across portfolio projects.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!editingIssue} onOpenChange={(open) => !open && setEditingIssue(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Issue</DialogTitle>
+            <DialogDescription>Update issue details</DialogDescription>
+          </DialogHeader>
+          {editingIssue && (
+            <div className="text-sm text-muted-foreground border-b pb-3 mb-3">
+              <span>Project: </span>
+              <Link href={`/projects/${editingIssue.projectId}`} className="text-primary hover:underline font-medium">
+                {editingIssue.projectName}
+              </Link>
             </div>
           )}
-        </div>
-      </CardContent>
-    </Card>
+          <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input {...editForm.register("title")} data-testid="input-edit-issue-title" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Controller
+                  control={editForm.control}
+                  name="type"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger data-testid="select-edit-issue-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Bug">Bug</SelectItem>
+                        <SelectItem value="Enhancement">Enhancement</SelectItem>
+                        <SelectItem value="Task">Task</SelectItem>
+                        <SelectItem value="Question">Question</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Controller
+                  control={editForm.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger data-testid="select-edit-issue-priority">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Controller
+                control={editForm.control}
+                name="status"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger data-testid="select-edit-issue-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Open">Open</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Resolved">Resolved</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea {...editForm.register("description")} data-testid="input-edit-issue-description" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditingIssue(null)}>Cancel</Button>
+              <Button type="submit" disabled={updateIssue.isPending} data-testid="button-update-issue">
+                {updateIssue.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Issue
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteIssue} onOpenChange={(open) => !open && setDeleteIssue(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Issue</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteIssue?.title}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700" data-testid="button-confirm-delete-issue">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
