@@ -9146,15 +9146,15 @@ function ProjectDraggableTaskCard({
         data-testid={`kanban-task-${task.id}`}
       >
         <CardContent className="p-4">
-          <div className="font-medium text-sm flex items-center gap-1.5">
+          <div className="font-medium text-sm flex items-center gap-1.5 min-w-0">
             {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
-            {task.name}
+            <span className="truncate" title={task.name}>{task.name}</span>
           </div>
           {/* Resource assignment row */}
           <div className="flex items-center gap-1 mt-2 flex-wrap">
             {assignedResources.length > 0 ? (
               assignedResources.map(r => (
-                <Badge key={r.id} variant="secondary" className="text-[10px] py-0">
+                <Badge key={r.id} variant="secondary" className="text-[10px] py-0 max-w-[100px] truncate" title={r.displayName}>
                   {r.displayName}
                 </Badge>
               ))
