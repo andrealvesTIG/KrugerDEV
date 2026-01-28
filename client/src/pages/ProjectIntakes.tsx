@@ -194,7 +194,9 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: 
                 </SelectTrigger>
                 <SelectContent>
                   {portfolios?.map(p => (
-                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      <div className="truncate max-w-[300px]" title={p.name}>{p.name}</div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

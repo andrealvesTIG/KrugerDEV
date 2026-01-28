@@ -426,7 +426,9 @@ export default function IntakeDetails() {
                     </SelectTrigger>
                     <SelectContent>
                       {portfolios?.map((p: Portfolio) => (
-                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          <div className="truncate max-w-[300px]" title={p.name}>{p.name}</div>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
