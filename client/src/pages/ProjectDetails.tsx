@@ -12202,12 +12202,22 @@ function InvoicesTab({ projectId, organizationId }: { projectId: number; organiz
   });
 
   const { data: dynamics365Status, refetch: refetchDynamics365Status } = useQuery<{ configured: boolean; connected: boolean; environmentUrl: string | null; needsRefresh?: boolean }>({
-    queryKey: ['/api/dynamics365/status', { organizationId }],
+    queryKey: ['/api/dynamics365/status', organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/dynamics365/status?organizationId=${organizationId}`);
+      return res.json();
+    },
     enabled: !!organizationId,
   });
 
   const { data: dynamics365Invoices, isLoading: isDynamicsLoading, refetch: refetchDynamicsInvoices } = useQuery<{ invoices: Dynamics365Invoice[] }>({
-    queryKey: ['/api/dynamics365/invoices', { organizationId, search: dynamicsSearch }],
+    queryKey: ['/api/dynamics365/invoices', organizationId, dynamicsSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams({ organizationId: String(organizationId) });
+      if (dynamicsSearch) params.append('search', dynamicsSearch);
+      const res = await fetch(`/api/dynamics365/invoices?${params.toString()}`);
+      return res.json();
+    },
     enabled: isDynamicsImportOpen && !!organizationId && (dynamics365Status?.connected || dynamics365Status?.needsRefresh),
     retry: false,
   });
