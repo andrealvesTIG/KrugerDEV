@@ -177,13 +177,13 @@ export default function Portfolios() {
                 <Link href={`/portfolios/${portfolio.id}`} className="h-full block">
                   <Card className="group cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-300 h-full flex flex-col" data-testid={`card-portfolio-${portfolio.id}`}>
                     <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3">
-                          <div className="rounded-lg bg-primary/10 p-1.5 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="rounded-lg bg-primary/10 p-1.5 text-primary group-hover:bg-primary group-hover:text-white transition-colors shrink-0">
                             <FolderOpen className="h-5 w-5" />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <CardTitle className="text-base truncate">{portfolio.name}</CardTitle>
+                          <div className="flex-1 min-w-0 overflow-hidden">
+                            <CardTitle className="text-base truncate" title={portfolio.name}>{portfolio.name}</CardTitle>
                             <div className="flex items-center gap-2 mt-0.5">
                               {portfolio.status && (
                                 <Badge 
@@ -207,7 +207,7 @@ export default function Portfolios() {
                             <Button 
                               size="icon" 
                               variant="ghost" 
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                               data-testid={`button-menu-portfolio-${portfolio.id}`}
                             >
                               <MoreVertical className="h-4 w-4" />
