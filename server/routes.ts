@@ -9973,13 +9973,14 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
   app.get('/api/organizations/:organizationId/invoices', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      const organizationId = Number(req.params.organizationId);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
       
-      if (userId) {
-        const accessibleOrgIds = await getUserOrgIds(userId);
-        if (!accessibleOrgIds.includes(organizationId)) {
-          return res.status(403).json({ message: "Access denied" });
-        }
+      const organizationId = Number(req.params.organizationId);
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
       }
       
       const invoices = await storage.getOrganizationInvoices(organizationId);
