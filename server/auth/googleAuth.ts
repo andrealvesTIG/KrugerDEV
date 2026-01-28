@@ -39,7 +39,20 @@ function getRedirectUri(req: Request): string {
 }
 
 function isGoogleConfigured(): boolean {
-  return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  const configured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  if (configured) {
+    // Log first/last chars for debugging (don't log full secret)
+    const clientId = process.env.GOOGLE_CLIENT_ID!;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
+    console.log("Google OAuth configured:", {
+      clientIdLength: clientId.length,
+      clientIdPrefix: clientId.substring(0, 10),
+      clientIdSuffix: clientId.substring(clientId.length - 20),
+      secretLength: clientSecret.length,
+      secretPrefix: clientSecret.substring(0, 4),
+    });
+  }
+  return configured;
 }
 
 async function fetchAndUploadGooglePhoto(photoUrl: string, userId: string): Promise<string | null> {
