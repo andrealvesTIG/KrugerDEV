@@ -12169,6 +12169,20 @@ function LessonsLearnedTab({ projectId, organizationId }: { projectId: number; o
   );
 }
 
+interface Dynamics365Invoice {
+  id: string;
+  invoiceNumber: string;
+  name: string;
+  description: string;
+  amount: number;
+  tax: number;
+  status: string;
+  createdOn: string;
+  dueDate: string | null;
+  customerName: string;
+  customerAddress: string;
+}
+
 function InvoicesTab({ projectId }: { projectId: number }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -12178,9 +12192,23 @@ function InvoicesTab({ projectId }: { projectId: number }) {
   const [uploadedFile, setUploadedFile] = useState<{ name: string; url: string; size: number; type: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<ProjectInvoice | null>(null);
+  const [isDynamicsImportOpen, setIsDynamicsImportOpen] = useState(false);
+  const [dynamicsSearch, setDynamicsSearch] = useState('');
+  const [selectedDynamicsInvoice, setSelectedDynamicsInvoice] = useState<Dynamics365Invoice | null>(null);
+  const [dynamics365EnvUrl, setDynamics365EnvUrl] = useState('');
 
   const { data: invoices = [], isLoading, refetch: refetchInvoices } = useQuery<ProjectInvoice[]>({
     queryKey: ['/api/projects', projectId, 'invoices'],
+  });
+
+  const { data: dynamics365Status, refetch: refetchDynamics365Status } = useQuery<{ configured: boolean; connected: boolean; environmentUrl: string | null; needsRefresh?: boolean }>({
+    queryKey: ['/api/dynamics365/status'],
+  });
+
+  const { data: dynamics365Invoices, isLoading: isDynamicsLoading, refetch: refetchDynamicsInvoices } = useQuery<{ invoices: Dynamics365Invoice[] }>({
+    queryKey: ['/api/dynamics365/invoices', dynamicsSearch],
+    enabled: isDynamicsImportOpen && (dynamics365Status?.connected || dynamics365Status?.needsRefresh),
+    retry: false,
   });
 
   const { data: invoiceNotes = [], refetch: refetchNotes } = useQuery<InvoiceNote[]>({
@@ -12376,9 +12404,20 @@ function InvoicesTab({ projectId }: { projectId: number }) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2">
         <CardTitle>Invoices</CardTitle>
-        <Button onClick={() => { setEditingInvoice(null); setUploadedFile(null); setIsDialogOpen(true); }} data-testid="button-add-invoice">
-          <Plus className="h-4 w-4 mr-2" /> Add Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          {dynamics365Status?.configured && (
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDynamicsImportOpen(true)} 
+              data-testid="button-import-dynamics"
+            >
+              <Download className="h-4 w-4 mr-2" /> Import from Dynamics
+            </Button>
+          )}
+          <Button onClick={() => { setEditingInvoice(null); setUploadedFile(null); setIsDialogOpen(true); }} data-testid="button-add-invoice">
+            <Plus className="h-4 w-4 mr-2" /> Add Invoice
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {invoices.length === 0 ? (
@@ -12660,6 +12699,182 @@ function InvoicesTab({ projectId }: { projectId: number }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={isDynamicsImportOpen} onOpenChange={(open) => { setIsDynamicsImportOpen(open); if (!open) { setSelectedDynamicsInvoice(null); setDynamicsSearch(''); } }}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Import Invoice from Dynamics 365</DialogTitle>
+            <DialogDescription>
+              Select an invoice from Dynamics 365 Sales Hub to import
+            </DialogDescription>
+          </DialogHeader>
+          
+          {!dynamics365Status?.connected && !dynamics365Status?.needsRefresh ? (
+            <div className="space-y-4 py-4">
+              <p className="text-muted-foreground text-center">
+                Connect to Dynamics 365 to import invoices
+              </p>
+              
+              {!dynamics365Status?.environmentUrl && (
+                <div className="space-y-2">
+                  <Label htmlFor="dynamics365EnvUrl">Dynamics 365 Environment URL</Label>
+                  <Input
+                    id="dynamics365EnvUrl"
+                    placeholder="https://yourorg.crm.dynamics.com"
+                    value={dynamics365EnvUrl}
+                    onChange={(e) => setDynamics365EnvUrl(e.target.value)}
+                    data-testid="input-dynamics365-env-url"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter your Dynamics 365 environment URL (e.g., https://yourorg.crm.dynamics.com)
+                  </p>
+                </div>
+              )}
+              
+              <div className="text-center">
+                <Button 
+                  onClick={async () => {
+                    try {
+                      // Set environment URL if not already set
+                      if (!dynamics365Status?.environmentUrl && dynamics365EnvUrl) {
+                        const setEnvRes = await apiRequest('POST', '/api/dynamics365/set-environment', { 
+                          environmentUrl: dynamics365EnvUrl 
+                        });
+                        if (!setEnvRes.ok) {
+                          const errorData = await setEnvRes.json();
+                          throw new Error(errorData.message || "Invalid environment URL");
+                        }
+                      } else if (!dynamics365Status?.environmentUrl && !dynamics365EnvUrl) {
+                        toast({ title: "Error", description: "Please enter your Dynamics 365 environment URL", variant: "destructive" });
+                        return;
+                      }
+                      
+                      const res = await apiRequest('POST', '/api/dynamics365/connect', { returnUrl: window.location.pathname });
+                      const { authUrl } = await res.json();
+                      if (authUrl) {
+                        window.location.href = authUrl;
+                      }
+                    } catch (err: any) {
+                      toast({ title: "Error", description: err.message || "Failed to connect to Dynamics 365", variant: "destructive" });
+                    }
+                  }}
+                  data-testid="button-connect-dynamics"
+                >
+                  Connect to Dynamics 365
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Search invoices..."
+                  value={dynamicsSearch}
+                  onChange={(e) => setDynamicsSearch(e.target.value)}
+                  data-testid="input-dynamics-search"
+                />
+                <Button variant="outline" size="icon" onClick={() => refetchDynamicsInvoices()} data-testid="button-refresh-dynamics">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              <div className="max-h-[300px] overflow-y-auto border rounded-md">
+                {isDynamicsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : !dynamics365Invoices?.invoices?.length ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No invoices found in Dynamics 365
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted sticky top-0">
+                      <tr>
+                        <th className="text-left py-2 px-3 font-medium">Invoice #</th>
+                        <th className="text-left py-2 px-3 font-medium">Name</th>
+                        <th className="text-left py-2 px-3 font-medium">Customer</th>
+                        <th className="text-right py-2 px-3 font-medium">Amount</th>
+                        <th className="text-left py-2 px-3 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dynamics365Invoices.invoices.map((inv) => (
+                        <tr 
+                          key={inv.id} 
+                          className={cn(
+                            "border-b cursor-pointer hover:bg-muted/50",
+                            selectedDynamicsInvoice?.id === inv.id && "bg-primary/10"
+                          )}
+                          onClick={() => setSelectedDynamicsInvoice(inv)}
+                          data-testid={`row-dynamics-invoice-${inv.id}`}
+                        >
+                          <td className="py-2 px-3">{inv.invoiceNumber || '-'}</td>
+                          <td className="py-2 px-3">{inv.name}</td>
+                          <td className="py-2 px-3">{inv.customerName || '-'}</td>
+                          <td className="py-2 px-3 text-right">
+                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(inv.amount || 0)}
+                          </td>
+                          <td className="py-2 px-3">
+                            <Badge variant="outline" className="text-xs">{inv.status}</Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              
+              {selectedDynamicsInvoice && (
+                <div className="p-3 border rounded-md bg-muted/30">
+                  <h4 className="font-medium mb-2">Selected Invoice</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-muted-foreground">Number:</span> {selectedDynamicsInvoice.invoiceNumber}</div>
+                    <div><span className="text-muted-foreground">Amount:</span> {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedDynamicsInvoice.amount || 0)}</div>
+                    <div className="col-span-2"><span className="text-muted-foreground">Name:</span> {selectedDynamicsInvoice.name}</div>
+                    {selectedDynamicsInvoice.description && (
+                      <div className="col-span-2"><span className="text-muted-foreground">Description:</span> {selectedDynamicsInvoice.description}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsDynamicsImportOpen(false)}>Cancel</Button>
+            <Button 
+              disabled={!selectedDynamicsInvoice || createMutation.isPending}
+              onClick={() => {
+                if (selectedDynamicsInvoice) {
+                  const data: Partial<ProjectInvoice> = {
+                    invoiceNumber: selectedDynamicsInvoice.invoiceNumber,
+                    title: selectedDynamicsInvoice.name,
+                    description: selectedDynamicsInvoice.description || '',
+                    amount: String(selectedDynamicsInvoice.amount || 0),
+                    currency: 'USD',
+                    status: selectedDynamicsInvoice.status === 'Paid' ? 'Paid' : 
+                            selectedDynamicsInvoice.status === 'Cancelled' ? 'Cancelled' : 'Draft',
+                    dueDate: selectedDynamicsInvoice.dueDate,
+                    vendorName: selectedDynamicsInvoice.customerName,
+                  };
+                  createMutation.mutate(data, {
+                    onSuccess: () => {
+                      setIsDynamicsImportOpen(false);
+                      setSelectedDynamicsInvoice(null);
+                      setDynamicsSearch('');
+                    }
+                  });
+                }
+              }}
+              data-testid="button-import-selected"
+            >
+              {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Import Invoice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

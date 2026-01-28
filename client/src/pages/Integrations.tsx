@@ -62,7 +62,7 @@ const integrations: Integration[] = [
   { id: "sap", name: "SAP", description: "Connect to SAP ERP for financial data", icon: <SiSap className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-blue-100 dark:bg-blue-900" },
   { id: "oracle", name: "Oracle", description: "Integrate with Oracle ERP Cloud", icon: <SiOracle className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-red-100 dark:bg-red-900" },
   { id: "netsuite", name: "NetSuite", description: "Sync projects from Oracle NetSuite", icon: <Building2 className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-orange-100 dark:bg-orange-900" },
-  { id: "dynamics", name: "Dynamics 365", description: "Connect Microsoft Dynamics 365", icon: <Square className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-cyan-100 dark:bg-cyan-900" },
+  { id: "dynamics365-sales", name: "Dynamics 365 Sales", description: "Import invoices from Dynamics 365 Sales Hub", icon: <Square className="h-6 w-6" />, category: "erp", status: "active", bgColor: "bg-cyan-100 dark:bg-cyan-900" },
   { id: "workday", name: "Workday", description: "Integrate Workday financials", icon: <Rocket className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-amber-100 dark:bg-amber-900" },
   { id: "salesforce", name: "Salesforce", description: "Connect Salesforce CRM data", icon: <SiSalesforce className="h-6 w-6" />, category: "erp", status: "coming_soon", bgColor: "bg-blue-100 dark:bg-blue-900" },
   
@@ -142,6 +142,10 @@ export default function Integrations() {
   // Planner Premium (Dataverse) integration states
   const [showPlannerPremiumWizard, setShowPlannerPremiumWizard] = useState(false);
   
+  // Dynamics 365 Sales integration states
+  const [showDynamics365Dialog, setShowDynamics365Dialog] = useState(false);
+  const [dynamics365EnvUrl, setDynamics365EnvUrl] = useState("");
+  
   // Navigate to Resources page and open merge wizard
   const handleOpenMergeWizard = useCallback(() => {
     navigate("/resources?openMerge=true");
@@ -161,6 +165,15 @@ export default function Integrations() {
         description: "Successfully connected to Microsoft Entra ID. You can now search for users in your directory." 
       });
       setActiveCategory("identity");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    // Handle Dynamics 365 connection success
+    if (params.get("dynamics365Connected") === "true") {
+      toast({ 
+        title: "Connected", 
+        description: "Successfully connected to Dynamics 365 Sales. You can now import invoices from any project." 
+      });
+      setActiveCategory("erp");
       window.history.replaceState({}, "", window.location.pathname);
     }
     // Handle OAuth errors
@@ -212,6 +225,11 @@ export default function Integrations() {
       return res.json();
     },
     enabled: !!currentOrganization?.id,
+  });
+
+  // Dynamics 365 connection status
+  const { data: dynamics365Status, refetch: refetchDynamics365Status } = useQuery<{ configured: boolean; connected: boolean; environmentUrl: string | null; needsRefresh?: boolean }>({
+    queryKey: ["/api/dynamics365/status"],
   });
   
   const disconnectEntraMutation = useMutation({
@@ -554,6 +572,56 @@ export default function Integrations() {
       setShowPlannerPremiumWizard(true);
     } else if (integration.id === "entra-id") {
       handleEntraConnect();
+    } else if (integration.id === "dynamics365-sales") {
+      setShowDynamics365Dialog(true);
+    }
+  };
+  
+  // Handle Dynamics 365 connection
+  const handleDynamics365Connect = async () => {
+    if (!dynamics365EnvUrl) {
+      toast({ 
+        title: "Error", 
+        description: "Please enter your Dynamics 365 environment URL",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      // First set the environment URL
+      const setEnvRes = await apiRequest("POST", "/api/dynamics365/set-environment", { 
+        environmentUrl: dynamics365EnvUrl 
+      });
+      if (!setEnvRes.ok) {
+        const errorData = await setEnvRes.json();
+        throw new Error(errorData.message || "Failed to set environment URL");
+      }
+      
+      // Then initiate OAuth
+      const response = await apiRequest("POST", "/api/dynamics365/connect", { 
+        returnUrl: "/integrations"
+      });
+      const data = await response.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (error: any) {
+      toast({ 
+        title: "Connection Failed", 
+        description: error.message || "Failed to connect to Dynamics 365",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const handleDynamics365Disconnect = async () => {
+    try {
+      await apiRequest("POST", "/api/dynamics365/disconnect");
+      refetchDynamics365Status();
+      toast({ title: "Disconnected", description: "Disconnected from Dynamics 365 Sales" });
+    } catch {
+      toast({ title: "Error", description: "Failed to disconnect", variant: "destructive" });
     }
   };
   
@@ -1201,6 +1269,98 @@ export default function Integrations() {
             <Button variant="outline" onClick={() => setComingSoonOpen(false)}>
               Close
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDynamics365Dialog} onOpenChange={setShowDynamics365Dialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-100 dark:bg-cyan-900">
+                <Square className="h-5 w-5" />
+              </div>
+              Dynamics 365 Sales Hub
+            </DialogTitle>
+            <DialogDescription>
+              Import invoices from Microsoft Dynamics 365 Sales Hub into your projects
+            </DialogDescription>
+          </DialogHeader>
+
+          {dynamics365Status?.connected || dynamics365Status?.needsRefresh ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-green-50 dark:bg-green-900/20 p-4">
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <span className="font-medium">{dynamics365Status?.needsRefresh ? "Session Expired - Reconnect Required" : "Connected"}</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Environment: {dynamics365Status.environmentUrl}
+                </p>
+              </div>
+              
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h4 className="font-medium text-sm mb-2">How to Import Invoices</h4>
+                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+                  <li>Navigate to any project</li>
+                  <li>Go to the Invoices tab</li>
+                  <li>Click "Import from Dynamics" button</li>
+                  <li>Search and select an invoice to import</li>
+                </ol>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="dynamics365Url">Dynamics 365 Environment URL</Label>
+                <Input
+                  id="dynamics365Url"
+                  placeholder="https://yourorg.crm.dynamics.com"
+                  value={dynamics365EnvUrl}
+                  onChange={(e) => setDynamics365EnvUrl(e.target.value)}
+                  data-testid="input-dynamics365-url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter your Dynamics 365 environment URL (e.g., https://yourorg.crm.dynamics.com)
+                </p>
+              </div>
+              
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h4 className="font-medium text-sm mb-2">Requirements</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>Microsoft Entra ID credentials configured</li>
+                  <li>Access to Dynamics 365 Sales Hub</li>
+                  <li>Invoice read permissions</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {dynamics365Status?.connected || dynamics365Status?.needsRefresh ? (
+              <>
+                <Button variant="outline" onClick={handleDynamics365Disconnect}>
+                  Disconnect
+                </Button>
+                {dynamics365Status?.needsRefresh && (
+                  <Button onClick={handleDynamics365Connect}>
+                    Reconnect
+                  </Button>
+                )}
+                <Button variant={dynamics365Status?.needsRefresh ? "outline" : "default"} onClick={() => setShowDynamics365Dialog(false)}>
+                  Close
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setShowDynamics365Dialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleDynamics365Connect} data-testid="button-connect-dynamics365">
+                  Connect to Dynamics 365
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

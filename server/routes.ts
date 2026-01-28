@@ -10,6 +10,7 @@ import { setupGoogleAuth } from "./auth/googleAuth";
 import { setupProjectOnlineRoutes } from "./services/projectOnline";
 import { setupPlannerRoutes, mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus, getOrgIntegration } from "./services/microsoftPlanner";
 import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "./services/microsoftDataverse";
+import { setupDynamics365Routes } from "./services/dynamics365Sales";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { db } from "./db";
@@ -1136,6 +1137,7 @@ export async function registerRoutes(
   await setupProjectOnlineRoutes(app);
   await setupPlannerRoutes(app);
   await setupDataverseRoutes(app);
+  await setupDynamics365Routes(app);
   registerAuthRoutes(app);
 
   // Seed DB on startup
