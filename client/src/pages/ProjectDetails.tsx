@@ -2622,7 +2622,14 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
         <div className="space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
             <div>
-              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Portfolio</Label>
+              <div className="flex items-center gap-1">
+                <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Portfolio</Label>
+                {currentPortfolio && (
+                  <Link href={`/portfolios/${currentPortfolio.id}`} className="text-[10px] text-primary hover:underline" data-testid="link-portfolio">
+                    (view)
+                  </Link>
+                )}
+              </div>
               <Select value={project.portfolioId?.toString() || "none"} onValueChange={handlePortfolioChange}>
                 <SelectTrigger className="h-8 text-sm" data-testid="select-project-portfolio">
                   <SelectValue>{currentPortfolio?.name || "None"}</SelectValue>
