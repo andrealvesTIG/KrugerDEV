@@ -644,7 +644,10 @@ export default function Integrations() {
       try {
         data = JSON.parse(responseText);
       } catch (parseError) {
-        console.error("Response text:", responseText);
+        console.error("Failed to parse response. Status:", response.status);
+        console.error("Content-Type:", response.headers.get("content-type"));
+        console.error("Response length:", responseText.length);
+        console.error("First 500 chars:", responseText.substring(0, 500));
         throw new Error("Invalid response from server. Please check that Microsoft Entra ID is properly configured.");
       }
       
