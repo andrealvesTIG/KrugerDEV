@@ -2241,7 +2241,7 @@ function TaskHistoryDialog({ taskId, open, onOpenChange }: { taskId: number; ope
                     <div className="mt-2 text-sm">
                       <span className="font-medium">{log.changedByName}</span>
                     </div>
-                    <div className="mt-1 text-sm text-muted-foreground break-words">
+                    <div className="mt-1 text-sm text-muted-foreground break-all">
                       {log.changeSummary}
                     </div>
                   </div>
