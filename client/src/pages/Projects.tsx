@@ -49,7 +49,7 @@ export default function Projects() {
   const { user } = useAuth();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
-  const [filterView, setFilterView] = useState<ProjectFilterView>("all");
+  const [filterView, setFilterView] = useState<ProjectFilterView>("active");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("createdAt");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: externalProjects } = useExternalProjects();
