@@ -54,7 +54,8 @@ import {
   Scale,
   Lightbulb,
   Sliders,
-  LayoutTemplate
+  LayoutTemplate,
+  ZoomIn
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -62,6 +63,20 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { pdf, Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+
+import dashboardScreenshot from "@/assets/screenshots/dashboard.png";
+import portfoliosScreenshot from "@/assets/screenshots/portfolios.png";
+import projectsScreenshot from "@/assets/screenshots/projects.png";
+import tasksScreenshot from "@/assets/screenshots/tasks.png";
+import issuesScreenshot from "@/assets/screenshots/issues.png";
+import calendarScreenshot from "@/assets/screenshots/calendar.png";
+import resourcesScreenshot from "@/assets/screenshots/resources.png";
+import settingsScreenshot from "@/assets/screenshots/settings.png";
+import intakesScreenshot from "@/assets/screenshots/intakes.png";
+import risksScreenshot from "@/assets/screenshots/risks.png";
+import timesheetsScreenshot from "@/assets/screenshots/timesheets.png";
+import projectDetailsScreenshot from "@/assets/screenshots/project-details.png";
 
 const sections = [
   { id: "overview", name: "Overview", icon: BookOpen },
@@ -1004,6 +1019,71 @@ function ActionItem({ icon: Icon, title, description }: {
   );
 }
 
+function Screenshot({ src, alt, caption }: { src: string; alt: string; caption?: string }) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <div className="mt-6 mb-4 cursor-pointer group" data-testid={`screenshot-${alt.toLowerCase().replace(/\s+/g, '-')}`}>
+          <div className="relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+            <img 
+              src={src} 
+              alt={alt}
+              className="w-full h-auto object-cover"
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-2">
+                <ZoomIn className="h-5 w-5 text-white" />
+              </div>
+            </div>
+          </div>
+          {caption && (
+            <p className="text-sm text-muted-foreground text-center mt-2 italic">{caption}</p>
+          )}
+        </div>
+      </DialogTrigger>
+      <DialogContent className="max-w-5xl w-[90vw] p-0">
+        <img 
+          src={src} 
+          alt={alt}
+          className="w-full h-auto rounded-lg"
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProTip({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+      <div className="flex items-start gap-2">
+        <Lightbulb className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+        <div>
+          <span className="font-semibold text-amber-800 dark:text-amber-300">Pro Tip: </span>
+          <span className="text-amber-700 dark:text-amber-400">{children}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepByStep({ steps }: { steps: { title: string; description: string }[] }) {
+  return (
+    <div className="mt-4 space-y-3">
+      {steps.map((step, index) => (
+        <div key={index} className="flex items-start gap-3">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-white text-sm font-medium">
+            {index + 1}
+          </div>
+          <div>
+            <h5 className="font-medium text-foreground">{step.title}</h5>
+            <p className="text-sm text-muted-foreground">{step.description}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function UserGuide() {
   const [activeSection, setActiveSection] = useState("overview");
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -1173,6 +1253,12 @@ export default function UserGuide() {
                     It displays key metrics, recent activity, and quick access to important information.
                   </p>
                   
+                  <Screenshot 
+                    src={dashboardScreenshot} 
+                    alt="Dashboard Overview"
+                    caption="Click to enlarge - The Dashboard shows KPIs, charts, and project health at a glance"
+                  />
+                  
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                     <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center">
                       <FolderKanban className="h-6 w-6 mx-auto text-blue-600 dark:text-blue-400" />
@@ -1211,6 +1297,31 @@ export default function UserGuide() {
                       <span><strong>Interactive Charts:</strong> Visual representations of project status and health distribution</span>
                     </li>
                   </ul>
+                  
+                  <h4 className="font-semibold text-foreground mt-6">Dashboard Tabs:</h4>
+                  <p className="text-muted-foreground">
+                    The dashboard includes multiple specialized tabs to give you different perspectives on your data:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <h5 className="font-medium text-foreground">Executive Summary</h5>
+                      <p className="text-sm text-muted-foreground">High-level KPIs and portfolio health overview for leadership</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <h5 className="font-medium text-foreground">Portfolio View</h5>
+                      <p className="text-sm text-muted-foreground">Drill down into specific portfolios and their projects</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <h5 className="font-medium text-foreground">Risks & Issues</h5>
+                      <p className="text-sm text-muted-foreground">Monitor all open risks and issues across the organization</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <h5 className="font-medium text-foreground">Resource Management</h5>
+                      <p className="text-sm text-muted-foreground">Track resource allocation and utilization</p>
+                    </div>
+                  </div>
+                  
+                  <ProTip>Click on any metric card to navigate directly to the related section of the app for more details.</ProTip>
                 </CardContent>
               </Card>
             </section>
@@ -1233,6 +1344,12 @@ export default function UserGuide() {
                     Portfolios allow you to group related projects together for strategic management. 
                     Each portfolio can have its own strategy, manager, and set of projects.
                   </p>
+                  
+                  <Screenshot 
+                    src={portfoliosScreenshot} 
+                    alt="Portfolios List"
+                    caption="Click to enlarge - View all your portfolios with project counts and health indicators"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Managing Portfolios:</h4>
                   <div className="space-y-3">
@@ -1257,6 +1374,31 @@ export default function UserGuide() {
                       description="Remove portfolios that are no longer needed (requires admin permissions)"
                     />
                   </div>
+                  
+                  <h4 className="font-semibold text-foreground mt-6">Portfolio Details:</h4>
+                  <p className="text-muted-foreground">
+                    Each portfolio detail page provides comprehensive information including:
+                  </p>
+                  <ul className="space-y-2 text-muted-foreground mt-2">
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Projects Tab:</strong> All projects assigned to this portfolio with filtering and sorting</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Risks Tab:</strong> Portfolio-level risks escalated from projects</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Issues Tab:</strong> Portfolio-level issues escalated from projects</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" />
+                      <span><strong>Budget Summary:</strong> Aggregate budget tracking across all projects</span>
+                    </li>
+                  </ul>
+                  
+                  <ProTip>Escalate critical risks and issues from project level to portfolio level using the toggle switch on each item.</ProTip>
                 </CardContent>
               </Card>
             </section>
@@ -1279,6 +1421,12 @@ export default function UserGuide() {
                     Projects are the heart of FridayReport.AI. Track individual initiatives with detailed information 
                     including status, priority, health, budget, and completion percentage.
                   </p>
+                  
+                  <Screenshot 
+                    src={projectsScreenshot} 
+                    alt="Projects List"
+                    caption="Click to enlarge - Browse all projects with status, health, and progress indicators"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Project Attributes:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
@@ -1361,6 +1509,12 @@ export default function UserGuide() {
                     The Project Intakes feature provides a structured pipeline for new project requests. 
                     Submit, review, and approve project proposals before they become active projects.
                   </p>
+                  
+                  <Screenshot 
+                    src={intakesScreenshot} 
+                    alt="Project Intakes"
+                    caption="Click to enlarge - Submit and manage project requests through the intake pipeline"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Intake Workflow:</h4>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1705,6 +1859,12 @@ export default function UserGuide() {
                     with specific projects and assigned to team members.
                   </p>
                   
+                  <Screenshot 
+                    src={tasksScreenshot} 
+                    alt="Tasks Management"
+                    caption="Click to enlarge - Manage tasks with status tracking and resource assignments"
+                  />
+                  
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     <FeatureHighlight 
                       icon={GanttChart}
@@ -1739,6 +1899,14 @@ export default function UserGuide() {
                       <span><strong>Assignment:</strong> Assign tasks to specific team members</span>
                     </li>
                   </ul>
+                  
+                  <h4 className="font-semibold text-foreground mt-6">Hierarchical Tasks:</h4>
+                  <p className="text-muted-foreground">
+                    Tasks support parent-child relationships for breaking down complex work items. Summary tasks 
+                    automatically roll up dates, progress, and hours from their child tasks.
+                  </p>
+                  
+                  <ProTip>Use the Gantt chart view to visualize task dependencies and adjust timelines by dragging task bars.</ProTip>
                 </CardContent>
               </Card>
             </section>
@@ -1761,6 +1929,12 @@ export default function UserGuide() {
                     Issues help you track bugs, problems, and enhancement requests across your projects. 
                     Each issue is linked to a specific project for organized tracking.
                   </p>
+                  
+                  <Screenshot 
+                    src={issuesScreenshot} 
+                    alt="Issues Tracking"
+                    caption="Click to enlarge - Track and manage issues with severity and status indicators"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Issue Types:</h4>
                   <div className="flex flex-wrap gap-2">
@@ -1787,6 +1961,12 @@ export default function UserGuide() {
                     <Badge variant="outline" className="border-yellow-500 text-yellow-600">Medium</Badge>
                     <Badge variant="outline" className="border-slate-400 text-slate-600">Low</Badge>
                   </div>
+                  
+                  <h4 className="font-semibold text-foreground mt-6">Escalation to Portfolio:</h4>
+                  <p className="text-muted-foreground">
+                    Critical issues can be escalated to the portfolio level using the toggle switch on the issue form. 
+                    Escalated issues will appear in the portfolio's Issues tab for executive visibility.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -1809,6 +1989,12 @@ export default function UserGuide() {
                     The Timesheets module allows team members to log time spent on projects and tasks. 
                     Track billable hours, monitor team productivity, and generate time reports.
                   </p>
+                  
+                  <Screenshot 
+                    src={timesheetsScreenshot} 
+                    alt="Timesheets"
+                    caption="Click to enlarge - Log hours and track time across projects"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Time Entry:</h4>
                   <ul className="space-y-2 text-muted-foreground">
@@ -1879,6 +2065,12 @@ export default function UserGuide() {
                     The Resources page helps you manage team members and resources across your organization. 
                     Resources can be assigned to tasks, issues, and risks for better workload tracking.
                   </p>
+                  
+                  <Screenshot 
+                    src={resourcesScreenshot} 
+                    alt="Resources Management"
+                    caption="Click to enlarge - Manage team members and track resource availability"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Resource Management:</h4>
                   <ul className="space-y-2 text-muted-foreground">
@@ -1975,6 +2167,12 @@ export default function UserGuide() {
                     The Calendar view provides a visual timeline of your projects, milestones, and key dates. 
                     Navigate through months to see upcoming deadlines and important events.
                   </p>
+                  
+                  <Screenshot 
+                    src={calendarScreenshot} 
+                    alt="Calendar View"
+                    caption="Click to enlarge - View milestones and deadlines on a calendar timeline"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Calendar Features:</h4>
                   <ul className="space-y-2 text-muted-foreground">
@@ -2509,6 +2707,12 @@ export default function UserGuide() {
                     Configure application settings, organization preferences, and user-specific options 
                     through the various settings pages.
                   </p>
+                  
+                  <Screenshot 
+                    src={settingsScreenshot} 
+                    alt="Settings"
+                    caption="Click to enlarge - Configure organization and application settings"
+                  />
                   
                   <h4 className="font-semibold text-foreground mt-4">Settings Areas:</h4>
                   <div className="space-y-3">
