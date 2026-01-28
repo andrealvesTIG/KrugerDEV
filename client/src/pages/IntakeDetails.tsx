@@ -242,16 +242,16 @@ export default function IntakeDetails() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/intakes')}>
+            <div className="flex items-center gap-4 min-w-0">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/intakes')} className="shrink-0">
                 <ChevronLeft className="h-5 w-5" />
               </Button>
-              <div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="text-2xl font-display font-bold text-foreground">{intake.projectName}</h1>
+              <div className="min-w-0">
+                <div className="flex items-center gap-3 flex-wrap min-w-0">
+                  <h1 className="text-2xl font-display font-bold text-foreground truncate" title={intake.projectName}>{intake.projectName}</h1>
                   {getStatusBadge(intake.status || "draft")}
                   {intake.intakeNumber && (
-                    <span className="text-sm text-muted-foreground font-mono">{intake.intakeNumber}</span>
+                    <span className="text-sm text-muted-foreground font-mono shrink-0">{intake.intakeNumber}</span>
                   )}
                 </div>
               </div>
