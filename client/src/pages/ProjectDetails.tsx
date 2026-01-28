@@ -10014,9 +10014,9 @@ function FinancialTableRow({
   
   return (
     <tr className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-financial-${item.id}`}>
-      <td className="px-3 py-2">
-        <div className="text-sm font-medium">{item.lineItem}</div>
-        {item.description && <div className="text-xs text-muted-foreground truncate max-w-[200px]">{item.description}</div>}
+      <td className="px-3 py-2 min-w-0 max-w-[200px] overflow-hidden">
+        <div className="text-sm font-medium truncate" title={item.lineItem}>{item.lineItem}</div>
+        {item.description && <div className="text-xs text-muted-foreground truncate" title={item.description}>{item.description}</div>}
       </td>
       <td className="px-2 py-2 text-center text-xs tabular-nums">{item.fiscalYear}</td>
       <td className="px-2 py-2 text-center text-xs">{item.fiscalPeriod}</td>
