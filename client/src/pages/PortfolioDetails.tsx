@@ -1298,8 +1298,10 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                         <p className="text-sm text-muted-foreground line-clamp-1">{issue.description}</p>
                       </div>
                     </td>
-                    <td className="p-3">
-                      <Badge variant="outline" className="text-xs">{issue.projectName}</Badge>
+                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/projects/${issue.projectId}`}>
+                        <Badge variant="outline" className="text-xs cursor-pointer hover:bg-primary/10">{issue.projectName}</Badge>
+                      </Link>
                     </td>
                     <td className="p-3">
                       <Badge variant="secondary" className="text-xs">{issue.type}</Badge>
