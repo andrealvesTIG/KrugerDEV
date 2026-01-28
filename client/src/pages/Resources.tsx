@@ -334,13 +334,23 @@ export default function Resources() {
                             {resource.displayName.charAt(0).toUpperCase()}
                           </div>
                         </MicrosoftContactCard>
-                        <span 
-                          className="cursor-pointer hover:text-primary hover:underline"
-                          onClick={() => window.location.href = `/resources/${resource.id}`}
-                          data-testid={`link-resource-name-${resource.id}`}
+                        <MicrosoftContactCard
+                          displayName={resource.displayName}
+                          email={resource.email}
+                          title={resource.title}
+                          department={resource.department}
+                          phone={resource.phone}
+                          side="top"
+                          align="start"
                         >
-                          {resource.displayName}
-                        </span>
+                          <span 
+                            className="cursor-pointer hover:text-primary hover:underline"
+                            onClick={() => window.location.href = `/resources/${resource.id}`}
+                            data-testid={`link-resource-name-${resource.id}`}
+                          >
+                            {resource.displayName}
+                          </span>
+                        </MicrosoftContactCard>
                         <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
                       </div>
                     </TableCell>
