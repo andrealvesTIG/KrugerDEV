@@ -1009,17 +1009,22 @@ function ScreenshotImage({ src, alt, caption }: {
   alt: string;
   caption?: string;
 }) {
+  const testId = src.split('/').pop()?.replace('.png', '') || 'screenshot';
   return (
-    <div className="my-6 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+    <div 
+      className="my-6 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm"
+      data-testid={`screenshot-container-${testId}`}
+    >
       <img 
         src={src} 
         alt={alt} 
         className="w-full h-auto"
         loading="lazy"
+        data-testid={`screenshot-img-${testId}`}
       />
       {caption && (
         <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
-          <p className="text-sm text-muted-foreground text-center">{caption}</p>
+          <p className="text-sm text-muted-foreground text-center" data-testid={`screenshot-caption-${testId}`}>{caption}</p>
         </div>
       )}
     </div>
