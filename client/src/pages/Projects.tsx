@@ -836,7 +836,7 @@ export default function Projects() {
                   )} />
 
                   <div className="flex-1 pl-5">
-                    <div className="flex flex-wrap items-center gap-3 min-w-0">
+                    <div className="flex flex-wrap items-center gap-3 min-w-0 max-w-full">
                       <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200 truncate" title={project.name}>
                         {project.name}
                       </h3>
