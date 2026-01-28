@@ -3551,25 +3551,28 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
               onClick={() => openEditDialog(risk)}
               data-testid={`risk-card-${risk.id}`}
             >
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                   <span className="font-semibold">{risk.title}</span>
+              <div className="space-y-1 min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                   <span className="font-semibold truncate max-w-[200px]" title={risk.title}>{risk.title}</span>
                    <Badge variant="outline" className={cn(
+                     "shrink-0",
                      risk.probability === 'High' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
                    )}>{risk.probability} Prob</Badge>
                    <Badge variant="outline" className={cn(
+                     "shrink-0",
                      risk.impact === 'High' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
                    )}>{risk.impact} Impact</Badge>
                    <Badge variant="outline" className={cn(
+                     "shrink-0",
                      risk.status === 'Open' ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                      risk.status === 'Mitigated' ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
                      "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                    )}>{risk.status}</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">{risk.description}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2" title={risk.description}>{risk.description}</p>
                 {risk.mitigationPlan && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    <span className="font-medium">Mitigation:</span> {risk.mitigationPlan}
+                  <p className="text-xs text-muted-foreground mt-2 line-clamp-2" title={risk.mitigationPlan}>
+                    <span className="font-medium shrink-0">Mitigation:</span> {risk.mitigationPlan}
                   </p>
                 )}
               </div>
