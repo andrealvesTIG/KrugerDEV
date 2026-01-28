@@ -9513,18 +9513,18 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
                   <div className="mt-0.5">
                     <TypeIcon className="h-5 w-5 text-muted-foreground" />
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold">{issue.title}</span>
-                      <Badge variant="outline" className={cn("text-xs", issuePriorityColors[issue.priority as keyof typeof issuePriorityColors])}>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <span className="font-semibold truncate max-w-[200px]" title={issue.title}>{issue.title}</span>
+                      <Badge variant="outline" className={cn("text-xs shrink-0", issuePriorityColors[issue.priority as keyof typeof issuePriorityColors])}>
                         {issue.priority}
                       </Badge>
-                      <Badge variant="outline" className={cn("text-xs", issueStatusColors[issue.status as keyof typeof issueStatusColors])}>
+                      <Badge variant="outline" className={cn("text-xs shrink-0", issueStatusColors[issue.status as keyof typeof issueStatusColors])}>
                         {issue.status}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{issue.description}</p>
-                    {issue.assignee && <p className="text-xs text-muted-foreground">Assigned to: {issue.assignee}</p>}
+                    <p className="text-sm text-muted-foreground line-clamp-2" title={issue.description}>{issue.description}</p>
+                    {issue.assignee && <p className="text-xs text-muted-foreground truncate" title={`Assigned to: ${issue.assignee}`}>Assigned to: {issue.assignee}</p>}
                   </div>
                 </div>
                 <DropdownMenu>
