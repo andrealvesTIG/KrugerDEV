@@ -1426,13 +1426,23 @@ function GanttTaskRow({
               {taskAssignments && taskAssignments.length > 0 ? (
                 <div className="flex -space-x-1.5">
                   {taskAssignments.slice(0, 3).map((a) => (
-                    <div 
+                    <MicrosoftContactCard
                       key={a.id}
-                      className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-background"
-                      title={a.resource.displayName}
+                      displayName={a.resource.displayName}
+                      email={a.resource.email}
+                      title={a.resource.title}
+                      department={a.resource.department}
+                      phone={a.resource.phone}
+                      side="top"
+                      align="center"
                     >
-                      {a.resource.displayName.charAt(0).toUpperCase()}
-                    </div>
+                      <div 
+                        className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold border border-background"
+                        data-testid={`resource-avatar-${a.id}`}
+                      >
+                        {a.resource.displayName.charAt(0).toUpperCase()}
+                      </div>
+                    </MicrosoftContactCard>
                   ))}
                   {taskAssignments.length > 3 && (
                     <div 
