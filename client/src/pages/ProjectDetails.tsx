@@ -423,9 +423,9 @@ export default function ProjectDetails() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+        <div className="min-w-0 flex-1 max-w-full lg:max-w-[60%]">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-display font-bold text-foreground">{project.name}</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground truncate max-w-full" title={project.name}>{project.name}</h1>
             <Badge className={cn(
               "text-sm px-3 py-1",
               project.health === 'Green' ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" :
@@ -2540,7 +2540,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
             </div>
           </div>
           <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[200px] max-w-[400px] overflow-hidden">
               <Label className="text-xs text-muted-foreground">Project Name</Label>
               {editingField === 'name' ? (
                 <Input
@@ -2553,7 +2553,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
                   data-testid="input-project-name"
                 />
               ) : (
-                <p className="text-base font-semibold cursor-pointer hover:bg-muted/50 rounded px-1 py-1 -mx-1 transition-colors mt-1" onClick={() => setEditingField('name')} data-testid="text-project-name">
+                <p className="text-base font-semibold cursor-pointer hover:bg-muted/50 rounded px-1 py-1 -mx-1 transition-colors mt-1 truncate" onClick={() => setEditingField('name')} title={project.name} data-testid="text-project-name">
                   {project.name}
                 </p>
               )}
