@@ -506,15 +506,19 @@ export default function Tasks() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter: {filterProjectId ? projects?.find(p => p.id === filterProjectId)?.name?.slice(0, 15) || "Project" : "All Projects"}
+                <DropdownMenuSubTrigger className="max-w-[200px]">
+                  <Filter className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="truncate">
+                    Filter: {filterProjectId ? projects?.find(p => p.id === filterProjectId)?.name || "Project" : "All Projects"}
+                  </span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuRadioGroup value={filterProjectId ? String(filterProjectId) : "all"} onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}>
                     <DropdownMenuRadioItem value="all">All Projects</DropdownMenuRadioItem>
                     {projects?.map(p => (
-                      <DropdownMenuRadioItem key={p.id} value={String(p.id)}>{p.name}</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem key={p.id} value={String(p.id)}>
+                        <div className="truncate max-w-[200px]" title={p.name}>{p.name}</div>
+                      </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>
                 </DropdownMenuSubContent>
