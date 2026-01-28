@@ -570,7 +570,9 @@ export default function Tasks() {
                         </SelectTrigger>
                         <SelectContent>
                           {projects?.map(p => (
-                            <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              <div className="truncate max-w-[400px]" title={p.name}>{p.name}</div>
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
