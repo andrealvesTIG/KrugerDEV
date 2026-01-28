@@ -8,7 +8,6 @@ import {
   usePortfolioRisks, 
   usePortfolioIssues,
   usePortfolioMilestones,
-  usePortfolioEscalatedItems,
   type PortfolioRisk,
   type PortfolioIssue
 } from "@/hooks/use-portfolio-details";
@@ -117,9 +116,6 @@ export default function PortfolioDetails() {
           <TabsTrigger value="dashboard" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Dashboard
           </TabsTrigger>
-          <TabsTrigger value="escalated" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm">
-            Escalated
-          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -137,9 +133,6 @@ export default function PortfolioDetails() {
           </TabsContent>
           <TabsContent value="dashboard">
             <DashboardTab portfolioId={id} metrics={metrics} onNavigate={setActiveTab} />
-          </TabsContent>
-          <TabsContent value="escalated">
-            <EscalatedTab portfolioId={id} />
           </TabsContent>
         </div>
       </Tabs>
@@ -1792,139 +1785,4 @@ const statusColors = {
   Resolved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
   Closed: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
-
-function EscalatedTab({ portfolioId }: { portfolioId: number }) {
-  const { data: escalatedItems, isLoading } = usePortfolioEscalatedItems(portfolioId);
-
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  const risks = escalatedItems?.risks || [];
-  const issues = escalatedItems?.issues || [];
-  const totalItems = risks.length + issues.length;
-
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ArrowUpToLine className="h-5 w-5 text-purple-600" />
-            Escalated Items
-          </CardTitle>
-          <CardDescription>
-            Risks and issues escalated to portfolio level for executive attention
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {totalItems === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <ArrowUpToLine className="h-12 w-12 mx-auto mb-4 opacity-30" />
-              <p>No escalated items</p>
-              <p className="text-sm mt-1">Risks and issues can be escalated from project pages</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {risks.length > 0 && (
-                <div>
-                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-amber-500" />
-                    Escalated Risks ({risks.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {risks.map((risk) => (
-                      <div
-                        key={risk.id}
-                        className="flex items-start justify-between rounded-lg border p-4 bg-amber-50/50 dark:bg-amber-950/10"
-                        data-testid={`escalated-risk-${risk.id}`}
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold">{risk.title}</span>
-                            <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                              Risk
-                            </Badge>
-                            <Badge variant="outline" className={cn("text-xs", priorityColors[risk.priority as keyof typeof priorityColors])}>
-                              {risk.priority}
-                            </Badge>
-                            <Badge variant="outline" className={cn("text-xs", statusColors[risk.status as keyof typeof statusColors])}>
-                              {risk.status}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                              <ArrowUpToLine className="h-3 w-3 mr-1" />
-                              Escalated
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{risk.description}</p>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <Link href={`/projects/${risk.projectId}`}>
-                              <span className="hover:text-primary cursor-pointer">{risk.projectName}</span>
-                            </Link>
-                            {risk.escalatedAt && (
-                              <span>Escalated: {format(new Date(risk.escalatedAt), 'MMM d, yyyy')}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {issues.length > 0 && (
-                <div>
-                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                    <Bug className="h-5 w-5 text-red-500" />
-                    Escalated Issues ({issues.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {issues.map((issue) => (
-                      <div
-                        key={issue.id}
-                        className="flex items-start justify-between rounded-lg border p-4 bg-red-50/50 dark:bg-red-950/10"
-                        data-testid={`escalated-issue-${issue.id}`}
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold">{issue.title}</span>
-                            <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                              Issue
-                            </Badge>
-                            <Badge variant="outline" className={cn("text-xs", priorityColors[issue.priority as keyof typeof priorityColors])}>
-                              {issue.priority}
-                            </Badge>
-                            <Badge variant="outline" className={cn("text-xs", statusColors[issue.status as keyof typeof statusColors])}>
-                              {issue.status}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                              <ArrowUpToLine className="h-3 w-3 mr-1" />
-                              Escalated
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{issue.description}</p>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <Link href={`/projects/${issue.projectId}`}>
-                              <span className="hover:text-primary cursor-pointer">{issue.projectName}</span>
-                            </Link>
-                            {issue.escalatedAt && (
-                              <span>Escalated: {format(new Date(issue.escalatedAt), 'MMM d, yyyy')}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
