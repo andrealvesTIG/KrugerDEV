@@ -1094,9 +1094,17 @@ export const insertExternalShareSchema = createInsertSchema(externalShares).omit
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true });
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true });
 // Risk schema is now an alias for Issue schema with itemType="risk"
-export const insertRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
+// Extend to handle date strings for escalatedAt field
+const baseRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
+export const insertRiskSchema = baseRiskSchema.extend({
+  escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+});
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
-export const insertIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
+// Extend to handle date strings for escalatedAt field
+const baseIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
+export const insertIssueSchema = baseIssueSchema.extend({
+  escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+});
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true });
 export const insertTaskChangeLogSchema = createInsertSchema(taskChangeLogs).omit({ id: true, changedAt: true });
 export const insertProjectChangeLogSchema = createInsertSchema(projectChangeLogs).omit({ id: true, changedAt: true });
