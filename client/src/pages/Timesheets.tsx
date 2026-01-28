@@ -111,11 +111,11 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
       className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
     >
       <td className={`p-3 ${indented ? 'pl-10' : ''}`}>
-        <div className="flex items-center gap-2">
-          <ListTodo className="h-4 w-4 text-muted-foreground" />
-          <span className="text-foreground">{task.name}</span>
+        <div className="flex items-center gap-2 min-w-0 max-w-[250px]">
+          <ListTodo className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-foreground truncate" title={task.name}>{task.name}</span>
           {!indented && (
-            <span className="text-xs text-muted-foreground">({project.name})</span>
+            <span className="text-xs text-muted-foreground truncate shrink-0 max-w-[100px]" title={project.name}>({project.name})</span>
           )}
         </div>
       </td>
@@ -421,16 +421,17 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       data-testid={`row-project-header-${group.project.id}`}
                     >
                       <td className="p-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0 max-w-[250px]">
                           <motion.div
                             animate={{ rotate: isCollapsed ? -90 : 0 }}
                             transition={{ duration: 0.2 }}
+                            className="shrink-0"
                           >
                             <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           </motion.div>
-                          <FolderOpen className="h-4 w-4 text-primary" />
-                          <span className="font-medium text-foreground">{group.project.name}</span>
-                          <Badge variant="secondary" className="text-xs ml-1">
+                          <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+                          <span className="font-medium text-foreground truncate" title={group.project.name}>{group.project.name}</span>
+                          <Badge variant="secondary" className="text-xs ml-1 shrink-0">
                             {group.tasks.length} task{group.tasks.length !== 1 ? 's' : ''}
                           </Badge>
                         </div>
@@ -645,9 +646,9 @@ function ApprovalTab() {
                     key={entry.id} 
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/50 gap-4 flex-wrap"
                   >
-                    <div className="flex-1 min-w-[200px]">
-                      <div className="font-medium">{(entry as any).task?.name || "Unknown Task"}</div>
-                      <div className="text-sm text-muted-foreground">
+                    <div className="flex-1 min-w-[200px] max-w-[300px] overflow-hidden">
+                      <div className="font-medium truncate" title={(entry as any).task?.name || "Unknown Task"}>{(entry as any).task?.name || "Unknown Task"}</div>
+                      <div className="text-sm text-muted-foreground truncate" title={`${(entry as any).project?.name || "Unknown Project"} • ${entry.entryDate}`}>
                         {(entry as any).project?.name || "Unknown Project"} • {entry.entryDate}
                       </div>
                       {entry.notes && (
