@@ -29,6 +29,10 @@ function generateSecureToken(): string {
 }
 
 function getRedirectUri(req: Request): string {
+  // In production, use APP_URL for consistent redirect URI
+  if (process.env.APP_URL) {
+    return `${process.env.APP_URL}/api/auth/google/callback`;
+  }
   const protocol = req.headers["x-forwarded-proto"] || req.protocol;
   const host = req.headers["x-forwarded-host"] || req.get("host");
   return `${protocol}://${host}/api/auth/google/callback`;
@@ -162,7 +166,11 @@ export function setupGoogleAuth(app: Express) {
 
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.text();
-        console.error("Token exchange failed:", errorData);
+        console.error("Token exchange failed:", {
+          status: tokenResponse.status,
+          error: errorData,
+          redirectUri,
+        });
         return res.redirect("/auth?error=Failed to exchange authorization code");
       }
 
