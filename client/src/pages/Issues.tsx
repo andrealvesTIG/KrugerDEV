@@ -932,13 +932,16 @@ export default function Issues() {
             {(() => {
               const project = projects?.find(p => p.id === editingIssue?.projectId);
               if (!project?.portfolioId) return null;
+              const portfolio = portfolios?.find(pf => pf.id === project.portfolioId);
               return (
                 <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                   <div className="flex items-center gap-2">
                     <ArrowUpToLine className="h-4 w-4 text-purple-600" />
                     <div>
                       <Label className="text-sm font-medium">Escalate to Portfolio</Label>
-                      <p className="text-xs text-muted-foreground">Make this {editingIssue?.itemType === 'risk' ? 'risk' : 'issue'} visible at the portfolio level</p>
+                      <p className="text-xs text-muted-foreground">
+                        Make this {editingIssue?.itemType === 'risk' ? 'risk' : 'issue'} visible in <span className="font-medium text-foreground">{portfolio?.name || 'portfolio'}</span>
+                      </p>
                     </div>
                   </div>
                   <Switch

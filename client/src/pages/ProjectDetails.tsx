@@ -3209,6 +3209,8 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
 function RisksTab({ projectId, projectName, portfolioId, urlRiskId }: { projectId: number; projectName?: string; portfolioId?: number | null; urlRiskId?: string | null }) {
   const { currentOrganization } = useOrganization();
   const { data: risks, isLoading } = useRisks(projectId);
+  const { data: portfolios } = usePortfolios(currentOrganization?.id);
+  const portfolioName = portfolioId ? portfolios?.find(p => p.id === portfolioId)?.name : undefined;
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
   const [deleteRiskData, setDeleteRiskData] = useState<Risk | null>(null);
@@ -3466,7 +3468,9 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId }: { projectI
                     <ArrowUpToLine className="h-4 w-4 text-purple-600" />
                     <div>
                       <Label className="text-sm font-medium">Escalate to Portfolio</Label>
-                      <p className="text-xs text-muted-foreground">Make this risk visible at the portfolio level</p>
+                      <p className="text-xs text-muted-foreground">
+                        Make this risk visible in <span className="font-medium text-foreground">{portfolioName || 'portfolio'}</span>
+                      </p>
                     </div>
                   </div>
                   <Switch
@@ -9328,6 +9332,8 @@ const typeIcons = {
 function IssuesTab({ projectId, projectName, portfolioId, urlIssueId }: { projectId: number; projectName?: string; portfolioId?: number | null; urlIssueId?: string | null }) {
   const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useIssues(projectId);
+  const { data: portfolios } = usePortfolios(currentOrganization?.id);
+  const portfolioName = portfolioId ? portfolios?.find(p => p.id === portfolioId)?.name : undefined;
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
   const [deleteIssueData, setDeleteIssueData] = useState<Issue | null>(null);
@@ -9523,7 +9529,9 @@ function IssuesTab({ projectId, projectName, portfolioId, urlIssueId }: { projec
                     <ArrowUpToLine className="h-4 w-4 text-purple-600" />
                     <div>
                       <Label className="text-sm font-medium">Escalate to Portfolio</Label>
-                      <p className="text-xs text-muted-foreground">Make this issue visible at the portfolio level</p>
+                      <p className="text-xs text-muted-foreground">
+                        Make this issue visible in <span className="font-medium text-foreground">{portfolioName || 'portfolio'}</span>
+                      </p>
                     </div>
                   </div>
                   <Switch
