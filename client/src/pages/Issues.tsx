@@ -670,29 +670,29 @@ export default function Issues() {
                     <div className="mt-0.5">
                       <TypeIcon className="h-5 w-5 text-muted-foreground" />
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold" data-testid={`text-issue-title-${issue.id}`}>{issue.title}</span>
-                        <Badge variant="outline" className={cn("text-xs", issue.itemType === 'risk' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300")}>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className="font-semibold truncate max-w-[200px]" title={issue.title} data-testid={`text-issue-title-${issue.id}`}>{issue.title}</span>
+                        <Badge variant="outline" className={cn("text-xs shrink-0", issue.itemType === 'risk' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300")}>
                           {issue.itemType === 'risk' ? 'Risk' : 'Issue'}
                         </Badge>
-                        <Badge variant="outline" className={cn("text-xs", priorityColors[issue.priority as keyof typeof priorityColors])}>
+                        <Badge variant="outline" className={cn("text-xs shrink-0", priorityColors[issue.priority as keyof typeof priorityColors])}>
                           {issue.priority}
                         </Badge>
-                        <Badge variant="outline" className={cn("text-xs", statusColors[issue.status as keyof typeof statusColors])}>
+                        <Badge variant="outline" className={cn("text-xs shrink-0", statusColors[issue.status as keyof typeof statusColors])}>
                           {issue.status}
                         </Badge>
                         {issue.escalatedToPortfolio && (
-                          <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                          <Badge variant="outline" className="text-xs shrink-0 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
                             <ArrowUpToLine className="h-3 w-3 mr-1" />
                             Escalated
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">{issue.description}</p>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <p className="text-sm text-muted-foreground line-clamp-2" title={issue.description || ""}>{issue.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground min-w-0">
                         <Link href={`/projects/${issue.projectId}`} onClick={(e) => e.stopPropagation()}>
-                          <span className="hover:text-primary cursor-pointer">{getProjectName(issue.projectId)}</span>
+                          <span className="hover:text-primary cursor-pointer truncate max-w-[150px] inline-block align-bottom" title={getProjectName(issue.projectId)}>{getProjectName(issue.projectId)}</span>
                         </Link>
                         <IssueResourceDisplay issueId={issue.id} />
                       </div>
