@@ -2596,8 +2596,8 @@ function ProjectsGridView({
     switch (columnId) {
       case "name":
         return (
-          <div className="flex items-center gap-2 group">
-            <Link href={`/projects/${project.id}`} className="font-medium text-primary hover:underline">
+          <div className="flex items-center gap-2 group min-w-0">
+            <Link href={`/projects/${project.id}`} className="font-medium text-primary hover:underline truncate flex-1 min-w-0" title={project.name}>
               {project.name}
             </Link>
             {project.source === "planner" && project.plannerPlanId && (
@@ -2637,7 +2637,7 @@ function ProjectsGridView({
             <Button 
               size="icon" 
               variant="ghost" 
-              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
               onClick={(e) => { e.preventDefault(); startEditing(project.id, "name", project.name); }}
               data-testid={`edit-name-${project.id}`}
             >
@@ -3069,6 +3069,7 @@ function ProjectsGridView({
                       return (
                         <TableCell 
                           key={column.id}
+                          className="overflow-hidden"
                           style={{ 
                             width: `${width}px`, 
                             minWidth: `${width}px`, 
