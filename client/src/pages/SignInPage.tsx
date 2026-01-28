@@ -316,53 +316,56 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-800 via-slate-700 to-slate-800">
-      {/* Pricing Banner */}
-      <div className="bg-gradient-to-r from-primary via-orange-500 to-primary py-2.5 text-center">
-        <p className="text-white text-sm font-medium">
-          <span className="font-bold">Free Forever</span> — Start managing projects at no cost. No credit card required.
-          <button onClick={scrollToSignIn} className="ml-2 underline hover:no-underline font-semibold" data-testid="link-pricing-banner">
-            Get Started
-          </button>
-        </p>
-      </div>
-      
-      {/* Navigation */}
-      <nav className="sticky top-0 left-0 right-0 z-50 bg-slate-800/90 backdrop-blur-md border-b border-slate-600">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <img src={logoIcon} alt="FridayReport.AI" className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0" />
-              <span className="text-base sm:text-xl font-bold text-white truncate">FridayReport.AI</span>
-            </div>
-            <div className="hidden md:flex items-center gap-6">
-              <button onClick={() => scrollToSection('features-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-features">
-                Features
-              </button>
-              <button onClick={() => scrollToSection('integrations-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-integrations">
-                Integrations
-              </button>
-              <button onClick={() => scrollToSection('pricing-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-pricing">
-                Pricing
-              </button>
-              <button onClick={() => scrollToSection('faq-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-faq">
-                FAQ
-              </button>
-              <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-guide">
-                User Guide
-              </Link>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-              <Link href="/auth" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
-                Login
-              </Link>
-              <Button onClick={scrollToSignIn} size="sm" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 shadow-lg shadow-orange-500/30" data-testid="button-nav-get-started">
-                <span className="hidden sm:inline">Get Started Free</span>
-                <span className="sm:hidden">Start Free</span>
-              </Button>
+      {/* Sticky Header Container - Banner + Navigation */}
+      <div className="sticky top-0 left-0 right-0 z-50">
+        {/* Pricing Banner */}
+        <div className="bg-gradient-to-r from-primary via-orange-500 to-primary py-2.5 text-center">
+          <p className="text-white text-sm font-medium">
+            <span className="font-bold">Free Forever</span> — Start managing projects at no cost. No credit card required.
+            <button onClick={scrollToSignIn} className="ml-2 underline hover:no-underline font-semibold" data-testid="link-pricing-banner">
+              Get Started
+            </button>
+          </p>
+        </div>
+        
+        {/* Navigation */}
+        <nav className="bg-slate-800/90 backdrop-blur-md border-b border-slate-600">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <img src={logoIcon} alt="FridayReport.AI" className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0" />
+                <span className="text-base sm:text-xl font-bold text-white truncate">FridayReport.AI</span>
+              </div>
+              <div className="hidden md:flex items-center gap-6">
+                <button onClick={() => scrollToSection('features-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-features">
+                  Features
+                </button>
+                <button onClick={() => scrollToSection('integrations-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-integrations">
+                  Integrations
+                </button>
+                <button onClick={() => scrollToSection('pricing-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-pricing">
+                  Pricing
+                </button>
+                <button onClick={() => scrollToSection('faq-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-faq">
+                  FAQ
+                </button>
+                <Link href="/guide" className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-guide">
+                  User Guide
+                </Link>
+              </div>
+              <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                <Link href="/auth" className="text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-colors" data-testid="link-nav-login">
+                  Login
+                </Link>
+                <Button onClick={scrollToSignIn} size="sm" className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-xs sm:text-sm px-3 sm:px-4 shadow-lg shadow-orange-500/30" data-testid="button-nav-get-started">
+                  <span className="hidden sm:inline">Get Started Free</span>
+                  <span className="sm:hidden">Start Free</span>
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      </div>
       {/* Hero Section with Video */}
       <section className="relative pt-8 pb-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
