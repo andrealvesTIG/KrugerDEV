@@ -282,7 +282,11 @@ export async function setupDynamics365Routes(app: Express) {
 
     try {
       const authUrl = await client.getAuthCodeUrl(authCodeUrlParameters);
-      res.json({ authUrl });
+      console.log("Dynamics 365 auth URL generated successfully:", authUrl.substring(0, 100) + "...");
+      const responseBody = { authUrl };
+      console.log("Sending response:", JSON.stringify(responseBody).substring(0, 200));
+      res.setHeader('Content-Type', 'application/json');
+      res.json(responseBody);
     } catch (error) {
       console.error("Dynamics 365 auth URL error:", error);
       res.status(500).json({ message: "Failed to initiate Dynamics 365 connection" });
