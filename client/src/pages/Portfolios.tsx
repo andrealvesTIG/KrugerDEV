@@ -334,12 +334,14 @@ export default function Portfolios() {
                     className="cursor-pointer hover:bg-muted/50"
                     data-testid={`row-portfolio-${portfolio.id}`}
                   >
-                    <TableCell>
-                      <Link href={`/portfolios/${portfolio.id}`} className="flex items-center gap-3 font-medium hover:text-primary">
-                        <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                    <TableCell className="max-w-[250px]">
+                      <Link href={`/portfolios/${portfolio.id}`} className="flex items-center gap-3 font-medium hover:text-primary min-w-0">
+                        <div className="rounded-lg bg-primary/10 p-2 text-primary shrink-0">
                           <FolderOpen className="h-4 w-4" />
                         </div>
-                        {portfolio.name}
+                        <span className="truncate" title={portfolio.name}>
+                          {portfolio.name}
+                        </span>
                       </Link>
                     </TableCell>
                     <TableCell className="max-w-[300px]">
