@@ -976,6 +976,9 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
+  // Filter to only show escalated risks
+  const escalatedRisks = risks?.filter((risk: PortfolioRisk) => risk.escalatedToPortfolio) || [];
+
   const probabilityColors: Record<string, string> = {
     Low: "bg-emerald-100 text-emerald-700",
     Medium: "bg-amber-100 text-amber-700",
@@ -994,9 +997,9 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-600" />
-            Portfolio Risks
+            Escalated Risks
           </CardTitle>
-          <CardDescription>Aggregated risks from all projects in this portfolio</CardDescription>
+          <CardDescription>Risks escalated to portfolio level from projects</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
@@ -1012,7 +1015,7 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
                 </tr>
               </thead>
               <tbody>
-                {risks?.map((risk: PortfolioRisk) => (
+                {escalatedRisks.map((risk: PortfolioRisk) => (
                   <tr 
                     key={risk.id} 
                     className="border-b hover:bg-muted/30 transition-colors cursor-pointer group" 
@@ -1062,9 +1065,9 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
                 ))}
               </tbody>
             </table>
-            {risks?.length === 0 && (
+            {escalatedRisks.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No risks recorded across portfolio projects.
+                No risks have been escalated to this portfolio.
               </div>
             )}
           </div>
@@ -1247,6 +1250,9 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
+  // Filter to only show escalated issues
+  const escalatedIssues = issues?.filter((issue: PortfolioIssue) => issue.escalatedToPortfolio) || [];
+
   const priorityColors: Record<string, string> = {
     Low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
     Medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
@@ -1267,9 +1273,9 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bug className="h-5 w-5 text-rose-600" />
-            Portfolio Issues
+            Escalated Issues
           </CardTitle>
-          <CardDescription>Aggregated issues from all projects in this portfolio</CardDescription>
+          <CardDescription>Issues escalated to portfolio level from projects</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
@@ -1286,7 +1292,7 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                 </tr>
               </thead>
               <tbody>
-                {issues?.map((issue: PortfolioIssue) => (
+                {escalatedIssues.map((issue: PortfolioIssue) => (
                   <tr 
                     key={issue.id} 
                     className="border-b hover:bg-muted/30 transition-colors cursor-pointer group" 
@@ -1335,9 +1341,9 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                 ))}
               </tbody>
             </table>
-            {issues?.length === 0 && (
+            {escalatedIssues.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No issues recorded across portfolio projects.
+                No issues have been escalated to this portfolio.
               </div>
             )}
           </div>
