@@ -475,7 +475,9 @@ export default function Projects() {
             <SelectContent>
               <SelectItem value="all">All Portfolios</SelectItem>
               {portfolios?.map(p => (
-                <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                <SelectItem key={p.id} value={p.id.toString()}>
+                  <div className="truncate max-w-[200px]" title={p.name}>{p.name}</div>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
