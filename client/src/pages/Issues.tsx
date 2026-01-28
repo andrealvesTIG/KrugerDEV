@@ -808,19 +808,34 @@ export default function Issues() {
             const project = projects?.find(p => p.id === editingIssue.projectId);
             const portfolio = project?.portfolioId ? portfolios?.find(pf => pf.id === project.portfolioId) : null;
             return (
-              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground border-b pb-3">
-                <span>Project:</span>
-                <Link href={`/projects/${editingIssue.projectId}`} className="text-primary hover:underline font-medium" data-testid="link-issue-project">
-                  {project?.name || `Project #${editingIssue.projectId}`}
-                </Link>
-                {portfolio && (
-                  <>
-                    <span className="text-muted-foreground/50">|</span>
-                    <span>Portfolio:</span>
-                    <Link href={`/portfolios/${portfolio.id}`} className="text-primary hover:underline font-medium" data-testid="link-issue-portfolio">
-                      {portfolio.name}
-                    </Link>
-                  </>
+              <div className="space-y-3 border-b pb-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <span>Project:</span>
+                  <Link href={`/projects/${editingIssue.projectId}`} className="text-primary hover:underline font-medium" data-testid="link-issue-project">
+                    {project?.name || `Project #${editingIssue.projectId}`}
+                  </Link>
+                  {portfolio && (
+                    <>
+                      <span className="text-muted-foreground/50">|</span>
+                      <span>Portfolio:</span>
+                      <Link href={`/portfolios/${portfolio.id}`} className="text-primary hover:underline font-medium" data-testid="link-issue-portfolio">
+                        {portfolio.name}
+                      </Link>
+                    </>
+                  )}
+                </div>
+                {editingIssue.escalatedToPortfolio && (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" data-testid="badge-escalated-to-portfolio">
+                      <ArrowUpToLine className="h-3 w-3 mr-1" />
+                      Escalated to Portfolio
+                    </Badge>
+                    {editingIssue.escalatedAt && (
+                      <span className="text-xs text-muted-foreground">
+                        on {new Date(editingIssue.escalatedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             );
