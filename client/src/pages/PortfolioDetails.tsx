@@ -1243,8 +1243,8 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
-  // Filter to only show escalated issues (not risks)
-  const escalatedIssues = issues?.filter((issue: PortfolioIssue) => issue.escalatedToPortfolio && issue.itemType === 'issue') || [];
+  // Filter to only show escalated issues (not risks) - treat null itemType as issue for legacy data
+  const escalatedIssues = issues?.filter((issue: PortfolioIssue) => issue.escalatedToPortfolio && issue.itemType !== 'risk') || [];
 
   const priorityColors: Record<string, string> = {
     Low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
