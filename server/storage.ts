@@ -1014,12 +1014,12 @@ export class DatabaseStorage implements IStorage {
     await db.delete(milestones).where(eq(milestones.id, id));
   }
 
-  // Issues (filtering by itemType='issue' to exclude risks)
+  // Issues (filtering by itemType='issue' or NULL to exclude risks - NULL for legacy data)
   async getIssues(projectId: number): Promise<Issue[]> {
     return await db.select().from(issues).where(
       and(
         eq(issues.projectId, projectId),
-        eq(issues.itemType, 'issue'),
+        or(eq(issues.itemType, 'issue'), isNull(issues.itemType)),
         isNull(issues.deletedAt)
       )
     );
