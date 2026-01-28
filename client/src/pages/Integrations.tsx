@@ -595,25 +595,66 @@ export default function Integrations() {
     
     try {
       // First set the environment URL
-      const setEnvRes = await apiRequest("POST", "/api/dynamics365/set-environment", { 
-        environmentUrl: dynamics365EnvUrl,
-        organizationId: currentOrganization?.id
+      const setEnvRes = await fetch("/api/dynamics365/set-environment", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          environmentUrl: dynamics365EnvUrl,
+          organizationId: currentOrganization?.id
+        }),
+        credentials: "include"
       });
+      
+      const setEnvText = await setEnvRes.text();
       if (!setEnvRes.ok) {
-        const errorData = await setEnvRes.json();
-        throw new Error(errorData.message || "Failed to set environment URL");
+        let errorMsg = "Failed to set environment URL";
+        try {
+          const errorData = JSON.parse(setEnvText);
+          errorMsg = errorData.message || errorMsg;
+        } catch {
+          errorMsg = setEnvText || errorMsg;
+        }
+        throw new Error(errorMsg);
       }
       
       // Then initiate OAuth
-      const response = await apiRequest("POST", "/api/dynamics365/connect", { 
-        returnUrl: "/integrations",
-        organizationId: currentOrganization?.id
+      const response = await fetch("/api/dynamics365/connect", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          returnUrl: "/integrations",
+          organizationId: currentOrganization?.id
+        }),
+        credentials: "include"
       });
-      const data = await response.json();
+      
+      const responseText = await response.text();
+      if (!response.ok) {
+        let errorMsg = "Failed to connect to Dynamics 365";
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMsg = errorData.message || errorMsg;
+        } catch {
+          errorMsg = responseText || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Response text:", responseText);
+        throw new Error("Invalid response from server. Please check that Microsoft Entra ID is properly configured.");
+      }
+      
       if (data.authUrl) {
         window.location.href = data.authUrl;
+      } else {
+        throw new Error("No authentication URL received from server");
       }
     } catch (error: any) {
+      console.error("Dynamics 365 connection error:", error);
       toast({ 
         title: "Connection Failed", 
         description: error.message || "Failed to connect to Dynamics 365",
