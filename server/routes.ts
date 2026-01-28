@@ -9969,6 +9969,27 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
 
   // =========== PROJECT INVOICES ===========
   
+  // Get all invoices for an organization
+  app.get('/api/organizations/:organizationId/invoices', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const organizationId = Number(req.params.organizationId);
+      
+      if (userId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(organizationId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+      
+      const invoices = await storage.getOrganizationInvoices(organizationId);
+      res.json(invoices);
+    } catch (err) {
+      console.error("Error fetching organization invoices:", err);
+      res.status(500).json({ message: "Error fetching invoices" });
+    }
+  });
+
   // Get all invoices for a project
   app.get('/api/projects/:projectId/invoices', async (req, res) => {
     try {

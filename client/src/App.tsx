@@ -22,6 +22,7 @@ import ProjectDetails from "@/pages/ProjectDetails";
 import Calendar from "@/pages/Calendar";
 import Issues from "@/pages/Issues";
 import LessonsLearned from "@/pages/LessonsLearned";
+import Invoices from "@/pages/Invoices";
 import Tasks from "@/pages/Tasks";
 import Admin from "@/pages/Admin";
 import SuperAdmin from "@/pages/SuperAdmin";
@@ -161,6 +162,7 @@ function Router() {
         <GuardedRoute path="/tasks" component={Tasks} moduleKey="tasks" />
         <GuardedRoute path="/issues" component={Issues} moduleKey="issues" />
         <GuardedRoute path="/lessons-learned" component={LessonsLearned} moduleKey="lessons-learned" />
+        <GuardedRoute path="/invoices" component={Invoices} moduleKey="invoices" />
         <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />
         <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
         <Route path="/resources/:id">
