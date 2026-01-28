@@ -76,7 +76,8 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { CustomDashboard as CustomDashboardType } from "@shared/schema";
-import {
+import { cn } from "@/lib/utils";
+import { 
   DndContext,
   closestCenter,
   KeyboardSensor,
