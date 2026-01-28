@@ -87,7 +87,7 @@ The application manages comprehensive data entities including:
 ### Integrations
 - **Microsoft Project (MPXJ)**: Java-based library for parsing `.mpp`, XML (MSPDI), and CSV project files.
 - **Microsoft Planner**: Integration via Microsoft Graph API for importing and syncing projects and tasks. Supports OAuth for secure access and task synchronization, with tasks from Planner being read-only within the application.
-- **Microsoft Dynamics 365 Sales Hub**: Integration for importing invoices from Dynamics 365 Sales Hub. Uses OAuth 2.0 via MSAL for authentication, stores environment URL and tokens in session, and provides invoice search/import functionality in the project Invoices tab.
+- **Microsoft Dynamics 365 Sales Hub**: Organization-scoped integration for importing invoices from Dynamics 365 Sales Hub. Uses OAuth 2.0 via MSAL for authentication, stores tokens and environment URL per organization in the `organization_integrations` table. Imported invoices are marked with `source='dynamics365'` and include `externalId` and `externalUrl` for linking back to the source system. Imported invoices are read-only (no edit button) with a resync button to refresh data from Dynamics 365.
 - **Analytics API**: REST endpoints for integrating with external analytics tools like Power BI, providing project, portfolio, risk, issue, milestone, intake, and KPI data. Secured with API key authentication.
 
 ### Notification Engine

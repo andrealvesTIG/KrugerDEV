@@ -830,7 +830,7 @@ export default function ProjectDetails() {
             <DocumentsTab projectId={project.id} />
           </TabsContent>
           <TabsContent value="invoices">
-            <InvoicesTab projectId={project.id} />
+            <InvoicesTab projectId={project.id} organizationId={project.organizationId} />
           </TabsContent>
           <TabsContent value="status-report">
             <StatusReportTab 
@@ -12183,7 +12183,7 @@ interface Dynamics365Invoice {
   customerAddress: string;
 }
 
-function InvoicesTab({ projectId }: { projectId: number }) {
+function InvoicesTab({ projectId, organizationId }: { projectId: number; organizationId: number | undefined }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<ProjectInvoice | null>(null);
@@ -12202,12 +12202,13 @@ function InvoicesTab({ projectId }: { projectId: number }) {
   });
 
   const { data: dynamics365Status, refetch: refetchDynamics365Status } = useQuery<{ configured: boolean; connected: boolean; environmentUrl: string | null; needsRefresh?: boolean }>({
-    queryKey: ['/api/dynamics365/status'],
+    queryKey: ['/api/dynamics365/status', { organizationId }],
+    enabled: !!organizationId,
   });
 
   const { data: dynamics365Invoices, isLoading: isDynamicsLoading, refetch: refetchDynamicsInvoices } = useQuery<{ invoices: Dynamics365Invoice[] }>({
-    queryKey: ['/api/dynamics365/invoices', dynamicsSearch],
-    enabled: isDynamicsImportOpen && (dynamics365Status?.connected || dynamics365Status?.needsRefresh),
+    queryKey: ['/api/dynamics365/invoices', { organizationId, search: dynamicsSearch }],
+    enabled: isDynamicsImportOpen && !!organizationId && (dynamics365Status?.connected || dynamics365Status?.needsRefresh),
     retry: false,
   });
 
@@ -12279,10 +12280,10 @@ function InvoicesTab({ projectId }: { projectId: number }) {
   const resyncMutation = useMutation({
     mutationFn: async (invoice: ProjectInvoice) => {
       const externalId = (invoice as any).externalId;
-      if (!externalId || !dynamics365Status?.environmentUrl) {
-        throw new Error('Cannot resync: missing external ID or environment URL');
+      if (!externalId || !dynamics365Status?.environmentUrl || !organizationId) {
+        throw new Error('Cannot resync: missing external ID, environment URL, or organization');
       }
-      const res = await apiRequest('GET', `/api/dynamics365/invoices/${externalId}`);
+      const res = await apiRequest('GET', `/api/dynamics365/invoices/${externalId}?organizationId=${organizationId}`);
       if (!res.ok) throw new Error('Failed to fetch invoice from Dynamics 365');
       const { invoice: dynamicsInvoice } = await res.json();
       
@@ -12802,7 +12803,8 @@ function InvoicesTab({ projectId }: { projectId: number }) {
                       // Set environment URL if not already set
                       if (!dynamics365Status?.environmentUrl && dynamics365EnvUrl) {
                         const setEnvRes = await apiRequest('POST', '/api/dynamics365/set-environment', { 
-                          environmentUrl: dynamics365EnvUrl 
+                          environmentUrl: dynamics365EnvUrl,
+                          organizationId 
                         });
                         if (!setEnvRes.ok) {
                           const errorData = await setEnvRes.json();
@@ -12813,7 +12815,7 @@ function InvoicesTab({ projectId }: { projectId: number }) {
                         return;
                       }
                       
-                      const res = await apiRequest('POST', '/api/dynamics365/connect', { returnUrl: window.location.pathname });
+                      const res = await apiRequest('POST', '/api/dynamics365/connect', { returnUrl: window.location.pathname, organizationId });
                       const { authUrl } = await res.json();
                       if (authUrl) {
                         window.location.href = authUrl;

@@ -229,7 +229,12 @@ export default function Integrations() {
 
   // Dynamics 365 connection status
   const { data: dynamics365Status, refetch: refetchDynamics365Status } = useQuery<{ configured: boolean; connected: boolean; environmentUrl: string | null; needsRefresh?: boolean }>({
-    queryKey: ["/api/dynamics365/status"],
+    queryKey: ["/api/dynamics365/status", currentOrganization?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/dynamics365/status?organizationId=${currentOrganization?.id}`);
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
   });
   
   const disconnectEntraMutation = useMutation({
@@ -591,7 +596,8 @@ export default function Integrations() {
     try {
       // First set the environment URL
       const setEnvRes = await apiRequest("POST", "/api/dynamics365/set-environment", { 
-        environmentUrl: dynamics365EnvUrl 
+        environmentUrl: dynamics365EnvUrl,
+        organizationId: currentOrganization?.id
       });
       if (!setEnvRes.ok) {
         const errorData = await setEnvRes.json();
@@ -600,7 +606,8 @@ export default function Integrations() {
       
       // Then initiate OAuth
       const response = await apiRequest("POST", "/api/dynamics365/connect", { 
-        returnUrl: "/integrations"
+        returnUrl: "/integrations",
+        organizationId: currentOrganization?.id
       });
       const data = await response.json();
       if (data.authUrl) {
@@ -617,7 +624,7 @@ export default function Integrations() {
   
   const handleDynamics365Disconnect = async () => {
     try {
-      await apiRequest("POST", "/api/dynamics365/disconnect");
+      await apiRequest("POST", "/api/dynamics365/disconnect", { organizationId: currentOrganization?.id });
       refetchDynamics365Status();
       toast({ title: "Disconnected", description: "Disconnected from Dynamics 365 Sales" });
     } catch {
