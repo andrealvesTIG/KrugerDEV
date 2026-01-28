@@ -812,14 +812,14 @@ export default function Issues() {
             return (
               <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground border-b pb-3">
                 <span>Project:</span>
-                <Link href={`/projects/${editingIssue.projectId}`} className="text-primary hover:underline font-medium" data-testid="link-issue-project">
+                <Link href={`/projects/${editingIssue.projectId}`} className="text-primary hover:underline font-medium truncate max-w-[200px]" title={project?.name || ""} data-testid="link-issue-project">
                   {project?.name || `Project #${editingIssue.projectId}`}
                 </Link>
                 {portfolio && (
                   <>
                     <span className="text-muted-foreground/50">|</span>
                     <span>Portfolio:</span>
-                    <Link href={`/portfolios/${portfolio.id}`} className="text-primary hover:underline font-medium" data-testid="link-issue-portfolio">
+                    <Link href={`/portfolios/${portfolio.id}`} className="text-primary hover:underline font-medium truncate max-w-[200px]" title={portfolio.name} data-testid="link-issue-portfolio">
                       {portfolio.name}
                     </Link>
                   </>
