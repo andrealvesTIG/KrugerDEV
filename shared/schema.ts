@@ -661,6 +661,10 @@ export const projectInvoices = pgTable("project_invoices", {
   fileUrl: text("file_url"), // URL/path to the document in object storage
   fileSize: integer("file_size"), // Size in bytes
   mimeType: text("mime_type"), // File MIME type
+  // External integration fields (for Dynamics 365, etc.)
+  source: text("source"), // Source system: 'manual', 'dynamics365', etc.
+  externalId: text("external_id"), // ID in the source system
+  externalUrl: text("external_url"), // Direct URL to the invoice in source system
   // Metadata
   createdBy: varchar("created_by").references(() => users.id),
   createdByName: text("created_by_name"),

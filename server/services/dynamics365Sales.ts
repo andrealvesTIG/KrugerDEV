@@ -456,12 +456,12 @@ export async function setupDynamics365Routes(app: Express) {
   });
 
   app.get("/api/dynamics365/invoices/:invoiceId", async (req, res) => {
-    const token = req.session.dynamics365AccessToken;
+    const token = await getValidDynamics365Token(req);
     const environmentUrl = req.session.dynamics365EnvironmentUrl;
     const { invoiceId } = req.params;
 
     if (!token) {
-      return res.status(401).json({ message: "Not connected to Dynamics 365" });
+      return res.status(401).json({ message: "Not connected to Dynamics 365. Please reconnect." });
     }
 
     if (!environmentUrl) {

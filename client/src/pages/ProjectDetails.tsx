@@ -39,7 +39,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, Square } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -12276,6 +12276,37 @@ function InvoicesTab({ projectId }: { projectId: number }) {
     },
   });
 
+  const resyncMutation = useMutation({
+    mutationFn: async (invoice: ProjectInvoice) => {
+      const externalId = (invoice as any).externalId;
+      if (!externalId || !dynamics365Status?.environmentUrl) {
+        throw new Error('Cannot resync: missing external ID or environment URL');
+      }
+      const res = await apiRequest('GET', `/api/dynamics365/invoices/${externalId}`);
+      if (!res.ok) throw new Error('Failed to fetch invoice from Dynamics 365');
+      const { invoice: dynamicsInvoice } = await res.json();
+      
+      const updateRes = await apiRequest('PATCH', `/api/invoices/${invoice.id}`, {
+        invoiceNumber: dynamicsInvoice.invoiceNumber,
+        title: dynamicsInvoice.name,
+        description: dynamicsInvoice.description || '',
+        amount: String(dynamicsInvoice.amount || 0),
+        status: dynamicsInvoice.status === 'Paid' ? 'Paid' : 
+                dynamicsInvoice.status === 'Cancelled' ? 'Cancelled' : 'Draft',
+        dueDate: dynamicsInvoice.dueDate,
+        vendorName: dynamicsInvoice.customerName,
+      });
+      return updateRes.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Invoice resynced from Dynamics 365" });
+      refetchInvoices();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to resync invoice", variant: "destructive" });
+    },
+  });
+
   const statusColors: Record<string, string> = {
     Draft: 'bg-muted text-muted-foreground',
     Sent: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
@@ -12429,6 +12460,7 @@ function InvoicesTab({ projectId }: { projectId: number }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
+                  <th className="text-left py-2 px-2 font-medium w-8">Source</th>
                   <th className="text-left py-2 px-2 font-medium">Invoice #</th>
                   <th className="text-left py-2 px-2 font-medium">Title</th>
                   <th className="text-left py-2 px-2 font-medium">Vendor</th>
@@ -12440,8 +12472,26 @@ function InvoicesTab({ projectId }: { projectId: number }) {
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => (
+                {invoices.map((invoice) => {
+                  const isDynamicsInvoice = (invoice as any).source === 'dynamics365';
+                  return (
                   <tr key={invoice.id} className="border-b hover:bg-muted/50">
+                    <td className="py-2 px-2">
+                      {isDynamicsInvoice ? (
+                        <a
+                          href={(invoice as any).externalUrl || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 dark:hover:text-cyan-300"
+                          title="View in Dynamics 365"
+                          data-testid={`link-dynamics-invoice-${invoice.id}`}
+                        >
+                          <Square className="h-4 w-4" />
+                        </a>
+                      ) : (
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </td>
                     <td className="py-2 px-2">{invoice.invoiceNumber || '-'}</td>
                     <td className="py-2 px-2">{invoice.title}</td>
                     <td className="py-2 px-2">{invoice.vendorName || '-'}</td>
@@ -12478,14 +12528,27 @@ function InvoicesTab({ projectId }: { projectId: number }) {
                         >
                           <MessageCircle className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(invoice)}
-                          data-testid={`button-edit-invoice-${invoice.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        {isDynamicsInvoice ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => resyncMutation.mutate(invoice)}
+                            disabled={resyncMutation.isPending}
+                            title="Resync from Dynamics 365"
+                            data-testid={`button-resync-invoice-${invoice.id}`}
+                          >
+                            <RefreshCw className={cn("h-4 w-4", resyncMutation.isPending && "animate-spin")} />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(invoice)}
+                            data-testid={`button-edit-invoice-${invoice.id}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -12497,7 +12560,8 @@ function InvoicesTab({ projectId }: { projectId: number }) {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -12846,8 +12910,9 @@ function InvoicesTab({ projectId }: { projectId: number }) {
             <Button 
               disabled={!selectedDynamicsInvoice || createMutation.isPending}
               onClick={() => {
-                if (selectedDynamicsInvoice) {
-                  const data: Partial<ProjectInvoice> = {
+                if (selectedDynamicsInvoice && dynamics365Status?.environmentUrl) {
+                  const envUrl = dynamics365Status.environmentUrl.replace(/\/$/, '');
+                  const data: Partial<ProjectInvoice> & { source?: string; externalId?: string; externalUrl?: string } = {
                     invoiceNumber: selectedDynamicsInvoice.invoiceNumber,
                     title: selectedDynamicsInvoice.name,
                     description: selectedDynamicsInvoice.description || '',
@@ -12857,6 +12922,9 @@ function InvoicesTab({ projectId }: { projectId: number }) {
                             selectedDynamicsInvoice.status === 'Cancelled' ? 'Cancelled' : 'Draft',
                     dueDate: selectedDynamicsInvoice.dueDate,
                     vendorName: selectedDynamicsInvoice.customerName,
+                    source: 'dynamics365',
+                    externalId: selectedDynamicsInvoice.id,
+                    externalUrl: `${envUrl}/main.aspx?etn=invoice&id=${selectedDynamicsInvoice.id}&pagetype=entityrecord`,
                   };
                   createMutation.mutate(data, {
                     onSuccess: () => {
