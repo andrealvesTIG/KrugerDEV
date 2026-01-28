@@ -1051,7 +1051,7 @@ function GroupedTasksView({
               ) : (
                 <FolderKanban className="h-5 w-5 text-primary" />
               )}
-              <CardTitle className="text-lg">{group.name}</CardTitle>
+              <CardTitle className="text-lg truncate flex-1" title={group.name}>{group.name}</CardTitle>
               {group.source && group.icon === "project" && (
                 <Badge 
                   variant="outline" 
