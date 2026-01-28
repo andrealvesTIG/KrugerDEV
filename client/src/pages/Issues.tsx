@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, Search, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, MoreVertical, Pencil, Users, AlertTriangle, History, ChevronDown, ChevronUp, ArrowUpToLine, ArrowDownFromLine } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm, Controller } from "react-hook-form";
@@ -118,6 +119,7 @@ export default function Issues() {
   const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
   const [isRiskDialogOpen, setIsRiskDialogOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [editEscalateToPortfolio, setEditEscalateToPortfolio] = useState(false);
   const { data: issueHistory, isLoading: historyLoading } = useIssueHistory(editingIssue?.id || 0);
 
   const form = useForm({
@@ -180,6 +182,7 @@ export default function Issues() {
   const openEditDialog = (issue: Issue) => {
     setEditingIssue(issue);
     setResourcesInitialized(false);
+    setEditEscalateToPortfolio(issue.escalatedToPortfolio || false);
     editForm.reset({
       title: issue.title,
       description: issue.description || "",
@@ -194,10 +197,15 @@ export default function Issues() {
 
   const onEditSubmit = (data: any) => {
     if (!editingIssue) return;
+    const escalationData = editEscalateToPortfolio 
+      ? { escalatedToPortfolio: true, escalatedAt: editingIssue.escalatedToPortfolio ? editingIssue.escalatedAt : new Date().toISOString() }
+      : { escalatedToPortfolio: false, escalatedAt: null };
+    
     updateIssue.mutate({ 
       id: editingIssue.id, 
       projectId: editingIssue.projectId,
-      ...data 
+      ...data,
+      ...escalationData
     }, {
       onSuccess: () => {
         updateIssueResources.mutate({ issueId: editingIssue.id, resourceIds: editResourceIds });
@@ -919,6 +927,28 @@ export default function Issues() {
               label="Assigned Resources"
               projectId={editingIssue?.projectId}
             />
+            
+            {/* Escalate to Portfolio */}
+            {(() => {
+              const project = projects?.find(p => p.id === editingIssue?.projectId);
+              if (!project?.portfolioId) return null;
+              return (
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpToLine className="h-4 w-4 text-purple-600" />
+                    <div>
+                      <Label className="text-sm font-medium">Escalate to Portfolio</Label>
+                      <p className="text-xs text-muted-foreground">Make this {editingIssue?.itemType === 'risk' ? 'risk' : 'issue'} visible at the portfolio level</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={editEscalateToPortfolio}
+                    onCheckedChange={setEditEscalateToPortfolio}
+                    data-testid="switch-escalate-issue-edit"
+                  />
+                </div>
+              );
+            })()}
             
             {/* Change History Section */}
             <div className="border-t pt-4">

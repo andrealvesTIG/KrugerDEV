@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
-import { useRoute } from "wouter";
+import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory } from "@/hooks/use-projects";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, useRiskHistory, useConvertRiskToIssue, useAiMitigationSuggestion } from "@/hooks/use-risks";
@@ -39,7 +39,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, CloudDownload } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, CloudDownload, ArrowUpToLine } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -803,10 +803,10 @@ export default function ProjectDetails() {
             <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} urlTaskId={urlTaskId} />
           </TabsContent>
           <TabsContent value="risks">
-            <RisksTab projectId={project.id} projectName={project.name} urlRiskId={urlRiskId} />
+            <RisksTab projectId={project.id} projectName={project.name} portfolioId={project.portfolioId} urlRiskId={urlRiskId} />
           </TabsContent>
           <TabsContent value="issues">
-            <IssuesTab projectId={project.id} projectName={project.name} urlIssueId={urlIssueId} />
+            <IssuesTab projectId={project.id} projectName={project.name} portfolioId={project.portfolioId} urlIssueId={urlIssueId} />
           </TabsContent>
           <TabsContent value="financials">
             <FinancialsTab projectId={project.id} />
@@ -3206,7 +3206,7 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
   );
 }
 
-function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; projectName?: string; urlRiskId?: string | null }) {
+function RisksTab({ projectId, projectName, portfolioId, urlRiskId }: { projectId: number; projectName?: string; portfolioId?: number | null; urlRiskId?: string | null }) {
   const { currentOrganization } = useOrganization();
   const { data: risks, isLoading } = useRisks(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -3215,6 +3215,7 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
   const [historyRiskId, setHistoryRiskId] = useState<number | null>(null);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [escalateToPortfolio, setEscalateToPortfolio] = useState(false);
   const createRisk = useCreateRisk();
   const updateRisk = useUpdateRisk();
   const deleteRisk = useDeleteRisk();
@@ -3264,6 +3265,7 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
   const openEditDialog = (risk: Risk) => {
     setEditingRisk(risk);
     setShowHistory(false);
+    setEscalateToPortfolio(risk.escalatedToPortfolio || false);
     form.reset({
       projectId: risk.projectId,
       title: risk.title,
@@ -3280,6 +3282,7 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
     setEditingRisk(null);
     setSelectedResourceIds([]);
     setShowHistory(false);
+    setEscalateToPortfolio(false);
     form.reset({
       projectId,
       title: "",
@@ -3293,8 +3296,12 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
   };
 
   const onSubmit = (data: any) => {
+    const escalationData = escalateToPortfolio 
+      ? { escalatedToPortfolio: true, escalatedAt: editingRisk?.escalatedToPortfolio ? editingRisk.escalatedAt : new Date().toISOString() }
+      : { escalatedToPortfolio: false, escalatedAt: null };
+    
     if (editingRisk) {
-      updateRisk.mutate({ id: editingRisk.id, projectId, ...data }, {
+      updateRisk.mutate({ id: editingRisk.id, projectId, ...data, ...escalationData }, {
         onSuccess: () => {
           updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
           toast({ title: "Success", description: "Risk updated" });
@@ -3451,6 +3458,29 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
                 projectId={projectId}
                 projectName={projectName}
               />
+              
+              {/* Escalate to Portfolio */}
+              {portfolioId && (
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpToLine className="h-4 w-4 text-purple-600" />
+                    <div>
+                      <Label className="text-sm font-medium">Escalate to Portfolio</Label>
+                      <p className="text-xs text-muted-foreground">Make this risk visible at the portfolio level</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={escalateToPortfolio}
+                    onCheckedChange={setEscalateToPortfolio}
+                    data-testid="switch-escalate-risk"
+                  />
+                </div>
+              )}
+              {editingRisk?.escalatedToPortfolio && editingRisk.escalatedAt && (
+                <p className="text-xs text-muted-foreground">
+                  Escalated on {format(new Date(editingRisk.escalatedAt), 'MMM d, yyyy')}
+                </p>
+              )}
               
               {/* Change History Section */}
               {editingRisk && (
@@ -9295,7 +9325,7 @@ const typeIcons = {
   Question: HelpCircle,
 };
 
-function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; projectName?: string; urlIssueId?: string | null }) {
+function IssuesTab({ projectId, projectName, portfolioId, urlIssueId }: { projectId: number; projectName?: string; portfolioId?: number | null; urlIssueId?: string | null }) {
   const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useIssues(projectId);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -9303,6 +9333,7 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
   const [deleteIssueData, setDeleteIssueData] = useState<Issue | null>(null);
   const [historyIssueId, setHistoryIssueId] = useState<number | null>(null);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [escalateToPortfolio, setEscalateToPortfolio] = useState(false);
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
   const deleteIssue = useDeleteIssue();
@@ -9348,6 +9379,7 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
 
   const openEditDialog = (issue: Issue) => {
     setEditingIssue(issue);
+    setEscalateToPortfolio(issue.escalatedToPortfolio || false);
     form.reset({
       projectId: issue.projectId,
       title: issue.title,
@@ -9363,6 +9395,7 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
   const openCreateDialog = () => {
     setEditingIssue(null);
     setSelectedResourceIds([]);
+    setEscalateToPortfolio(false);
     form.reset({
       projectId,
       title: "",
@@ -9376,8 +9409,12 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
   };
 
   const onSubmit = (data: any) => {
+    const escalationData = escalateToPortfolio 
+      ? { escalatedToPortfolio: true, escalatedAt: editingIssue?.escalatedToPortfolio ? editingIssue.escalatedAt : new Date().toISOString() }
+      : { escalatedToPortfolio: false, escalatedAt: null };
+    
     if (editingIssue) {
-      updateIssue.mutate({ id: editingIssue.id, projectId, ...data }, {
+      updateIssue.mutate({ id: editingIssue.id, projectId, ...data, ...escalationData }, {
         onSuccess: () => {
           updateIssueResources.mutate({ issueId: editingIssue.id, resourceIds: selectedResourceIds });
           toast({ title: "Success", description: "Issue updated" });
@@ -9389,7 +9426,7 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
         }
       });
     } else {
-      createIssue.mutate(data, {
+      createIssue.mutate({ ...data, ...escalationData }, {
         onSuccess: (newIssue: any) => {
           if (selectedResourceIds.length > 0 && newIssue?.id) {
             updateIssueResources.mutate({ issueId: newIssue.id, resourceIds: selectedResourceIds });
@@ -9478,6 +9515,30 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
                 projectId={projectId}
                 projectName={projectName}
               />
+              
+              {/* Escalate to Portfolio */}
+              {portfolioId && (
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpToLine className="h-4 w-4 text-purple-600" />
+                    <div>
+                      <Label className="text-sm font-medium">Escalate to Portfolio</Label>
+                      <p className="text-xs text-muted-foreground">Make this issue visible at the portfolio level</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={escalateToPortfolio}
+                    onCheckedChange={setEscalateToPortfolio}
+                    data-testid="switch-escalate-issue"
+                  />
+                </div>
+              )}
+              {editingIssue?.escalatedToPortfolio && editingIssue.escalatedAt && (
+                <p className="text-xs text-muted-foreground">
+                  Escalated on {format(new Date(editingIssue.escalatedAt), 'MMM d, yyyy')}
+                </p>
+              )}
+              
               <DialogFooter className="gap-2">
                 {editingIssue && (
                   <Button 
