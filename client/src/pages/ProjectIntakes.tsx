@@ -462,9 +462,9 @@ export default function ProjectIntakes() {
                     (intake.status === 'draft' || !intake.status) && "bg-gradient-to-b from-slate-400 to-slate-600",
                   )} />
 
-                  <div className="flex-1 pl-5">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
+                  <div className="flex-1 pl-5 min-w-0">
+                    <div className="flex flex-wrap items-center gap-3 min-w-0">
+                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200 truncate" title={intake.projectName}>
                         {intake.projectName}
                       </h3>
                       {getStatusBadge(intake.status || "draft")}

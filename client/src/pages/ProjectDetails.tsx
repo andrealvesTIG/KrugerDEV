@@ -3569,9 +3569,9 @@ function RisksTab({ projectId, projectName, urlRiskId }: { projectId: number; pr
                      "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                    )}>{risk.status}</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-2" title={risk.description || ""}>{risk.description}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2" title={risk.description ?? undefined}>{risk.description}</p>
                 {risk.mitigationPlan && (
-                  <p className="text-xs text-muted-foreground mt-2 line-clamp-2" title={risk.mitigationPlan || ""}>
+                  <p className="text-xs text-muted-foreground mt-2 line-clamp-2" title={risk.mitigationPlan ?? undefined}>
                     <span className="font-medium shrink-0">Mitigation:</span> {risk.mitigationPlan}
                   </p>
                 )}
@@ -9526,7 +9526,7 @@ function IssuesTab({ projectId, projectName, urlIssueId }: { projectId: number; 
                         {issue.status}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2" title={issue.description || ""}>{issue.description}</p>
+                    <p className="text-sm text-muted-foreground line-clamp-2" title={issue.description ?? undefined}>{issue.description}</p>
                     {issue.assignee && <p className="text-xs text-muted-foreground truncate" title={`Assigned to: ${issue.assignee}`}>Assigned to: {issue.assignee}</p>}
                   </div>
                 </div>
