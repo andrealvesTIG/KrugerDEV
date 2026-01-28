@@ -47,7 +47,7 @@ export function QuickAddMenu() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="default" size="icon" className="h-9 w-9" data-testid="button-quick-add">
+          <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" data-testid="button-quick-add">
             <Plus className="h-5 w-5" />
           </Button>
         </DropdownMenuTrigger>
