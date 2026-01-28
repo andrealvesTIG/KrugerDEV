@@ -167,6 +167,28 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     }
   }
   
+  // Ensure invoices module is in the menu group
+  const hasInvoices = updatedStructure.some(g => 
+    g.items.some(item => item.type === "module" && item.key === "invoices")
+  );
+  
+  if (!hasInvoices) {
+    const menuGroup = updatedStructure.find(g => g.id === "menu");
+    if (menuGroup) {
+      updatedStructure = updatedStructure.map(g => {
+        if (g.id === "menu") {
+          // Add invoices after lessons-learned if it exists, otherwise at the end
+          const lessonsIndex = g.items.findIndex(item => item.type === "module" && item.key === "lessons-learned");
+          const insertIndex = lessonsIndex >= 0 ? lessonsIndex + 1 : g.items.length;
+          const newItems = [...g.items];
+          newItems.splice(insertIndex, 0, { type: "module" as const, key: "invoices", hidden: false });
+          return { ...g, items: newItems };
+        }
+        return g;
+      });
+    }
+  }
+  
   // Ensure user-guide is in help group
   const helpGroup = updatedStructure.find(g => g.id === "help");
   const hasUserGuide = updatedStructure.some(g => 
