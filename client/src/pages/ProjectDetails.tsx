@@ -830,7 +830,7 @@ export default function ProjectDetails() {
             <DocumentsTab projectId={project.id} />
           </TabsContent>
           <TabsContent value="invoices">
-            <InvoicesTab projectId={project.id} organizationId={project.organizationId} />
+            <InvoicesTab projectId={project.id} organizationId={project.organizationId} contractTotal={project.contractTotal} />
           </TabsContent>
           <TabsContent value="status-report">
             <StatusReportTab 
@@ -12262,7 +12262,7 @@ interface Dynamics365Invoice {
   customerAddress: string;
 }
 
-function InvoicesTab({ projectId, organizationId }: { projectId: number; organizationId: number | undefined }) {
+function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: number; organizationId: number | undefined; contractTotal?: string | null }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<ProjectInvoice | null>(null);
@@ -12275,6 +12275,14 @@ function InvoicesTab({ projectId, organizationId }: { projectId: number; organiz
   const [dynamicsSearch, setDynamicsSearch] = useState('');
   const [selectedDynamicsInvoice, setSelectedDynamicsInvoice] = useState<Dynamics365Invoice | null>(null);
   const [dynamics365EnvUrl, setDynamics365EnvUrl] = useState('');
+  const [isEditingContractTotal, setIsEditingContractTotal] = useState(false);
+  const [contractTotalInput, setContractTotalInput] = useState(contractTotal || '0');
+  const [isSavingContractTotal, setIsSavingContractTotal] = useState(false);
+  const { mutateAsync: updateProject } = useUpdateProject();
+
+  useEffect(() => {
+    setContractTotalInput(contractTotal || '0');
+  }, [contractTotal]);
 
   const { data: invoices = [], isLoading, refetch: refetchInvoices } = useQuery<ProjectInvoice[]>({
     queryKey: ['/api/projects', projectId, 'invoices'],
@@ -12517,6 +12525,27 @@ function InvoicesTab({ projectId, organizationId }: { projectId: number; organiz
     }).format(num);
   };
 
+  const invoiceFinancials = useMemo(() => {
+    const total = parseFloat(contractTotal || '0');
+    const invoiced = invoices.reduce((sum, inv) => sum + parseFloat(inv.amount || '0'), 0);
+    const paid = invoices.filter(inv => inv.status === 'Paid').reduce((sum, inv) => sum + parseFloat(inv.amount || '0'), 0);
+    const remaining = total - invoiced;
+    return { total, invoiced, paid, remaining };
+  }, [contractTotal, invoices]);
+
+  const handleContractTotalSave = async () => {
+    setIsSavingContractTotal(true);
+    try {
+      await updateProject({ id: projectId, contractTotal: contractTotalInput });
+      toast({ title: "Success", description: "Contract total updated" });
+      setIsEditingContractTotal(false);
+    } catch {
+      toast({ title: "Error", description: "Failed to update contract total", variant: "destructive" });
+    } finally {
+      setIsSavingContractTotal(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
@@ -12541,6 +12570,61 @@ function InvoicesTab({ projectId, organizationId }: { projectId: number; organiz
         </div>
       </CardHeader>
       <CardContent>
+        <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Contract Total</div>
+              {isEditingContractTotal ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    value={contractTotalInput}
+                    onChange={(e) => setContractTotalInput(e.target.value)}
+                    className="w-28"
+                    data-testid="input-contract-total"
+                  />
+                  <Button size="sm" variant="ghost" onClick={handleContractTotalSave} disabled={isSavingContractTotal} data-testid="button-save-contract-total">
+                    {isSavingContractTotal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setIsEditingContractTotal(false); setContractTotalInput(contractTotal || '0'); }} disabled={isSavingContractTotal} data-testid="button-cancel-contract-total">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="text-lg font-semibold">{formatCurrency(String(invoiceFinancials.total), null)}</span>
+                  <Button size="sm" variant="ghost" onClick={() => setIsEditingContractTotal(true)} data-testid="button-edit-contract-total">
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Total Invoiced</div>
+              <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">{formatCurrency(String(invoiceFinancials.invoiced), null)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Total Paid</div>
+              <div className="text-lg font-semibold text-green-600 dark:text-green-400">{formatCurrency(String(invoiceFinancials.paid), null)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Remaining Balance</div>
+              <div className={cn("text-lg font-semibold", invoiceFinancials.remaining < 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+                {formatCurrency(String(invoiceFinancials.remaining), null)}
+              </div>
+            </div>
+          </div>
+          {invoiceFinancials.total > 0 && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <span>Invoice Progress</span>
+                <span>{Math.min(100, Math.round((invoiceFinancials.invoiced / invoiceFinancials.total) * 100))}%</span>
+              </div>
+              <Progress value={Math.min(100, (invoiceFinancials.invoiced / invoiceFinancials.total) * 100)} className="h-2" />
+            </div>
+          )}
+        </div>
+        
         {invoices.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             No invoices yet. Click "Add Invoice" to create one.
