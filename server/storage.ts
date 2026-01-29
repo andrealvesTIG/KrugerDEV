@@ -316,7 +316,9 @@ export interface IStorage {
   getProjectInvoices(projectId: number): Promise<ProjectInvoice[]>;
   getOrganizationInvoices(organizationId: number): Promise<ProjectInvoice[]>;
   getProjectInvoice(id: number): Promise<ProjectInvoice | undefined>;
+  getProjectInvoiceByExternalId(externalId: string, organizationId: number, source: string): Promise<ProjectInvoice | undefined>;
   createProjectInvoice(invoice: InsertProjectInvoice): Promise<ProjectInvoice>;
+  upsertProjectInvoice(invoice: InsertProjectInvoice): Promise<ProjectInvoice>;
   updateProjectInvoice(id: number, updates: Partial<InsertProjectInvoice>): Promise<ProjectInvoice>;
   deleteProjectInvoice(id: number): Promise<void>;
 
@@ -2827,9 +2829,37 @@ export class DatabaseStorage implements IStorage {
     return invoice;
   }
 
+  async getProjectInvoiceByExternalId(externalId: string, organizationId: number, source: string): Promise<ProjectInvoice | undefined> {
+    const [invoice] = await db.select().from(projectInvoices)
+      .where(and(
+        eq(projectInvoices.externalId, externalId),
+        eq(projectInvoices.organizationId, organizationId),
+        eq(projectInvoices.source, source),
+        isNull(projectInvoices.deletedAt)
+      ));
+    return invoice;
+  }
+
   async createProjectInvoice(invoice: InsertProjectInvoice): Promise<ProjectInvoice> {
     const [created] = await db.insert(projectInvoices).values(invoice).returning();
     return created;
+  }
+
+  async upsertProjectInvoice(invoice: InsertProjectInvoice): Promise<ProjectInvoice> {
+    // Check if invoice already exists by external ID
+    if (invoice.externalId && invoice.organizationId && invoice.source) {
+      const existing = await this.getProjectInvoiceByExternalId(
+        invoice.externalId,
+        invoice.organizationId,
+        invoice.source
+      );
+      if (existing) {
+        // Update existing invoice
+        return await this.updateProjectInvoice(existing.id, invoice);
+      }
+    }
+    // Create new invoice
+    return await this.createProjectInvoice(invoice);
   }
 
   async updateProjectInvoice(id: number, updates: Partial<InsertProjectInvoice>): Promise<ProjectInvoice> {

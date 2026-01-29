@@ -2,6 +2,29 @@ import { ConfidentialClientApplication, AuthorizationCodeRequest, Configuration 
 import { Express, Request, Response } from "express";
 import crypto from "crypto";
 import { getOrgIntegration, upsertOrgIntegration } from "./microsoftPlanner";
+import { db } from "../db";
+import { users, organizationMembers } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+// Auth helpers for Dynamics 365 routes
+function getUserIdFromRequest(req: Request): string | undefined {
+  const replitUserId = (req as any).user?.claims?.sub;
+  if (replitUserId) return replitUserId;
+  return (req.session as any)?.userId;
+}
+
+async function userHasOrgAccess(userId: string | undefined, orgId: number): Promise<boolean> {
+  if (!userId) return false;
+  
+  // Check if user is super_admin
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (user?.role === 'super_admin') return true;
+  
+  // Check if user is a member of this organization
+  const memberships = await db.select().from(organizationMembers)
+    .where(eq(organizationMembers.userId, userId));
+  return memberships.some(m => m.organizationId === orgId);
+}
 
 declare module "express-session" {
   interface SessionData {
@@ -194,6 +217,12 @@ export async function setupDynamics365Routes(app: Express) {
       return res.json({ configured: isConfigured, connected: false, environmentUrl: null });
     }
     
+    // Auth check: verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    
     const integration = await getOrgIntegration(organizationId, "dynamics365");
     const hasToken = !!integration?.accessToken;
     const isExpired = integration?.tokenExpiry ? Date.now() > new Date(integration.tokenExpiry).getTime() : true;
@@ -224,6 +253,12 @@ export async function setupDynamics365Routes(app: Express) {
     
     if (!organizationId) {
       return res.status(400).json({ message: "Organization ID is required" });
+    }
+    
+    // Auth check: verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     const urlPattern = /^https:\/\/[\w-]+\.crm[\d]*\.dynamics\.com\/?$/i;
@@ -260,6 +295,12 @@ export async function setupDynamics365Routes(app: Express) {
     const organizationId = req.body.organizationId ? Number(req.body.organizationId) : req.session.dynamics365OrgId;
     if (!organizationId) {
       return res.status(400).json({ message: "Organization ID is required" });
+    }
+    
+    // Auth check: verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     const environmentUrl = req.session.dynamics365EnvironmentUrl;
@@ -419,6 +460,12 @@ export async function setupDynamics365Routes(app: Express) {
       return res.status(400).json({ message: "Organization ID is required" });
     }
     
+    // Auth check: verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    
     await upsertOrgIntegration(organizationId, "dynamics365", {
       accessToken: null,
       refreshToken: null,
@@ -432,6 +479,12 @@ export async function setupDynamics365Routes(app: Express) {
     const organizationId = req.body.organizationId ? Number(req.body.organizationId) : null;
     if (!organizationId) {
       return res.status(400).json({ message: "Organization ID is required" });
+    }
+    
+    // Auth check: verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
     }
     
     const integration = await getOrgIntegration(organizationId, "dynamics365");
@@ -461,6 +514,12 @@ export async function setupDynamics365Routes(app: Express) {
 
     if (!organizationId) {
       return res.status(400).json({ message: "Organization ID is required" });
+    }
+    
+    // Auth check: verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     const tokenResult = await getValidDynamics365Token(organizationId);
@@ -551,6 +610,12 @@ export async function setupDynamics365Routes(app: Express) {
 
     if (!organizationId) {
       return res.status(400).json({ message: "Organization ID is required" });
+    }
+    
+    // Auth check: verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     const tokenResult = await getValidDynamics365Token(organizationId);

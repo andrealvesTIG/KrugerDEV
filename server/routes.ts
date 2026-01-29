@@ -10042,13 +10042,20 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         ? `${user.firstName} ${user.lastName}` 
         : user?.email || 'Unknown';
       
-      const invoice = await storage.createProjectInvoice({
+      // Convert amount to string if it's a number (for numeric DB column)
+      const invoiceData = {
         ...req.body,
         projectId,
         organizationId: project.organizationId,
         createdBy: userId,
         createdByName: userName,
-      });
+        amount: req.body.amount !== undefined ? String(req.body.amount) : undefined,
+      };
+      
+      // Use upsert for external imports to prevent duplicates
+      const invoice = req.body.externalId && req.body.source
+        ? await storage.upsertProjectInvoice(invoiceData)
+        : await storage.createProjectInvoice(invoiceData);
       
       res.status(201).json(invoice);
     } catch (err) {
