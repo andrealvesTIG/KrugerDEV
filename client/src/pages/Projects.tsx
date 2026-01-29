@@ -3014,11 +3014,11 @@ function ProjectsGridView({
 
       <div className={cn(
         "rounded-lg border bg-card overflow-x-auto",
-        isFullscreen && "flex-1 overflow-auto border-0 rounded-none"
+        isFullscreen && "flex-1 overflow-auto border-0 rounded-none [&>div]:overflow-visible"
       )}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleColumnDragEnd}>
           <Table>
-            <TableHeader className={cn(isFullscreen && "sticky top-0 z-10 bg-card")}>
+            <TableHeader className={cn(isFullscreen && "sticky top-0 z-20 bg-card shadow-sm")}>
               <TableRow className={cn(isFullscreen && "bg-card")}>
                 <TableHead className={cn("w-10", isFullscreen && "bg-card")}>
                   <Checkbox 
