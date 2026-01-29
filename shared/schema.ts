@@ -1386,6 +1386,44 @@ export type InsertProjectView = z.infer<typeof insertProjectViewSchema>;
 export type ProjectView = typeof projectViews.$inferSelect;
 export type UpdateProjectViewRequest = Partial<InsertProjectView>;
 
+// System Project Views - Admin-managed org-level views available to all members
+export const systemProjectViews = pgTable("system_project_views", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  mode: text("mode").notNull(), // 'grid' or 'gantt'
+  name: text("name").notNull(),
+  description: text("description"), // Description of what this view shows
+  visibleColumns: text("visible_columns").array().notNull(),
+  columnOrder: text("column_order").array(),
+  columnWidths: jsonb("column_widths").$type<Record<string, number>>(),
+  filterCriteria: jsonb("filter_criteria").$type<SystemViewFilterCriteria>(), // Optional filter criteria
+  isActive: boolean("is_active").default(true), // Admins can deactivate without deleting
+  displayOrder: integer("display_order").default(0), // Order in the dropdown
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Filter criteria for system views
+export interface SystemViewFilterCriteria {
+  status?: string[];
+  priority?: string[];
+  health?: string[];
+  portfolioIds?: number[];
+  dateRange?: { field: string; start?: string; end?: string };
+}
+
+export const insertSystemProjectViewSchema = createInsertSchema(systemProjectViews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSystemProjectView = z.infer<typeof insertSystemProjectViewSchema>;
+export type SystemProjectView = typeof systemProjectViews.$inferSelect;
+export type UpdateSystemProjectViewRequest = Partial<InsertSystemProjectView>;
+
 // User Consents - Tracking acceptance of Terms of Service, Privacy Policy, etc.
 export const userConsents = pgTable("user_consents", {
   id: serial("id").primaryKey(),

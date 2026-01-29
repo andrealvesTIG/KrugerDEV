@@ -28,10 +28,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ChevronDown, Plus, Save, Pencil, Trash2, Check, Star, Search, AlertCircle, FolderOpen, Users, User, Archive, FolderCheck } from "lucide-react";
+import { ChevronDown, Plus, Save, Pencil, Trash2, Check, Star, Search, AlertCircle, FolderOpen, Users, User, Archive, FolderCheck, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProjectViews, useCreateProjectView, useUpdateProjectView, useDeleteProjectView, useSetDefaultView } from "@/hooks/use-project-views";
+import { useQuery } from "@tanstack/react-query";
 import type { ProjectView } from "@shared/schema";
+
+interface SystemProjectView {
+  id: number;
+  organizationId: number;
+  mode: string;
+  name: string;
+  description: string | null;
+  visibleColumns: string[];
+  columnOrder: string[] | null;
+  columnWidths: Record<string, number> | null;
+  filterCriteria: Record<string, unknown> | null;
+  isActive: boolean;
+  displayOrder: number;
+}
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -119,8 +134,14 @@ export function ViewsDropdown({
   const updateViewMutation = useUpdateProjectView();
   const deleteViewMutation = useDeleteProjectView();
   const setDefaultMutation = useSetDefaultView();
+  
+  const { data: systemViews = [] } = useQuery<SystemProjectView[]>({
+    queryKey: ['/api/organizations', organizationId, 'system-project-views', { mode }],
+    enabled: !!organizationId,
+  });
 
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
+  const [activeSystemViewId, setActiveSystemViewId] = useState<number | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveAsDialogOpen, setSaveAsDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -138,7 +159,20 @@ export function ViewsDropdown({
     return views.find(v => v.id === activeViewId) || null;
   }, [activeViewId, views]);
 
+  const activeSystemView = useMemo(() => {
+    if (activeSystemViewId === null) return null;
+    return systemViews.find(v => v.id === activeSystemViewId) || null;
+  }, [activeSystemViewId, systemViews]);
+
   const hasUnsavedChanges = useMemo(() => {
+    if (activeSystemView) {
+      const savedColumns = [...(activeSystemView.visibleColumns || [])].sort();
+      const currentColumns = [...visibleColumns].sort();
+      const columnsMatch = JSON.stringify(savedColumns) === JSON.stringify(currentColumns);
+      const savedOrder = activeSystemView.columnOrder || activeSystemView.visibleColumns || [];
+      const orderMatch = JSON.stringify(savedOrder) === JSON.stringify(columnOrder);
+      return !columnsMatch || !orderMatch;
+    }
     if (!activeView) {
       const columnsMatch = JSON.stringify([...visibleColumns].sort()) === JSON.stringify([...defaultColumns].sort());
       const orderMatch = JSON.stringify(columnOrder) === JSON.stringify(defaultColumnOrder);
@@ -150,7 +184,7 @@ export function ViewsDropdown({
     const savedOrder = activeView.columnOrder || activeView.visibleColumns || [];
     const orderMatch = JSON.stringify(savedOrder) === JSON.stringify(columnOrder);
     return !columnsMatch || !orderMatch;
-  }, [activeView, visibleColumns, columnOrder, defaultColumns, defaultColumnOrder]);
+  }, [activeView, activeSystemView, visibleColumns, columnOrder, defaultColumns, defaultColumnOrder]);
 
   const filteredColumns = useMemo(() => {
     if (!columnSearch.trim()) return allColumns;
@@ -160,6 +194,7 @@ export function ViewsDropdown({
   }, [allColumns, columnSearch]);
 
   const handleSelectView = (view: ProjectView | null) => {
+    setActiveSystemViewId(null);
     if (view === null) {
       setActiveViewId(null);
       onApplyView({ visibleColumns: defaultColumns, columnOrder: defaultColumnOrder });
@@ -170,6 +205,15 @@ export function ViewsDropdown({
         columnOrder: view.columnOrder || view.visibleColumns,
       });
     }
+  };
+
+  const handleSelectSystemView = (view: SystemProjectView) => {
+    setActiveViewId(null);
+    setActiveSystemViewId(view.id);
+    onApplyView({
+      visibleColumns: view.visibleColumns,
+      columnOrder: view.columnOrder || view.visibleColumns,
+    });
   };
 
   const handleSaveNewView = async () => {
@@ -286,7 +330,8 @@ export function ViewsDropdown({
     setColumnChooserOpen(false);
   };
 
-  const displayName = activeView?.name || "Default View";
+  const displayName = activeSystemView?.name || activeView?.name || "Default View";
+  const isSystemViewActive = activeSystemViewId !== null;
 
   return (
     <>
@@ -295,6 +340,7 @@ export function ViewsDropdown({
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" data-testid="button-views-dropdown">
               <span className="flex items-center gap-2">
+                {isSystemViewActive && <Building2 className="h-3.5 w-3.5 text-muted-foreground" />}
                 {displayName}
                 {hasUnsavedChanges && (
                   <Badge variant="outline" className="text-xs px-1 py-0 h-4 bg-amber-50 text-amber-600 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
@@ -335,13 +381,45 @@ export function ViewsDropdown({
               onClick={() => handleSelectView(null)}
               data-testid="view-option-default"
             >
-              <span className={cn("flex-1", !activeViewId && "font-medium")}>
+              <span className={cn("flex-1", !activeViewId && !activeSystemViewId && "font-medium")}>
                 Default View
               </span>
-              {!activeViewId && <Check className="h-4 w-4 text-primary" />}
+              {!activeViewId && !activeSystemViewId && <Check className="h-4 w-4 text-primary" />}
             </DropdownMenuItem>
             
-            {views.length > 0 && <DropdownMenuSeparator />}
+            {systemViews.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal flex items-center gap-1.5">
+                  <Building2 className="h-3 w-3" />
+                  Organization Views
+                </DropdownMenuLabel>
+                {systemViews.map(view => (
+                  <DropdownMenuItem
+                    key={`system-${view.id}`}
+                    onClick={() => handleSelectSystemView(view)}
+                    data-testid={`system-view-option-${view.id}`}
+                    className="flex items-center justify-between"
+                  >
+                    <span className={cn("flex-1 flex items-center gap-2", activeSystemViewId === view.id && "font-medium")}>
+                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      {view.name}
+                    </span>
+                    {activeSystemViewId === view.id && <Check className="h-4 w-4 text-primary" />}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+            
+            {views.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal flex items-center gap-1.5">
+                  <User className="h-3 w-3" />
+                  My Views
+                </DropdownMenuLabel>
+              </>
+            )}
             
             {views.map(view => (
               <DropdownMenuItem
@@ -403,19 +481,26 @@ export function ViewsDropdown({
               </>
             )}
             
-            {!activeView && hasUnsavedChanges && (
+            {!activeView && !activeSystemView && hasUnsavedChanges && (
               <DropdownMenuItem onClick={() => { setNewViewName(""); setSaveDialogOpen(true); }} data-testid="button-save-current-as-view">
                 <Save className="h-4 w-4 mr-2" />
                 Save Current as View
+              </DropdownMenuItem>
+            )}
+            
+            {activeSystemView && hasUnsavedChanges && (
+              <DropdownMenuItem onClick={() => { setNewViewName(""); setSaveDialogOpen(true); }} data-testid="button-save-system-view-as-personal">
+                <Save className="h-4 w-4 mr-2" />
+                Save as My View
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
 
         {hasUnsavedChanges && (
-          <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+          <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400" title={activeSystemView ? "System views are read-only. Save as personal view to keep changes." : "View has unsaved changes"}>
             <AlertCircle className="h-4 w-4" />
-            <span className="text-xs">Unsaved</span>
+            <span className="text-xs">{activeSystemView ? "Modified" : "Unsaved"}</span>
           </div>
         )}
       </div>

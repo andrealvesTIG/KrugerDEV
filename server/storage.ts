@@ -6,7 +6,7 @@ import {
   resources, taskResourceAssignments, issueResourceAssignments,
   costItems, projectIntakes, mppImports, mppImportTasks, intakeWorkflowSteps,
   changeRequests, projectDocuments, projectComments, notifications, statusReportHistory, healthStatusHistory,
-  billingTransactions, timesheetEntries, billableStatusComments, projectViews,
+  billingTransactions, timesheetEntries, billableStatusComments, projectViews, systemProjectViews,
   magicLinkTokens,
   type User, type UpsertUser,
   type BillingTransaction, type InsertBillingTransaction,
@@ -49,6 +49,7 @@ import {
   type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
   type RecycleBinItem, type RecycleBinItemType,
   type ProjectView, type InsertProjectView, type UpdateProjectViewRequest,
+  type SystemProjectView, type InsertSystemProjectView, type UpdateSystemProjectViewRequest,
   userConsents, type UserConsent, type InsertUserConsent,
   customFieldDefinitions, type CustomFieldDefinition, type InsertCustomFieldDefinition, type UpdateCustomFieldDefinitionRequest,
   projectCustomFieldValues, type ProjectCustomFieldValue, type InsertProjectCustomFieldValue,
@@ -333,6 +334,13 @@ export interface IStorage {
   updateProjectView(id: number, updates: UpdateProjectViewRequest): Promise<ProjectView>;
   deleteProjectView(id: number): Promise<void>;
   setDefaultProjectView(organizationId: number, userId: string, mode: string, viewId: number): Promise<void>;
+
+  // System Project Views (Admin-managed org-level views)
+  getSystemProjectViews(organizationId: number, mode: string): Promise<SystemProjectView[]>;
+  getSystemProjectView(id: number): Promise<SystemProjectView | undefined>;
+  createSystemProjectView(view: InsertSystemProjectView): Promise<SystemProjectView>;
+  updateSystemProjectView(id: number, updates: UpdateSystemProjectViewRequest): Promise<SystemProjectView>;
+  deleteSystemProjectView(id: number): Promise<void>;
 
   // Notifications
   getNotifications(userId: string): Promise<Notification[]>;
@@ -2934,6 +2942,39 @@ export class DatabaseStorage implements IStorage {
     await db.update(projectViews)
       .set({ isDefault: true, updatedAt: new Date() })
       .where(eq(projectViews.id, viewId));
+  }
+
+  // System Project Views (Admin-managed org-level views)
+  async getSystemProjectViews(organizationId: number, mode: string): Promise<SystemProjectView[]> {
+    return await db.select().from(systemProjectViews)
+      .where(and(
+        eq(systemProjectViews.organizationId, organizationId),
+        eq(systemProjectViews.mode, mode),
+        eq(systemProjectViews.isActive, true)
+      ))
+      .orderBy(asc(systemProjectViews.displayOrder), asc(systemProjectViews.name));
+  }
+
+  async getSystemProjectView(id: number): Promise<SystemProjectView | undefined> {
+    const [view] = await db.select().from(systemProjectViews).where(eq(systemProjectViews.id, id));
+    return view;
+  }
+
+  async createSystemProjectView(view: InsertSystemProjectView): Promise<SystemProjectView> {
+    const [created] = await db.insert(systemProjectViews).values(view).returning();
+    return created;
+  }
+
+  async updateSystemProjectView(id: number, updates: UpdateSystemProjectViewRequest): Promise<SystemProjectView> {
+    const [updated] = await db.update(systemProjectViews)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(systemProjectViews.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSystemProjectView(id: number): Promise<void> {
+    await db.delete(systemProjectViews).where(eq(systemProjectViews.id, id));
   }
 
   // Notifications

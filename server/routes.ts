@@ -14,7 +14,7 @@ import { setupDynamics365Routes } from "./services/dynamics365Sales";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews } from "@shared/schema";
 import { magicLinkTokens } from "@shared/models/auth";
 import { eq, and, desc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -10419,6 +10419,201 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     } catch (err) {
       console.error("Error setting default view:", err);
       res.status(500).json({ message: "Error setting default view" });
+    }
+  });
+
+  // =========== SYSTEM PROJECT VIEWS (Admin-managed org-level views) ===========
+  
+  // Get all system views for an organization (read-only for all members)
+  app.get('/api/organizations/:orgId/system-project-views', async (req, res) => {
+    try {
+      const orgId = Number(req.params.orgId);
+      const mode = req.query.mode as string;
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      if (!mode || !['grid', 'gantt'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      }
+      
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const views = await storage.getSystemProjectViews(orgId, mode);
+      res.json(views);
+    } catch (err) {
+      console.error("Error fetching system project views:", err);
+      res.status(500).json({ message: "Error fetching system project views" });
+    }
+  });
+
+  // Get all system views for org settings (admin only, includes inactive)
+  app.get('/api/organizations/:orgId/system-project-views/all', async (req, res) => {
+    try {
+      const orgId = Number(req.params.orgId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      // Check admin access
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === orgId && m.role === 'org_admin');
+      
+      if (!isSuperAdmin && !isOrgAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      // Get all views including inactive
+      const views = await db.select().from(systemProjectViews)
+        .where(eq(systemProjectViews.organizationId, orgId))
+        .orderBy(asc(systemProjectViews.displayOrder), asc(systemProjectViews.name));
+      res.json(views);
+    } catch (err) {
+      console.error("Error fetching all system project views:", err);
+      res.status(500).json({ message: "Error fetching system project views" });
+    }
+  });
+
+  // Create a new system project view (admin only)
+  app.post('/api/organizations/:orgId/system-project-views', async (req, res) => {
+    try {
+      const orgId = Number(req.params.orgId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      // Check admin access
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === orgId && m.role === 'org_admin');
+      
+      if (!isSuperAdmin && !isOrgAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { mode, name, description, visibleColumns, columnOrder, columnWidths, filterCriteria, isActive, displayOrder } = req.body;
+      
+      if (!mode || !['grid', 'gantt'].includes(mode)) {
+        return res.status(400).json({ message: "Mode must be 'grid' or 'gantt'" });
+      }
+      
+      if (!name || name.trim().length === 0) {
+        return res.status(400).json({ message: "View name is required" });
+      }
+      
+      if (!visibleColumns || !Array.isArray(visibleColumns)) {
+        return res.status(400).json({ message: "Visible columns are required" });
+      }
+      
+      const view = await storage.createSystemProjectView({
+        organizationId: orgId,
+        mode,
+        name: name.trim(),
+        description: description?.trim() || null,
+        visibleColumns,
+        columnOrder: columnOrder || null,
+        columnWidths: columnWidths || null,
+        filterCriteria: filterCriteria || null,
+        isActive: isActive !== false,
+        displayOrder: displayOrder || 0,
+        createdBy: userId,
+        updatedBy: userId,
+      });
+      
+      res.status(201).json(view);
+    } catch (err) {
+      console.error("Error creating system project view:", err);
+      res.status(500).json({ message: "Error creating system project view" });
+    }
+  });
+
+  // Update a system project view (admin only)
+  app.patch('/api/system-project-views/:id', async (req, res) => {
+    try {
+      const viewId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const existingView = await storage.getSystemProjectView(viewId);
+      if (!existingView) {
+        return res.status(404).json({ message: "View not found" });
+      }
+      
+      // Check admin access
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === existingView.organizationId && m.role === 'org_admin');
+      
+      if (!isSuperAdmin && !isOrgAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { name, description, visibleColumns, columnOrder, columnWidths, filterCriteria, isActive, displayOrder } = req.body;
+      
+      const updates: any = { updatedBy: userId };
+      if (name !== undefined) updates.name = name.trim();
+      if (description !== undefined) updates.description = description?.trim() || null;
+      if (visibleColumns !== undefined) updates.visibleColumns = visibleColumns;
+      if (columnOrder !== undefined) updates.columnOrder = columnOrder;
+      if (columnWidths !== undefined) updates.columnWidths = columnWidths;
+      if (filterCriteria !== undefined) updates.filterCriteria = filterCriteria;
+      if (isActive !== undefined) updates.isActive = isActive;
+      if (displayOrder !== undefined) updates.displayOrder = displayOrder;
+      
+      const updatedView = await storage.updateSystemProjectView(viewId, updates);
+      res.json(updatedView);
+    } catch (err) {
+      console.error("Error updating system project view:", err);
+      res.status(500).json({ message: "Error updating system project view" });
+    }
+  });
+
+  // Delete a system project view (admin only)
+  app.delete('/api/system-project-views/:id', async (req, res) => {
+    try {
+      const viewId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const existingView = await storage.getSystemProjectView(viewId);
+      if (!existingView) {
+        return res.status(404).json({ message: "View not found" });
+      }
+      
+      // Check admin access
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === existingView.organizationId && m.role === 'org_admin');
+      
+      if (!isSuperAdmin && !isOrgAdmin) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      await storage.deleteSystemProjectView(viewId);
+      res.status(204).send();
+    } catch (err) {
+      console.error("Error deleting system project view:", err);
+      res.status(500).json({ message: "Error deleting system project view" });
     }
   });
 
