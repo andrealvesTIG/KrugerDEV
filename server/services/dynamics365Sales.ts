@@ -120,6 +120,9 @@ async function refreshDynamics365Token(organizationId: number, environmentUrl: s
     return null;
   } catch (error) {
     console.error("Failed to refresh Dynamics 365 token:", error);
+    await upsertOrgIntegration(organizationId, "dynamics365", {
+      connectionStatus: "error",
+    });
     return null;
   }
 }
@@ -128,7 +131,13 @@ async function getValidDynamics365Token(organizationId: number): Promise<{ token
   const integration = await getOrgIntegration(organizationId, "dynamics365");
   if (!integration?.accessToken) return null;
   
-  const additionalData = integration.additionalData ? JSON.parse(integration.additionalData) : {};
+  let additionalData: { environmentUrl?: string } = {};
+  try {
+    additionalData = integration.additionalData ? JSON.parse(integration.additionalData) : {};
+  } catch (e) {
+    console.error("Failed to parse Dynamics 365 additionalData:", e);
+    return null;
+  }
   const environmentUrl = additionalData.environmentUrl;
   if (!environmentUrl) return null;
   
@@ -188,14 +197,21 @@ export async function setupDynamics365Routes(app: Express) {
     const integration = await getOrgIntegration(organizationId, "dynamics365");
     const hasToken = !!integration?.accessToken;
     const isExpired = integration?.tokenExpiry ? Date.now() > new Date(integration.tokenExpiry).getTime() : true;
-    const additionalData = integration?.additionalData ? JSON.parse(integration.additionalData) : {};
+    let additionalData: { environmentUrl?: string } = {};
+    try {
+      additionalData = integration?.additionalData ? JSON.parse(integration.additionalData) : {};
+    } catch (e) {
+      console.error("Failed to parse Dynamics 365 additionalData:", e);
+    }
     const environmentUrl = additionalData.environmentUrl || null;
+    const connectionStatus = integration?.connectionStatus || null;
     
     res.json({ 
       configured: isConfigured, 
-      connected: hasToken && !isExpired,
+      connected: hasToken && !isExpired && connectionStatus !== "error",
       environmentUrl,
-      needsRefresh: hasToken && isExpired && !!integration?.refreshToken
+      needsRefresh: hasToken && isExpired && !!integration?.refreshToken,
+      connectionStatus
     });
   });
 
@@ -419,7 +435,13 @@ export async function setupDynamics365Routes(app: Express) {
     }
     
     const integration = await getOrgIntegration(organizationId, "dynamics365");
-    const additionalData = integration?.additionalData ? JSON.parse(integration.additionalData) : {};
+    let additionalData: { environmentUrl?: string } = {};
+    try {
+      additionalData = integration?.additionalData ? JSON.parse(integration.additionalData) : {};
+    } catch (e) {
+      console.error("Failed to parse Dynamics 365 additionalData:", e);
+      return res.status(500).json({ message: "Invalid integration configuration" });
+    }
     const environmentUrl = additionalData.environmentUrl;
     
     if (!environmentUrl) {
