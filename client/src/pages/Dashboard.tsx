@@ -76,7 +76,8 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { CustomDashboard as CustomDashboardType } from "@shared/schema";
-import {
+import { cn } from "@/lib/utils";
+import { 
   DndContext,
   closestCenter,
   KeyboardSensor,
@@ -268,24 +269,26 @@ function SortableTab({ tab, isAdmin, isReorderMode, activeSubmenu, onSubmenuChan
             <ChevronDown className="h-3 w-3 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          {tab.submenus?.map((submenu) => {
-            const SubIcon = submenu.icon;
-            const isSubmenuActive = activeSubmenu === submenu.id;
-            return (
-              <DropdownMenuItem
-                key={submenu.id}
-                onClick={() => onSubmenuChange(submenu.id)}
-                className={isSubmenuActive ? 'bg-accent' : ''}
-                data-testid={`submenu-${submenu.id}`}
-              >
-                <SubIcon className="h-4 w-4 mr-2" />
-                {submenu.label}
-                {isSubmenuActive && <CheckCircle className="h-3 w-3 ml-auto text-primary" />}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
+          <DropdownMenuContent align="start" className="w-48 max-w-[300px]">
+            {tab.submenus?.map((submenu) => {
+              const SubIcon = submenu.icon;
+              const isSubmenuActive = activeSubmenu === submenu.id;
+              return (
+                <DropdownMenuItem
+                  key={submenu.id}
+                  onClick={() => onSubmenuChange(submenu.id)}
+                  className={cn("flex items-center gap-2", isSubmenuActive ? 'bg-accent' : '')}
+                  data-testid={`submenu-${submenu.id}`}
+                >
+                  <SubIcon className="h-4 w-4 shrink-0" />
+                  <span className="truncate flex-1" title={submenu.label}>
+                    {submenu.label}
+                  </span>
+                  {isSubmenuActive && <CheckCircle className="h-3 w-3 ml-auto text-primary shrink-0" />}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
       </DropdownMenu>
     </div>
   );

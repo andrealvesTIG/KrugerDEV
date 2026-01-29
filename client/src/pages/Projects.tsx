@@ -49,7 +49,7 @@ export default function Projects() {
   const { user } = useAuth();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
-  const [filterView, setFilterView] = useState<ProjectFilterView>("all");
+  const [filterView, setFilterView] = useState<ProjectFilterView>("active");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("createdAt");
   const { data: projects, isLoading } = useProjects(currentOrganization?.id, selectedPortfolio !== "all" ? parseInt(selectedPortfolio) : undefined);
   const { data: externalProjects } = useExternalProjects();
@@ -475,7 +475,9 @@ export default function Projects() {
             <SelectContent>
               <SelectItem value="all">All Portfolios</SelectItem>
               {portfolios?.map(p => (
-                <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                <SelectItem key={p.id} value={p.id.toString()}>
+                  <div className="truncate max-w-[200px]" title={p.name}>{p.name}</div>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -835,9 +837,9 @@ export default function Projects() {
                     project.health === 'Red' && "bg-gradient-to-b from-rose-400 to-rose-600",
                   )} />
 
-                  <div className="flex-1 pl-5">
+                  <div className="flex-1 min-w-0 pl-5">
                     <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
+                      <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200 truncate" title={project.name}>
                         {project.name}
                       </h3>
                       {/* Planner Logo for synced projects */}
@@ -2596,8 +2598,8 @@ function ProjectsGridView({
     switch (columnId) {
       case "name":
         return (
-          <div className="flex items-center gap-2 group">
-            <Link href={`/projects/${project.id}`} className="font-medium text-primary hover:underline">
+          <div className="flex items-center gap-2 group min-w-0">
+            <Link href={`/projects/${project.id}`} className="font-medium text-primary hover:underline truncate flex-1 min-w-0" title={project.name}>
               {project.name}
             </Link>
             {project.source === "planner" && project.plannerPlanId && (
@@ -2637,7 +2639,7 @@ function ProjectsGridView({
             <Button 
               size="icon" 
               variant="ghost" 
-              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
               onClick={(e) => { e.preventDefault(); startEditing(project.id, "name", project.name); }}
               data-testid={`edit-name-${project.id}`}
             >
@@ -3069,6 +3071,7 @@ function ProjectsGridView({
                       return (
                         <TableCell 
                           key={column.id}
+                          className="overflow-hidden"
                           style={{ 
                             width: `${width}px`, 
                             minWidth: `${width}px`, 

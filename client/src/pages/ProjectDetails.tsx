@@ -423,9 +423,9 @@ export default function ProjectDetails() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+        <div className="min-w-0 flex-1 max-w-full lg:max-w-[60%]">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-display font-bold text-foreground">{project.name}</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground truncate max-w-full" title={project.name}>{project.name}</h1>
             <Badge className={cn(
               "text-sm px-3 py-1",
               project.health === 'Green' ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" :
@@ -2540,7 +2540,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
             </div>
           </div>
           <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[200px] max-w-[400px] overflow-hidden">
               <Label className="text-xs text-muted-foreground">Project Name</Label>
               {editingField === 'name' ? (
                 <Input
@@ -2553,7 +2553,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdat
                   data-testid="input-project-name"
                 />
               ) : (
-                <p className="text-base font-semibold cursor-pointer hover:bg-muted/50 rounded px-1 py-1 -mx-1 transition-colors mt-1" onClick={() => setEditingField('name')} data-testid="text-project-name">
+                <p className="text-base font-semibold cursor-pointer hover:bg-muted/50 rounded px-1 py-1 -mx-1 transition-colors mt-1 truncate" onClick={() => setEditingField('name')} title={project.name} data-testid="text-project-name">
                   {project.name}
                 </p>
               )}
@@ -3592,25 +3592,28 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId }: { projectI
               onClick={() => openEditDialog(risk)}
               data-testid={`risk-card-${risk.id}`}
             >
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                   <span className="font-semibold">{risk.title}</span>
+              <div className="space-y-1 min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                   <span className="font-semibold truncate max-w-[200px]" title={risk.title}>{risk.title}</span>
                    <Badge variant="outline" className={cn(
+                     "shrink-0",
                      risk.probability === 'High' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
                    )}>{risk.probability} Prob</Badge>
                    <Badge variant="outline" className={cn(
+                     "shrink-0",
                      risk.impact === 'High' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
                    )}>{risk.impact} Impact</Badge>
                    <Badge variant="outline" className={cn(
+                     "shrink-0",
                      risk.status === 'Open' ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                      risk.status === 'Mitigated' ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
                      "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                    )}>{risk.status}</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">{risk.description}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2" title={risk.description || ""}>{risk.description}</p>
                 {risk.mitigationPlan && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    <span className="font-medium">Mitigation:</span> {risk.mitigationPlan}
+                  <p className="text-xs text-muted-foreground mt-2 line-clamp-2" title={risk.mitigationPlan || ""}>
+                    <span className="font-medium shrink-0">Mitigation:</span> {risk.mitigationPlan}
                   </p>
                 )}
               </div>
@@ -9187,15 +9190,15 @@ function ProjectDraggableTaskCard({
         data-testid={`kanban-task-${task.id}`}
       >
         <CardContent className="p-4">
-          <div className="font-medium text-sm flex items-center gap-1.5">
+          <div className="font-medium text-sm flex items-center gap-1.5 min-w-0">
             {task.isMilestone && <MilestoneIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
-            {task.name}
+            <span className="truncate" title={task.name}>{task.name}</span>
           </div>
           {/* Resource assignment row */}
           <div className="flex items-center gap-1 mt-2 flex-wrap">
             {assignedResources.length > 0 ? (
               assignedResources.map(r => (
-                <Badge key={r.id} variant="secondary" className="text-[10px] py-0">
+                <Badge key={r.id} variant="secondary" className="text-[10px] py-0 max-w-[100px] truncate" title={r.displayName}>
                   {r.displayName}
                 </Badge>
               ))
@@ -9589,18 +9592,18 @@ function IssuesTab({ projectId, projectName, portfolioId, urlIssueId }: { projec
                   <div className="mt-0.5">
                     <TypeIcon className="h-5 w-5 text-muted-foreground" />
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold">{issue.title}</span>
-                      <Badge variant="outline" className={cn("text-xs", issuePriorityColors[issue.priority as keyof typeof issuePriorityColors])}>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <span className="font-semibold truncate max-w-[200px]" title={issue.title}>{issue.title}</span>
+                      <Badge variant="outline" className={cn("text-xs shrink-0", issuePriorityColors[issue.priority as keyof typeof issuePriorityColors])}>
                         {issue.priority}
                       </Badge>
-                      <Badge variant="outline" className={cn("text-xs", issueStatusColors[issue.status as keyof typeof issueStatusColors])}>
+                      <Badge variant="outline" className={cn("text-xs shrink-0", issueStatusColors[issue.status as keyof typeof issueStatusColors])}>
                         {issue.status}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{issue.description}</p>
-                    {issue.assignee && <p className="text-xs text-muted-foreground">Assigned to: {issue.assignee}</p>}
+                    <p className="text-sm text-muted-foreground line-clamp-2" title={issue.description || ""}>{issue.description}</p>
+                    {issue.assignee && <p className="text-xs text-muted-foreground truncate" title={`Assigned to: ${issue.assignee}`}>Assigned to: {issue.assignee}</p>}
                   </div>
                 </div>
                 <DropdownMenu>
@@ -10087,9 +10090,9 @@ function FinancialTableRow({
   
   return (
     <tr className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-financial-${item.id}`}>
-      <td className="px-3 py-2">
-        <div className="text-sm font-medium">{item.lineItem}</div>
-        {item.description && <div className="text-xs text-muted-foreground truncate max-w-[200px]">{item.description}</div>}
+      <td className="px-3 py-2 min-w-0 max-w-[200px] overflow-hidden">
+        <div className="text-sm font-medium truncate" title={item.lineItem}>{item.lineItem}</div>
+        {item.description && <div className="text-xs text-muted-foreground truncate" title={item.description}>{item.description}</div>}
       </td>
       <td className="px-2 py-2 text-center text-xs tabular-nums">{item.fiscalYear}</td>
       <td className="px-2 py-2 text-center text-xs">{item.fiscalPeriod}</td>

@@ -506,15 +506,19 @@ export default function Tasks() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter: {filterProjectId ? projects?.find(p => p.id === filterProjectId)?.name?.slice(0, 15) || "Project" : "All Projects"}
+                <DropdownMenuSubTrigger className="max-w-[200px]">
+                  <Filter className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="truncate">
+                    Filter: {filterProjectId ? projects?.find(p => p.id === filterProjectId)?.name || "Project" : "All Projects"}
+                  </span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuRadioGroup value={filterProjectId ? String(filterProjectId) : "all"} onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}>
                     <DropdownMenuRadioItem value="all">All Projects</DropdownMenuRadioItem>
                     {projects?.map(p => (
-                      <DropdownMenuRadioItem key={p.id} value={String(p.id)}>{p.name}</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem key={p.id} value={String(p.id)}>
+                        <div className="truncate max-w-[200px]" title={p.name}>{p.name}</div>
+                      </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>
                 </DropdownMenuSubContent>
@@ -570,7 +574,9 @@ export default function Tasks() {
                         </SelectTrigger>
                         <SelectContent>
                           {projects?.map(p => (
-                            <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              <div className="truncate max-w-[400px]" title={p.name}>{p.name}</div>
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1051,7 +1057,7 @@ function GroupedTasksView({
               ) : (
                 <FolderKanban className="h-5 w-5 text-primary" />
               )}
-              <CardTitle className="text-lg">{group.name}</CardTitle>
+              <CardTitle className="text-lg truncate flex-1" title={group.name}>{group.name}</CardTitle>
               {group.source && group.icon === "project" && (
                 <Badge 
                   variant="outline" 
@@ -2146,11 +2152,12 @@ function DraggableTaskCard({
           </DropdownMenu>
         </div>
         <CardContent className="p-4">
-          <div className="font-medium text-sm">{task.name}</div>
+          <div className="font-medium text-sm truncate" title={task.name}>{task.name}</div>
           <Link 
             href={`/projects/${task.projectId}`}
             onClick={(e) => e.stopPropagation()}
-            className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block"
+            className="text-xs text-muted-foreground mt-1 hover:text-primary hover:underline block truncate"
+            title={getProjectName(task.projectId)}
             data-testid={`kanban-link-project-${task.projectId}`}
           >
             {getProjectName(task.projectId)}
@@ -2249,7 +2256,7 @@ function TaskHistoryDialog({ taskId, open, onOpenChange }: { taskId: number; ope
                     <div className="mt-2 text-sm">
                       <span className="font-medium">{log.changedByName}</span>
                     </div>
-                    <div className="mt-1 text-sm text-muted-foreground break-words">
+                    <div className="mt-1 text-sm text-muted-foreground break-all">
                       {log.changeSummary}
                     </div>
                   </div>
