@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { setupSwagger } from "./swagger";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import path from "path";
@@ -117,6 +118,7 @@ app.use((req, res, next) => {
 
 (async () => {
   registerObjectStorageRoutes(app);
+  setupSwagger(app);
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
