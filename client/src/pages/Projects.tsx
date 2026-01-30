@@ -3693,26 +3693,6 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
 
         <div className="relative overflow-x-auto">
           <div className="min-w-[800px] relative">
-            {/* Today marker - positioned in the timeline area */}
-            {todayPosition !== null && (
-              <div 
-                className="absolute top-0 bottom-0 flex pointer-events-none"
-                style={{ left: `${projectColumnWidth}px`, right: 0 }}
-              >
-                <div 
-                  className="absolute top-0 bottom-0 z-10"
-                  style={{ left: `${todayPosition}%`, width: '2px' }}
-                  data-testid="gantt-today-marker"
-                >
-                  <div className="w-full h-full bg-rose-500" />
-                  <div 
-                    className="absolute -top-1 left-1/2 -translate-x-1/2 bg-rose-500 text-white text-[10px] px-1 py-0.5 rounded whitespace-nowrap font-medium"
-                  >
-                    Today
-                  </div>
-                </div>
-              </div>
-            )}
             <div className="flex border-b border-border mb-2">
               <div 
                 className="flex-shrink-0 p-2 font-semibold text-sm relative group select-none cursor-pointer"
@@ -3744,10 +3724,22 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
                     {marker.label}
                   </div>
                 ))}
+                {/* Today marker in header */}
+                {todayPosition !== null && (
+                  <div 
+                    className="absolute top-0 bottom-0 z-20 pointer-events-none"
+                    style={{ left: `${todayPosition}%` }}
+                  >
+                    <div className="w-0.5 h-full bg-rose-500" />
+                    <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 bg-rose-500 text-white text-[10px] px-1 py-0.5 rounded-sm whitespace-nowrap font-medium">
+                      Today
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 relative">
               {sortedGanttProjects.map(project => {
                 const barPosition = getBarPosition(project.startDate, project.endDate);
                 
@@ -3843,6 +3835,14 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
                         <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
                           No dates set
                         </div>
+                      )}
+                      {/* Today marker line in each row */}
+                      {todayPosition !== null && (
+                        <div 
+                          className="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-10 pointer-events-none"
+                          style={{ left: `${todayPosition}%` }}
+                          data-testid={`gantt-today-line-${project.id}`}
+                        />
                       )}
                     </div>
                   </div>
