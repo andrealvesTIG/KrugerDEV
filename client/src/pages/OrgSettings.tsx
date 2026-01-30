@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -112,6 +112,7 @@ const settingsTabs = [
   { value: "recycle", label: "Recycle Bin", icon: Trash2 },
   { value: "demo", label: "Demo Data", icon: Sparkles },
   { value: "integrations", label: "Integrations", icon: Plug },
+  { value: "developer", label: "Developer", icon: Code2 },
 ];
 
 function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organization }) {
@@ -228,6 +229,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </TabsContent>
         <TabsContent value="integrations" className="mt-0">
           <IntegrationsSection organizationId={currentOrganization.id} />
+        </TabsContent>
+        <TabsContent value="developer" className="mt-0">
+          <DeveloperSection />
         </TabsContent>
       </div>
     </Tabs>
@@ -4581,6 +4585,93 @@ function CustomTabsSection({ organizationId }: { organizationId: number }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </Card>
+  );
+}
+
+function DeveloperSection() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Code2 className="h-5 w-5" />
+          Developer Tools
+        </CardTitle>
+        <CardDescription>
+          Access API documentation and developer resources for integrating with FridayReport.AI
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <BookOpen className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-medium">API Documentation</h3>
+                <p className="text-sm text-muted-foreground">
+                  Interactive Swagger documentation for all API endpoints. Explore and test API calls directly.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => window.open('/api-docs', '_blank')}
+              className="shrink-0"
+              data-testid="button-open-api-docs"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open API Docs
+            </Button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <FileText className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-medium">OpenAPI Specification</h3>
+                <p className="text-sm text-muted-foreground">
+                  Download the raw OpenAPI 3.0 specification in JSON format for client generation.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => window.open('/api-docs.json', '_blank')}
+              className="shrink-0"
+              data-testid="button-download-openapi-spec"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              View Spec
+            </Button>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <h3 className="font-medium">API Overview</h3>
+          <p className="text-sm text-muted-foreground">
+            The FridayReport.AI API provides programmatic access to manage portfolios, projects, tasks, 
+            risks, issues, resources, timesheets, invoices, and more. All endpoints require session-based 
+            authentication.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-4">
+            {[
+              'Organizations', 'Portfolios', 'Projects', 'Intakes',
+              'Tasks', 'Milestones', 'Risks', 'Issues',
+              'Resources', 'Timesheets', 'Invoices', 'Documents'
+            ].map((endpoint) => (
+              <Badge key={endpoint} variant="secondary" className="justify-center py-1">
+                {endpoint}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      </CardContent>
     </Card>
   );
 }
