@@ -1616,6 +1616,20 @@ function PlansTab() {
     }
   });
 
+  const createRule = useMutation({
+    mutationFn: async (data: { planId: number; meterId: number; ruleType: string; overageUnitPriceMicrocents?: number }) => {
+      const { planId, ...ruleData } = data;
+      return apiRequest('POST', `/api/admin/plans/${planId}/rules`, ruleData);
+    },
+    onSuccess: (_, variables) => {
+      toast({ title: "Success", description: "Overage rule created" });
+      fetchRules(variables.planId);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create rule", variant: "destructive" });
+    }
+  });
+
   const fetchRules = async (planId: number) => {
     setLoadingRules(true);
     try {
@@ -1953,7 +1967,7 @@ function PlansTab() {
                             )}
                           </div>
                           
-                          {overageRule && (
+                          {overageRule ? (
                             <div className="pt-3 border-t space-y-2">
                               <Label className="text-sm">Overage Pricing</Label>
                               <div className="flex items-center gap-2">
@@ -1978,6 +1992,30 @@ function PlansTab() {
                               <p className="text-xs text-muted-foreground">
                                 Price per credit when usage exceeds included quota
                               </p>
+                            </div>
+                          ) : quotaRule && (
+                            <div className="pt-3 border-t space-y-2">
+                              <Label className="text-sm">Overage Pricing</Label>
+                              <p className="text-xs text-muted-foreground mb-2">No overage rule configured for credits</p>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  if (editingPlan) {
+                                    createRule.mutate({
+                                      planId: editingPlan.id,
+                                      meterId: quotaRule.meterId,
+                                      ruleType: 'METERED_OVERAGE',
+                                      overageUnitPriceMicrocents: 10000
+                                    });
+                                  }
+                                }}
+                                disabled={createRule.isPending}
+                                data-testid="button-add-credits-overage"
+                              >
+                                {createRule.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                                Add Credits Overage Rule
+                              </Button>
                             </div>
                           )}
                           
