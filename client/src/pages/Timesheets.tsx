@@ -55,7 +55,9 @@ import {
   ListTodo,
   Trash2,
   History,
-  Plus
+  Plus,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -729,6 +731,7 @@ export default function Timesheets() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const { toast } = useToast();
   
   // Lift grid data state to parent to persist across view changes
@@ -856,6 +859,115 @@ export default function Timesheets() {
     if (!filterProjectId) return assignedTasks;
     return assignedTasks.filter(({ project }) => project.id === filterProjectId);
   }, [assignedTasks, filterProjectId]);
+
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex flex-col">
+        <div className="flex items-center justify-between gap-4 px-4 py-2 border-b bg-background shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+              <Clock className="h-4 w-4 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Timesheet - {viewMode === "day" ? "Day" : viewMode === "workweek" ? "Work Week" : "Full Week"}</h2>
+              <p className="text-xs text-muted-foreground">
+                {format(dates[0], "EEE, MMM d")} - {format(dates[dates.length - 1], "EEE, MMM d, yyyy")}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {uniqueProjects.length > 1 && (
+              <Select 
+                value={filterProjectId?.toString() || "all"} 
+                onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}
+              >
+                <SelectTrigger className="w-[180px]" data-testid="select-filter-project-fullscreen">
+                  <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {uniqueProjects.map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigateDate("prev")}
+              data-testid="button-prev-period-fullscreen"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigateDate("next")}
+              data-testid="button-next-period-fullscreen"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goToToday}
+              data-testid="button-today-fullscreen"
+            >
+              Today
+            </Button>
+            {hasDraftEntries && viewMode !== "day" && (
+              <Button 
+                onClick={handleSubmitWeek}
+                disabled={submitWeek.isPending}
+                className="bg-emerald-600 hover:bg-emerald-700"
+                size="sm"
+                data-testid="button-submit-week-fullscreen"
+              >
+                {submitWeek.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-2 h-4 w-4" />
+                )}
+                Submit
+              </Button>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsFullscreen(false)}
+              data-testid="button-exit-fullscreen"
+            >
+              <Minimize2 className="h-4 w-4 mr-2" />
+              Exit Fullscreen
+            </Button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <TimesheetGrid
+              dates={dates}
+              assignedTasks={filteredAssignedTasks}
+              entries={entries}
+              onSave={handleSave}
+              isSaving={bulkUpsert.isPending}
+              viewMode={viewMode}
+              groupByProject={!filterProjectId}
+              gridData={gridData}
+              setGridData={setGridData}
+              hasChanges={hasChanges}
+              setHasChanges={setHasChanges}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -1063,6 +1175,7 @@ export default function Timesheets() {
                         onClick={handleSubmitWeek}
                         disabled={submitWeek.isPending}
                         className="bg-emerald-600 hover:bg-emerald-700"
+                        size="sm"
                         data-testid="button-submit-week"
                       >
                         {submitWeek.isPending ? (
@@ -1073,6 +1186,15 @@ export default function Timesheets() {
                         Submit
                       </Button>
                     )}
+
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setIsFullscreen(true)}
+                      data-testid="button-fullscreen"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
