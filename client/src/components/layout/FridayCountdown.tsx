@@ -57,13 +57,56 @@ export function FridayCountdown() {
 
   if (timeLeft.isFriday) {
     return (
-      <div 
-        className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium"
-        data-testid="friday-countdown"
-      >
-        <PartyPopper className="h-3.5 w-3.5" />
-        <span>It's Friday!</span>
-      </div>
+      <Dialog>
+        <DialogTrigger asChild>
+          <div 
+            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium cursor-pointer hover:from-amber-200 hover:to-orange-200 dark:hover:from-amber-800/50 dark:hover:to-orange-800/50 transition-all"
+            data-testid="friday-countdown"
+          >
+            <PartyPopper className="h-3.5 w-3.5" />
+            <span>It's Friday!</span>
+          </div>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-amber-50 via-orange-50 to-pink-50 dark:from-amber-900/50 dark:via-orange-900/50 dark:to-pink-900/50 border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-amber-900 dark:text-amber-100">
+              <PartyPopper className="h-6 w-6 text-orange-500" />
+              It's Friday!
+              <Sparkles className="h-5 w-5 text-yellow-500" />
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-6 space-y-4 text-center">
+            <div className="relative">
+              <div className="absolute -inset-4 bg-orange-400/20 rounded-full blur-xl animate-pulse" />
+              <img 
+                src="https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif" 
+                alt="Party celebration" 
+                className="relative h-40 w-40 object-cover rounded-xl shadow-lg"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <p className="text-xl font-bold text-amber-800 dark:text-amber-200">
+                Time to celebrate!
+              </p>
+              <p className="text-slate-600 dark:text-slate-300">
+                You made it through the week. Enjoy your Friday!
+              </p>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-medium">
+                <PartyPopper className="h-3.5 w-3.5" />
+                <span>Party time</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs font-medium">
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Weekend vibes</span>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     );
   }
 
