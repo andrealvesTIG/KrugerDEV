@@ -3689,6 +3689,16 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
           <span className="text-sm text-muted-foreground">
             {format(timelineStart, 'MMM d, yyyy')} - {format(timelineEnd, 'MMM d, yyyy')}
           </span>
+          {/* Debug: Show today position status */}
+          {todayPosition !== null ? (
+            <span className="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded ml-2">
+              Today visible at {todayPosition.toFixed(1)}%
+            </span>
+          ) : (
+            <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded ml-2">
+              Today not in range
+            </span>
+          )}
         </div>
 
         <div className="relative overflow-x-auto">
@@ -3727,11 +3737,11 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
                 {/* Today marker in header */}
                 {todayPosition !== null && (
                   <div 
-                    className="absolute top-0 bottom-0 z-20 pointer-events-none"
+                    className="absolute top-0 bottom-0 z-30 pointer-events-none"
                     style={{ left: `${todayPosition}%` }}
                   >
-                    <div className="w-0.5 h-full bg-rose-500" />
-                    <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 bg-rose-500 text-white text-[10px] px-1 py-0.5 rounded-sm whitespace-nowrap font-medium">
+                    <div className="w-[2px] h-full bg-rose-500" />
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap font-semibold shadow-md">
                       Today
                     </div>
                   </div>
@@ -3839,7 +3849,7 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
                       {/* Today marker line in each row */}
                       {todayPosition !== null && (
                         <div 
-                          className="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-10 pointer-events-none"
+                          className="absolute top-0 bottom-0 w-[2px] bg-rose-500 z-30 pointer-events-none"
                           style={{ left: `${todayPosition}%` }}
                           data-testid={`gantt-today-line-${project.id}`}
                         />
