@@ -3464,6 +3464,23 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
     };
   };
 
+  // Calculate "Today" marker position
+  const [todayDate, setTodayDate] = useState(() => new Date());
+  
+  // Update today's date at midnight
+  useEffect(() => {
+    const now = new Date();
+    const msUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
+    const timeout = setTimeout(() => {
+      setTodayDate(new Date());
+    }, msUntilMidnight);
+    return () => clearTimeout(timeout);
+  }, [todayDate]);
+
+  const todayOffset = differenceInDays(todayDate, timelineStart);
+  const isTodayVisible = todayOffset >= 0 && todayOffset < totalDays;
+  const todayPosition = isTodayVisible ? (todayOffset / totalDays) * 100 : null;
+
   const getTimeMarkers = () => {
     return days.reduce((acc, day, index) => {
       if (zoomDays <= 60) {
@@ -3675,7 +3692,27 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
         </div>
 
         <div className="relative overflow-x-auto">
-          <div className="min-w-[800px]">
+          <div className="min-w-[800px] relative">
+            {/* Today marker - positioned in the timeline area */}
+            {todayPosition !== null && (
+              <div 
+                className="absolute top-0 bottom-0 flex pointer-events-none"
+                style={{ left: `${projectColumnWidth}px`, right: 0 }}
+              >
+                <div 
+                  className="absolute top-0 bottom-0 z-10"
+                  style={{ left: `${todayPosition}%`, width: '2px' }}
+                  data-testid="gantt-today-marker"
+                >
+                  <div className="w-full h-full bg-rose-500" />
+                  <div 
+                    className="absolute -top-1 left-1/2 -translate-x-1/2 bg-rose-500 text-white text-[10px] px-1 py-0.5 rounded whitespace-nowrap font-medium"
+                  >
+                    Today
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="flex border-b border-border mb-2">
               <div 
                 className="flex-shrink-0 p-2 font-semibold text-sm relative group select-none cursor-pointer"
