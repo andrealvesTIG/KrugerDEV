@@ -333,6 +333,21 @@ export default function IntakeDetails() {
               <div className="flex items-center gap-2">
                 {isLastStep ? (
                   <>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50 border">
+                      <Checkbox 
+                        id="pmoApproved-header"
+                        checked={formData.pmoApproved ?? intake.pmoApproved ?? false}
+                        onCheckedChange={(checked) => {
+                          handleFieldChange('pmoApproved', checked);
+                          updateIntake.mutate({ pmoApproved: checked as boolean });
+                        }}
+                        disabled={isLocked}
+                        data-testid="checkbox-pmo-approved-header"
+                      />
+                      <Label htmlFor="pmoApproved-header" className="text-sm cursor-pointer whitespace-nowrap">
+                        PM Approved
+                      </Label>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -352,7 +367,7 @@ export default function IntakeDetails() {
                       </Button>
                       {!(formData.pmoApproved ?? intake.pmoApproved) && (
                         <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md shadow-md whitespace-nowrap z-50 border">
-                          PM approval required before converting
+                          Check "PM Approved" first
                         </div>
                       )}
                     </div>
