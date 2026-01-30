@@ -10,8 +10,25 @@ import {
 
 import running_man from "@assets/running man.gif";
 
+const partyGifs = [
+  "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",
+  "https://media.giphy.com/media/5xaOcLGvzHxDKjufnLW/giphy.gif",
+  "https://media.giphy.com/media/l0MYGb1LuZ3n7dRnO/giphy.gif",
+  "https://media.giphy.com/media/l4FGni1RBAR2OWsGk/giphy.gif",
+  "https://media.giphy.com/media/l3q2Z6S6n38zjPswo/giphy.gif",
+  "https://media.giphy.com/media/3o7TKSxdQJIoiRXHl6/giphy.gif",
+  "https://media.giphy.com/media/26tPplGWjN0xLybiU/giphy.gif",
+  "https://media.giphy.com/media/l0HlKrB02QY0f1mbm/giphy.gif",
+];
+
 export function FridayCountdown() {
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0, isFriday: false });
+  const [partyGif, setPartyGif] = useState(partyGifs[0]);
+
+  const selectRandomGif = () => {
+    const randomIndex = Math.floor(Math.random() * partyGifs.length);
+    setPartyGif(partyGifs[randomIndex]);
+  };
 
   useEffect(() => {
     const calculateTimeUntilFriday = () => {
@@ -57,7 +74,7 @@ export function FridayCountdown() {
 
   if (timeLeft.isFriday) {
     return (
-      <Dialog>
+      <Dialog onOpenChange={(open) => { if (open) selectRandomGif(); }}>
         <DialogTrigger asChild>
           <div 
             className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium cursor-pointer hover:from-amber-200 hover:to-orange-200 dark:hover:from-amber-800/50 dark:hover:to-orange-800/50 transition-all"
@@ -79,7 +96,7 @@ export function FridayCountdown() {
             <div className="relative">
               <div className="absolute -inset-4 bg-orange-400/20 rounded-full blur-xl animate-pulse" />
               <img 
-                src="https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif" 
+                src={partyGif} 
                 alt="Party celebration" 
                 className="relative h-40 w-40 object-cover rounded-xl shadow-lg"
               />
