@@ -4590,28 +4590,228 @@ function CustomTabsSection({ organizationId }: { organizationId: number }) {
 }
 
 function DeveloperSection() {
+  const { toast } = useToast();
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showRevokeDialog, setShowRevokeDialog] = useState(false);
+  const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<string | null>(null);
+
+  const { data: apiKeyData, isLoading: apiKeyLoading, refetch: refetchApiKey } = useQuery<{
+    hasApiKey: boolean;
+    apiKey: string | null;
+  }>({
+    queryKey: ['/api/user/api-key'],
+  });
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied",
+      description: "API key copied to clipboard",
+    });
+  };
+
+  const generateApiKeyMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/user/api-key/generate');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setNewlyGeneratedKey(data.apiKey);
+      refetchApiKey();
+      toast({
+        title: "API Key Generated",
+        description: "Your new API key has been created. Copy it now - you won't be able to see the full key again.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate API key",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const revokeApiKeyMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest('DELETE', '/api/user/api-key');
+    },
+    onSuccess: () => {
+      refetchApiKey();
+      setShowRevokeDialog(false);
+      toast({
+        title: "API Key Revoked",
+        description: "Your API key has been revoked and is no longer valid.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to revoke API key",
+        variant: "destructive",
+      });
+    },
+  });
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Code2 className="h-5 w-5" />
-          Developer Tools
-        </CardTitle>
-        <CardDescription>
-          Access API documentation and developer resources for integrating with FridayReport.AI
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-4">
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Code2 className="h-5 w-5" />
+            API Key Management
+          </CardTitle>
+          <CardDescription>
+            Generate and manage API keys for external integrations like Power BI, custom scripts, or third-party tools
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-4 border rounded-lg space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <ShieldAlert className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-medium">Your API Key</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Use this key to authenticate with the Analytics API endpoints
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {apiKeyLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground" data-testid="text-api-key-loading">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading...
+              </div>
+            ) : newlyGeneratedKey ? (
+              <div className="space-y-3">
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                    New API Key Generated - Copy it now!
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 p-2 bg-background rounded font-mono text-sm break-all" data-testid="text-new-api-key">
+                      {newlyGeneratedKey}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyToClipboard(newlyGeneratedKey)}
+                      data-testid="button-copy-api-key"
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    This is the only time you will see the full key. Store it securely.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setNewlyGeneratedKey(null)}
+                  data-testid="button-dismiss-new-key"
+                >
+                  Done
+                </Button>
+              </div>
+            ) : apiKeyData?.hasApiKey ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 p-3 bg-muted rounded-lg font-mono text-sm" data-testid="text-masked-api-key">
+                    {showApiKey ? apiKeyData.apiKey : '••••••••••••••••••••••••••••••••'}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    data-testid="button-toggle-api-key-visibility"
+                  >
+                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Only a partial key is shown for security. Generate a new key if you need the full value.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => generateApiKeyMutation.mutate()}
+                    disabled={generateApiKeyMutation.isPending}
+                    data-testid="button-regenerate-api-key"
+                  >
+                    {generateApiKeyMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Regenerate Key
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowRevokeDialog(true)}
+                    data-testid="button-revoke-api-key"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Revoke Key
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  You don't have an API key yet. Generate one to start using the Analytics API.
+                </p>
+                <Button
+                  onClick={() => generateApiKeyMutation.mutate()}
+                  disabled={generateApiKeyMutation.isPending}
+                  data-testid="button-generate-api-key"
+                >
+                  {generateApiKeyMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-2" />
+                  )}
+                  Generate API Key
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+            <h4 className="font-medium text-sm">How to use your API key</h4>
+            <p className="text-sm text-muted-foreground">
+              Use Basic Authentication with your email as the username and API key as the password:
+            </p>
+            <pre className="p-2 bg-background rounded text-xs overflow-x-auto">
+              Authorization: Basic base64(email:api_key)
+            </pre>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5" />
+            API Documentation
+          </CardTitle>
+          <CardDescription>
+            Access interactive documentation and developer resources
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-primary/10 rounded-lg">
                 <BookOpen className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h3 className="font-medium">API Documentation</h3>
+                <h3 className="font-medium">Swagger Documentation</h3>
                 <p className="text-sm text-muted-foreground">
-                  Interactive Swagger documentation for all API endpoints. Explore and test API calls directly.
+                  Interactive API documentation. Explore and test endpoints directly.
                 </p>
               </div>
             </div>
@@ -4634,7 +4834,7 @@ function DeveloperSection() {
               <div>
                 <h3 className="font-medium">OpenAPI Specification</h3>
                 <p className="text-sm text-muted-foreground">
-                  Download the raw OpenAPI 3.0 specification in JSON format for client generation.
+                  Raw OpenAPI 3.0 spec in JSON format for client generation.
                 </p>
               </div>
             </div>
@@ -4648,31 +4848,53 @@ function DeveloperSection() {
               View Spec
             </Button>
           </div>
-        </div>
 
-        <Separator />
+          <Separator />
 
-        <div className="space-y-2">
-          <h3 className="font-medium">API Overview</h3>
-          <p className="text-sm text-muted-foreground">
-            The FridayReport.AI API provides programmatic access to manage portfolios, projects, tasks, 
-            risks, issues, resources, timesheets, invoices, and more. All endpoints require session-based 
-            authentication.
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-4">
-            {[
-              'Organizations', 'Portfolios', 'Projects', 'Intakes',
-              'Tasks', 'Milestones', 'Risks', 'Issues',
-              'Resources', 'Timesheets', 'Invoices', 'Documents'
-            ].map((endpoint) => (
-              <Badge key={endpoint} variant="secondary" className="justify-center py-1">
-                {endpoint}
-              </Badge>
-            ))}
+          <div className="space-y-2">
+            <h3 className="font-medium">Available API Endpoints</h3>
+            <p className="text-sm text-muted-foreground">
+              The API provides access to all major resources. Session-based auth for web, API key for external tools.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-4">
+              {[
+                'Organizations', 'Portfolios', 'Projects', 'Intakes',
+                'Tasks', 'Milestones', 'Risks', 'Issues',
+                'Resources', 'Timesheets', 'Invoices', 'Analytics'
+              ].map((endpoint) => (
+                <Badge key={endpoint} variant="secondary" className="justify-center py-1">
+                  {endpoint}
+                </Badge>
+              ))}
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={showRevokeDialog} onOpenChange={setShowRevokeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke API Key?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently revoke your API key. Any integrations using this key will stop working immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-revoke">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => revokeApiKeyMutation.mutate()}
+              className="bg-destructive text-destructive-foreground"
+              data-testid="button-confirm-revoke"
+            >
+              {revokeApiKeyMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Revoke Key
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 

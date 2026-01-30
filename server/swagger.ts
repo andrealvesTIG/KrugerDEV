@@ -33,8 +33,9 @@ const options: swaggerJsdoc.Options = {
       { name: 'Timesheets', description: 'Timesheet management endpoints' },
       { name: 'Invoices', description: 'Invoice management endpoints' },
       { name: 'Documents', description: 'Document management endpoints' },
-      { name: 'Users', description: 'User management endpoints' },
+      { name: 'Users', description: 'User management and API key endpoints' },
       { name: 'Dashboards', description: 'Dashboard endpoints' },
+      { name: 'Analytics', description: 'Analytics API endpoints for Power BI and external tools (API key required)' },
       { name: 'Integrations', description: 'Third-party integration endpoints' },
     ],
     components: {
@@ -44,6 +45,11 @@ const options: swaggerJsdoc.Options = {
           in: 'cookie',
           name: 'connect.sid',
           description: 'Session-based authentication via Replit Auth',
+        },
+        basicAuth: {
+          type: 'http',
+          scheme: 'basic',
+          description: 'Basic authentication for Analytics API. Username = your email, Password = your API key',
         },
       },
       schemas: {
@@ -952,6 +958,165 @@ const apiPaths = {
         ],
         responses: {
           '200': { description: 'Portfolio dashboard data' },
+        },
+      },
+    },
+    // API Key Management
+    '/user/api-key': {
+      get: {
+        tags: ['Users'],
+        summary: 'Get current API key status',
+        description: 'Check if the current user has an API key and get a masked version',
+        responses: {
+          '200': {
+            description: 'API key status',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    hasApiKey: { type: 'boolean' },
+                    apiKey: { type: 'string', nullable: true, description: 'Masked API key (first 8 chars only)' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ['Users'],
+        summary: 'Revoke API key',
+        description: 'Revoke the current user API key. Any integrations using this key will stop working.',
+        responses: {
+          '200': { description: 'API key revoked' },
+        },
+      },
+    },
+    '/user/api-key/generate': {
+      post: {
+        tags: ['Users'],
+        summary: 'Generate new API key',
+        description: 'Generate a new API key for the current user. Any existing key will be replaced.',
+        responses: {
+          '200': {
+            description: 'New API key generated',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: { type: 'string' },
+                    apiKey: { type: 'string', description: 'The full API key (only shown once)' },
+                    usage: {
+                      type: 'object',
+                      properties: {
+                        username: { type: 'string', description: 'Your email' },
+                        password: { type: 'string', description: 'Your API key' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    // Analytics API (Power BI Integration)
+    '/analytics/projects': {
+      get: {
+        tags: ['Analytics'],
+        summary: 'Get projects data for analytics',
+        description: 'Returns flattened project data optimized for Power BI and other analytics tools. Requires API key authentication.',
+        security: [{ basicAuth: [] }],
+        responses: {
+          '200': {
+            description: 'List of projects with analytics data',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'integer' },
+                      name: { type: 'string' },
+                      status: { type: 'string' },
+                      organizationName: { type: 'string' },
+                      portfolioName: { type: 'string' },
+                      budget: { type: 'number' },
+                      actualCost: { type: 'number' },
+                      startDate: { type: 'string' },
+                      endDate: { type: 'string' },
+                      progress: { type: 'number' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': { description: 'Unauthorized - Invalid or missing API key' },
+        },
+      },
+    },
+    '/analytics/portfolios': {
+      get: {
+        tags: ['Analytics'],
+        summary: 'Get portfolios data for analytics',
+        description: 'Returns portfolio summary data for Power BI and analytics tools. Requires API key authentication.',
+        security: [{ basicAuth: [] }],
+        responses: {
+          '200': { description: 'List of portfolios with analytics data' },
+          '401': { description: 'Unauthorized - Invalid or missing API key' },
+        },
+      },
+    },
+    '/analytics/risks': {
+      get: {
+        tags: ['Analytics'],
+        summary: 'Get risks data for analytics',
+        description: 'Returns risk data for Power BI and analytics tools. Requires API key authentication.',
+        security: [{ basicAuth: [] }],
+        responses: {
+          '200': { description: 'List of risks with analytics data' },
+          '401': { description: 'Unauthorized - Invalid or missing API key' },
+        },
+      },
+    },
+    '/analytics/issues': {
+      get: {
+        tags: ['Analytics'],
+        summary: 'Get issues data for analytics',
+        description: 'Returns issue data for Power BI and analytics tools. Requires API key authentication.',
+        security: [{ basicAuth: [] }],
+        responses: {
+          '200': { description: 'List of issues with analytics data' },
+          '401': { description: 'Unauthorized - Invalid or missing API key' },
+        },
+      },
+    },
+    '/analytics/milestones': {
+      get: {
+        tags: ['Analytics'],
+        summary: 'Get milestones data for analytics',
+        description: 'Returns milestone data for Power BI and analytics tools. Requires API key authentication.',
+        security: [{ basicAuth: [] }],
+        responses: {
+          '200': { description: 'List of milestones with analytics data' },
+          '401': { description: 'Unauthorized - Invalid or missing API key' },
+        },
+      },
+    },
+    '/analytics/intakes': {
+      get: {
+        tags: ['Analytics'],
+        summary: 'Get project intakes data for analytics',
+        description: 'Returns intake pipeline data for Power BI and analytics tools. Requires API key authentication.',
+        security: [{ basicAuth: [] }],
+        responses: {
+          '200': { description: 'List of intakes with analytics data' },
+          '401': { description: 'Unauthorized - Invalid or missing API key' },
         },
       },
     },
