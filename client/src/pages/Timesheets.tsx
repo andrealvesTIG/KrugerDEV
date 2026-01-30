@@ -840,29 +840,46 @@ export default function Timesheets() {
   const hasDraftEntries = entries.some(e => e.status === "Draft");
   const isLoading = entriesLoading || tasksLoading;
 
+  const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
+
+  const uniqueProjects = useMemo(() => {
+    const projectMap = new Map<number, { id: number; name: string }>();
+    assignedTasks.forEach(({ project }) => {
+      if (!projectMap.has(project.id)) {
+        projectMap.set(project.id, { id: project.id, name: project.name });
+      }
+    });
+    return Array.from(projectMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [assignedTasks]);
+
+  const filteredAssignedTasks = useMemo(() => {
+    if (!filterProjectId) return assignedTasks;
+    return assignedTasks.filter(({ project }) => project.id === filterProjectId);
+  }, [assignedTasks, filterProjectId]);
+
   return (
     <div className="min-h-screen bg-muted/30">
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="p-4 space-y-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
-              <Clock className="h-6 w-6 text-blue-600" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+              <Clock className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Timesheet</h1>
-              <p className="text-sm text-muted-foreground">Track your time across projects and tasks</p>
+              <h1 className="text-xl font-bold text-foreground">Timesheet</h1>
+              <p className="text-xs text-muted-foreground">Track your time across projects and tasks</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
-              <div className="font-medium text-foreground">
+              <div className="text-sm font-medium text-foreground">
                 {user?.firstName} {user?.lastName}
               </div>
-              <div className="text-sm text-muted-foreground">{user?.email}</div>
+              <div className="text-xs text-muted-foreground">{user?.email}</div>
             </div>
-            <Avatar className="h-10 w-10">
+            <Avatar className="h-9 w-9">
               <AvatarImage src={user?.profileImageUrl || ""} />
-              <AvatarFallback className="bg-primary/10 text-primary">
+              <AvatarFallback className="bg-primary/10 text-primary text-sm">
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </AvatarFallback>
             </Avatar>
@@ -1002,9 +1019,27 @@ export default function Timesheets() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {uniqueProjects.length > 1 && (
+                      <Select 
+                        value={filterProjectId?.toString() || "all"} 
+                        onValueChange={(v) => setFilterProjectId(v === "all" ? null : Number(v))}
+                      >
+                        <SelectTrigger className="w-[180px]" data-testid="select-filter-project">
+                          <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <SelectValue placeholder="All Projects" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Projects</SelectItem>
+                          {uniqueProjects.map(p => (
+                            <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+
                     <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-                      <SelectTrigger className="w-[140px]" data-testid="select-view-mode">
+                      <SelectTrigger className="w-[130px]" data-testid="select-view-mode">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1016,6 +1051,7 @@ export default function Timesheets() {
 
                     <Button 
                       variant="outline" 
+                      size="sm"
                       onClick={goToToday}
                       data-testid="button-today"
                     >
@@ -1042,57 +1078,57 @@ export default function Timesheets() {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Card className="border-0 shadow-sm">
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
-                      <Clock className="h-6 w-6 text-blue-600" />
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
+                      <Clock className="h-4 w-4 text-blue-600" />
                     </div>
                     <div>
-                      <div className="text-3xl font-bold text-foreground">{totalHoursThisWeek}h</div>
-                      <div className="text-sm text-muted-foreground">Total Hours</div>
+                      <div className="text-2xl font-bold text-foreground">{totalHoursThisWeek}h</div>
+                      <div className="text-xs text-muted-foreground">Total Hours</div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-sm">
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-500/10">
-                      <ListTodo className="h-6 w-6 text-teal-600" />
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-500/10">
+                      <ListTodo className="h-4 w-4 text-teal-600" />
                     </div>
                     <div>
-                      <div className="text-3xl font-bold text-foreground">{assignedTasks.length}</div>
-                      <div className="text-sm text-muted-foreground">Active Tasks</div>
+                      <div className="text-2xl font-bold text-foreground">{filteredAssignedTasks.length}</div>
+                      <div className="text-xs text-muted-foreground">Active Tasks</div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-sm">
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
-                      <TrendingUp className="h-6 w-6 text-amber-600" />
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
+                      <TrendingUp className="h-4 w-4 text-amber-600" />
                     </div>
                     <div>
-                      <div className="text-3xl font-bold text-foreground">{Math.round(progressPercent)}%</div>
-                      <div className="text-sm text-muted-foreground">of {weeklyTarget}h target</div>
+                      <div className="text-2xl font-bold text-foreground">{Math.round(progressPercent)}%</div>
+                      <div className="text-xs text-muted-foreground">of {weeklyTarget}h target</div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-sm">
-                <CardContent className="p-5">
-                  <div className="space-y-3">
+                <CardContent className="p-3">
+                  <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-medium text-muted-foreground">Weekly Progress</div>
-                      <div className="text-sm font-semibold text-foreground">{totalHoursThisWeek}/{weeklyTarget}h</div>
+                      <div className="text-xs font-medium text-muted-foreground">Weekly Progress</div>
+                      <div className="text-xs font-semibold text-foreground">{totalHoursThisWeek}/{weeklyTarget}h</div>
                     </div>
-                    <Progress value={progressPercent} className="h-2" />
+                    <Progress value={progressPercent} className="h-1.5" />
                   </div>
                 </CardContent>
               </Card>
@@ -1110,12 +1146,12 @@ export default function Timesheets() {
               >
                 <TimesheetGrid
                   dates={dates}
-                  assignedTasks={assignedTasks}
+                  assignedTasks={filteredAssignedTasks}
                   entries={entries}
                   onSave={handleSave}
                   isSaving={bulkUpsert.isPending}
                   viewMode={viewMode}
-                  groupByProject={true}
+                  groupByProject={!filterProjectId}
                   gridData={gridData}
                   setGridData={setGridData}
                   hasChanges={hasChanges}
