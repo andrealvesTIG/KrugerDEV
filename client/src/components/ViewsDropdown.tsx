@@ -136,7 +136,14 @@ export function ViewsDropdown({
   const setDefaultMutation = useSetDefaultView();
   
   const { data: systemViews = [] } = useQuery<SystemProjectView[]>({
-    queryKey: ['/api/organizations', organizationId, 'system-project-views', { mode }],
+    queryKey: ['/api/organizations', organizationId, 'system-project-views', mode],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${organizationId}/system-project-views?mode=${mode}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
     enabled: !!organizationId,
   });
 
@@ -340,8 +347,13 @@ export function ViewsDropdown({
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" data-testid="button-views-dropdown">
               <span className="flex items-center gap-2">
-                {isSystemViewActive && <Building2 className="h-3.5 w-3.5 text-muted-foreground" />}
+                {isSystemViewActive && <Building2 className="h-3.5 w-3.5 text-primary/70" />}
                 {displayName}
+                {isSystemViewActive && (
+                  <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 bg-primary/10 text-primary/80 border-0">
+                    Org
+                  </Badge>
+                )}
                 {hasUnsavedChanges && (
                   <Badge variant="outline" className="text-xs px-1 py-0 h-4 bg-amber-50 text-amber-600 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
                     Modified
@@ -400,10 +412,14 @@ export function ViewsDropdown({
                     onClick={() => handleSelectSystemView(view)}
                     data-testid={`system-view-option-${view.id}`}
                     className="flex items-center justify-between"
+                    title={view.description || "Organization-wide view available to all members"}
                   >
                     <span className={cn("flex-1 flex items-center gap-2", activeSystemViewId === view.id && "font-medium")}>
-                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Building2 className="h-3.5 w-3.5 text-primary/70" />
                       {view.name}
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 bg-primary/10 text-primary/80 border-0">
+                        Org
+                      </Badge>
                     </span>
                     {activeSystemViewId === view.id && <Check className="h-4 w-4 text-primary" />}
                   </DropdownMenuItem>
