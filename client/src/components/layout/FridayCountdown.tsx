@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Clock, PartyPopper, Coffee, TreePalm, Sparkles } from "lucide-react";
+import { Clock, PartyPopper, Coffee, TreePalm, Sparkles, Share2, Copy, ExternalLink } from "lucide-react";
+import { SiLinkedin } from "react-icons/si";
 import {
   Dialog,
   DialogContent,
@@ -7,6 +8,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 import running_man from "@assets/running man.gif";
 
@@ -22,8 +25,29 @@ const partyGifs = [
 ];
 
 export function FridayCountdown() {
+  const { toast } = useToast();
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0, isFriday: false });
   const [partyGif, setPartyGif] = useState(partyGifs[0]);
+  
+  const shareUrl = `${window.location.origin}/friday`;
+  
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({ title: "Link copied!", description: "Share the Friday celebration with your team" });
+    } catch {
+      toast({ title: "Failed to copy", variant: "destructive" });
+    }
+  };
+  
+  const handleShareLinkedIn = () => {
+    const url = encodeURIComponent(shareUrl);
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
+  };
+  
+  const handleOpenFridayPage = () => {
+    window.open('/friday', '_blank');
+  };
 
   const selectRandomGif = () => {
     const randomIndex = Math.floor(Math.random() * partyGifs.length);
@@ -120,6 +144,42 @@ export function FridayCountdown() {
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>Weekend vibes</span>
               </div>
+            </div>
+            
+            <div className="border-t border-amber-200 dark:border-amber-800 pt-4 mt-4 w-full space-y-3">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Share the celebration</p>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleShareLinkedIn}
+                  className="flex-1 border-blue-200 text-blue-600 dark:border-blue-800 dark:text-blue-400"
+                  data-testid="button-share-linkedin-countdown"
+                >
+                  <SiLinkedin className="h-4 w-4 mr-2" />
+                  LinkedIn
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleCopyLink}
+                  className="flex-1"
+                  data-testid="button-copy-link-countdown"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Link
+                </Button>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={handleOpenFridayPage}
+                className="w-full text-amber-700 dark:text-amber-300"
+                data-testid="button-open-friday-page"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open Friday Page
+              </Button>
             </div>
           </div>
         </DialogContent>
