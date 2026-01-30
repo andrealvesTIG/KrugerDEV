@@ -635,7 +635,7 @@ export default function SignInPage() {
                 <p className="text-slate-300 text-xs">per month</p>
               </div>
               <ul className="space-y-2 mb-5">
-                {["500 credits/month", "500 AI runs/month", "1,000 documents", "Up to 3 seats", "Advanced reporting"].map((feature, i) => (
+                {["500 credits/month", "500 AI runs/month", "1,000 documents", "Up to 3 seats", "$5/extra seat", "Advanced reporting"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
                     <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
                     {feature}
@@ -658,7 +658,7 @@ export default function SignInPage() {
                 <p className="text-slate-300 text-xs">per month</p>
               </div>
               <ul className="space-y-2 mb-5">
-                {["1,000 credits/month", "2,500 AI runs/month", "5,000 documents", "Up to 25 seats", "Priority support"].map((feature, i) => (
+                {["1,000 credits/month", "2,500 AI runs/month", "5,000 documents", "Up to 25 seats", "$8/extra seat", "Priority support"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
                     <CheckCircle className="h-3.5 w-3.5 text-orange-400 flex-shrink-0" />
                     {feature}
@@ -678,7 +678,7 @@ export default function SignInPage() {
                 <p className="text-slate-300 text-xs">per month</p>
               </div>
               <ul className="space-y-2 mb-5">
-                {["7,500 credits/month", "Unlimited AI runs", "Unlimited documents", "Up to 25 seats", "SSO / SAML"].map((feature, i) => (
+                {["7,500 credits/month", "Unlimited AI runs", "Unlimited documents", "Up to 25 seats", "$6/extra seat", "SSO / SAML"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
                     <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
                     {feature}
