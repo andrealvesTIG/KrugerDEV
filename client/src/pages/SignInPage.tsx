@@ -477,7 +477,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Integrations Section */}
       <section id="integrations-section" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -529,7 +528,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Value Proposition */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -626,9 +624,7 @@ export default function SignInPage() {
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-free">
-                Get Started
-              </Button>
+              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-free">Get it Free</Button>
             </div>
             
             {/* Professional Plan */}
@@ -909,7 +905,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Security, Compliance & Trust Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-900/50">
         <div className="max-w-7xl mx-auto">
@@ -1093,7 +1088,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* FAQ Section */}
       <section id="faq-section" className="py-20 px-4 bg-slate-700/30">
         <div className="max-w-4xl mx-auto">
@@ -1141,7 +1135,6 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
-
       {/* Footer */}
       <LandingFooter />
     </div>
