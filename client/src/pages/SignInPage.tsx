@@ -610,86 +610,106 @@ export default function SignInPage() {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 max-w-7xl mx-auto">
             {/* Free Plan */}
-            <div className="p-6 rounded-2xl bg-slate-800/50 border border-slate-600">
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold text-white mb-2">Free Forever</h3>
-                <div className="text-4xl font-bold text-white mb-1">$0</div>
-                <p className="text-slate-300 text-sm">Forever free</p>
+            <div className="p-5 rounded-2xl bg-slate-800/50 border border-slate-600">
+              <div className="text-center mb-5">
+                <h3 className="text-lg font-semibold text-white mb-2">Free Forever</h3>
+                <div className="text-3xl font-bold text-white mb-1">$0</div>
+                <p className="text-slate-300 text-xs">Forever free</p>
               </div>
-              <ul className="space-y-3 mb-6">
+              <ul className="space-y-2 mb-5">
                 {["200 credits/month", "25 AI runs/month", "50 documents", "1 seat included", "Basic dashboards"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-free">
+              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-free">
                 Get Started
               </Button>
             </div>
             
             {/* Professional Plan */}
-            <div className="p-6 rounded-2xl bg-slate-800/50 border border-slate-600">
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold text-white mb-2">Professional</h3>
-                <div className="text-4xl font-bold text-white mb-1">$12</div>
-                <p className="text-slate-300 text-sm">per month</p>
+            <div className="p-5 rounded-2xl bg-slate-800/50 border border-slate-600">
+              <div className="text-center mb-5">
+                <h3 className="text-lg font-semibold text-white mb-2">Professional</h3>
+                <div className="text-3xl font-bold text-white mb-1">$12</div>
+                <p className="text-slate-300 text-xs">per month</p>
               </div>
-              <ul className="space-y-3 mb-6">
+              <ul className="space-y-2 mb-5">
                 {["500 credits/month", "500 AI runs/month", "1,000 documents", "Up to 3 seats", "Advanced reporting"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-professional">
+              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-professional">
                 Start Free
               </Button>
             </div>
             
             {/* Business Plan */}
-            <div className="p-6 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative">
+            <div className="p-5 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge className="bg-orange-500 text-white">Most Popular</Badge>
+                <Badge className="bg-orange-500 text-white text-xs">Most Popular</Badge>
               </div>
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold text-white mb-2">Business</h3>
-                <div className="text-4xl font-bold text-white mb-1">$28</div>
-                <p className="text-slate-300 text-sm">per month</p>
+              <div className="text-center mb-5">
+                <h3 className="text-lg font-semibold text-white mb-2">Business</h3>
+                <div className="text-3xl font-bold text-white mb-1">$28</div>
+                <p className="text-slate-300 text-xs">per month</p>
               </div>
-              <ul className="space-y-3 mb-6">
-                {["1,000 credits/month", "2,500 AI runs/month", "5,000 documents", "Up to 25 seats", "Priority support", "Power BI integration"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
-                    <CheckCircle className="h-4 w-4 text-orange-400 flex-shrink-0" />
+              <ul className="space-y-2 mb-5">
+                {["1,000 credits/month", "2,500 AI runs/month", "5,000 documents", "Up to 25 seats", "Priority support"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
+                    <CheckCircle className="h-3.5 w-3.5 text-orange-400 flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <Button className="w-full bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 font-semibold" onClick={scrollToSignIn} data-testid="button-pricing-business">
+              <Button size="sm" className="w-full bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 font-semibold" onClick={scrollToSignIn} data-testid="button-pricing-business">
                 Start Free
               </Button>
             </div>
             
             {/* Enterprise Plan */}
-            <div className="p-6 rounded-2xl bg-slate-800/50 border border-slate-600">
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold text-white mb-2">Enterprise</h3>
-                <div className="text-4xl font-bold text-white mb-1">Custom</div>
-                <p className="text-slate-300 text-sm">Contact for pricing</p>
+            <div className="p-5 rounded-2xl bg-slate-800/50 border border-slate-600">
+              <div className="text-center mb-5">
+                <h3 className="text-lg font-semibold text-white mb-2">Enterprise</h3>
+                <div className="text-3xl font-bold text-white mb-1">$900</div>
+                <p className="text-slate-300 text-xs">per month</p>
               </div>
-              <ul className="space-y-3 mb-6">
-                {["Unlimited credits", "Unlimited AI runs", "Unlimited documents", "Unlimited seats", "SSO / SAML", "Dedicated support"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
-                    <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+              <ul className="space-y-2 mb-5">
+                {["7,500 credits/month", "Unlimited AI runs", "Unlimited documents", "Up to 25 seats", "SSO / SAML"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-enterprise">
+              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-enterprise">
+                Start Free
+              </Button>
+            </div>
+            
+            {/* Custom Plan */}
+            <div className="p-5 rounded-2xl bg-slate-800/50 border border-slate-600">
+              <div className="text-center mb-5">
+                <h3 className="text-lg font-semibold text-white mb-2">Custom</h3>
+                <div className="text-3xl font-bold text-white mb-1">Contact</div>
+                <p className="text-slate-300 text-xs">Custom pricing</p>
+              </div>
+              <ul className="space-y-2 mb-5">
+                {["Unlimited credits", "Unlimited AI runs", "Unlimited documents", "Unlimited seats", "Dedicated support"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-custom">
                 Contact Sales
               </Button>
             </div>
