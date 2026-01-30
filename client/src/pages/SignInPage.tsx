@@ -614,12 +614,12 @@ export default function SignInPage() {
             {/* Free Plan */}
             <div className="p-6 rounded-2xl bg-slate-800/50 border border-slate-600">
               <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold text-white mb-2">Free</h3>
+                <h3 className="text-xl font-semibold text-white mb-2">Free Forever</h3>
                 <div className="text-4xl font-bold text-white mb-1">$0</div>
                 <p className="text-slate-300 text-sm">Forever free</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["200 AI credits/month", "Up to 40 projects", "200 tasks, 200 issues", "1 seat included", "Basic dashboards"].map((feature, i) => (
+                {["200 credits/month", "25 AI runs/month", "50 documents", "1 seat included", "Basic dashboards"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
@@ -639,7 +639,7 @@ export default function SignInPage() {
                 <p className="text-slate-300 text-sm">per month</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["500 AI credits/month", "Up to 100 projects", "500 tasks, 500 issues", "Up to 3 seats", "Advanced reporting"].map((feature, i) => (
+                {["500 credits/month", "500 AI runs/month", "1,000 documents", "Up to 3 seats", "Advanced reporting"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
@@ -662,7 +662,7 @@ export default function SignInPage() {
                 <p className="text-slate-300 text-sm">per month</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["1,000 AI credits/month", "Up to 200 projects", "1,000 tasks, 1,000 issues", "Up to 25 seats", "Priority support", "Power BI integration"].map((feature, i) => (
+                {["1,000 credits/month", "2,500 AI runs/month", "5,000 documents", "Up to 25 seats", "Priority support", "Power BI integration"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
                     <CheckCircle className="h-4 w-4 text-orange-400 flex-shrink-0" />
                     {feature}
@@ -682,7 +682,7 @@ export default function SignInPage() {
                 <p className="text-slate-300 text-sm">Contact for pricing</p>
               </div>
               <ul className="space-y-3 mb-6">
-                {["Unlimited AI credits", "Unlimited projects", "Unlimited tasks & issues", "Unlimited seats", "SSO / SAML", "Dedicated support"].map((feature, i) => (
+                {["Unlimited credits", "Unlimited AI runs", "Unlimited documents", "Unlimited seats", "SSO / SAML", "Dedicated support"].map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-slate-200 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
                     {feature}
