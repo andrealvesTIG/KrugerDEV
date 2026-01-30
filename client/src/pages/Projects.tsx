@@ -2790,9 +2790,28 @@ function ProjectsGridView({
       case "projectCode":
         return <span className="text-sm">{project.projectCode || "-"}</span>;
       case "billableStatus":
+        const billableStatusColors: Record<string, string> = {
+          "N/A": "bg-slate-400",
+          "On Track": "bg-emerald-500",
+          "Waiting for Approval": "bg-amber-500",
+          "Verbal Approval": "bg-amber-500",
+          "Email Approval": "bg-emerald-500",
+          "SOW Signed": "bg-emerald-500",
+          "PO Received": "bg-emerald-500",
+          "Partially Invoiced": "bg-amber-500",
+          "At Risk": "bg-amber-500",
+          "Ready for Invoice": "bg-emerald-500",
+          "Critical": "bg-rose-500",
+          "Invoiced": "bg-blue-500",
+        };
+        const billableValue = project.billableStatus || "N/A";
+        const billableColor = billableStatusColors[billableValue] || "bg-slate-400";
         return (
           <Badge variant="outline" className="text-xs">
-            {project.billableStatus || "N/A"}
+            <span className="flex items-center gap-1.5">
+              <span className={cn("w-2 h-2 rounded-full shrink-0", billableColor)} />
+              {billableValue}
+            </span>
           </Badge>
         );
       case "baselineStartDate":
