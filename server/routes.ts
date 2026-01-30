@@ -3621,6 +3621,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Plan ID and Organization ID are required" });
       }
       
+      // Verify user has access to this organization
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
       // Try org-scoped token first, fallback to session
       let token = req.session.plannerAccessToken;
       const integration = await getOrgIntegration(organizationId, "planner");
@@ -4541,10 +4546,16 @@ export async function registerRoutes(
   app.post('/api/projects/:id/sync-planner', async (req, res) => {
     try {
       const projectId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
       const project = await storage.getProject(projectId);
       
       if (!project) {
         return res.status(404).json({ message: "Project not found" });
+      }
+      
+      // Verify user has access to the project's organization
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
       if ((project.source !== "planner" && project.source !== "planner_premium") || !project.plannerPlanId) {

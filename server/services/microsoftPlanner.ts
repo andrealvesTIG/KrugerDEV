@@ -2,8 +2,28 @@ import { ConfidentialClientApplication, AuthorizationCodeRequest, Configuration 
 import { Express, Request, Response } from "express";
 import crypto from "crypto";
 import { db } from "../db";
-import { organizationIntegrations } from "@shared/schema";
+import { organizationIntegrations, users, organizationMembers } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+
+// Auth helpers for Planner routes
+function getUserIdFromRequest(req: Request): string | undefined {
+  const replitUserId = (req as any).user?.claims?.sub;
+  if (replitUserId) return replitUserId;
+  return (req.session as any)?.userId;
+}
+
+async function userHasOrgAccess(userId: string | undefined, orgId: number): Promise<boolean> {
+  if (!userId) return false;
+  
+  // Check if user is super_admin
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (user?.role === 'super_admin') return true;
+  
+  // Check if user is a member of this organization
+  const memberships = await db.select().from(organizationMembers)
+    .where(eq(organizationMembers.userId, userId));
+  return memberships.some(m => m.organizationId === orgId);
+}
 
 declare module "express-session" {
   interface SessionData {
@@ -212,6 +232,12 @@ export async function setupPlannerRoutes(app: Express) {
       });
     }
     
+    // Verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: 'Access denied to this organization' });
+    }
+    
     // Check organization-scoped integration
     const integration = await getOrgIntegration(organizationId, "planner");
     const hasToken = !!integration?.accessToken;
@@ -235,6 +261,12 @@ export async function setupPlannerRoutes(app: Express) {
     const organizationId = req.body.organizationId ? Number(req.body.organizationId) : null;
     if (!organizationId) {
       return res.status(400).json({ message: "Organization ID is required" });
+    }
+
+    // Verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: 'Access denied to this organization' });
     }
 
     const state = generateSecureToken();
@@ -347,6 +379,12 @@ export async function setupPlannerRoutes(app: Express) {
     const organizationId = req.body.organizationId ? Number(req.body.organizationId) : null;
     
     if (organizationId) {
+      // Verify user has access to this organization
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
       // Clear organization-scoped integration
       await upsertOrgIntegration(organizationId, "planner", {
         accessToken: null,
@@ -375,6 +413,12 @@ export async function setupPlannerRoutes(app: Express) {
       return res.json({ configured: isConfigured, connected: false });
     }
 
+    // Verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: 'Access denied to this organization' });
+    }
+
     const integration = await getOrgIntegration(organizationId, "entra");
     const hasToken = !!integration?.accessToken;
     const isExpired = integration?.tokenExpiry ? Date.now() > new Date(integration.tokenExpiry).getTime() : true;
@@ -397,6 +441,12 @@ export async function setupPlannerRoutes(app: Express) {
     const organizationId = req.body.organizationId ? Number(req.body.organizationId) : null;
     if (!organizationId) {
       return res.status(400).json({ message: "Organization ID is required" });
+    }
+
+    // Verify user has access to this organization
+    const userId = getUserIdFromRequest(req);
+    if (!await userHasOrgAccess(userId, organizationId)) {
+      return res.status(403).json({ message: 'Access denied to this organization' });
     }
 
     const state = generateSecureToken();
@@ -503,6 +553,12 @@ export async function setupPlannerRoutes(app: Express) {
     const organizationId = req.body.organizationId ? Number(req.body.organizationId) : null;
     
     if (organizationId) {
+      // Verify user has access to this organization
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      
       await upsertOrgIntegration(organizationId, "entra", {
         accessToken: null,
         refreshToken: null,
@@ -516,6 +572,14 @@ export async function setupPlannerRoutes(app: Express) {
 
   app.get("/api/planner/plans", async (req, res) => {
     const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
+    
+    // Verify user has access to this organization if specified
+    if (organizationId) {
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+    }
     
     // Try org-scoped token first, fallback to session
     let token = req.session.plannerAccessToken;
@@ -574,6 +638,14 @@ export async function setupPlannerRoutes(app: Express) {
   app.get("/api/planner/plans/:planId/tasks", async (req, res) => {
     const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
     const { planId } = req.params;
+    
+    // Verify user has access to this organization if specified
+    if (organizationId) {
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+    }
     
     // Try org-scoped token first, fallback to session
     let token = req.session.plannerAccessToken;
@@ -657,6 +729,14 @@ export async function setupPlannerRoutes(app: Express) {
   app.get("/api/planner/plans/:planId", async (req, res) => {
     const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
     const { planId } = req.params;
+    
+    // Verify user has access to this organization if specified
+    if (organizationId) {
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+    }
     
     // Try org-scoped token first, fallback to session
     let token = req.session.plannerAccessToken;
