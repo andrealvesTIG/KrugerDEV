@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -1038,9 +1039,11 @@ export default function Timesheets() {
   const [timeOffPopoverOpen, setTimeOffPopoverOpen] = useState(false);
   const [timeOffForm, setTimeOffForm] = useState({
     categoryId: 0,
-    entryDate: formatDateKey(new Date()),
+    startDate: formatDateKey(new Date()),
+    endDate: formatDateKey(new Date()),
     hours: 8,
-    notes: ""
+    notes: "",
+    includeWeekends: false
   });
 
   // Get previous week dates for copy feature
@@ -1192,17 +1195,77 @@ export default function Timesheets() {
   // Handle time off entry submission
   const handleTimeOffSubmit = async () => {
     if (!currentOrganization || !timeOffForm.categoryId) return;
+    
     try {
-      await createNonProjectTime.mutateAsync({
-        organizationId: currentOrganization.id,
-        categoryId: timeOffForm.categoryId,
-        entryDate: timeOffForm.entryDate,
-        hours: timeOffForm.hours,
-        notes: timeOffForm.notes || undefined
-      });
-      toast({ title: "Time Off Added", description: "Time off entry has been recorded" });
+      const start = parseISO(timeOffForm.startDate);
+      const end = parseISO(timeOffForm.endDate);
+      
+      // Validate date range
+      if (end < start) {
+        toast({ title: "Invalid Date Range", description: "End date must be on or after start date", variant: "destructive" });
+        return;
+      }
+      
+      // Generate all dates in range
+      const datesToCreate: Date[] = [];
+      let current = start;
+      while (current <= end) {
+        const dayOfWeek = getDay(current);
+        // Skip weekends unless includeWeekends is true
+        if (timeOffForm.includeWeekends || (dayOfWeek !== 0 && dayOfWeek !== 6)) {
+          datesToCreate.push(current);
+        }
+        current = addDays(current, 1);
+      }
+      
+      if (datesToCreate.length === 0) {
+        toast({ title: "No Days Selected", description: "Selected range contains no applicable days", variant: "destructive" });
+        return;
+      }
+      
+      // Limit to prevent excessive entries (max 30 days)
+      if (datesToCreate.length > 30) {
+        toast({ title: "Range Too Large", description: "Maximum 30 days per submission. Please split into smaller ranges.", variant: "destructive" });
+        return;
+      }
+      
+      // Create entries for all dates with error tracking
+      let successCount = 0;
+      let failedDates: string[] = [];
+      
+      for (const date of datesToCreate) {
+        try {
+          await createNonProjectTime.mutateAsync({
+            organizationId: currentOrganization.id,
+            categoryId: timeOffForm.categoryId,
+            entryDate: formatDateKey(date),
+            hours: timeOffForm.hours,
+            notes: timeOffForm.notes || undefined
+          });
+          successCount++;
+        } catch {
+          failedDates.push(format(date, "MMM d"));
+        }
+      }
+      
+      // Show appropriate message
+      if (failedDates.length === 0) {
+        toast({ 
+          title: "Time Off Added", 
+          description: `${successCount} day${successCount > 1 ? 's' : ''} of time off recorded` 
+        });
+      } else if (successCount > 0) {
+        toast({ 
+          title: "Partial Success", 
+          description: `${successCount} day${successCount > 1 ? 's' : ''} added, but ${failedDates.length} failed: ${failedDates.join(", ")}`,
+          variant: "destructive"
+        });
+      } else {
+        toast({ title: "Error", description: "Failed to add any time off entries", variant: "destructive" });
+      }
+      
       setTimeOffPopoverOpen(false);
-      setTimeOffForm({ categoryId: 0, entryDate: formatDateKey(new Date()), hours: 8, notes: "" });
+      setTimeOffForm({ categoryId: 0, startDate: formatDateKey(new Date()), endDate: formatDateKey(new Date()), hours: 8, notes: "", includeWeekends: false });
     } catch (err) {
       toast({ title: "Error", description: "Failed to add time off", variant: "destructive" });
     }
@@ -1373,18 +1436,41 @@ export default function Timesheets() {
                       </Select>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Date</Label>
-                      <Input
-                        type="date"
-                        value={timeOffForm.entryDate}
-                        onChange={(e) => setTimeOffForm(f => ({ ...f, entryDate: e.target.value }))}
-                        className="h-9"
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Start Date</Label>
+                        <Input
+                          type="date"
+                          value={timeOffForm.startDate}
+                          onChange={(e) => setTimeOffForm(f => ({ ...f, startDate: e.target.value }))}
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">End Date</Label>
+                        <Input
+                          type="date"
+                          value={timeOffForm.endDate}
+                          min={timeOffForm.startDate}
+                          onChange={(e) => setTimeOffForm(f => ({ ...f, endDate: e.target.value }))}
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="include-weekends"
+                        checked={timeOffForm.includeWeekends}
+                        onCheckedChange={(checked) => setTimeOffForm(f => ({ ...f, includeWeekends: !!checked }))}
                       />
+                      <Label htmlFor="include-weekends" className="text-xs cursor-pointer">
+                        Include weekends
+                      </Label>
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Hours</Label>
+                      <Label className="text-xs">Hours per Day</Label>
                       <div className="flex items-center gap-2">
                         <Input
                           type="number"
@@ -1764,19 +1850,44 @@ export default function Timesheets() {
                               </Select>
                             </div>
 
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">Date</Label>
-                              <Input
-                                type="date"
-                                value={timeOffForm.entryDate}
-                                onChange={(e) => setTimeOffForm(f => ({ ...f, entryDate: e.target.value }))}
-                                className="h-9"
-                                data-testid="input-time-off-date"
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">Start Date</Label>
+                                <Input
+                                  type="date"
+                                  value={timeOffForm.startDate}
+                                  onChange={(e) => setTimeOffForm(f => ({ ...f, startDate: e.target.value }))}
+                                  className="h-9"
+                                  data-testid="input-time-off-start-date"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">End Date</Label>
+                                <Input
+                                  type="date"
+                                  value={timeOffForm.endDate}
+                                  min={timeOffForm.startDate}
+                                  onChange={(e) => setTimeOffForm(f => ({ ...f, endDate: e.target.value }))}
+                                  className="h-9"
+                                  data-testid="input-time-off-end-date"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id="include-weekends-fullscreen"
+                                checked={timeOffForm.includeWeekends}
+                                onCheckedChange={(checked) => setTimeOffForm(f => ({ ...f, includeWeekends: !!checked }))}
+                                data-testid="checkbox-include-weekends"
                               />
+                              <Label htmlFor="include-weekends-fullscreen" className="text-xs cursor-pointer">
+                                Include weekends
+                              </Label>
                             </div>
 
                             <div className="space-y-1.5">
-                              <Label className="text-xs">Hours</Label>
+                              <Label className="text-xs">Hours per Day</Label>
                               <div className="flex items-center gap-2">
                                 <Input
                                   type="number"
