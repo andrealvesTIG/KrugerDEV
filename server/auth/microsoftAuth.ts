@@ -139,6 +139,21 @@ export async function setupMicrosoftAuth(app: Express) {
     req.session.msOAuthState = state;
     req.session.msOAuthNonce = nonce;
     
+    // Also store state in a cookie as backup for mobile viewport switching scenarios
+    // This helps when session might change but cookies persist
+    res.cookie('ms_oauth_state', state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+    res.cookie('ms_oauth_nonce', nonce, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+    
     await new Promise<void>((resolve, reject) => {
       req.session.save((err) => {
         if (err) reject(err);
@@ -172,11 +187,24 @@ export async function setupMicrosoftAuth(app: Express) {
       return res.redirect(`/auth?error=${encodeURIComponent(String(error_description || error))}`);
     }
 
-    const savedState = req.session.msOAuthState;
-    const savedNonce = req.session.msOAuthNonce;
+    // Try session first, then fall back to cookies (for mobile viewport switching)
+    let savedState = req.session.msOAuthState;
+    let savedNonce = req.session.msOAuthNonce;
     
+    // Fall back to cookie values if session doesn't have them
+    if (!savedState && req.cookies?.ms_oauth_state) {
+      savedState = req.cookies.ms_oauth_state;
+      savedNonce = req.cookies.ms_oauth_nonce;
+      console.log("Using cookie-based OAuth state (session state was lost)");
+    }
+    
+    // Clean up session state
     delete req.session.msOAuthState;
     delete req.session.msOAuthNonce;
+    
+    // Clear the OAuth cookies
+    res.clearCookie('ms_oauth_state');
+    res.clearCookie('ms_oauth_nonce');
 
     if (!state || state !== savedState) {
       console.error("CSRF state mismatch", { 
@@ -184,9 +212,10 @@ export async function setupMicrosoftAuth(app: Express) {
         expected: savedState,
         hasSession: !!req.session,
         sessionId: req.sessionID,
-        cookiePresent: !!req.headers.cookie
+        cookiePresent: !!req.headers.cookie,
+        hadCookieState: !!req.cookies?.ms_oauth_state
       });
-      // If no saved state at all (session lost), provide a more helpful error
+      // If no saved state at all (session and cookie both lost), provide a more helpful error
       if (!savedState) {
         return res.redirect("/auth?error=Session expired. Please try signing in again.");
       }

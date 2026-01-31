@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { setupSwagger } from "./swagger";
@@ -9,6 +10,9 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 
 const app = express();
+
+// Cookie parser middleware (for OAuth state fallback)
+app.use(cookieParser());
 const httpServer = createServer(app);
 
 // Serve static files from public directory (avatars, etc.)
