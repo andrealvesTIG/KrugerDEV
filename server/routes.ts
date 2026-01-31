@@ -12767,6 +12767,46 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // Create plan meter rule
+  app.post('/api/admin/plans/:planId/rules', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (user?.role !== 'super_admin') {
+      return res.status(403).json({ message: "Super admin access required" });
+    }
+
+    try {
+      const { planMeterRules } = await import("@shared/schema");
+      const planId = parseInt(req.params.planId);
+      const { meterId, ruleType, includedUnitsMonthly, hardCapUnits, overageUnitPriceMicrocents, isSharedPool } = req.body;
+
+      if (!meterId || !ruleType) {
+        return res.status(400).json({ message: "meterId and ruleType are required" });
+      }
+
+      const [newRule] = await db.insert(planMeterRules)
+        .values({
+          planId,
+          meterId,
+          ruleType,
+          includedUnitsMonthly: includedUnitsMonthly || null,
+          hardCapUnits: hardCapUnits || null,
+          overageUnitPriceMicrocents: overageUnitPriceMicrocents || null,
+          isSharedPool: isSharedPool || false,
+        })
+        .returning();
+
+      res.json(newRule);
+    } catch (error) {
+      console.error("Error creating rule:", error);
+      res.status(500).json({ message: "Failed to create rule" });
+    }
+  });
+
   // Update plan meter rule
   app.put('/api/admin/plans/:planId/rules/:ruleId', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;

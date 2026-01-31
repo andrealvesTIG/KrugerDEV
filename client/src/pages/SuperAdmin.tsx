@@ -921,6 +921,9 @@ interface OrganizationMembership {
   createdAt: string;
 }
 
+type UserSortField = 'name' | 'email' | 'role' | 'createdAt';
+type SortDirection = 'asc' | 'desc';
+
 function AllUsersTab() {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
@@ -931,6 +934,9 @@ function AllUsersTab() {
   const [addingOrgRole, setAddingOrgRole] = useState<string>("member");
   const [deactivateUserId, setDeactivateUserId] = useState<string | null>(null);
   const [deactivatedOpen, setDeactivatedOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortField, setSortField] = useState<UserSortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ['/api/users']
@@ -1056,9 +1062,53 @@ function AllUsersTab() {
     setEditingUser(user);
   };
 
+  // Handle sort toggle
+  const handleSort = (field: UserSortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
   // Separate active and deactivated users
-  const activeUsers = users?.filter(u => !u.deactivatedAt) || [];
+  const allActiveUsers = users?.filter(u => !u.deactivatedAt) || [];
   const deactivatedUsers = users?.filter(u => u.deactivatedAt) || [];
+
+  // Filter by search query
+  const filteredUsers = allActiveUsers.filter(user => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    const fullName = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase();
+    const email = (user.email || '').toLowerCase();
+    const role = (user.role || 'user').toLowerCase();
+    return fullName.includes(query) || email.includes(query) || role.includes(query);
+  });
+
+  // Sort users
+  const activeUsers = [...filteredUsers].sort((a, b) => {
+    let comparison = 0;
+    switch (sortField) {
+      case 'name':
+        const nameA = `${a.firstName || ''} ${a.lastName || ''}`.toLowerCase();
+        const nameB = `${b.firstName || ''} ${b.lastName || ''}`.toLowerCase();
+        comparison = nameA.localeCompare(nameB);
+        break;
+      case 'email':
+        comparison = (a.email || '').localeCompare(b.email || '');
+        break;
+      case 'role':
+        comparison = (a.role || 'user').localeCompare(b.role || 'user');
+        break;
+      case 'createdAt':
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        comparison = dateA - dateB;
+        break;
+    }
+    return sortDirection === 'asc' ? comparison : -comparison;
+  });
 
   // Get organizations the user is NOT a member of (for adding)
   const availableOrgs = allOrganizations?.filter(
@@ -1076,13 +1126,74 @@ function AllUsersTab() {
         <CardDescription>View and manage all users across organizations</CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, email, or role..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-users"
+            />
+          </div>
+          {searchQuery && (
+            <span className="text-sm text-muted-foreground">
+              {activeUsers.length} of {allActiveUsers.length} users
+            </span>
+          )}
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>System Role</TableHead>
-              <TableHead>Joined</TableHead>
+              <TableHead 
+                className="cursor-pointer select-none"
+                onClick={() => handleSort('name')}
+                data-testid="header-sort-name"
+              >
+                <div className="flex items-center gap-1">
+                  Name
+                  {sortField === 'name' && (
+                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer select-none"
+                onClick={() => handleSort('email')}
+                data-testid="header-sort-email"
+              >
+                <div className="flex items-center gap-1">
+                  Email
+                  {sortField === 'email' && (
+                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer select-none"
+                onClick={() => handleSort('role')}
+                data-testid="header-sort-role"
+              >
+                <div className="flex items-center gap-1">
+                  System Role
+                  {sortField === 'role' && (
+                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer select-none"
+                onClick={() => handleSort('createdAt')}
+                data-testid="header-sort-joined"
+              >
+                <div className="flex items-center gap-1">
+                  Joined
+                  {sortField === 'createdAt' && (
+                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                  )}
+                </div>
+              </TableHead>
               <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -1616,6 +1727,20 @@ function PlansTab() {
     }
   });
 
+  const createRule = useMutation({
+    mutationFn: async (data: { planId: number; meterId: number; ruleType: string; overageUnitPriceMicrocents?: number }) => {
+      const { planId, ...ruleData } = data;
+      return apiRequest('POST', `/api/admin/plans/${planId}/rules`, ruleData);
+    },
+    onSuccess: (_, variables) => {
+      toast({ title: "Success", description: "Overage rule created" });
+      fetchRules(variables.planId);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create rule", variant: "destructive" });
+    }
+  });
+
   const fetchRules = async (planId: number) => {
     setLoadingRules(true);
     try {
@@ -1953,7 +2078,7 @@ function PlansTab() {
                             )}
                           </div>
                           
-                          {overageRule && (
+                          {overageRule ? (
                             <div className="pt-3 border-t space-y-2">
                               <Label className="text-sm">Overage Pricing</Label>
                               <div className="flex items-center gap-2">
@@ -1978,6 +2103,30 @@ function PlansTab() {
                               <p className="text-xs text-muted-foreground">
                                 Price per credit when usage exceeds included quota
                               </p>
+                            </div>
+                          ) : quotaRule && (
+                            <div className="pt-3 border-t space-y-2">
+                              <Label className="text-sm">Overage Pricing</Label>
+                              <p className="text-xs text-muted-foreground mb-2">No overage rule configured for credits</p>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  if (editingPlan) {
+                                    createRule.mutate({
+                                      planId: editingPlan.id,
+                                      meterId: quotaRule.meterId,
+                                      ruleType: 'METERED_OVERAGE',
+                                      overageUnitPriceMicrocents: 10000
+                                    });
+                                  }
+                                }}
+                                disabled={createRule.isPending}
+                                data-testid="button-add-credits-overage"
+                              >
+                                {createRule.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                                Add Credits Overage Rule
+                              </Button>
                             </div>
                           )}
                           

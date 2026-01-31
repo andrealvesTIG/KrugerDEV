@@ -49,6 +49,7 @@ import Embed from "@/pages/Embed";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyStatement from "@/pages/PrivacyStatement";
 import PublicUserGuide from "@/pages/PublicUserGuide";
+import FridayPage from "@/pages/FridayPage";
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -204,6 +205,7 @@ function App() {
               <Route path="/terms" component={TermsOfService} />
               <Route path="/privacy" component={PrivacyStatement} />
               <Route path="/guide" component={PublicUserGuide} />
+              <Route path="/friday" component={FridayPage} />
               <Route>
                 <Router />
               </Route>
