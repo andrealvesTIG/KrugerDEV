@@ -1304,9 +1304,11 @@ export function BillingContent() {
                             description: `Your ${changePlanDialog.name} plan subscription is now active.` 
                           });
                         } catch (error) {
+                          console.error('[Billing] PayPal activation error:', error);
+                          const errorMessage = error instanceof Error ? error.message : "Failed to activate subscription. Please contact support.";
                           toast({ 
                             title: "Error", 
-                            description: "Failed to activate subscription. Please contact support.", 
+                            description: errorMessage, 
                             variant: "destructive" 
                           });
                         }
