@@ -4,6 +4,7 @@ import { Loader2, AlertCircle } from "lucide-react";
 
 interface PayPalSubscriptionButtonProps {
   planId: string;
+  planCode?: string;
   onSuccess?: (subscriptionId: string, subscriptionData: any) => void;
   onError?: (error: any) => void;
   onCancel?: () => void;
@@ -13,6 +14,7 @@ interface PayPalSubscriptionButtonProps {
 
 export default function PayPalSubscriptionButton({
   planId,
+  planCode,
   onSuccess,
   onError,
   onCancel,
@@ -96,8 +98,21 @@ export default function PayPalSubscriptionButton({
         label: "pay",
       },
       createSubscription: async (data: any, actions: any) => {
+        // Build return URL with plan code for redirect flow (mobile devices)
+        const baseUrl = window.location.origin;
+        const returnUrl = planCode 
+          ? `${baseUrl}/billing?plan_code=${encodeURIComponent(planCode)}`
+          : `${baseUrl}/billing`;
+        
         return actions.subscription.create({
           plan_id: planId,
+          application_context: {
+            brand_name: "FridayReport.AI",
+            shipping_preference: "NO_SHIPPING",
+            user_action: "SUBSCRIBE_NOW",
+            return_url: returnUrl,
+            cancel_url: `${baseUrl}/billing`,
+          },
         });
       },
       onApprove: async (data: any, actions: any) => {
@@ -138,7 +153,7 @@ export default function PayPalSubscriptionButton({
         container.innerHTML = "";
       }
     };
-  }, [sdkReady, planId, disabled]);
+  }, [sdkReady, planId, planCode, disabled]);
 
   if (disabled) {
     return (

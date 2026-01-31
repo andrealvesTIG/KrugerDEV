@@ -13248,10 +13248,108 @@ Return ONLY valid JSON.`;
           const { planCode, paypalSubscriptionId } = req.body;
           const { plans, subscriptions, billingCycles, usageRollups, meters, planMeterRules } = await import("@shared/schema");
           
-          const [plan] = await db.select().from(plans).where(eq(plans.code, planCode));
-          if (!plan) {
-            return res.status(404).json({ message: "Plan not found" });
+          if (!paypalSubscriptionId || typeof paypalSubscriptionId !== 'string') {
+            return res.status(400).json({ message: "PayPal subscription ID is required" });
           }
+          
+          // Verify PayPal subscription and derive plan from PayPal's data (prevents plan spoofing)
+          const PAYPAL_API_BASE = process.env.NODE_ENV === "production"
+            ? "https://api-m.paypal.com"
+            : "https://api-m.sandbox.paypal.com";
+          
+          const PAYPAL_CLIENT_ID = (process.env.PAYPAL_CLIENT_ID || "").trim();
+          const PAYPAL_CLIENT_SECRET = (process.env.PAYPAL_CLIENT_SECRET || "").trim();
+          
+          let verifiedPlan: typeof plans.$inferSelect | null = null;
+          
+          if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+            // PayPal credentials not configured - require planCode as fallback
+            const [requestedPlan] = await db.select().from(plans).where(eq(plans.code, planCode));
+            if (!requestedPlan) {
+              return res.status(404).json({ message: "Plan not found" });
+            }
+            if (requestedPlan.paypalPlanId) {
+              // Plan requires PayPal verification but credentials missing
+              console.error("PayPal credentials not configured, cannot verify subscription for PayPal-enabled plan");
+              return res.status(500).json({ message: "Payment verification is not configured. Please contact support." });
+            }
+            verifiedPlan = requestedPlan;
+          } else {
+            // Verify subscription with PayPal API
+            try {
+              const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64");
+              const tokenRes = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+                method: "POST",
+                headers: {
+                  "Authorization": `Basic ${auth}`,
+                  "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: "grant_type=client_credentials",
+              });
+              
+              if (!tokenRes.ok) {
+                console.error("Failed to get PayPal access token:", await tokenRes.text());
+                return res.status(500).json({ message: "Failed to authenticate with payment provider. Please try again." });
+              }
+              
+              const tokenData = await tokenRes.json();
+              
+              const subRes = await fetch(`${PAYPAL_API_BASE}/v1/billing/subscriptions/${paypalSubscriptionId}`, {
+                headers: {
+                  "Authorization": `Bearer ${tokenData.access_token}`,
+                  "Content-Type": "application/json",
+                },
+              });
+              
+              if (!subRes.ok) {
+                console.error(`Failed to verify PayPal subscription ${paypalSubscriptionId}:`, await subRes.text());
+                return res.status(400).json({ message: "Failed to verify PayPal subscription" });
+              }
+              
+              const paypalSub = await subRes.json();
+              
+              // Verify the subscription is active/approved
+              if (paypalSub.status !== 'ACTIVE' && paypalSub.status !== 'APPROVED') {
+                console.error(`PayPal subscription ${paypalSubscriptionId} has status ${paypalSub.status}, rejecting`);
+                return res.status(400).json({ message: "PayPal subscription is not active" });
+              }
+              
+              // Derive plan from PayPal's plan_id (server-side, ignore URL param to prevent spoofing)
+              const paypalPlanIdFromSub = paypalSub.plan_id;
+              if (paypalPlanIdFromSub) {
+                const [matchingPlan] = await db.select().from(plans).where(eq(plans.paypalPlanId, paypalPlanIdFromSub));
+                if (matchingPlan) {
+                  verifiedPlan = matchingPlan;
+                  if (planCode && matchingPlan.code !== planCode) {
+                    console.log(`Plan derived from PayPal: requested ${planCode} but PayPal subscription is for ${matchingPlan.code}`);
+                  }
+                }
+              }
+              
+              // If no matching plan found from PayPal, fall back to planCode (for legacy plans)
+              if (!verifiedPlan && planCode) {
+                const [requestedPlan] = await db.select().from(plans).where(eq(plans.code, planCode));
+                if (requestedPlan) {
+                  // Only allow fallback for plans that don't have paypalPlanId set
+                  if (!requestedPlan.paypalPlanId) {
+                    verifiedPlan = requestedPlan;
+                  } else {
+                    console.error(`Plan ${planCode} has paypalPlanId but PayPal returned ${paypalPlanIdFromSub}`);
+                    return res.status(400).json({ message: "Subscription plan does not match the payment" });
+                  }
+                }
+              }
+            } catch (verifyError) {
+              console.error("PayPal verification error:", verifyError);
+              return res.status(500).json({ message: "Failed to verify subscription with PayPal. Please try again." });
+            }
+          }
+          
+          if (!verifiedPlan) {
+            return res.status(404).json({ message: "Could not determine subscription plan" });
+          }
+          
+          const plan = verifiedPlan;
 
           // Check if user has existing subscription
           const [existingSub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));

@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import PayPalSubscriptionButton from "@/components/PayPalSubscriptionButton";
 import type { Plan, Subscription, UsageRollup } from "@shared/schema";
@@ -174,6 +174,95 @@ export function BillingContent() {
   const [changePlanDialog, setChangePlanDialog] = useState<PlanWithRules | null>(null);
   const [activeTab, setActiveTab] = useState("billing");
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
+  const [processingPayPalReturn, setProcessingPayPalReturn] = useState(false);
+  const paypalReturnProcessed = useRef(false);
+
+  // Handle PayPal redirect return (mobile devices use redirect instead of popup)
+  useEffect(() => {
+    if (paypalReturnProcessed.current || !user) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const subscriptionId = urlParams.get('subscription_id');
+    const planCode = urlParams.get('plan_code');
+    
+    if (!subscriptionId) return;
+    
+    paypalReturnProcessed.current = true;
+    setProcessingPayPalReturn(true);
+    
+    const activateSubscription = async () => {
+      try {
+        // First verify the subscription with PayPal
+        const verifyRes = await fetch(`/api/paypal/subscription/${subscriptionId}`, {
+          credentials: 'include',
+        });
+        
+        if (!verifyRes.ok) {
+          throw new Error('Failed to verify subscription with PayPal');
+        }
+        
+        const subscriptionData = await verifyRes.json();
+        
+        // Only proceed if subscription is active or approved
+        if (subscriptionData.status !== 'ACTIVE' && subscriptionData.status !== 'APPROVED') {
+          throw new Error(`Subscription status is ${subscriptionData.status}, expected ACTIVE or APPROVED`);
+        }
+        
+        // Determine plan code from URL or try to detect from subscription
+        let finalPlanCode = planCode;
+        if (!finalPlanCode) {
+          // Try to get plan info from subscription data
+          const planId = subscriptionData.plan_id;
+          if (planId) {
+            // Fetch plans to match PayPal plan ID to our plan code
+            const plansRes = await fetch('/api/billing/plans', { credentials: 'include' });
+            if (plansRes.ok) {
+              const plans = await plansRes.json();
+              const matchingPlan = plans.find((p: any) => p.paypalPlanId === planId);
+              if (matchingPlan) {
+                finalPlanCode = matchingPlan.code;
+              }
+            }
+          }
+        }
+        
+        if (!finalPlanCode) {
+          throw new Error('Could not determine plan for subscription');
+        }
+        
+        // Activate the subscription in our system
+        await apiRequest('POST', '/api/billing/subscription/paypal', {
+          planCode: finalPlanCode,
+          paypalSubscriptionId: subscriptionId,
+        });
+        
+        // Refresh subscription data
+        queryClient.invalidateQueries({ queryKey: ['/api/billing/subscription'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/billing/usage'] });
+        
+        toast({
+          title: "Subscription Activated!",
+          description: "Your subscription has been successfully activated.",
+        });
+        
+        // Clean up URL parameters
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+        
+      } catch (error: any) {
+        console.error('Failed to activate PayPal subscription:', error);
+        toast({
+          title: "Subscription Activation Failed",
+          description: error.message || "Please contact support if the issue persists.",
+          variant: "destructive",
+        });
+      } finally {
+        setProcessingPayPalReturn(false);
+      }
+    };
+    
+    activateSubscription();
+  }, [user, toast]);
 
   const YEARLY_DISCOUNT = 0.10; // 10% discount for yearly billing
   
@@ -355,10 +444,13 @@ export function BillingContent() {
     },
   });
 
-  if (authLoading || plansLoading) {
+  if (authLoading || plansLoading || processingPayPalReturn) {
     return (
-      <div className="flex h-96 items-center justify-center">
+      <div className="flex h-96 flex-col items-center justify-center gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        {processingPayPalReturn && (
+          <p className="text-muted-foreground">Activating your subscription...</p>
+        )}
       </div>
     );
   }
@@ -1188,6 +1280,7 @@ export function BillingContent() {
                     <p className="text-sm text-muted-foreground mb-3">Subscribe with PayPal for secure recurring payments:</p>
                     <PayPalSubscriptionButton
                       planId={changePlanDialog.paypalPlanId}
+                      planCode={changePlanDialog.code}
                       onSuccess={async (subscriptionId, subscriptionData) => {
                         try {
                           await apiRequest('POST', '/api/billing/subscription/paypal', {
