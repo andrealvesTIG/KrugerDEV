@@ -500,6 +500,60 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Time Categories (for non-project time like vacation, PTO, etc.)
+export const timeCategories = pgTable("time_categories", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(), // e.g., "Vacation", "PTO", "Sick Leave"
+  code: text("code"), // Short code like "VAC", "PTO", "SICK"
+  description: text("description"),
+  color: text("color").default("#6366f1"), // Color for UI display
+  isActive: boolean("is_active").default(true),
+  isPaidTime: boolean("is_paid_time").default(true), // Whether this counts as paid time
+  requiresApproval: boolean("requires_approval").default(true),
+  maxHoursPerYear: numeric("max_hours_per_year"), // Optional annual limit
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+export const insertTimeCategorySchema = createInsertSchema(timeCategories).omit({
+  id: true,
+  createdAt: true,
+  deletedAt: true,
+});
+export type InsertTimeCategory = z.infer<typeof insertTimeCategorySchema>;
+export type TimeCategory = typeof timeCategories.$inferSelect;
+
+// Non-Project Time Entries (for vacation, PTO, etc.)
+export const nonProjectTimeEntries = pgTable("non_project_time_entries", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  resourceId: integer("resource_id").references(() => resources.id).notNull(),
+  categoryId: integer("category_id").references(() => timeCategories.id).notNull(),
+  entryDate: date("entry_date").notNull(),
+  hours: numeric("hours").notNull(),
+  notes: text("notes"),
+  status: text("status").default("Draft"), // Draft, Submitted, Approved, Rejected
+  submittedAt: timestamp("submitted_at"),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertNonProjectTimeEntrySchema = createInsertSchema(nonProjectTimeEntries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  submittedAt: true,
+  approvedAt: true,
+});
+export type InsertNonProjectTimeEntry = z.infer<typeof insertNonProjectTimeEntrySchema>;
+export type NonProjectTimeEntry = typeof nonProjectTimeEntries.$inferSelect;
+
 // Change Requests (Project change control)
 export const changeRequests = pgTable("change_requests", {
   id: serial("id").primaryKey(),

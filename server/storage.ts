@@ -47,6 +47,8 @@ import {
   type StatusReportHistory, type InsertStatusReportHistory,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
   type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
+  timeCategories, type TimeCategory, type InsertTimeCategory,
+  nonProjectTimeEntries, type NonProjectTimeEntry, type InsertNonProjectTimeEntry,
   type RecycleBinItem, type RecycleBinItemType,
   type ProjectView, type InsertProjectView, type UpdateProjectViewRequest,
   type SystemProjectView, type InsertSystemProjectView, type UpdateSystemProjectViewRequest,
@@ -375,6 +377,20 @@ export interface IStorage {
   submitTimesheetWeek(userId: string, organizationId: number, startDate: string, endDate: string): Promise<void>;
   approveTimesheetEntry(id: number, approvedBy: string): Promise<TimesheetEntry>;
   rejectTimesheetEntry(id: number, rejectionReason: string): Promise<TimesheetEntry>;
+
+  // Time Categories (non-project time types)
+  getTimeCategories(organizationId: number): Promise<TimeCategory[]>;
+  getTimeCategory(id: number): Promise<TimeCategory | undefined>;
+  createTimeCategory(category: InsertTimeCategory): Promise<TimeCategory>;
+  updateTimeCategory(id: number, updates: Partial<InsertTimeCategory>): Promise<TimeCategory>;
+  deleteTimeCategory(id: number): Promise<void>;
+
+  // Non-Project Time Entries
+  getNonProjectTimeEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<NonProjectTimeEntry[]>;
+  getNonProjectTimeEntriesWithCategory(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: NonProjectTimeEntry; category: TimeCategory }[]>;
+  createNonProjectTimeEntry(entry: InsertNonProjectTimeEntry): Promise<NonProjectTimeEntry>;
+  updateNonProjectTimeEntry(id: number, updates: Partial<InsertNonProjectTimeEntry>): Promise<NonProjectTimeEntry>;
+  deleteNonProjectTimeEntry(id: number): Promise<void>;
 
   // User Consents
   getUserConsents(userId: string): Promise<UserConsent[]>;
@@ -3236,6 +3252,85 @@ export class DatabaseStorage implements IStorage {
       .where(eq(timesheetEntries.id, id))
       .returning();
     return updated;
+  }
+
+  // Time Categories
+  async getTimeCategories(organizationId: number): Promise<TimeCategory[]> {
+    return await db.select().from(timeCategories)
+      .where(and(
+        eq(timeCategories.organizationId, organizationId),
+        isNull(timeCategories.deletedAt)
+      ))
+      .orderBy(asc(timeCategories.sortOrder), asc(timeCategories.name));
+  }
+
+  async getTimeCategory(id: number): Promise<TimeCategory | undefined> {
+    const [category] = await db.select().from(timeCategories)
+      .where(and(eq(timeCategories.id, id), isNull(timeCategories.deletedAt)));
+    return category;
+  }
+
+  async createTimeCategory(category: InsertTimeCategory): Promise<TimeCategory> {
+    const [created] = await db.insert(timeCategories).values(category).returning();
+    return created;
+  }
+
+  async updateTimeCategory(id: number, updates: Partial<InsertTimeCategory>): Promise<TimeCategory> {
+    const [updated] = await db.update(timeCategories)
+      .set(updates)
+      .where(eq(timeCategories.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTimeCategory(id: number): Promise<void> {
+    await db.update(timeCategories)
+      .set({ deletedAt: new Date() })
+      .where(eq(timeCategories.id, id));
+  }
+
+  // Non-Project Time Entries
+  async getNonProjectTimeEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<NonProjectTimeEntry[]> {
+    return await db.select().from(nonProjectTimeEntries)
+      .where(and(
+        eq(nonProjectTimeEntries.userId, userId),
+        eq(nonProjectTimeEntries.organizationId, organizationId),
+        sql`${nonProjectTimeEntries.entryDate} >= ${startDate}`,
+        sql`${nonProjectTimeEntries.entryDate} <= ${endDate}`
+      ));
+  }
+
+  async getNonProjectTimeEntriesWithCategory(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: NonProjectTimeEntry; category: TimeCategory }[]> {
+    const results = await db.select({
+      entry: nonProjectTimeEntries,
+      category: timeCategories
+    })
+      .from(nonProjectTimeEntries)
+      .innerJoin(timeCategories, eq(nonProjectTimeEntries.categoryId, timeCategories.id))
+      .where(and(
+        eq(nonProjectTimeEntries.userId, userId),
+        eq(nonProjectTimeEntries.organizationId, organizationId),
+        sql`${nonProjectTimeEntries.entryDate} >= ${startDate}`,
+        sql`${nonProjectTimeEntries.entryDate} <= ${endDate}`
+      ));
+    return results;
+  }
+
+  async createNonProjectTimeEntry(entry: InsertNonProjectTimeEntry): Promise<NonProjectTimeEntry> {
+    const [created] = await db.insert(nonProjectTimeEntries).values(entry).returning();
+    return created;
+  }
+
+  async updateNonProjectTimeEntry(id: number, updates: Partial<InsertNonProjectTimeEntry>): Promise<NonProjectTimeEntry> {
+    const [updated] = await db.update(nonProjectTimeEntries)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(nonProjectTimeEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteNonProjectTimeEntry(id: number): Promise<void> {
+    await db.delete(nonProjectTimeEntries).where(eq(nonProjectTimeEntries.id, id));
   }
 
   // User Consents

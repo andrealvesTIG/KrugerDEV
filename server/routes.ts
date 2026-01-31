@@ -14354,6 +14354,175 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ===== Time Categories (Non-Project Time Types) =====
+  
+  // Get time categories for organization
+  app.get('/api/time-categories', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) {
+        return res.status(400).json({ message: 'organizationId is required' });
+      }
+
+      const categories = await storage.getTimeCategories(organizationId);
+      res.json(categories);
+    } catch (error) {
+      console.error('Error getting time categories:', error);
+      res.status(500).json({ message: 'Failed to get time categories' });
+    }
+  });
+
+  // Create time category
+  app.post('/api/time-categories', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const category = await storage.createTimeCategory(req.body);
+      res.status(201).json(category);
+    } catch (error) {
+      console.error('Error creating time category:', error);
+      res.status(500).json({ message: 'Failed to create time category' });
+    }
+  });
+
+  // Update time category
+  app.put('/api/time-categories/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      const updated = await storage.updateTimeCategory(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating time category:', error);
+      res.status(500).json({ message: 'Failed to update time category' });
+    }
+  });
+
+  // Delete time category
+  app.delete('/api/time-categories/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteTimeCategory(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting time category:', error);
+      res.status(500).json({ message: 'Failed to delete time category' });
+    }
+  });
+
+  // ===== Non-Project Time Entries =====
+
+  // Get non-project time entries
+  app.get('/api/non-project-time', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+
+      if (!organizationId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      const entries = await storage.getNonProjectTimeEntriesWithCategory(userId, organizationId, startDate, endDate);
+      res.json(entries);
+    } catch (error) {
+      console.error('Error getting non-project time entries:', error);
+      res.status(500).json({ message: 'Failed to get non-project time entries' });
+    }
+  });
+
+  // Create non-project time entry
+  app.post('/api/non-project-time', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { organizationId, categoryId, entryDate, hours, notes } = req.body;
+
+      // Find user's resource
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+
+      if (!userResource) {
+        return res.status(400).json({ message: 'No resource record found for this user' });
+      }
+
+      const entry = await storage.createNonProjectTimeEntry({
+        organizationId,
+        userId,
+        resourceId: userResource.id,
+        categoryId,
+        entryDate,
+        hours,
+        notes,
+        status: 'Draft'
+      });
+
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error('Error creating non-project time entry:', error);
+      res.status(500).json({ message: 'Failed to create non-project time entry' });
+    }
+  });
+
+  // Update non-project time entry
+  app.put('/api/non-project-time/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      const updated = await storage.updateNonProjectTimeEntry(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating non-project time entry:', error);
+      res.status(500).json({ message: 'Failed to update non-project time entry' });
+    }
+  });
+
+  // Delete non-project time entry
+  app.delete('/api/non-project-time/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteNonProjectTimeEntry(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting non-project time entry:', error);
+      res.status(500).json({ message: 'Failed to delete non-project time entry' });
+    }
+  });
+
   // Admin: Get all referral stats (Super Admin only)
   app.get('/api/admin/referrals', async (req, res) => {
     const userId = getUserIdFromRequest(req);
