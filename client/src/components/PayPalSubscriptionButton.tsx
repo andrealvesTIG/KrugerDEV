@@ -5,6 +5,9 @@ import { Loader2, AlertCircle } from "lucide-react";
 // Global flags to prevent multiple SDK loads across component instances
 let sdkLoadingPromise: Promise<void> | null = null;
 let sdkLoaded = false;
+// Global guard to prevent double checkout - track when last subscription was initiated
+let lastSubscriptionInitTime = 0;
+const SUBSCRIPTION_COOLDOWN_MS = 5000; // 5 seconds cooldown between subscription attempts
 
 interface PayPalSubscriptionButtonProps {
   planId: string;
@@ -136,11 +139,21 @@ export default function PayPalSubscriptionButton({
         label: "subscribe",
       },
       createSubscription: async (data: any, actions: any) => {
+        // Global cooldown check - prevent rapid successive subscription attempts
+        const now = Date.now();
+        if (now - lastSubscriptionInitTime < SUBSCRIPTION_COOLDOWN_MS) {
+          console.log('[PayPal] Subscription attempt within cooldown period, blocking');
+          return Promise.reject(new Error('Please wait before trying again'));
+        }
+        
         // Prevent double subscription creation
         if (subscriptionInProgress.current) {
           console.log('[PayPal] Subscription already in progress, ignoring duplicate call');
           return Promise.reject(new Error('Subscription already in progress'));
         }
+        
+        // Set both guards
+        lastSubscriptionInitTime = now;
         subscriptionInProgress.current = true;
         
         // Build return URL with plan code for redirect flow (mobile devices)

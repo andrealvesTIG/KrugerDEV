@@ -1283,6 +1283,7 @@ export function BillingContent() {
                   <>
                     <p className="text-sm text-muted-foreground mb-3">Subscribe with PayPal for secure recurring payments:</p>
                     <PayPalSubscriptionButton
+                      key={`paypal-btn-${changePlanDialog.code}-${changePlanDialog.paypalPlanId}`}
                       planId={changePlanDialog.paypalPlanId}
                       planCode={changePlanDialog.code}
                       onSuccess={async (subscriptionId, subscriptionData) => {
