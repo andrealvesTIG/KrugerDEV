@@ -13404,11 +13404,19 @@ Return ONLY valid JSON.`;
               }
               
               const paypalSub = await subRes.json();
+              console.log(`[PayPal Activation] Subscription ${paypalSubscriptionId} status: ${paypalSub.status}, plan_id: ${paypalSub.plan_id}`);
               
-              // Verify the subscription is active/approved
-              if (paypalSub.status !== 'ACTIVE' && paypalSub.status !== 'APPROVED') {
+              // Verify the subscription is active/approved/pending
+              // APPROVAL_PENDING: User approved but first payment not yet processed
+              // APPROVED: User approved, awaiting activation
+              // ACTIVE: Subscription is fully active
+              const validStatuses = ['ACTIVE', 'APPROVED', 'APPROVAL_PENDING'];
+              if (!validStatuses.includes(paypalSub.status)) {
                 console.error(`PayPal subscription ${paypalSubscriptionId} has status ${paypalSub.status}, rejecting`);
-                return res.status(400).json({ message: "PayPal subscription is not active" });
+                return res.status(400).json({ 
+                  message: `PayPal subscription status is '${paypalSub.status}'. Expected: ACTIVE, APPROVED, or APPROVAL_PENDING.`,
+                  status: paypalSub.status
+                });
               }
               
               // Derive plan from PayPal's plan_id (server-side, ignore URL param to prevent spoofing)
@@ -13428,6 +13436,13 @@ Return ONLY valid JSON.`;
                   // Log all plans for debugging
                   const allPlans = await db.select().from(plans);
                   console.log(`[PayPal Activation] Available plans:`, allPlans.map(p => ({ code: p.code, paypalPlanId: p.paypalPlanId })));
+                  
+                  // Return detailed error to help debug
+                  return res.status(400).json({
+                    message: "PayPal plan ID not found in database. Please use 'Sync PayPal Plans' in Super Admin.",
+                    paypalPlanId: paypalPlanIdFromSub,
+                    availablePlans: allPlans.map(p => ({ code: p.code, paypalPlanId: p.paypalPlanId }))
+                  });
                 }
               }
               
