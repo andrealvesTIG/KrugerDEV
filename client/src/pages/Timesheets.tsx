@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { 
@@ -53,16 +53,28 @@ import {
   StickyNote,
   TrendingUp,
   ListTodo,
-  Trash2,
   History,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Copy,
+  AlertTriangle
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isToday, parseISO, isSameDay, startOfDay, endOfDay } from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isToday, parseISO, isSameDay, startOfDay, endOfDay, isWeekend, getDay } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Task, Project, InsertTimesheetEntry } from "@shared/schema";
 
@@ -93,14 +105,19 @@ interface TaskRowProps {
   entries: TimesheetEntryWithDetails[];
   gridData: Record<string, Record<string, { hours: string; notes: string; id?: number }>>;
   handleHoursChange: (taskId: number, dateKey: string, value: string) => void;
+  handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, taskId: number, dateKey: string, taskIndex: number, dateIndex: number) => void;
+  handleCellFocus: (taskId: number, dateKey: string) => void;
   getRowTotal: (taskId: number) => number;
+  getDayTotal: (dateKey: string) => number;
   openNoteEditor: (taskId: number, dateKey: string) => void;
   index: number;
   indented?: boolean;
+  inputRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, getRowTotal, openNoteEditor, index, indented }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, index, indented, inputRefs }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
+  const isRowOvertime = rowTotal > 40;
   
   return (
     <motion.tr
@@ -120,28 +137,43 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
           )}
         </div>
       </td>
-      {dates.map(date => {
+      {dates.map((date, dateIndex) => {
         const dateKey = formatDateKey(date);
         const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
         const status = entry?.status;
         const isEditable = !status || status === "Draft" || status === "Rejected";
         const hasNote = !!(gridData[task.id]?.[dateKey]?.notes);
         const isTodayDate = isToday(date);
+        const isWeekendDay = isWeekend(date);
+        const cellHours = parseFloat(gridData[task.id]?.[dateKey]?.hours || "0");
+        const isCellOvertime = cellHours > 8;
         
         return (
-          <td key={dateKey} className={`p-2 ${isTodayDate ? "bg-blue-500/5" : ""}`}>
+          <td key={dateKey} className={`p-2 ${
+            isTodayDate ? "bg-blue-500/5" : 
+            isWeekendDay ? "bg-muted/40" : ""
+          }`}>
             <div className="relative group/cell flex justify-center">
               <Input
+                ref={(el) => { inputRefs.current[`${task.id}-${dateKey}`] = el; }}
                 type="text"
                 inputMode="decimal"
                 value={gridData[task.id]?.[dateKey]?.hours || ""}
                 onChange={(e) => handleHoursChange(task.id, dateKey, e.target.value)}
-                onFocus={(e) => e.target.select()}
+                onKeyDown={(e) => handleKeyDown(e, task.id, dateKey, index, dateIndex)}
+                onFocus={(e) => {
+                  e.target.select();
+                  handleCellFocus(task.id, dateKey);
+                }}
                 placeholder="0"
                 disabled={!isEditable}
                 className={`w-16 text-center h-9 rounded-lg border-2 ${
-                  isTodayDate 
+                  isCellOvertime
+                    ? "border-amber-400 bg-amber-50/50 dark:border-amber-600 dark:bg-amber-900/20"
+                    : isTodayDate 
                     ? "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-900/20" 
+                    : isWeekendDay
+                    ? "border-muted bg-muted/30"
                     : "border-border bg-background"
                 } ${!isEditable ? "opacity-60 cursor-not-allowed" : ""} 
                 ${status === "Approved" ? "border-green-300" : ""} 
@@ -149,6 +181,16 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
                 focus:ring-2 focus:ring-primary/20`}
                 data-testid={`input-hours-${task.id}-${dateKey}`}
               />
+              {isCellOvertime && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="absolute -top-1 -left-1">
+                      <AlertTriangle className="h-3 w-3 text-amber-500" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Over 8 hours on this task</TooltipContent>
+                </Tooltip>
+              )}
               {status && status !== "Draft" && (
                 <div className="absolute -top-1 -right-1">
                   {status === "Approved" && <Check className="h-3 w-3 text-green-500" />}
@@ -178,11 +220,16 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, g
         );
       })}
       <td className="p-3 bg-emerald-500/5">
-        <div className="flex items-center justify-center gap-2">
-          <span className="font-medium text-foreground tabular-nums">{rowTotal}h</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive">
-            <Trash2 className="h-3 w-3" />
-          </Button>
+        <div className="flex items-center justify-center gap-1">
+          <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
+          {isRowOvertime && (
+            <Tooltip>
+              <TooltipTrigger>
+                <AlertTriangle className="h-3 w-3 text-amber-500" />
+              </TooltipTrigger>
+              <TooltipContent side="top">Over 40 hours this week</TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </td>
     </motion.tr>
@@ -201,12 +248,152 @@ interface TimesheetGridProps {
   setGridData: React.Dispatch<React.SetStateAction<Record<string, Record<string, { hours: string; notes: string; id?: number }>>>>;
   hasChanges: boolean;
   setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
+  onAutoSave: () => void;
 }
 
-function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges }: TimesheetGridProps) {
+const QUICK_TIME_PRESETS = [
+  { label: "8h", value: "8" },
+  { label: "4h", value: "4" },
+  { label: "2h", value: "2" },
+  { label: "1h", value: "1" },
+];
+
+function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave }: TimesheetGridProps) {
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
+  const [selectedCell, setSelectedCell] = useState<{ taskId: number; dateKey: string } | null>(null);
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-save after 3 seconds of inactivity
+  useEffect(() => {
+    if (hasChanges && !isSaving) {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        onAutoSave();
+      }, 3000);
+    }
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [hasChanges, gridData, onAutoSave, isSaving]);
+
+  // Reschedule auto-save after save completes if there are still changes
+  const prevIsSavingRef = useRef(isSaving);
+  useEffect(() => {
+    if (prevIsSavingRef.current && !isSaving && hasChanges) {
+      // Save just completed but there are still unsaved changes - reschedule
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        onAutoSave();
+      }, 3000);
+    }
+    prevIsSavingRef.current = isSaving;
+  }, [isSaving, hasChanges, onAutoSave]);
+
+  // Get flat list of tasks for keyboard navigation
+  const flatTaskList = useMemo(() => {
+    if (groupByProject) {
+      const list: { task: Task; project: Project }[] = [];
+      for (const group of Object.values(
+        assignedTasks.reduce((acc, item) => {
+          if (!acc[item.project.id]) acc[item.project.id] = [];
+          acc[item.project.id].push(item);
+          return acc;
+        }, {} as Record<number, { task: Task; project: Project }[]>)
+      )) {
+        list.push(...group);
+      }
+      return list;
+    }
+    return assignedTasks;
+  }, [assignedTasks, groupByProject]);
+
+  // Precompute taskId→index map for O(1) keyboard navigation
+  const taskIndexMap = useMemo(() => {
+    const map = new Map<number, number>();
+    flatTaskList.forEach((item, index) => {
+      map.set(item.task.id, index);
+    });
+    return map;
+  }, [flatTaskList]);
+
+  // Keyboard navigation handler
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    taskId: number,
+    dateKey: string,
+    taskIndex: number,
+    dateIndex: number
+  ) => {
+    const tasksCount = flatTaskList.length;
+    const datesCount = dates.length;
+
+    let nextTaskIndex = taskIndex;
+    let nextDateIndex = dateIndex;
+
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      nextTaskIndex = (taskIndex + 1) % tasksCount;
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      nextTaskIndex = (taskIndex - 1 + tasksCount) % tasksCount;
+    } else if (e.key === "Tab" && !e.shiftKey) {
+      e.preventDefault();
+      nextDateIndex = dateIndex + 1;
+      if (nextDateIndex >= datesCount) {
+        nextDateIndex = 0;
+        nextTaskIndex = (taskIndex + 1) % tasksCount;
+      }
+    } else if (e.key === "Tab" && e.shiftKey) {
+      e.preventDefault();
+      nextDateIndex = dateIndex - 1;
+      if (nextDateIndex < 0) {
+        nextDateIndex = datesCount - 1;
+        nextTaskIndex = (taskIndex - 1 + tasksCount) % tasksCount;
+      }
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      nextDateIndex = (dateIndex + 1) % datesCount;
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      nextDateIndex = (dateIndex - 1 + datesCount) % datesCount;
+    } else {
+      return;
+    }
+
+    const nextTask = flatTaskList[nextTaskIndex];
+    const nextDate = dates[nextDateIndex];
+    if (nextTask && nextDate) {
+      const nextKey = `${nextTask.task.id}-${formatDateKey(nextDate)}`;
+      inputRefs.current[nextKey]?.focus();
+    }
+  };
+
+  // Quick time preset handler
+  const applyQuickTime = (value: string) => {
+    if (!selectedCell) return;
+    setGridData(prev => ({
+      ...prev,
+      [selectedCell.taskId]: {
+        ...prev[selectedCell.taskId],
+        [selectedCell.dateKey]: { ...prev[selectedCell.taskId]?.[selectedCell.dateKey], hours: value }
+      }
+    }));
+    setHasChanges(true);
+  };
+
+  // Track focused cell for quick presets
+  const handleCellFocus = (taskId: number, dateKey: string) => {
+    setSelectedCell({ taskId, dateKey });
+  };
 
   // Initialize grid data for any new cells (tasks/dates not yet in gridData)
   useEffect(() => {
@@ -375,26 +562,46 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
               </th>
               {dates.map(date => {
                 const isTodayDate = isToday(date);
+                const isWeekendDay = isWeekend(date);
+                const dayTotal = getColumnTotal(formatDateKey(date));
+                const isDayOvertime = dayTotal > 8;
                 return (
                   <th key={formatDateKey(date)} className={`p-3 text-center min-w-[80px] ${
-                    isTodayDate ? "bg-blue-500/10" : ""
+                    isTodayDate ? "bg-blue-500/10" : isWeekendDay ? "bg-muted/40" : ""
                   }`}>
-                    <div className={`text-xs font-medium ${isTodayDate ? "text-blue-600" : "text-muted-foreground"}`}>
+                    <div className={`text-xs font-medium ${
+                      isTodayDate ? "text-blue-600" : isWeekendDay ? "text-muted-foreground/70" : "text-muted-foreground"
+                    }`}>
                       {format(date, "EEE")}
                     </div>
-                    <div className={`text-lg font-semibold ${isTodayDate ? "text-blue-600" : "text-foreground"}`}>
+                    <div className={`text-lg font-semibold ${
+                      isTodayDate ? "text-blue-600" : isWeekendDay ? "text-muted-foreground" : "text-foreground"
+                    }`}>
                       {format(date, "d")}
                     </div>
-                    <div className={`text-xs ${isTodayDate ? "text-blue-500" : "text-muted-foreground"}`}>
-                      {getColumnTotal(formatDateKey(date))}h
+                    <div className={`text-xs flex items-center justify-center gap-1 ${
+                      isDayOvertime ? "text-amber-600 font-medium" : isTodayDate ? "text-blue-500" : "text-muted-foreground"
+                    }`}>
+                      {dayTotal}h
+                      {isDayOvertime && <AlertTriangle className="h-3 w-3" />}
                     </div>
                   </th>
                 );
               })}
               <th className="p-3 text-center min-w-[70px] bg-emerald-500/5">
                 <div className="text-xs font-medium text-emerald-600">Total</div>
-                <div className="text-lg font-bold text-emerald-600">
+                <div className={`text-lg font-bold flex items-center justify-center gap-1 ${
+                  getGrandTotal() > 40 ? "text-amber-600" : "text-emerald-600"
+                }`}>
                   {getGrandTotal()}h
+                  {getGrandTotal() > 40 && (
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <AlertTriangle className="h-4 w-4" />
+                      </TooltipTrigger>
+                      <TooltipContent>Over 40 hours this week</TooltipContent>
+                    </Tooltip>
+                  )}
                 </div>
               </th>
             </tr>
@@ -433,7 +640,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       </td>
                       {dates.map(date => (
                         <td key={formatDateKey(date)} className={`p-3 text-center text-muted-foreground ${
-                          isToday(date) ? "bg-blue-500/5" : ""
+                          isToday(date) ? "bg-blue-500/5" : isWeekend(date) ? "bg-muted/40" : ""
                         }`}>
                           -
                         </td>
@@ -444,21 +651,28 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                     </motion.tr>
                     
                     <AnimatePresence>
-                      {!isCollapsed && group.tasks.map(({ task, project }, taskIndex) => (
-                        <TaskRow
-                          key={task.id}
-                          task={task}
-                          project={project}
-                          dates={dates}
-                          entries={entries}
-                          gridData={gridData}
-                          handleHoursChange={handleHoursChange}
-                          getRowTotal={getRowTotal}
-                          openNoteEditor={openNoteEditor}
-                          index={taskIndex}
-                          indented
-                        />
-                      ))}
+                      {!isCollapsed && group.tasks.map(({ task, project }) => {
+                        const flatIndex = taskIndexMap.get(task.id) ?? 0;
+                        return (
+                          <TaskRow
+                            key={task.id}
+                            task={task}
+                            project={project}
+                            dates={dates}
+                            entries={entries}
+                            gridData={gridData}
+                            handleHoursChange={handleHoursChange}
+                            handleKeyDown={handleKeyDown}
+                            handleCellFocus={handleCellFocus}
+                            getRowTotal={getRowTotal}
+                            getDayTotal={getColumnTotal}
+                            openNoteEditor={openNoteEditor}
+                            index={flatIndex}
+                            indented
+                            inputRefs={inputRefs}
+                          />
+                        );
+                      })}
                     </AnimatePresence>
                   </React.Fragment>
                 );
@@ -473,9 +687,13 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   entries={entries}
                   gridData={gridData}
                   handleHoursChange={handleHoursChange}
+                  handleKeyDown={handleKeyDown}
+                  handleCellFocus={handleCellFocus}
                   getRowTotal={getRowTotal}
+                  getDayTotal={getColumnTotal}
                   openNoteEditor={openNoteEditor}
                   index={index}
+                  inputRefs={inputRefs}
                 />
               ))
             )}
@@ -483,22 +701,43 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
         </table>
       </div>
 
-      <div className="flex justify-end gap-3">
-        <Button 
-          onClick={handleSave} 
-          disabled={!hasChanges || isSaving}
-          className="bg-primary"
-          data-testid="button-save-timesheet"
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            "Save Draft"
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Quick entry:</span>
+          {QUICK_TIME_PRESETS.map(preset => (
+            <Button
+              key={preset.value}
+              variant="outline"
+              size="sm"
+              onClick={() => applyQuickTime(preset.value)}
+              disabled={!selectedCell}
+              data-testid={`button-quick-${preset.value}h`}
+            >
+              {preset.label}
+            </Button>
+          ))}
+          {!selectedCell && <span className="text-xs text-muted-foreground">(select a cell first)</span>}
+        </div>
+        <div className="flex items-center gap-3">
+          {hasChanges && (
+            <span className="text-xs text-muted-foreground">Auto-saves in 3s...</span>
           )}
-        </Button>
+          <Button 
+            onClick={handleSave} 
+            disabled={!hasChanges || isSaving}
+            className="bg-primary"
+            data-testid="button-save-timesheet"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Draft"
+            )}
+          </Button>
+        </div>
       </div>
 
       <Dialog open={!!editingNote} onOpenChange={(open) => !open && setEditingNote(null)}>
@@ -725,11 +964,28 @@ export default function Timesheets() {
   const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   
   // Lift grid data state to parent to persist across view changes
   const [gridData, setGridData] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>>({});
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Unsaved changes warning on browser close/refresh
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = "You have unsaved changes. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+    
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasChanges]);
 
   const dates = useMemo(() => {
     switch (viewMode) {
@@ -758,6 +1014,92 @@ export default function Timesheets() {
 
   const bulkUpsert = useBulkUpsertTimesheetEntries();
   const submitWeek = useSubmitTimesheetWeek();
+
+  // Get previous week dates for copy feature
+  const previousWeekDates = useMemo(() => {
+    const prevWeekDate = subWeeks(currentDate, 1);
+    return viewMode === "workweek" ? getWorkWeekDates(prevWeekDate) : getWeekDates(prevWeekDate);
+  }, [currentDate, viewMode]);
+
+  const previousStartDate = formatDateKey(previousWeekDates[0]);
+  const previousEndDate = formatDateKey(previousWeekDates[previousWeekDates.length - 1]);
+
+  const { data: previousWeekEntries = [] } = useTimesheetEntries(
+    user?.id,
+    currentOrganization?.id || null,
+    previousStartDate,
+    previousEndDate
+  );
+
+  // Copy previous week handler
+  const handleCopyPreviousWeek = () => {
+    // Guard against day view
+    if (viewMode === "day") {
+      toast({ title: "Not Available", description: "Copy feature is not available in day view" });
+      return;
+    }
+    
+    if (previousWeekEntries.length === 0) {
+      toast({ title: "No Data", description: "No timesheet entries from last week to copy" });
+      return;
+    }
+
+    const newGridData = { ...gridData };
+    let copiedCount = 0;
+    
+    for (const entry of previousWeekEntries) {
+      const taskId = entry.taskId;
+      // Map the previous week date to current week date (same day of week)
+      const entryDate = parseISO(entry.entryDate);
+      const dayOfWeek = getDay(entryDate);
+      const currentWeekDate = dates.find(d => getDay(d) === dayOfWeek);
+      
+      if (currentWeekDate && taskId) {
+        const dateKey = formatDateKey(currentWeekDate);
+        if (!newGridData[taskId]) {
+          newGridData[taskId] = {};
+        }
+        // Only copy if current cell is empty or has 0 hours
+        const existingHours = parseFloat(newGridData[taskId][dateKey]?.hours || "0");
+        if (existingHours === 0 && Number(entry.hours) > 0) {
+          newGridData[taskId][dateKey] = {
+            hours: String(Number(entry.hours)),
+            notes: entry.notes || "",
+            id: newGridData[taskId][dateKey]?.id
+          };
+          copiedCount++;
+        }
+      }
+    }
+
+    if (copiedCount === 0) {
+      toast({ title: "No Changes", description: "All matching cells already have values" });
+      return;
+    }
+
+    setGridData(newGridData);
+    setHasChanges(true);
+    toast({ title: "Copied", description: `${copiedCount} entries copied from last week. Remember to save!` });
+  };
+
+  // Auto-save handler
+  const handleAutoSave = useCallback(() => {
+    if (!currentOrganization || !currentResource || !hasChanges) return;
+
+    const formattedData: Record<string, Record<string, { hours: number; notes: string; id?: number }>> = {};
+    for (const taskId in gridData) {
+      formattedData[taskId] = {};
+      for (const dateKey in gridData[taskId]) {
+        const { hours, notes, id } = gridData[taskId][dateKey];
+        formattedData[taskId][dateKey] = {
+          hours: hours ? parseFloat(hours) : 0,
+          notes: notes || "",
+          id
+        };
+      }
+    }
+    handleSave(formattedData);
+  }, [gridData, currentOrganization, currentResource, hasChanges]);
 
   const navigateDate = (direction: "prev" | "next") => {
     if (viewMode === "day") {
@@ -910,6 +1252,21 @@ export default function Timesheets() {
             >
               Today
             </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleCopyPreviousWeek}
+                  disabled={viewMode === "day"}
+                  data-testid="button-copy-previous-week-fullscreen"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Last Week
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Copy hours from previous week (only empty cells)</TooltipContent>
+            </Tooltip>
             {hasDraftEntries && viewMode !== "day" && (
               <Button 
                 onClick={handleSubmitWeek}
@@ -955,6 +1312,7 @@ export default function Timesheets() {
               setGridData={setGridData}
               hasChanges={hasChanges}
               setHasChanges={setHasChanges}
+              onAutoSave={handleAutoSave}
             />
           )}
         </div>
@@ -1163,6 +1521,22 @@ export default function Timesheets() {
                       Today
                     </Button>
 
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleCopyPreviousWeek}
+                          disabled={viewMode === "day"}
+                          data-testid="button-copy-previous-week"
+                        >
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy Last Week
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Copy hours from previous week (only empty cells)</TooltipContent>
+                    </Tooltip>
+
                     {hasDraftEntries && viewMode !== "day" && (
                       <Button 
                         onClick={handleSubmitWeek}
@@ -1271,6 +1645,7 @@ export default function Timesheets() {
                   setGridData={setGridData}
                   hasChanges={hasChanges}
                   setHasChanges={setHasChanges}
+                  onAutoSave={handleAutoSave}
                 />
               </motion.div>
             )}
