@@ -127,14 +127,13 @@ export default function PayPalSubscriptionButton({
     container.innerHTML = "";
     paypalButtonRendered.current = true;
 
-    // Render only the card button by specifying fundingSource
-    const cardButton = paypal.Buttons({
-      fundingSource: paypal.FUNDING.CARD,
+    // Render the default PayPal button (single checkout window)
+    const paypalButton = paypal.Buttons({
       style: {
         shape: "rect",
-        color: "black",
+        color: "gold",
         layout: "vertical",
-        label: "pay",
+        label: "subscribe",
       },
       createSubscription: async (data: any, actions: any) => {
         // Prevent double subscription creation
@@ -194,12 +193,8 @@ export default function PayPalSubscriptionButton({
       },
     });
     
-    // Check if card button is eligible before rendering
-    if (cardButton.isEligible()) {
-      cardButton.render(container);
-    } else {
-      setSdkError("Card payments are not available for this account");
-    }
+    // Render the PayPal button
+    paypalButton.render(container);
 
     return () => {
       paypalButtonRendered.current = false;
