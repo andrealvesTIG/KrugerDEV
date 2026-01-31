@@ -55,7 +55,6 @@ import {
   ListTodo,
   Trash2,
   History,
-  Plus,
   Maximize2,
   Minimize2
 } from "lucide-react";
@@ -372,13 +371,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
           <thead>
             <tr className="bg-muted/30">
               <th className="text-left p-4 font-medium text-muted-foreground min-w-[250px]">
-                <div className="flex items-center gap-2">
-                  <span>Tasks</span>
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1" data-testid="button-add-task">
-                    <Plus className="h-3 w-3" />
-                    Add
-                  </Button>
-                </div>
+                <span>Tasks</span>
               </th>
               {dates.map(date => {
                 const isTodayDate = isToday(date);
