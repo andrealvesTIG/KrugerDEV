@@ -76,13 +76,41 @@ Return ONLY valid JSON matching this structure:
   "layout": "grid"
 }`;
 
+function sanitizeUserInput(input: string): string {
+  // Remove potential prompt injection patterns
+  let sanitized = input
+    // Remove attempts to override system instructions
+    .replace(/ignore (all )?(previous |prior |above )?instructions?/gi, '')
+    .replace(/disregard (all )?(previous |prior |above )?instructions?/gi, '')
+    .replace(/forget (all )?(previous |prior |above )?instructions?/gi, '')
+    // Remove attempts to inject system/assistant roles
+    .replace(/\[?(system|assistant)\]?:/gi, '')
+    .replace(/<\/?system>/gi, '')
+    .replace(/<\/?assistant>/gi, '')
+    // Remove markdown code blocks that might contain injection
+    .replace(/```[\s\S]*?```/g, '')
+    // Limit length to prevent token exhaustion
+    .substring(0, 500)
+    .trim();
+  
+  // If heavily sanitized, return a safe default
+  if (sanitized.length < 5) {
+    return 'project overview dashboard';
+  }
+  
+  return sanitized;
+}
+
 export async function generateDashboardConfig(userDescription: string): Promise<{ name: string; config: CustomDashboardConfig }> {
   try {
+    // Sanitize user input to prevent prompt injection
+    const sanitizedDescription = sanitizeUserInput(userDescription);
+    
     const response = await openai.chat.completions.create({
       model: "gpt-5.1",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Create a dashboard for: ${userDescription}` }
+        { role: "user", content: `Create a dashboard for: ${sanitizedDescription}` }
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 2000,

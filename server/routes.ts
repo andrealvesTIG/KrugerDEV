@@ -14,8 +14,8 @@ import { setupDynamics365Routes } from "./services/dynamics365Sales";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, customDashboards, organizationMembers, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews } from "@shared/schema";
-import { magicLinkTokens } from "@shared/models/auth";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews } from "@shared/schema";
+import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
@@ -1202,13 +1202,37 @@ export async function registerRoutes(
 
   app.put('/api/users/:userId/role', async (req, res) => {
     try {
+      // SECURITY: Only super_admin can change user roles
+      const currentUser = req.user as User | undefined;
+      if (!currentUser || currentUser.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+      
       const { role } = req.body;
+      
+      // Validate role is a valid value
+      const validRoles = ['user', 'super_admin'];
+      if (!role || !validRoles.includes(role)) {
+        return res.status(400).json({ message: 'Invalid role. Must be one of: ' + validRoles.join(', ') });
+      }
+      
+      // Prevent self-demotion (super admin cannot remove their own super_admin role)
+      if (currentUser.id === req.params.userId && role !== 'super_admin') {
+        return res.status(400).json({ message: 'Cannot remove your own super admin role' });
+      }
+      
       const [updated] = await db.update(users)
         .set({ role })
         .where(eq(users.id, req.params.userId))
         .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
       res.json(updated);
     } catch (err) {
+      console.error('Failed to update user role:', err);
       res.status(500).json({ message: 'Failed to update user role' });
     }
   });
@@ -2225,8 +2249,20 @@ export async function registerRoutes(
       
       const { emails, role } = req.body;
       
+      // Validate input
       if (!emails || !Array.isArray(emails) || emails.length === 0) {
         return res.status(400).json({ message: 'Emails array is required' });
+      }
+      
+      // Validate role if provided
+      const validOrgRoles = ['member', 'org_admin', 'team_member'];
+      if (role && !validOrgRoles.includes(role)) {
+        return res.status(400).json({ message: 'Invalid role. Must be one of: ' + validOrgRoles.join(', ') });
+      }
+      
+      // Limit batch size to prevent abuse
+      if (emails.length > 50) {
+        return res.status(400).json({ message: 'Maximum 50 invites per request' });
       }
       
       // Check seat limit before sending invites
@@ -2285,6 +2321,14 @@ export async function registerRoutes(
         if (pendingInvite) {
           results.skipped.push(`${normalizedEmail} already has a pending invite`);
           continue;
+        }
+        
+        // Cancel any existing non-pending invites to allow re-invites (database has unique constraint on org+email)
+        const existingInvite = existingInvites.find(i => 
+          i.email.toLowerCase() === normalizedEmail && i.status !== 'pending'
+        );
+        if (existingInvite) {
+          await db.delete(organizationInvites).where(eq(organizationInvites.id, existingInvite.id));
         }
         
         // Check if we've reached the seat limit
