@@ -124,6 +124,20 @@ export function setupGoogleAuth(app: Express) {
     req.session.googleOAuthState = state;
     req.session.googleOAuthNonce = nonce;
     
+    // Also store state in cookies as backup for mobile viewport switching
+    res.cookie('google_oauth_state', state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+    res.cookie('google_oauth_nonce', nonce, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+    
     await new Promise<void>((resolve, reject) => {
       req.session.save((err) => {
         if (err) reject(err);
@@ -153,13 +167,36 @@ export function setupGoogleAuth(app: Express) {
       return res.redirect(`/auth?error=${encodeURIComponent(String(error_description || error))}`);
     }
 
-    const savedState = req.session.googleOAuthState;
+    // Try session first, then fall back to cookies (for mobile viewport switching)
+    let savedState = req.session.googleOAuthState;
+    let savedNonce = req.session.googleOAuthNonce;
     
+    // Fall back to cookie values if session doesn't have them
+    if (!savedState && req.cookies?.google_oauth_state) {
+      savedState = req.cookies.google_oauth_state;
+      savedNonce = req.cookies.google_oauth_nonce;
+      console.log("Using cookie-based Google OAuth state (session state was lost)");
+    }
+    
+    // Clean up session state
     delete req.session.googleOAuthState;
     delete req.session.googleOAuthNonce;
+    
+    // Clear the OAuth cookies
+    res.clearCookie('google_oauth_state');
+    res.clearCookie('google_oauth_nonce');
 
     if (!state || state !== savedState) {
-      console.error("CSRF state mismatch", { received: state, expected: savedState });
+      console.error("CSRF state mismatch", { 
+        received: state, 
+        expected: savedState,
+        hasSession: !!req.session,
+        sessionId: req.sessionID,
+        hadCookieState: !!req.cookies?.google_oauth_state
+      });
+      if (!savedState) {
+        return res.redirect("/auth?error=Session expired. Please try signing in again.");
+      }
       return res.redirect("/auth?error=Security validation failed. Please try again.");
     }
 
