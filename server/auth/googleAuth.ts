@@ -38,12 +38,19 @@ function getRedirectUri(req: Request): string {
   return `${protocol}://${host}/api/auth/google/callback`;
 }
 
+function getGoogleClientId(): string {
+  return (process.env.GOOGLE_CLIENT_ID || "").trim();
+}
+
+function getGoogleClientSecret(): string {
+  return (process.env.GOOGLE_CLIENT_SECRET || "").trim();
+}
+
 function isGoogleConfigured(): boolean {
-  const configured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  const clientId = getGoogleClientId();
+  const clientSecret = getGoogleClientSecret();
+  const configured = !!(clientId && clientSecret);
   if (configured) {
-    // Log first/last chars for debugging (don't log full secret)
-    const clientId = process.env.GOOGLE_CLIENT_ID!;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
     console.log("Google OAuth configured:", {
       clientIdLength: clientId.length,
       clientIdPrefix: clientId.substring(0, 10),
@@ -126,7 +133,7 @@ export function setupGoogleAuth(app: Express) {
 
     const redirectUri = getRedirectUri(req);
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-    authUrl.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID!);
+    authUrl.searchParams.set("client_id", getGoogleClientId());
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("scope", "openid email profile");
@@ -170,8 +177,8 @@ export function setupGoogleAuth(app: Express) {
         },
         body: new URLSearchParams({
           code,
-          client_id: process.env.GOOGLE_CLIENT_ID!,
-          client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+          client_id: getGoogleClientId(),
+          client_secret: getGoogleClientSecret(),
           redirect_uri: redirectUri,
           grant_type: "authorization_code",
         }),
