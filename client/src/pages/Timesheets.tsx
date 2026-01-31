@@ -720,7 +720,7 @@ function ApprovalTab() {
 export default function Timesheets() {
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [viewMode, setViewMode] = useState<ViewMode>("workweek");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
