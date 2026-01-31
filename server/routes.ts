@@ -12672,7 +12672,7 @@ Return ONLY valid JSON.`;
     try {
       const { plans } = await import("@shared/schema");
       const planId = parseInt(req.params.id);
-      const { name, description, monthlyPriceCents, maxSeats, extraSeatPriceCents, isActive } = req.body;
+      const { name, description, monthlyPriceCents, maxSeats, extraSeatPriceCents, isActive, paypalPlanId, paypalProductId } = req.body;
 
       const updates: any = {};
       if (name !== undefined) updates.name = name;
@@ -12681,6 +12681,8 @@ Return ONLY valid JSON.`;
       if (maxSeats !== undefined) updates.maxSeats = maxSeats;
       if (extraSeatPriceCents !== undefined) updates.extraSeatPriceCents = extraSeatPriceCents;
       if (isActive !== undefined) updates.isActive = isActive;
+      if (paypalPlanId !== undefined) updates.paypalPlanId = paypalPlanId;
+      if (paypalProductId !== undefined) updates.paypalProductId = paypalProductId;
 
       const [updated] = await db.update(plans)
         .set(updates)
@@ -13332,26 +13334,43 @@ Return ONLY valid JSON.`;
               
               // Derive plan from PayPal's plan_id (server-side, ignore URL param to prevent spoofing)
               const paypalPlanIdFromSub = paypalSub.plan_id;
+              console.log(`[PayPal Activation] PayPal subscription ${paypalSubscriptionId} has plan_id: ${paypalPlanIdFromSub}, requested planCode: ${planCode}`);
+              
               if (paypalPlanIdFromSub) {
                 const [matchingPlan] = await db.select().from(plans).where(eq(plans.paypalPlanId, paypalPlanIdFromSub));
                 if (matchingPlan) {
                   verifiedPlan = matchingPlan;
+                  console.log(`[PayPal Activation] Matched to plan ${matchingPlan.code} (id: ${matchingPlan.id})`);
                   if (planCode && matchingPlan.code !== planCode) {
-                    console.log(`Plan derived from PayPal: requested ${planCode} but PayPal subscription is for ${matchingPlan.code}`);
+                    console.log(`[PayPal Activation] Note: requested ${planCode} but PayPal subscription is for ${matchingPlan.code}`);
                   }
+                } else {
+                  console.log(`[PayPal Activation] No plan found in database with paypalPlanId: ${paypalPlanIdFromSub}`);
+                  // Log all plans for debugging
+                  const allPlans = await db.select().from(plans);
+                  console.log(`[PayPal Activation] Available plans:`, allPlans.map(p => ({ code: p.code, paypalPlanId: p.paypalPlanId })));
                 }
               }
               
-              // If no matching plan found from PayPal, fall back to planCode (for legacy plans)
+              // If no matching plan found from PayPal, fall back to planCode
               if (!verifiedPlan && planCode) {
                 const [requestedPlan] = await db.select().from(plans).where(eq(plans.code, planCode));
                 if (requestedPlan) {
-                  // Only allow fallback for plans that don't have paypalPlanId set
+                  // Check if the plan's paypalPlanId matches what we got from PayPal
                   if (!requestedPlan.paypalPlanId) {
+                    // Plan has no PayPal ID set, allow fallback
                     verifiedPlan = requestedPlan;
+                    console.log(`[PayPal Activation] Fallback to plan ${requestedPlan.code} (no paypalPlanId set)`);
+                  } else if (paypalPlanIdFromSub && requestedPlan.paypalPlanId !== paypalPlanIdFromSub) {
+                    // Plan has a different paypalPlanId - this could be sandbox/live mismatch
+                    console.error(`[PayPal Activation] Plan mismatch: ${planCode} has DB paypalPlanId=${requestedPlan.paypalPlanId} but PayPal returned ${paypalPlanIdFromSub}`);
+                    console.error(`[PayPal Activation] This usually means the database has sandbox plan IDs but you're using live PayPal credentials, or vice versa.`);
+                    return res.status(400).json({ 
+                      message: "Subscription plan ID mismatch. Please contact support.",
+                      details: "The payment was processed but the plan IDs don't match. Your payment is safe - contact support to activate your subscription."
+                    });
                   } else {
-                    console.error(`Plan ${planCode} has paypalPlanId but PayPal returned ${paypalPlanIdFromSub}`);
-                    return res.status(400).json({ message: "Subscription plan does not match the payment" });
+                    verifiedPlan = requestedPlan;
                   }
                 }
               }
