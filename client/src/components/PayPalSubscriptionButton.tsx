@@ -31,6 +31,7 @@ export default function PayPalSubscriptionButton({
   const buttonContainerRef = useRef<HTMLDivElement>(null);
   const paypalButtonRendered = useRef(false);
   const componentMounted = useRef(true);
+  const subscriptionInProgress = useRef(false);
 
   const loadPayPalSDK = useCallback(async () => {
     // If SDK is already loaded, we're done
@@ -136,22 +137,34 @@ export default function PayPalSubscriptionButton({
         label: "pay",
       },
       createSubscription: async (data: any, actions: any) => {
+        // Prevent double subscription creation
+        if (subscriptionInProgress.current) {
+          console.log('[PayPal] Subscription already in progress, ignoring duplicate call');
+          return Promise.reject(new Error('Subscription already in progress'));
+        }
+        subscriptionInProgress.current = true;
+        
         // Build return URL with plan code for redirect flow (mobile devices)
         const baseUrl = window.location.origin;
         const returnUrl = planCode 
           ? `${baseUrl}/billing?plan_code=${encodeURIComponent(planCode)}`
           : `${baseUrl}/billing`;
         
-        return actions.subscription.create({
-          plan_id: planId,
-          application_context: {
-            brand_name: "FridayReport.AI",
-            shipping_preference: "NO_SHIPPING",
-            user_action: "SUBSCRIBE_NOW",
-            return_url: returnUrl,
-            cancel_url: `${baseUrl}/billing`,
-          },
-        });
+        try {
+          return await actions.subscription.create({
+            plan_id: planId,
+            application_context: {
+              brand_name: "FridayReport.AI",
+              shipping_preference: "NO_SHIPPING",
+              user_action: "SUBSCRIBE_NOW",
+              return_url: returnUrl,
+              cancel_url: `${baseUrl}/billing`,
+            },
+          });
+        } catch (error) {
+          subscriptionInProgress.current = false;
+          throw error;
+        }
       },
       onApprove: async (data: any, actions: any) => {
         setIsLoading(true);
@@ -167,12 +180,15 @@ export default function PayPalSubscriptionButton({
           if (onError) onError(error);
         } finally {
           setIsLoading(false);
+          subscriptionInProgress.current = false;
         }
       },
       onCancel: () => {
+        subscriptionInProgress.current = false;
         if (onCancel) onCancel();
       },
       onError: (err: any) => {
+        subscriptionInProgress.current = false;
         console.error("PayPal subscription error:", err);
         if (onError) onError(err);
       },
@@ -187,6 +203,7 @@ export default function PayPalSubscriptionButton({
 
     return () => {
       paypalButtonRendered.current = false;
+      subscriptionInProgress.current = false;
       if (container) {
         container.innerHTML = "";
       }
