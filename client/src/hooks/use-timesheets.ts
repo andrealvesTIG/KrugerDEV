@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { TimesheetEntry, InsertTimesheetEntry, Task, Resource, Project } from "@shared/schema";
+import type { TimesheetEntry, InsertTimesheetEntry, Task, Resource, Project, TimeCategory, NonProjectTimeEntry, InsertNonProjectTimeEntry } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
 export interface TimesheetEntryWithDetails extends TimesheetEntry {
@@ -154,6 +154,63 @@ export function useBulkUpsertTimesheetEntries() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
+    },
+  });
+}
+
+// Time Categories (non-project time types like Vacation, PTO, Sick Leave)
+export function useTimeCategories(organizationId: number | null) {
+  return useQuery<TimeCategory[]>({
+    queryKey: ["/api/time-categories", organizationId],
+    enabled: !!organizationId,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes - categories change rarely
+    queryFn: async () => {
+      const response = await fetch(`/api/time-categories?organizationId=${organizationId}`);
+      if (!response.ok) throw new Error("Failed to fetch time categories");
+      return response.json();
+    },
+  });
+}
+
+export interface NonProjectTimeEntryWithCategory {
+  entry: NonProjectTimeEntry;
+  category: TimeCategory;
+}
+
+export function useNonProjectTimeEntries(userId: string | undefined, organizationId: number | null, startDate: string, endDate: string) {
+  return useQuery<NonProjectTimeEntryWithCategory[]>({
+    queryKey: ["/api/non-project-time", organizationId, userId, startDate, endDate],
+    enabled: !!organizationId && !!userId && !!startDate && !!endDate,
+    staleTime: 1000 * 30,
+    queryFn: async () => {
+      const response = await fetch(`/api/non-project-time?organizationId=${organizationId}&startDate=${startDate}&endDate=${endDate}`);
+      if (!response.ok) throw new Error("Failed to fetch non-project time entries");
+      return response.json();
+    },
+  });
+}
+
+export function useCreateNonProjectTimeEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (entry: { organizationId: number; categoryId: number; entryDate: string; hours: number; notes?: string }) => {
+      const response = await apiRequest("POST", "/api/non-project-time", entry);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/non-project-time"] });
+    },
+  });
+}
+
+export function useDeleteNonProjectTimeEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/non-project-time/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/non-project-time"] });
     },
   });
 }

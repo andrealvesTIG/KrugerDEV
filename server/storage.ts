@@ -386,6 +386,7 @@ export interface IStorage {
   deleteTimeCategory(id: number): Promise<void>;
 
   // Non-Project Time Entries
+  getNonProjectTimeEntry(id: number): Promise<NonProjectTimeEntry | undefined>;
   getNonProjectTimeEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<NonProjectTimeEntry[]>;
   getNonProjectTimeEntriesWithCategory(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: NonProjectTimeEntry; category: TimeCategory }[]>;
   createNonProjectTimeEntry(entry: InsertNonProjectTimeEntry): Promise<NonProjectTimeEntry>;
@@ -3290,6 +3291,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Non-Project Time Entries
+  async getNonProjectTimeEntry(id: number): Promise<NonProjectTimeEntry | undefined> {
+    const [entry] = await db.select().from(nonProjectTimeEntries)
+      .where(eq(nonProjectTimeEntries.id, id));
+    return entry;
+  }
+
   async getNonProjectTimeEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<NonProjectTimeEntry[]> {
     return await db.select().from(nonProjectTimeEntries)
       .where(and(

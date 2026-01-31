@@ -14369,6 +14369,18 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId is required' });
       }
 
+      // Verify user belongs to this organization (via membership or resource)
+      const memberships = await storage.getUserOrganizations(userId);
+      const isMember = memberships.some(m => m.organizationId === organizationId);
+      
+      // Also check if user has a resource in this organization
+      const resources = await storage.getResources(organizationId);
+      const hasResource = resources.some(r => r.userId === userId);
+      
+      if (!isMember && !hasResource) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
       const categories = await storage.getTimeCategories(organizationId);
       res.json(categories);
     } catch (error) {
@@ -14377,7 +14389,7 @@ Return ONLY valid JSON.`;
     }
   });
 
-  // Create time category
+  // Create time category (admin only)
   app.post('/api/time-categories', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -14385,7 +14397,27 @@ Return ONLY valid JSON.`;
     }
 
     try {
-      const category = await storage.createTimeCategory(req.body);
+      const { organizationId, name, code, description, color, sortOrder, isPaidTime } = req.body;
+      if (!organizationId || !name) {
+        return res.status(400).json({ message: 'organizationId and name are required' });
+      }
+
+      // Verify user belongs to this organization and is admin
+      const memberships = await storage.getUserOrganizations(userId);
+      const membership = memberships.find(m => m.organizationId === organizationId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
+      const category = await storage.createTimeCategory({
+        organizationId,
+        name,
+        code,
+        description,
+        color,
+        sortOrder,
+        isPaidTime: isPaidTime ?? true
+      });
       res.status(201).json(category);
     } catch (error) {
       console.error('Error creating time category:', error);
@@ -14393,7 +14425,7 @@ Return ONLY valid JSON.`;
     }
   });
 
-  // Update time category
+  // Update time category (admin only)
   app.put('/api/time-categories/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -14402,6 +14434,18 @@ Return ONLY valid JSON.`;
 
     try {
       const id = Number(req.params.id);
+      const category = await storage.getTimeCategory(id);
+      if (!category) {
+        return res.status(404).json({ message: 'Time category not found' });
+      }
+
+      // Verify user is admin of this category's organization
+      const memberships = await storage.getUserOrganizations(userId);
+      const membership = memberships.find(m => m.organizationId === category.organizationId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
       const updated = await storage.updateTimeCategory(id, req.body);
       res.json(updated);
     } catch (error) {
@@ -14410,7 +14454,7 @@ Return ONLY valid JSON.`;
     }
   });
 
-  // Delete time category
+  // Delete time category (admin only)
   app.delete('/api/time-categories/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -14419,6 +14463,18 @@ Return ONLY valid JSON.`;
 
     try {
       const id = Number(req.params.id);
+      const category = await storage.getTimeCategory(id);
+      if (!category) {
+        return res.status(404).json({ message: 'Time category not found' });
+      }
+
+      // Verify user is admin of this category's organization
+      const memberships = await storage.getUserOrganizations(userId);
+      const membership = memberships.find(m => m.organizationId === category.organizationId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
       await storage.deleteTimeCategory(id);
       res.status(204).send();
     } catch (error) {
@@ -14445,6 +14501,19 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
       }
 
+      // Verify user belongs to this organization (via membership or resource)
+      const memberships = await storage.getUserOrganizations(userId);
+      const isMember = memberships.some(m => m.organizationId === organizationId);
+      
+      // Also check if user has a resource in this organization
+      const resources = await storage.getResources(organizationId);
+      const hasResource = resources.some(r => r.userId === userId);
+      
+      if (!isMember && !hasResource) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      // Always fetch entries for the authenticated user only
       const entries = await storage.getNonProjectTimeEntriesWithCategory(userId, organizationId, startDate, endDate);
       res.json(entries);
     } catch (error) {
@@ -14463,21 +14532,50 @@ Return ONLY valid JSON.`;
     try {
       const { organizationId, categoryId, entryDate, hours, notes } = req.body;
 
-      // Find user's resource
+      // Validate required fields
+      if (!organizationId || !categoryId || !entryDate || hours === undefined) {
+        return res.status(400).json({ message: 'organizationId, categoryId, entryDate, and hours are required' });
+      }
+
+      // Validate hours range
+      const hoursNum = Number(hours);
+      if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
+        return res.status(400).json({ message: 'Hours must be between 0 and 24' });
+      }
+
+      // Verify user belongs to this organization (via membership or resource)
+      const memberships = await storage.getUserOrganizations(userId);
+      const isMember = memberships.some(m => m.organizationId === organizationId);
+      
+      // Also check if user has a resource in this organization
       const resources = await storage.getResources(organizationId);
+      const hasResource = resources.some(r => r.userId === userId);
+      
+      if (!isMember && !hasResource) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      // Verify category belongs to this organization
+      const category = await storage.getTimeCategory(categoryId);
+      if (!category || category.organizationId !== organizationId) {
+        return res.status(400).json({ message: 'Invalid category for this organization' });
+      }
+
+      // Find user's resource (reuse resources from org access check)
       const userResource = resources.find(r => r.userId === userId);
 
       if (!userResource) {
         return res.status(400).json({ message: 'No resource record found for this user' });
       }
 
+      // Always use authenticated user's ID (ignore any client-supplied userId)
       const entry = await storage.createNonProjectTimeEntry({
         organizationId,
         userId,
         resourceId: userResource.id,
         categoryId,
         entryDate,
-        hours,
+        hours: hoursNum,
         notes,
         status: 'Draft'
       });
@@ -14498,7 +14596,26 @@ Return ONLY valid JSON.`;
 
     try {
       const id = Number(req.params.id);
-      const updated = await storage.updateNonProjectTimeEntry(id, req.body);
+      
+      // Get the entry and verify ownership
+      const existingEntry = await storage.getNonProjectTimeEntry(id);
+      
+      if (!existingEntry) {
+        return res.status(404).json({ message: 'Time entry not found' });
+      }
+      
+      // Verify the authenticated user owns this entry
+      if (existingEntry.userId !== userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      // Only allow updating hours and notes
+      const { hours, notes } = req.body;
+      const updates: { hours?: number; notes?: string } = {};
+      if (hours !== undefined) updates.hours = Number(hours);
+      if (notes !== undefined) updates.notes = notes;
+
+      const updated = await storage.updateNonProjectTimeEntry(id, updates);
       res.json(updated);
     } catch (error) {
       console.error('Error updating non-project time entry:', error);
@@ -14515,6 +14632,19 @@ Return ONLY valid JSON.`;
 
     try {
       const id = Number(req.params.id);
+      
+      // Get the entry and verify ownership
+      const existingEntry = await storage.getNonProjectTimeEntry(id);
+      
+      if (!existingEntry) {
+        return res.status(404).json({ message: 'Time entry not found' });
+      }
+      
+      // Verify the authenticated user owns this entry
+      if (existingEntry.userId !== userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
       await storage.deleteNonProjectTimeEntry(id);
       res.status(204).send();
     } catch (error) {

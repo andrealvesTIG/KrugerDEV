@@ -10,7 +10,12 @@ import {
   useTimesheetEntriesForApproval,
   useApproveTimesheetEntry,
   useRejectTimesheetEntry,
-  type TimesheetEntryWithDetails 
+  useTimeCategories,
+  useNonProjectTimeEntries,
+  useCreateNonProjectTimeEntry,
+  useDeleteNonProjectTimeEntry,
+  type TimesheetEntryWithDetails,
+  type NonProjectTimeEntryWithCategory
 } from "@/hooks/use-timesheets";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,7 +62,10 @@ import {
   Maximize2,
   Minimize2,
   Copy,
-  AlertTriangle
+  AlertTriangle,
+  Plus,
+  Palmtree,
+  Trash2
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -1015,6 +1023,26 @@ export default function Timesheets() {
   const bulkUpsert = useBulkUpsertTimesheetEntries();
   const submitWeek = useSubmitTimesheetWeek();
 
+  // Time off tracking hooks
+  const { data: timeCategories = [] } = useTimeCategories(currentOrganization?.id || null);
+  const { data: nonProjectTimeEntries = [] } = useNonProjectTimeEntries(
+    user?.id,
+    currentOrganization?.id || null,
+    startDate,
+    endDate
+  );
+  const createNonProjectTime = useCreateNonProjectTimeEntry();
+  const deleteNonProjectTime = useDeleteNonProjectTimeEntry();
+
+  // Time off popover state
+  const [timeOffPopoverOpen, setTimeOffPopoverOpen] = useState(false);
+  const [timeOffForm, setTimeOffForm] = useState({
+    categoryId: 0,
+    entryDate: formatDateKey(new Date()),
+    hours: 8,
+    notes: ""
+  });
+
   // Get previous week dates for copy feature
   const previousWeekDates = useMemo(() => {
     const prevWeekDate = subWeeks(currentDate, 1);
@@ -1161,6 +1189,35 @@ export default function Timesheets() {
     }
   };
 
+  // Handle time off entry submission
+  const handleTimeOffSubmit = async () => {
+    if (!currentOrganization || !timeOffForm.categoryId) return;
+    try {
+      await createNonProjectTime.mutateAsync({
+        organizationId: currentOrganization.id,
+        categoryId: timeOffForm.categoryId,
+        entryDate: timeOffForm.entryDate,
+        hours: timeOffForm.hours,
+        notes: timeOffForm.notes || undefined
+      });
+      toast({ title: "Time Off Added", description: "Time off entry has been recorded" });
+      setTimeOffPopoverOpen(false);
+      setTimeOffForm({ categoryId: 0, entryDate: formatDateKey(new Date()), hours: 8, notes: "" });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to add time off", variant: "destructive" });
+    }
+  };
+
+  // Handle time off entry deletion
+  const handleDeleteTimeOff = async (id: number) => {
+    try {
+      await deleteNonProjectTime.mutateAsync(id);
+      toast({ title: "Deleted", description: "Time off entry has been removed" });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to delete time off", variant: "destructive" });
+    }
+  };
+
   // Calculate total hours from local gridData for real-time updates
   const totalHoursThisWeek = useMemo(() => {
     let total = 0;
@@ -1267,6 +1324,127 @@ export default function Timesheets() {
               </TooltipTrigger>
               <TooltipContent>Copy hours from previous week (only empty cells)</TooltipContent>
             </Tooltip>
+            <Popover open={timeOffPopoverOpen} onOpenChange={setTimeOffPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  data-testid="button-add-time-off-fullscreen"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Time Off
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="end">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Palmtree className="h-4 w-4 text-emerald-600" />
+                      Add Time Off
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Log vacation, PTO, sick leave, or other non-project time
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Category</Label>
+                      <Select
+                        value={timeOffForm.categoryId ? String(timeOffForm.categoryId) : ""}
+                        onValueChange={(val) => setTimeOffForm(f => ({ ...f, categoryId: Number(val) }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select type..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timeCategories.map((cat) => (
+                            <SelectItem key={cat.id} value={String(cat.id)}>
+                              <span className="flex items-center gap-2">
+                                <span 
+                                  className="w-2 h-2 rounded-full" 
+                                  style={{ backgroundColor: cat.color || '#6b7280' }}
+                                />
+                                {cat.name}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Date</Label>
+                      <Input
+                        type="date"
+                        value={timeOffForm.entryDate}
+                        onChange={(e) => setTimeOffForm(f => ({ ...f, entryDate: e.target.value }))}
+                        className="h-9"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Hours</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="0.5"
+                          max="24"
+                          step="0.5"
+                          value={timeOffForm.hours}
+                          onChange={(e) => setTimeOffForm(f => ({ ...f, hours: Number(e.target.value) }))}
+                          className="h-9 w-20"
+                        />
+                        <div className="flex gap-1">
+                          {[4, 8].map((h) => (
+                            <Button 
+                              key={h}
+                              type="button"
+                              variant={timeOffForm.hours === h ? "secondary" : "ghost"}
+                              size="sm"
+                              onClick={() => setTimeOffForm(f => ({ ...f, hours: h }))}
+                            >
+                              {h}h
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Notes (optional)</Label>
+                      <Input
+                        placeholder="e.g., Doctor appointment"
+                        value={timeOffForm.notes}
+                        onChange={(e) => setTimeOffForm(f => ({ ...f, notes: e.target.value }))}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTimeOffPopoverOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleTimeOffSubmit}
+                      disabled={!timeOffForm.categoryId || createNonProjectTime.isPending}
+                    >
+                      {createNonProjectTime.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Add"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             {hasDraftEntries && viewMode !== "day" && (
               <Button 
                 onClick={handleSubmitWeek}
@@ -1537,6 +1715,134 @@ export default function Timesheets() {
                       <TooltipContent>Copy hours from previous week (only empty cells)</TooltipContent>
                     </Tooltip>
 
+                    <Popover open={timeOffPopoverOpen} onOpenChange={setTimeOffPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          data-testid="button-add-time-off"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Time Off
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80" align="end">
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <h4 className="font-medium text-sm flex items-center gap-2">
+                              <Palmtree className="h-4 w-4 text-emerald-600" />
+                              Add Time Off
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              Log vacation, PTO, sick leave, or other non-project time
+                            </p>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">Category</Label>
+                              <Select
+                                value={timeOffForm.categoryId ? String(timeOffForm.categoryId) : ""}
+                                onValueChange={(val) => setTimeOffForm(f => ({ ...f, categoryId: Number(val) }))}
+                              >
+                                <SelectTrigger className="h-9" data-testid="select-time-off-category">
+                                  <SelectValue placeholder="Select type..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {timeCategories.map((cat) => (
+                                    <SelectItem key={cat.id} value={String(cat.id)}>
+                                      <span className="flex items-center gap-2">
+                                        <span 
+                                          className="w-2 h-2 rounded-full" 
+                                          style={{ backgroundColor: cat.color || '#6b7280' }}
+                                        />
+                                        {cat.name}
+                                      </span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">Date</Label>
+                              <Input
+                                type="date"
+                                value={timeOffForm.entryDate}
+                                onChange={(e) => setTimeOffForm(f => ({ ...f, entryDate: e.target.value }))}
+                                className="h-9"
+                                data-testid="input-time-off-date"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">Hours</Label>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  min="0.5"
+                                  max="24"
+                                  step="0.5"
+                                  value={timeOffForm.hours}
+                                  onChange={(e) => setTimeOffForm(f => ({ ...f, hours: Number(e.target.value) }))}
+                                  className="h-9 w-20"
+                                  data-testid="input-time-off-hours"
+                                />
+                                <div className="flex gap-1">
+                                  {[4, 8].map((h) => (
+                                    <Button 
+                                      key={h}
+                                      type="button"
+                                      variant={timeOffForm.hours === h ? "secondary" : "ghost"}
+                                      size="sm"
+                                      onClick={() => setTimeOffForm(f => ({ ...f, hours: h }))}
+                                      data-testid={`button-time-off-preset-${h}`}
+                                    >
+                                      {h}h
+                                    </Button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="text-xs">Notes (optional)</Label>
+                              <Input
+                                placeholder="e.g., Doctor appointment"
+                                value={timeOffForm.notes}
+                                onChange={(e) => setTimeOffForm(f => ({ ...f, notes: e.target.value }))}
+                                className="h-9"
+                                data-testid="input-time-off-notes"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setTimeOffPopoverOpen(false)}
+                              data-testid="button-cancel-time-off"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleTimeOffSubmit}
+                              disabled={!timeOffForm.categoryId || createNonProjectTime.isPending}
+                              data-testid="button-submit-time-off"
+                            >
+                              {createNonProjectTime.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Add"
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
                     {hasDraftEntries && viewMode !== "day" && (
                       <Button 
                         onClick={handleSubmitWeek}
@@ -1622,6 +1928,49 @@ export default function Timesheets() {
                 </CardContent>
               </Card>
             </div>
+
+            {nonProjectTimeEntries.length > 0 && (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Palmtree className="h-4 w-4 text-emerald-600" />
+                      <span className="font-medium">Time Off This Week:</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {nonProjectTimeEntries.map(({ entry, category }) => (
+                        <div
+                          key={entry.id}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 text-xs group"
+                          data-testid={`time-off-entry-${entry.id}`}
+                        >
+                          <span 
+                            className="w-2 h-2 rounded-full" 
+                            style={{ backgroundColor: category.color || '#6b7280' }}
+                          />
+                          <span className="font-medium">{category.name}</span>
+                          <span className="text-muted-foreground">
+                            {format(parseISO(entry.entryDate), "MMM d")} - {Number(entry.hours)}h
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => handleDeleteTimeOff(entry.id)}
+                            data-testid={`delete-time-off-${entry.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="ml-auto text-sm font-medium text-foreground">
+                      {nonProjectTimeEntries.reduce((sum, { entry }) => sum + Number(entry.hours), 0)}h total
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
