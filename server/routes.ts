@@ -13245,11 +13245,27 @@ Return ONLY valid JSON.`;
         }
 
         try {
-          const { planCode, paypalSubscriptionId } = req.body;
-          const { plans, subscriptions, billingCycles, usageRollups, meters, planMeterRules } = await import("@shared/schema");
+          const { planCode, paypalSubscriptionId, organizationId } = req.body;
+          const { plans, subscriptions, billingCycles, usageRollups, meters, planMeterRules, organizationMembers } = await import("@shared/schema");
           
           if (!paypalSubscriptionId || typeof paypalSubscriptionId !== 'string') {
             return res.status(400).json({ message: "PayPal subscription ID is required" });
+          }
+          
+          if (!organizationId || typeof organizationId !== 'number') {
+            return res.status(400).json({ message: "Organization ID is required" });
+          }
+          
+          // Verify user is an admin of the organization
+          const [membership] = await db.select()
+            .from(organizationMembers)
+            .where(and(
+              eq(organizationMembers.organizationId, organizationId),
+              eq(organizationMembers.userId, userId)
+            ));
+          
+          if (!membership || (membership.role !== 'org_admin' && membership.role !== 'owner')) {
+            return res.status(403).json({ message: "Only organization admins can manage subscriptions" });
           }
           
           // Verify PayPal subscription and derive plan from PayPal's data (prevents plan spoofing)
@@ -13351,8 +13367,8 @@ Return ONLY valid JSON.`;
           
           const plan = verifiedPlan;
 
-          // Check if user has existing subscription
-          const [existingSub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
+          // Check if organization has existing subscription
+          const [existingSub] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, organizationId));
           
           const now = new Date();
           const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -13377,6 +13393,7 @@ Return ONLY valid JSON.`;
               await db.insert(billingTransactions).values({
                 subscriptionId: existingSub.id,
                 userId,
+                orgId: organizationId,
                 provider: "paypal",
                 externalTransactionId: paypalSubscriptionId,
                 amountCents: plan.monthlyPriceCents,
@@ -13391,13 +13408,13 @@ Return ONLY valid JSON.`;
               });
             }
             
-            res.json({ success: true, subscriptionId: existingSub.id });
+            res.json({ success: true, subscriptionId: existingSub.id, organizationId });
           } else {
-            // Create new subscription
+            // Create new subscription for organization
             const [newSub] = await db.insert(subscriptions).values({
               planId: plan.id,
-              userId,
-              subjectType: "USER",
+              orgId: organizationId,
+              subjectType: "ORGANIZATION",
               status: "ACTIVE",
               paypalSubscriptionId,
               currentPeriodStart: periodStart,
@@ -13436,6 +13453,7 @@ Return ONLY valid JSON.`;
               await db.insert(billingTransactions).values({
                 subscriptionId: newSub.id,
                 userId,
+                orgId: organizationId,
                 provider: "paypal",
                 externalTransactionId: paypalSubscriptionId,
                 amountCents: plan.monthlyPriceCents,
@@ -13450,7 +13468,7 @@ Return ONLY valid JSON.`;
               });
             }
 
-            res.json({ success: true, subscriptionId: newSub.id });
+            res.json({ success: true, subscriptionId: newSub.id, organizationId });
           }
         } catch (error) {
           console.error("Failed to update subscription:", error);

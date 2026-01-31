@@ -230,10 +230,14 @@ export function BillingContent() {
           throw new Error('Could not determine plan for subscription');
         }
         
-        // Activate the subscription in our system
+        // Activate the subscription in our system (organization-based)
+        if (!currentOrganization?.id) {
+          throw new Error('Please select an organization first');
+        }
         await apiRequest('POST', '/api/billing/subscription/paypal', {
           planCode: finalPlanCode,
           paypalSubscriptionId: subscriptionId,
+          organizationId: currentOrganization.id,
         });
         
         // Refresh subscription data
@@ -262,7 +266,7 @@ export function BillingContent() {
     };
     
     activateSubscription();
-  }, [user, toast]);
+  }, [user, toast, currentOrganization]);
 
   const YEARLY_DISCOUNT = 0.10; // 10% discount for yearly billing
   
@@ -1283,9 +1287,13 @@ export function BillingContent() {
                       planCode={changePlanDialog.code}
                       onSuccess={async (subscriptionId, subscriptionData) => {
                         try {
+                          if (!currentOrganization?.id) {
+                            throw new Error('Please select an organization first');
+                          }
                           await apiRequest('POST', '/api/billing/subscription/paypal', {
                             planCode: changePlanDialog.code,
                             paypalSubscriptionId: subscriptionId,
+                            organizationId: currentOrganization.id,
                           });
                           queryClient.invalidateQueries({ queryKey: ['/api/billing/subscription'] });
                           queryClient.invalidateQueries({ queryKey: ['/api/billing/usage'] });

@@ -179,7 +179,17 @@ export async function setupMicrosoftAuth(app: Express) {
     delete req.session.msOAuthNonce;
 
     if (!state || state !== savedState) {
-      console.error("CSRF state mismatch", { received: state, expected: savedState });
+      console.error("CSRF state mismatch", { 
+        received: state, 
+        expected: savedState,
+        hasSession: !!req.session,
+        sessionId: req.sessionID,
+        cookiePresent: !!req.headers.cookie
+      });
+      // If no saved state at all (session lost), provide a more helpful error
+      if (!savedState) {
+        return res.redirect("/auth?error=Session expired. Please try signing in again.");
+      }
       return res.redirect("/auth?error=Security validation failed. Please try again.");
     }
 
