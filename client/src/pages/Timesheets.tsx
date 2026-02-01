@@ -527,7 +527,11 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
   const getRowTotal = (taskId: number): number => {
     if (!gridData[taskId]) return 0;
-    return Object.values(gridData[taskId]).reduce((sum, { hours }) => sum + (parseFloat(hours) || 0), 0);
+    // Only sum hours for the visible week dates
+    return dates.reduce((sum: number, date: Date) => {
+      const dateKey = format(date, "yyyy-MM-dd");
+      return sum + (parseFloat(gridData[taskId][dateKey]?.hours) || 0);
+    }, 0);
   };
 
   const getColumnTotal = (dateKey: string): number => {
@@ -537,8 +541,12 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   };
 
   const getGrandTotal = (): number => {
+    // Only sum hours for the visible week dates
     return Object.values(gridData).reduce((sum, taskData) => {
-      return sum + Object.values(taskData).reduce((s, { hours }) => s + (parseFloat(hours) || 0), 0);
+      return sum + dates.reduce((s: number, date: Date) => {
+        const dateKey = format(date, "yyyy-MM-dd");
+        return s + (parseFloat(taskData[dateKey]?.hours) || 0);
+      }, 0);
     }, 0);
   };
 
