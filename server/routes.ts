@@ -12672,7 +12672,7 @@ Return ONLY valid JSON.`;
     try {
       const { plans } = await import("@shared/schema");
       const planId = parseInt(req.params.id);
-      const { name, description, monthlyPriceCents, maxSeats, extraSeatPriceCents, isActive } = req.body;
+      const { name, description, monthlyPriceCents, maxSeats, extraSeatPriceCents, isActive, paypalPlanId, paypalProductId } = req.body;
 
       const updates: any = {};
       if (name !== undefined) updates.name = name;
@@ -12681,6 +12681,8 @@ Return ONLY valid JSON.`;
       if (maxSeats !== undefined) updates.maxSeats = maxSeats;
       if (extraSeatPriceCents !== undefined) updates.extraSeatPriceCents = extraSeatPriceCents;
       if (isActive !== undefined) updates.isActive = isActive;
+      if (paypalPlanId !== undefined) updates.paypalPlanId = paypalPlanId;
+      if (paypalProductId !== undefined) updates.paypalProductId = paypalProductId;
 
       const [updated] = await db.update(plans)
         .set(updates)
@@ -13148,49 +13150,134 @@ Return ONLY valid JSON.`;
           }
           const { access_token } = await tokenRes.json();
 
-          // Create product if not exists
-          let productId = allPlans.find(p => p.paypalProductId)?.paypalProductId;
-          if (!productId) {
-            const productRes = await fetch(`${PAYPAL_API_BASE}/v1/catalogs/products`, {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${access_token}`,
-                "Content-Type": "application/json",
-                "PayPal-Request-Id": `product-fridayreport-${Date.now()}`,
-              },
-              body: JSON.stringify({
-                name: "FridayReport.AI Subscription",
-                description: "Project Portfolio Management subscription",
-                type: "SERVICE",
-                category: "SOFTWARE",
-              }),
-            });
-            
-            if (!productRes.ok) {
-              const errorData = await productRes.json();
-              console.error("PayPal product creation failed:", errorData);
-              return res.status(500).json({ message: "Failed to create PayPal product", error: errorData });
-            }
-            const product = await productRes.json();
-            productId = product.id;
+          // STEP 1: Fetch ALL existing plans from PayPal
+          console.log("[PayPal Sync] Fetching existing plans from PayPal...");
+          const existingPlansRes = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans?page_size=20&total_required=true`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${access_token}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          let paypalPlans: any[] = [];
+          if (existingPlansRes.ok) {
+            const data = await existingPlansRes.json();
+            paypalPlans = data.plans || [];
+            console.log(`[PayPal Sync] Found ${paypalPlans.length} plans in PayPal`);
+          } else {
+            console.log("[PayPal Sync] Could not fetch existing plans, will create new ones");
           }
 
+          // STEP 2: Fetch details for each PayPal plan to get pricing
+          const paypalPlanDetails: any[] = [];
+          for (const pp of paypalPlans) {
+            if (pp.status === "ACTIVE") {
+              try {
+                const detailRes = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans/${pp.id}`, {
+                  method: "GET",
+                  headers: {
+                    "Authorization": `Bearer ${access_token}`,
+                    "Content-Type": "application/json",
+                  },
+                });
+                if (detailRes.ok) {
+                  const detail = await detailRes.json();
+                  const billingCycle = detail.billing_cycles?.find((bc: any) => bc.tenure_type === "REGULAR");
+                  const price = billingCycle?.pricing_scheme?.fixed_price?.value;
+                  paypalPlanDetails.push({
+                    id: pp.id,
+                    name: pp.name,
+                    status: pp.status,
+                    product_id: detail.product_id,
+                    price: price ? parseFloat(price) : null,
+                    priceCents: price ? Math.round(parseFloat(price) * 100) : null,
+                  });
+                  console.log(`[PayPal Sync] Plan ${pp.id}: ${pp.name} - $${price}`);
+                }
+              } catch (e) {
+                console.error(`[PayPal Sync] Error fetching plan details for ${pp.id}:`, e);
+              }
+            }
+          }
+
+          // STEP 3: Match PayPal plans to database plans by price
           const results = [];
-          for (const plan of allPlans) {
-            if (plan.monthlyPriceCents && plan.monthlyPriceCents > 0 && !plan.paypalPlanId) {
-              const priceValue = (plan.monthlyPriceCents / 100).toFixed(2);
+          let productId = paypalPlanDetails[0]?.product_id || allPlans.find(p => p.paypalProductId)?.paypalProductId;
+
+          for (const dbPlan of allPlans) {
+            if (!dbPlan.monthlyPriceCents || dbPlan.monthlyPriceCents === 0) {
+              results.push({ planCode: dbPlan.code, status: "skipped", reason: "free_plan" });
+              continue;
+            }
+
+            // Find matching PayPal plan by price
+            const matchingPaypalPlan = paypalPlanDetails.find(pp => pp.priceCents === dbPlan.monthlyPriceCents);
+            
+            if (matchingPaypalPlan) {
+              // Update database with correct PayPal plan ID
+              if (dbPlan.paypalPlanId !== matchingPaypalPlan.id) {
+                await db.update(plans)
+                  .set({ 
+                    paypalPlanId: matchingPaypalPlan.id, 
+                    paypalProductId: matchingPaypalPlan.product_id 
+                  })
+                  .where(eq(plans.id, dbPlan.id));
+                results.push({ 
+                  planCode: dbPlan.code, 
+                  paypalPlanId: matchingPaypalPlan.id, 
+                  status: "updated",
+                  oldPaypalPlanId: dbPlan.paypalPlanId,
+                  price: `$${(dbPlan.monthlyPriceCents / 100).toFixed(2)}`
+                });
+                console.log(`[PayPal Sync] Updated ${dbPlan.code}: ${dbPlan.paypalPlanId} -> ${matchingPaypalPlan.id}`);
+              } else {
+                results.push({ 
+                  planCode: dbPlan.code, 
+                  paypalPlanId: dbPlan.paypalPlanId, 
+                  status: "already_correct" 
+                });
+              }
+            } else {
+              // No matching plan found - need to create one
+              console.log(`[PayPal Sync] No matching PayPal plan for ${dbPlan.code} at $${(dbPlan.monthlyPriceCents / 100).toFixed(2)}`);
               
+              // Create product if needed
+              if (!productId) {
+                const productRes = await fetch(`${PAYPAL_API_BASE}/v1/catalogs/products`, {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${access_token}`,
+                    "Content-Type": "application/json",
+                    "PayPal-Request-Id": `product-fridayreport-${Date.now()}`,
+                  },
+                  body: JSON.stringify({
+                    name: "FridayReport.AI Subscription",
+                    description: "Project Portfolio Management subscription",
+                    type: "SERVICE",
+                    category: "SOFTWARE",
+                  }),
+                });
+                
+                if (productRes.ok) {
+                  const product = await productRes.json();
+                  productId = product.id;
+                }
+              }
+
+              // Create the plan in PayPal
+              const priceValue = (dbPlan.monthlyPriceCents / 100).toFixed(2);
               const planRes = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans`, {
                 method: "POST",
                 headers: {
                   "Authorization": `Bearer ${access_token}`,
                   "Content-Type": "application/json",
-                  "PayPal-Request-Id": `plan-${plan.code}-${Date.now()}`,
+                  "PayPal-Request-Id": `plan-${dbPlan.code}-${Date.now()}`,
                 },
                 body: JSON.stringify({
                   product_id: productId,
-                  name: `${plan.name} Plan`,
-                  description: plan.description || `${plan.name} monthly subscription`,
+                  name: `${dbPlan.name} Plan`,
+                  description: dbPlan.description || `${dbPlan.name} monthly subscription`,
                   status: "ACTIVE",
                   billing_cycles: [{
                     frequency: { interval_unit: "MONTH", interval_count: 1 },
@@ -13210,27 +13297,21 @@ Return ONLY valid JSON.`;
                 }),
               });
               
-              if (!planRes.ok) {
+              if (planRes.ok) {
+                const paypalPlan = await planRes.json();
+                await db.update(plans)
+                  .set({ paypalPlanId: paypalPlan.id, paypalProductId: productId })
+                  .where(eq(plans.id, dbPlan.id));
+                results.push({ planCode: dbPlan.code, paypalPlanId: paypalPlan.id, status: "created" });
+              } else {
                 const errorData = await planRes.json();
-                console.error(`PayPal plan creation failed for ${plan.code}:`, errorData);
-                results.push({ planCode: plan.code, error: errorData.message || "Failed to create plan" });
-                continue;
+                results.push({ planCode: dbPlan.code, error: errorData.message || "Failed to create plan", status: "error" });
               }
-              
-              const paypalPlan = await planRes.json();
-              
-              // Update plan in database
-              await db.update(plans)
-                .set({ paypalPlanId: paypalPlan.id, paypalProductId: productId })
-                .where(eq(plans.id, plan.id));
-              
-              results.push({ planCode: plan.code, paypalPlanId: paypalPlan.id });
-            } else if (plan.paypalPlanId) {
-              results.push({ planCode: plan.code, paypalPlanId: plan.paypalPlanId, status: "already_synced" });
             }
           }
 
-          res.json({ success: true, productId, plans: results });
+          console.log("[PayPal Sync] Sync complete:", results);
+          res.json({ success: true, productId, paypalPlansFound: paypalPlanDetails.length, plans: results });
         } catch (error) {
           console.error("Failed to sync PayPal plans:", error);
           res.status(500).json({ message: "Failed to sync PayPal plans" });
@@ -13323,35 +13404,67 @@ Return ONLY valid JSON.`;
               }
               
               const paypalSub = await subRes.json();
+              console.log(`[PayPal Activation] Subscription ${paypalSubscriptionId} status: ${paypalSub.status}, plan_id: ${paypalSub.plan_id}`);
               
-              // Verify the subscription is active/approved
-              if (paypalSub.status !== 'ACTIVE' && paypalSub.status !== 'APPROVED') {
+              // Verify the subscription is active/approved/pending
+              // APPROVAL_PENDING: User approved but first payment not yet processed
+              // APPROVED: User approved, awaiting activation
+              // ACTIVE: Subscription is fully active
+              const validStatuses = ['ACTIVE', 'APPROVED', 'APPROVAL_PENDING'];
+              if (!validStatuses.includes(paypalSub.status)) {
                 console.error(`PayPal subscription ${paypalSubscriptionId} has status ${paypalSub.status}, rejecting`);
-                return res.status(400).json({ message: "PayPal subscription is not active" });
+                return res.status(400).json({ 
+                  message: `PayPal subscription status is '${paypalSub.status}'. Expected: ACTIVE, APPROVED, or APPROVAL_PENDING.`,
+                  status: paypalSub.status
+                });
               }
               
               // Derive plan from PayPal's plan_id (server-side, ignore URL param to prevent spoofing)
               const paypalPlanIdFromSub = paypalSub.plan_id;
+              console.log(`[PayPal Activation] PayPal subscription ${paypalSubscriptionId} has plan_id: ${paypalPlanIdFromSub}, requested planCode: ${planCode}`);
+              
               if (paypalPlanIdFromSub) {
                 const [matchingPlan] = await db.select().from(plans).where(eq(plans.paypalPlanId, paypalPlanIdFromSub));
                 if (matchingPlan) {
                   verifiedPlan = matchingPlan;
+                  console.log(`[PayPal Activation] Matched to plan ${matchingPlan.code} (id: ${matchingPlan.id})`);
                   if (planCode && matchingPlan.code !== planCode) {
-                    console.log(`Plan derived from PayPal: requested ${planCode} but PayPal subscription is for ${matchingPlan.code}`);
+                    console.log(`[PayPal Activation] Note: requested ${planCode} but PayPal subscription is for ${matchingPlan.code}`);
                   }
+                } else {
+                  console.log(`[PayPal Activation] No plan found in database with paypalPlanId: ${paypalPlanIdFromSub}`);
+                  // Log all plans for debugging
+                  const allPlans = await db.select().from(plans);
+                  console.log(`[PayPal Activation] Available plans:`, allPlans.map(p => ({ code: p.code, paypalPlanId: p.paypalPlanId })));
+                  
+                  // Return detailed error to help debug
+                  return res.status(400).json({
+                    message: "PayPal plan ID not found in database. Please use 'Sync PayPal Plans' in Super Admin.",
+                    paypalPlanId: paypalPlanIdFromSub,
+                    availablePlans: allPlans.map(p => ({ code: p.code, paypalPlanId: p.paypalPlanId }))
+                  });
                 }
               }
               
-              // If no matching plan found from PayPal, fall back to planCode (for legacy plans)
+              // If no matching plan found from PayPal, fall back to planCode
               if (!verifiedPlan && planCode) {
                 const [requestedPlan] = await db.select().from(plans).where(eq(plans.code, planCode));
                 if (requestedPlan) {
-                  // Only allow fallback for plans that don't have paypalPlanId set
+                  // Check if the plan's paypalPlanId matches what we got from PayPal
                   if (!requestedPlan.paypalPlanId) {
+                    // Plan has no PayPal ID set, allow fallback
                     verifiedPlan = requestedPlan;
+                    console.log(`[PayPal Activation] Fallback to plan ${requestedPlan.code} (no paypalPlanId set)`);
+                  } else if (paypalPlanIdFromSub && requestedPlan.paypalPlanId !== paypalPlanIdFromSub) {
+                    // Plan has a different paypalPlanId - this could be sandbox/live mismatch
+                    console.error(`[PayPal Activation] Plan mismatch: ${planCode} has DB paypalPlanId=${requestedPlan.paypalPlanId} but PayPal returned ${paypalPlanIdFromSub}`);
+                    console.error(`[PayPal Activation] This usually means the database has sandbox plan IDs but you're using live PayPal credentials, or vice versa.`);
+                    return res.status(400).json({ 
+                      message: "Subscription plan ID mismatch. Please contact support.",
+                      details: "The payment was processed but the plan IDs don't match. Your payment is safe - contact support to activate your subscription."
+                    });
                   } else {
-                    console.error(`Plan ${planCode} has paypalPlanId but PayPal returned ${paypalPlanIdFromSub}`);
-                    return res.status(400).json({ message: "Subscription plan does not match the payment" });
+                    verifiedPlan = requestedPlan;
                   }
                 }
               }

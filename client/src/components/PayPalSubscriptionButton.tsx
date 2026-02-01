@@ -1,6 +1,13 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle } from "lucide-react";
+
+// Global flags to prevent multiple SDK loads across component instances
+let sdkLoadingPromise: Promise<void> | null = null;
+let sdkLoaded = false;
+// Global guard to prevent double checkout - track when last subscription was initiated
+let lastSubscriptionInitTime = 0;
+const SUBSCRIPTION_COOLDOWN_MS = 5000; // 5 seconds cooldown between subscription attempts
 
 interface PayPalSubscriptionButtonProps {
   planId: string;
@@ -22,27 +29,36 @@ export default function PayPalSubscriptionButton({
   className = "",
 }: PayPalSubscriptionButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [sdkReady, setSdkReady] = useState(false);
+  const [sdkReady, setSdkReady] = useState(sdkLoaded);
   const [sdkError, setSdkError] = useState<string | null>(null);
   const buttonContainerRef = useRef<HTMLDivElement>(null);
   const paypalButtonRendered = useRef(false);
+  const componentMounted = useRef(true);
+  const subscriptionInProgress = useRef(false);
 
-  useEffect(() => {
-    const loadPayPalSDK = async () => {
-      // Check if PayPal SDK is already loaded
-      const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]');
-      if (existingScript && (window as any).paypal?.Buttons) {
-        setSdkReady(true);
-        return;
-      }
-      
-      // Remove any existing PayPal SDK scripts to ensure fresh load
-      if (existingScript) {
-        existingScript.remove();
-        delete (window as any).paypal;
-      }
+  const loadPayPalSDK = useCallback(async () => {
+    // If SDK is already loaded, we're done
+    if (sdkLoaded && (window as any).paypal?.Buttons) {
+      if (componentMounted.current) setSdkReady(true);
+      return;
+    }
 
+    // If already loading, wait for existing promise
+    if (sdkLoadingPromise) {
+      await sdkLoadingPromise;
+      if (componentMounted.current) setSdkReady(true);
+      return;
+    }
+
+    // Start loading
+    sdkLoadingPromise = new Promise<void>(async (resolve, reject) => {
       try {
+        // Remove any existing broken script
+        const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]');
+        if (existingScript && !(window as any).paypal?.Buttons) {
+          existingScript.remove();
+        }
+
         const response = await fetch("/api/paypal/subscription/client-id");
         if (!response.ok) {
           const errorData = await response.json();
@@ -55,28 +71,46 @@ export default function PayPalSubscriptionButton({
         }
 
         const script = document.createElement("script");
-        // Load SDK with card funding enabled, disable other options except paypal (needed for SDK to work)
         script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&vault=true&intent=subscription&disable-funding=paylater,venmo,credit`;
         script.async = true;
-        script.onload = () => setSdkReady(true);
+        script.onload = () => {
+          sdkLoaded = true;
+          resolve();
+        };
         script.onerror = () => {
-          const error = new Error("Failed to load PayPal SDK");
-          setSdkError(error.message);
-          if (onError) onError(error);
+          sdkLoadingPromise = null;
+          reject(new Error("Failed to load PayPal SDK"));
         };
         document.body.appendChild(script);
-      } catch (error: any) {
-        console.error("Failed to get PayPal client ID:", error);
+      } catch (error) {
+        sdkLoadingPromise = null;
+        reject(error);
+      }
+    });
+
+    try {
+      await sdkLoadingPromise;
+      if (componentMounted.current) setSdkReady(true);
+    } catch (error: any) {
+      console.error("Failed to get PayPal client ID:", error);
+      if (componentMounted.current) {
         setSdkError(error.message || "PayPal is not available");
         if (onError) onError(error);
       }
-    };
-
-    loadPayPalSDK();
-  }, []);
+    }
+  }, [onError]);
 
   useEffect(() => {
-    if (!sdkReady || !buttonContainerRef.current || paypalButtonRendered.current || disabled) {
+    componentMounted.current = true;
+    loadPayPalSDK();
+    
+    return () => {
+      componentMounted.current = false;
+    };
+  }, [loadPayPalSDK]);
+
+  useEffect(() => {
+    if (!sdkReady || !buttonContainerRef.current || disabled) {
       return;
     }
 
@@ -86,34 +120,63 @@ export default function PayPalSubscriptionButton({
     }
 
     const container = buttonContainerRef.current;
+    
+    // Prevent double rendering - check if already rendered for this planId
+    if (paypalButtonRendered.current) {
+      return;
+    }
+    
+    // Clear any existing buttons first
+    container.innerHTML = "";
     paypalButtonRendered.current = true;
 
-    // Render only the card button by specifying fundingSource
-    const cardButton = paypal.Buttons({
-      fundingSource: paypal.FUNDING.CARD,
+    // Render the default PayPal button (single checkout window)
+    const paypalButton = paypal.Buttons({
       style: {
         shape: "rect",
-        color: "black",
+        color: "gold",
         layout: "vertical",
-        label: "pay",
+        label: "subscribe",
       },
       createSubscription: async (data: any, actions: any) => {
+        // Global cooldown check - prevent rapid successive subscription attempts
+        const now = Date.now();
+        if (now - lastSubscriptionInitTime < SUBSCRIPTION_COOLDOWN_MS) {
+          console.log('[PayPal] Subscription attempt within cooldown period, blocking');
+          return Promise.reject(new Error('Please wait before trying again'));
+        }
+        
+        // Prevent double subscription creation
+        if (subscriptionInProgress.current) {
+          console.log('[PayPal] Subscription already in progress, ignoring duplicate call');
+          return Promise.reject(new Error('Subscription already in progress'));
+        }
+        
+        // Set both guards
+        lastSubscriptionInitTime = now;
+        subscriptionInProgress.current = true;
+        
         // Build return URL with plan code for redirect flow (mobile devices)
         const baseUrl = window.location.origin;
         const returnUrl = planCode 
           ? `${baseUrl}/billing?plan_code=${encodeURIComponent(planCode)}`
           : `${baseUrl}/billing`;
         
-        return actions.subscription.create({
-          plan_id: planId,
-          application_context: {
-            brand_name: "FridayReport.AI",
-            shipping_preference: "NO_SHIPPING",
-            user_action: "SUBSCRIBE_NOW",
-            return_url: returnUrl,
-            cancel_url: `${baseUrl}/billing`,
-          },
-        });
+        try {
+          return await actions.subscription.create({
+            plan_id: planId,
+            application_context: {
+              brand_name: "FridayReport.AI",
+              shipping_preference: "NO_SHIPPING",
+              user_action: "SUBSCRIBE_NOW",
+              return_url: returnUrl,
+              cancel_url: `${baseUrl}/billing`,
+            },
+          });
+        } catch (error) {
+          subscriptionInProgress.current = false;
+          throw error;
+        }
       },
       onApprove: async (data: any, actions: any) => {
         setIsLoading(true);
@@ -129,26 +192,26 @@ export default function PayPalSubscriptionButton({
           if (onError) onError(error);
         } finally {
           setIsLoading(false);
+          subscriptionInProgress.current = false;
         }
       },
       onCancel: () => {
+        subscriptionInProgress.current = false;
         if (onCancel) onCancel();
       },
       onError: (err: any) => {
+        subscriptionInProgress.current = false;
         console.error("PayPal subscription error:", err);
         if (onError) onError(err);
       },
     });
     
-    // Check if card button is eligible before rendering
-    if (cardButton.isEligible()) {
-      cardButton.render(container);
-    } else {
-      setSdkError("Card payments are not available for this account");
-    }
+    // Render the PayPal button
+    paypalButton.render(container);
 
     return () => {
       paypalButtonRendered.current = false;
+      subscriptionInProgress.current = false;
       if (container) {
         container.innerHTML = "";
       }
