@@ -1054,6 +1054,32 @@ export default function Timesheets() {
     includeWeekends: false
   });
 
+  // Clear week confirmation state
+  const [clearWeekDialogOpen, setClearWeekDialogOpen] = useState(false);
+  
+  const handleClearWeek = () => {
+    // Reset all hours for the current week to empty
+    const newGridData = { ...gridData };
+    for (const taskId of Object.keys(newGridData)) {
+      for (const date of dates) {
+        const dateKey = formatDateKey(date);
+        if (newGridData[Number(taskId)][dateKey]) {
+          newGridData[Number(taskId)][dateKey] = { 
+            ...newGridData[Number(taskId)][dateKey], 
+            hours: "" 
+          };
+        }
+      }
+    }
+    setGridData(newGridData);
+    setHasChanges(true);
+    setClearWeekDialogOpen(false);
+    toast({
+      title: "Week Cleared",
+      description: "All hours for this week have been reset. Remember to save your changes.",
+    });
+  };
+
   // Get previous week dates for copy feature
   const previousWeekDates = useMemo(() => {
     const prevWeekDate = subWeeks(currentDate, 1);
@@ -1539,6 +1565,34 @@ export default function Timesheets() {
                 </div>
               </PopoverContent>
             </Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setClearWeekDialogOpen(true)}
+                  data-testid="button-clear-week"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear Week
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear all time entries for this week</TooltipContent>
+            </Tooltip>
+            <AlertDialog open={clearWeekDialogOpen} onOpenChange={setClearWeekDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear Week?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will reset all time entries for the current week to zero. You'll need to save for changes to take effect.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearWeek}>Clear Week</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             {hasDraftEntries && viewMode !== "day" && (
               <Button 
                 onClick={handleSubmitWeek}
