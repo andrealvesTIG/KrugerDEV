@@ -143,6 +143,7 @@ The application manages comprehensive data entities including:
   - `user_activity_logs`: User activity tracking for analytics
   - `feature_usage_logs`: Feature usage tracking for analytics
   - `error_logs`: Error tracking and debugging logs
+- **Column Added**: Added missing `is_intake_approver` column to `resources` table (boolean, default false)
 
 ### Deprecated Tables (Pending Cleanup)
 The following tables are deprecated and scheduled for future removal. Data migration should be verified before cleanup:
