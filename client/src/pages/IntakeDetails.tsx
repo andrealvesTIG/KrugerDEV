@@ -59,6 +59,18 @@ export default function IntakeDetails() {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
+
+  // Check if user can approve intakes
+  const { data: approvalPermission } = useQuery<{ canApprove: boolean }>({
+    queryKey: ['/api/organizations', currentOrganization?.id, 'can-approve-intakes'],
+    queryFn: async () => {
+      const res = await fetch(`/api/organizations/${currentOrganization?.id}/can-approve-intakes`);
+      if (!res.ok) return { canApprove: false };
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id,
+  });
+  const canApproveIntakes = approvalPermission?.canApprove ?? false;
   
   const { data: intake, isLoading, error } = useQuery<ProjectIntake>({
     queryKey: ['/api/project-intakes', id, currentOrganization?.id],
@@ -332,31 +344,35 @@ export default function IntakeDetails() {
               
               <div className="flex items-center gap-2">
                 {isLastStep ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsRejectDialogOpen(true)}
-                    >
-                      <XCircle className="h-4 w-4 mr-1" />
-                      Reject
-                    </Button>
-                    <div className="relative group">
+                  canApproveIntakes ? (
+                    <>
                       <Button
+                        variant="outline"
                         size="sm"
-                        onClick={() => approveIntake.mutate()}
-                        disabled={approveIntake.isPending || !(formData.pmoApproved ?? intake.pmoApproved)}
+                        onClick={() => setIsRejectDialogOpen(true)}
+                        data-testid="button-reject-intake"
                       >
-                        <Check className="h-4 w-4 mr-1" />
-                        {approveIntake.isPending ? "Converting..." : "Approve & Convert"}
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Reject
                       </Button>
-                      {!(formData.pmoApproved ?? intake.pmoApproved) && (
-                        <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md shadow-md whitespace-nowrap z-50 border">
-                          Check "PM Approved" first
-                        </div>
-                      )}
-                    </div>
-                  </>
+                      <div className="relative group">
+                        <Button
+                          size="sm"
+                          onClick={() => approveIntake.mutate()}
+                          disabled={approveIntake.isPending || !(formData.pmoApproved ?? intake.pmoApproved)}
+                          data-testid="button-approve-intake"
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          {approveIntake.isPending ? "Converting..." : "Approve & Convert"}
+                        </Button>
+                        {!(formData.pmoApproved ?? intake.pmoApproved) && (
+                          <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md shadow-md whitespace-nowrap z-50 border">
+                            Check "PM Approved" first
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : null
                 ) : (
                   <Button size="sm" onClick={handleNextStep} disabled={updateIntake.isPending}>
                     Next Gate
@@ -678,46 +694,48 @@ export default function IntakeDetails() {
             </CardContent>
           </Card>
 
-          <Card className="border-primary/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Gavel className="h-5 w-5 text-primary" />
-                PM Approval
-              </CardTitle>
-              <CardDescription>
-                PM approval is required before this intake can be converted to a project
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-2 p-4 rounded-md bg-muted/50">
-                <Checkbox 
-                  id="pmoApproved"
-                  checked={formData.pmoApproved ?? intake.pmoApproved ?? false}
-                  onCheckedChange={(checked) => {
-                    handleFieldChange('pmoApproved', checked);
-                    updateIntake.mutate({ pmoApproved: checked as boolean });
-                  }}
-                  disabled={isLocked}
-                  data-testid="checkbox-pmo-approved"
-                />
-                <Label htmlFor="pmoApproved" className="text-sm cursor-pointer font-medium">
-                  PM has reviewed and approved this intake for project conversion
-                </Label>
-              </div>
-              {(formData.pmoApproved ?? intake.pmoApproved) && (
-                <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
-                  <Check className="h-4 w-4" />
-                  PM approval granted. This intake is ready for conversion by an admin.
-                </p>
-              )}
-              {!(formData.pmoApproved ?? intake.pmoApproved) && !isLocked && (
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  PM approval is required before the "Approve & Convert" button can be used.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          {canApproveIntakes && (
+            <Card className="border-primary/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Gavel className="h-5 w-5 text-primary" />
+                  PM Approval
+                </CardTitle>
+                <CardDescription>
+                  PM approval is required before this intake can be converted to a project
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2 p-4 rounded-md bg-muted/50">
+                  <Checkbox 
+                    id="pmoApproved"
+                    checked={formData.pmoApproved ?? intake.pmoApproved ?? false}
+                    onCheckedChange={(checked) => {
+                      handleFieldChange('pmoApproved', checked);
+                      updateIntake.mutate({ pmoApproved: checked as boolean });
+                    }}
+                    disabled={isLocked}
+                    data-testid="checkbox-pmo-approved"
+                  />
+                  <Label htmlFor="pmoApproved" className="text-sm cursor-pointer font-medium">
+                    PM has reviewed and approved this intake for project conversion
+                  </Label>
+                </div>
+                {(formData.pmoApproved ?? intake.pmoApproved) && (
+                  <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
+                    <Check className="h-4 w-4" />
+                    PM approval granted. This intake is ready for conversion by an admin.
+                  </p>
+                )}
+                {!(formData.pmoApproved ?? intake.pmoApproved) && !isLocked && (
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    PM approval is required before the "Approve & Convert" button can be used.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 

@@ -9192,6 +9192,46 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
     }
   });
 
+  // Check if user can approve intakes for an organization
+  app.get('/api/organizations/:orgId/can-approve-intakes', async (req, res) => {
+    try {
+      const orgId = Number(req.params.orgId);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      // Super admins can always approve
+      if (user.role === 'super_admin') {
+        return res.json({ canApprove: true });
+      }
+
+      // Check if user is org_admin or owner for this organization
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === orgId && (m.role === 'org_admin' || m.role === 'owner'));
+      
+      if (isOrgAdmin) {
+        return res.json({ canApprove: true });
+      }
+
+      // Check if user's resource has isIntakeApprover flag
+      const resources = await storage.getResources(orgId);
+      const userResource = resources.find(r => r.userId === userId);
+      const isIntakeApprover = userResource?.isIntakeApprover === true;
+      
+      return res.json({ canApprove: isIntakeApprover });
+    } catch (err) {
+      console.error("Error checking intake approval permission:", err);
+      res.status(500).json({ message: "Error checking permission" });
+    }
+  });
+
   // Approve a project intake and create project
   app.post('/api/project-intakes/:id/approve', async (req, res) => {
     try {
