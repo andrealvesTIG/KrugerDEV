@@ -39,7 +39,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, CloudDownload, ArrowUpToLine } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, CloudDownload, ArrowUpToLine, IndentIncrease, IndentDecrease } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -7339,6 +7339,112 @@ function ProjectGanttView({
     });
   };
 
+  // Bulk indent for selected tasks
+  const handleBulkIndent = async () => {
+    if (selectedTaskIds.size === 0) return;
+    
+    const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const task of selectedTasks) {
+      const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
+      const newLevel = Math.min(6, currentLevel + 1);
+      
+      if (currentLevel >= 6) {
+        errorCount++;
+        continue;
+      }
+      
+      try {
+        await updateTask.mutateAsync({ 
+          id: task.id, 
+          projectId: task.projectId, 
+          outlineLevel: newLevel 
+        });
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+    
+    if (successCount > 0) {
+      toast({ title: "Tasks indented", description: `${successCount} task${successCount !== 1 ? 's' : ''} indented${errorCount > 0 ? `, ${errorCount} failed` : ''}` });
+    } else if (errorCount > 0) {
+      toast({ title: "Cannot indent", description: "Selected tasks are at maximum level", variant: "destructive" });
+    }
+  };
+
+  // Bulk outdent for selected tasks
+  const handleBulkOutdent = async () => {
+    if (selectedTaskIds.size === 0) return;
+    
+    const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const task of selectedTasks) {
+      const currentLevel = Math.max(1, Math.min(6, task.outlineLevel || 1));
+      const newLevel = Math.max(1, currentLevel - 1);
+      
+      if (currentLevel <= 1) {
+        errorCount++;
+        continue;
+      }
+      
+      try {
+        await updateTask.mutateAsync({ 
+          id: task.id, 
+          projectId: task.projectId, 
+          outlineLevel: newLevel 
+        });
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+    
+    if (successCount > 0) {
+      toast({ title: "Tasks outdented", description: `${successCount} task${successCount !== 1 ? 's' : ''} outdented${errorCount > 0 ? `, ${errorCount} failed` : ''}` });
+    } else if (errorCount > 0) {
+      toast({ title: "Cannot outdent", description: "Selected tasks are at minimum level", variant: "destructive" });
+    }
+  };
+
+  // Bulk baseline for selected tasks
+  const handleBulkBaseline = async () => {
+    if (selectedTaskIds.size === 0) return;
+    
+    const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const task of selectedTasks) {
+      if (!task.startDate || !task.endDate) {
+        errorCount++;
+        continue;
+      }
+      
+      try {
+        await updateTask.mutateAsync({
+          id: task.id,
+          projectId: task.projectId,
+          baselineStartDate: task.startDate,
+          baselineEndDate: task.endDate,
+        });
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+    
+    if (successCount > 0) {
+      toast({ title: "Baseline set", description: `${successCount} task${successCount !== 1 ? 's' : ''} baselined${errorCount > 0 ? `, ${errorCount} skipped (no dates)` : ''}` });
+    } else if (errorCount > 0) {
+      toast({ title: "Cannot set baseline", description: "Selected tasks have no start/end dates", variant: "destructive" });
+    }
+  };
+
   // Collapse/expand state management
   const [collapsedTasks, setCollapsedTasks] = useState<Set<number>>(new Set());
 
@@ -8067,7 +8173,7 @@ function ProjectGanttView({
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Bulk actions bar - appears when tasks are selected */}
               {selectedTaskIds.size > 0 && (
-                <div className="flex items-center gap-3 px-3 py-2 bg-primary/10 border-b">
+                <div className="flex items-center gap-3 px-3 py-2 bg-primary/10 border-b flex-wrap">
                   <span className="text-sm font-medium">{selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? 's' : ''} selected</span>
                   <Button
                     variant="outline"
@@ -8085,6 +8191,38 @@ function ProjectGanttView({
                   >
                     Clear
                   </Button>
+                  <div className="w-px h-5 bg-border" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkBaseline}
+                    disabled={updateTask.isPending || isReadOnly}
+                    data-testid="button-bulk-baseline"
+                  >
+                    <Flag className="h-4 w-4 mr-2" />
+                    Baseline
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkIndent}
+                    disabled={updateTask.isPending || isReadOnly}
+                    data-testid="button-bulk-indent"
+                  >
+                    <IndentIncrease className="h-4 w-4 mr-2" />
+                    Indent
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkOutdent}
+                    disabled={updateTask.isPending || isReadOnly}
+                    data-testid="button-bulk-outdent"
+                  >
+                    <IndentDecrease className="h-4 w-4 mr-2" />
+                    Outdent
+                  </Button>
+                  <div className="w-px h-5 bg-border" />
                   <Button
                     variant="destructive"
                     size="sm"
