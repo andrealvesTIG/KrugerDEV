@@ -6504,7 +6504,12 @@ function TaskDependenciesSection({
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
   const { toast } = useToast();
-  const [selectedPredecessor, setSelectedPredecessor] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const listRef = useRef<HTMLDivElement>(null);
+  const predecessorItemRef = useRef<HTMLDivElement>(null);
+
+  // Find the index of current task in allTasks
+  const currentTaskIndex = allTasks.findIndex(t => t.id === taskId);
 
   // Get tasks that can be predecessors (exclude self, existing predecessors, and parent tasks)
   const availablePredecessors = allTasks.filter((task, index) => {
@@ -6517,9 +6522,31 @@ function TaskDependenciesSection({
     return true;
   });
 
-  const handleAddDependency = () => {
-    if (!selectedPredecessor) return;
-    const predecessorId = Number(selectedPredecessor);
+  // Filter by search query (name + task ID)
+  const filteredPredecessors = availablePredecessors.filter(task => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    const nameMatch = task.name.toLowerCase().includes(query);
+    const idMatch = String(task.id).includes(query);
+    const taskIndexMatch = task.taskIndex ? String(task.taskIndex).includes(query) : false;
+    return nameMatch || idMatch || taskIndexMatch;
+  });
+
+  // Find the immediate predecessor in the grid (task right before current task)
+  const immediatePredecessorId = currentTaskIndex > 0 
+    ? allTasks[currentTaskIndex - 1]?.id 
+    : null;
+
+  // Scroll to immediate predecessor when component mounts
+  useEffect(() => {
+    if (predecessorItemRef.current && listRef.current && !searchQuery) {
+      setTimeout(() => {
+        predecessorItemRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }, 100);
+    }
+  }, [searchQuery]);
+
+  const handleAddDependency = (predecessorId: number) => {
     addDependency.mutate(
       { taskId, dependsOnTaskId: predecessorId, projectId },
       {
@@ -6532,7 +6559,6 @@ function TaskDependenciesSection({
           } else {
             toast({ title: "Success", description: "Dependency added" });
           }
-          setSelectedPredecessor("");
         },
         onError: (error: any) => {
           toast({ 
@@ -6622,37 +6648,69 @@ function TaskDependenciesSection({
         </div>
       )}
 
-      {/* Add new dependency */}
-      <div className="flex gap-2">
-        <Select value={selectedPredecessor} onValueChange={setSelectedPredecessor}>
-          <SelectTrigger className="flex-1">
-            <SelectValue placeholder="Select a predecessor task..." />
-          </SelectTrigger>
-          <SelectContent>
-            {availablePredecessors.length === 0 ? (
-              <SelectItem value="none" disabled>No available tasks</SelectItem>
-            ) : (
-              availablePredecessors.map(task => (
-                <SelectItem key={task.id} value={String(task.id)}>
-                  {task.name}
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleAddDependency}
-          disabled={!selectedPredecessor || addDependency.isPending}
-          data-testid="button-add-dependency"
+      {/* Add new dependency - searchable list */}
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search tasks by name or ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8"
+            data-testid="dependency-search-input"
+          />
+        </div>
+        <div 
+          ref={listRef}
+          className="max-h-[200px] overflow-y-auto border rounded-md"
         >
-          {addDependency.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+          {filteredPredecessors.length === 0 ? (
+            <div className="p-3 text-sm text-muted-foreground text-center">
+              {searchQuery ? "No matching tasks found" : "No available predecessor tasks"}
+            </div>
           ) : (
-            <Plus className="h-4 w-4" />
+            filteredPredecessors.map(task => {
+              const isImmediatePredecessor = task.id === immediatePredecessorId;
+              const taskIndex = allTasks.findIndex(t => t.id === task.id);
+              return (
+                <div
+                  key={task.id}
+                  ref={isImmediatePredecessor ? predecessorItemRef : undefined}
+                  className={cn(
+                    "flex items-center justify-between p-2 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer transition-colors",
+                    isImmediatePredecessor && "bg-primary/5"
+                  )}
+                  onClick={() => handleAddDependency(task.id)}
+                  data-testid={`predecessor-option-${task.id}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-xs text-muted-foreground flex-shrink-0 w-8">
+                      #{taskIndex + 1}
+                    </span>
+                    <span className="text-sm truncate">{task.name}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 flex-shrink-0"
+                    disabled={addDependency.isPending}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddDependency(task.id);
+                    }}
+                  >
+                    {addDependency.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Plus className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
+              );
+            })
           )}
-        </Button>
+        </div>
       </div>
     </div>
   );
