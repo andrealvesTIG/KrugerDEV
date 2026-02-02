@@ -9214,7 +9214,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         return res.status(403).json({ message: "PM approval is required before converting to a project. Please ensure the PM has approved this intake." });
       }
 
-      // Check user role - must be org_admin or super_admin
+      // Check user permission - must be super_admin, org_admin/owner, or have isIntakeApprover flag
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(401).json({ message: "User not found" });
@@ -9226,8 +9226,13 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         const memberships = await storage.getUserOrganizations(userId);
         const isOrgAdmin = memberships.some(m => m.organizationId === existing.organizationId && (m.role === 'org_admin' || m.role === 'owner'));
         
-        if (!isOrgAdmin) {
-          return res.status(403).json({ message: "Only PMO/Admin users can convert intakes to projects" });
+        // Check if user's resource has isIntakeApprover flag
+        const resources = await storage.getResources(existing.organizationId);
+        const userResource = resources.find(r => r.userId === userId);
+        const isIntakeApprover = userResource?.isIntakeApprover === true;
+        
+        if (!isOrgAdmin && !isIntakeApprover) {
+          return res.status(403).json({ message: "You don't have permission to approve intakes. Contact your administrator to grant you intake approval permissions." });
         }
       }
 
@@ -9255,6 +9260,26 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
 
       const existing = await storage.getProjectIntake(id);
       if (!existing) return res.status(404).json({ message: "Project intake not found" });
+      
+      // Check user permission - must be super_admin, org_admin/owner, or have isIntakeApprover flag
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const isSuperAdmin = user.role === 'super_admin';
+      if (!isSuperAdmin) {
+        const memberships = await storage.getUserOrganizations(userId);
+        const isOrgAdmin = memberships.some(m => m.organizationId === existing.organizationId && (m.role === 'org_admin' || m.role === 'owner'));
+        
+        const resources = await storage.getResources(existing.organizationId);
+        const userResource = resources.find(r => r.userId === userId);
+        const isIntakeApprover = userResource?.isIntakeApprover === true;
+        
+        if (!isOrgAdmin && !isIntakeApprover) {
+          return res.status(403).json({ message: "You don't have permission to reject intakes. Contact your administrator to grant you intake approval permissions." });
+        }
+      }
       
       const updated = await storage.updateProjectIntake(id, {
         status: 'rejected',

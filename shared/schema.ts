@@ -448,6 +448,7 @@ export const resources = pgTable("resources", {
   endDate: date("end_date"), // When resource contract ends (if applicable)
   isActive: boolean("is_active").default(true),
   isApprover: boolean("is_approver").default(false), // Can approve timesheets
+  isIntakeApprover: boolean("is_intake_approver").default(false), // Can approve project intakes
   isBillable: boolean("is_billable").default(true), // Can be billed to clients
   photoUrl: text("photo_url"), // Profile photo URL
   notes: text("notes"),

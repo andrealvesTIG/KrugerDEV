@@ -367,13 +367,18 @@ export default function Resources() {
                       {resource.hourlyRate ? `$${resource.hourlyRate}/hr` : "-"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant={resource.isActive ? "default" : "secondary"} className={resource.isActive ? "bg-emerald-100 text-emerald-700" : ""}>
                           {resource.isActive ? "Active" : "Inactive"}
                         </Badge>
                         {resource.isApprover && (
                           <Badge variant="outline" className="text-blue-600 border-blue-300">
-                            Approver
+                            Timesheet
+                          </Badge>
+                        )}
+                        {resource.isIntakeApprover && (
+                          <Badge variant="outline" className="text-purple-600 border-purple-300">
+                            Intake
                           </Badge>
                         )}
                       </div>
@@ -528,6 +533,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
       hourlyRate: resource?.hourlyRate || "",
       isActive: resource?.isActive ?? true,
       isApprover: resource?.isApprover ?? false,
+      isIntakeApprover: resource?.isIntakeApprover ?? false,
       notes: resource?.notes || "",
     },
   });
@@ -544,6 +550,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
         hourlyRate: resource?.hourlyRate || "",
         isActive: resource?.isActive ?? true,
         isApprover: resource?.isApprover ?? false,
+        isIntakeApprover: resource?.isIntakeApprover ?? false,
         notes: resource?.notes || "",
       });
       setSelectedUserId(resource?.userId || null);
@@ -568,6 +575,7 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
         hourlyRate: data.hourlyRate || null,
         isActive: data.isActive ?? true,
         isApprover: data.isApprover ?? false,
+        isIntakeApprover: data.isIntakeApprover ?? false,
         notes: data.notes || null,
         userId: selectedUserId,
       };
@@ -682,6 +690,17 @@ function ResourceDialog({ open, onOpenChange, organizationId, resource, onSucces
                 />
                 <Label htmlFor="isApprover" className="text-sm">
                   Timesheet Approver
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="isIntakeApprover"
+                  checked={form.watch("isIntakeApprover") ?? false}
+                  onCheckedChange={(checked) => form.setValue("isIntakeApprover", checked)}
+                  data-testid="switch-resource-intake-approver"
+                />
+                <Label htmlFor="isIntakeApprover" className="text-sm">
+                  Intake Approver
                 </Label>
               </div>
             </div>
