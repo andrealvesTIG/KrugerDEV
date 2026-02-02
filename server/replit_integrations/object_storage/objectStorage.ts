@@ -215,16 +215,32 @@ export class ObjectStorageService {
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
-    // Sign URL for PUT method with TTL, with retry
-    return withRetry(
-      () => signObjectURL({
-        bucketName,
-        objectName,
-        method: "PUT",
-        ttlSec: 900,
-      }),
-      'signObjectURL'
-    );
+    // Try using GCS client directly first, then fall back to sidecar
+    try {
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(objectName);
+      
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'write',
+        expires: Date.now() + 900 * 1000, // 15 minutes
+        contentType: 'application/octet-stream',
+      });
+      
+      return signedUrl;
+    } catch (gcsError: any) {
+      console.log("GCS direct signing failed, trying sidecar:", gcsError?.message);
+      
+      // Fall back to sidecar endpoint
+      return withRetry(
+        () => signObjectURL({
+          bucketName,
+          objectName,
+          method: "PUT",
+          ttlSec: 900,
+        }),
+        'signObjectURL'
+      );
+    }
   }
 
   // Gets the object entity file from the object path.
