@@ -8,8 +8,7 @@ let sdkLoaded = false;
 // Global guard to prevent double checkout - track when last subscription was initiated
 let lastSubscriptionInitTime = 0;
 const SUBSCRIPTION_COOLDOWN_MS = 5000; // 5 seconds cooldown between subscription attempts
-// Global tracking to prevent double button renders across Dialog mount/unmount cycles
-let activeButtonPlanId: string | null = null;
+// Counter for tracking render coordination during cleanup
 let buttonRenderCount = 0;
 
 interface PayPalSubscriptionButtonProps {
@@ -124,20 +123,12 @@ export default function PayPalSubscriptionButton({
 
     const container = buttonContainerRef.current;
     
-    // Prevent double rendering - check both local ref AND global tracking
-    // This handles Dialog mount/unmount cycles that can cause double renders
+    // Prevent double rendering - check if already rendered for this planId
     if (paypalButtonRendered.current) {
       return;
     }
     
-    // Global check: if same planId is already being rendered, skip
-    if (activeButtonPlanId === planId) {
-      console.log('[PayPal] Button already active for planId:', planId);
-      return;
-    }
-    
-    // Track this render globally
-    activeButtonPlanId = planId;
+    // Track this render for cleanup coordination
     buttonRenderCount++;
     const currentRenderCount = buttonRenderCount;
     
@@ -227,11 +218,6 @@ export default function PayPalSubscriptionButton({
     return () => {
       paypalButtonRendered.current = false;
       subscriptionInProgress.current = false;
-      // Only clear global tracking if this was the active render
-      // (prevents race conditions with rapid mount/unmount cycles)
-      if (currentRenderCount === buttonRenderCount) {
-        activeButtonPlanId = null;
-      }
       if (container) {
         container.innerHTML = "";
       }
