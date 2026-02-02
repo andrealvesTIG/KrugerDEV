@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useProjects, useCreateProject, useUpdateProject } from "@/hooks/use-projects";
 import { useExternalProjects } from "@/hooks/use-external-shares";
 import { usePortfolios } from "@/hooks/use-portfolios";
