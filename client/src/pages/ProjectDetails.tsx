@@ -6739,6 +6739,8 @@ function ProjectGanttView({
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
   const deleteTask = useDeleteTask();
+  const addDependency = useAddTaskDependency();
+  const removeDependency = useRemoveTaskDependency();
   const { toast } = useToast();
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('month');
