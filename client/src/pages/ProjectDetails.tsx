@@ -4267,7 +4267,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     <div 
       className={cn(
         "space-y-4",
-        isFullscreen && "fixed top-0 right-0 bottom-0 z-40 bg-background p-4 overflow-auto"
+        isFullscreen && "fixed top-0 right-0 bottom-0 z-40 bg-background p-4 flex flex-col overflow-hidden"
       )}
       style={isFullscreen ? { left: sidebarWidth } : undefined}
     >
@@ -7867,15 +7867,15 @@ function ProjectGanttView({
   };
 
   return (
-    <Card className="overflow-hidden transition-all duration-200">
+    <Card className={cn(
+      "overflow-hidden transition-all duration-200",
+      isFullscreen && "flex-1 flex flex-col"
+    )}>
       <CardContent className={cn(
         "p-0 flex flex-col",
-        isFullscreen && "h-full"
+        isFullscreen && "h-full flex-1"
       )}>
-        <div className={cn(
-          "flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap flex-shrink-0",
-          isFullscreen && "sticky top-0 z-20"
-        )}>
+        <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap flex-shrink-0">
           <div className="flex items-center gap-2">
             {!hideTimeline && (
               <span className="text-sm font-medium text-muted-foreground">
