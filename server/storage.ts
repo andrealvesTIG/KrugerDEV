@@ -369,6 +369,7 @@ export interface IStorage {
   // Timesheet Entries
   getTimesheetEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<TimesheetEntry[]>;
   getTimesheetEntriesWithDetails(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]>;
+  getAllTimesheetEntriesWithDetails(organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]>;
   getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]>;
   getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined>;
   createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry>;
@@ -3184,6 +3185,28 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(projects, eq(tasks.projectId, projects.id))
       .where(and(
         eq(timesheetEntries.userId, userId),
+        eq(timesheetEntries.organizationId, organizationId),
+        sql`${timesheetEntries.entryDate} >= ${startDate}`,
+        sql`${timesheetEntries.entryDate} <= ${endDate}`,
+        isNull(tasks.deletedAt),
+        isNull(projects.deletedAt)
+      ))
+      .orderBy(timesheetEntries.entryDate, timesheetEntries.taskId);
+    
+    return results;
+  }
+
+  async getAllTimesheetEntriesWithDetails(organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]> {
+    // Get all timesheet entries for the organization (for admins) with JOINs
+    const results = await db.select({
+      entry: timesheetEntries,
+      task: tasks,
+      project: projects
+    })
+      .from(timesheetEntries)
+      .innerJoin(tasks, eq(timesheetEntries.taskId, tasks.id))
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(and(
         eq(timesheetEntries.organizationId, organizationId),
         sql`${timesheetEntries.entryDate} >= ${startDate}`,
         sql`${timesheetEntries.entryDate} <= ${endDate}`,

@@ -13930,7 +13930,7 @@ Return ONLY valid JSON.`;
 
   // ==================== TIMESHEETS ====================
 
-  // Get timesheet entries for current user
+  // Get timesheet entries - returns all entries for admins, or user's own entries for non-admins
   app.get('/api/timesheets', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -13946,8 +13946,21 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
       }
 
-      // Single optimized query with JOINs - replaces N+1 queries
-      const entriesWithDetails = await storage.getTimesheetEntriesWithDetails(userId, organizationId, startDate, endDate);
+      // Check if user is an org admin or super admin
+      const user = await storage.getUser(userId);
+      const memberships = await storage.getUserOrganizations(userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      const isOrgAdmin = memberships.some(m => m.organizationId === organizationId && (m.role === 'org_admin' || m.role === 'owner'));
+      const isAdmin = isSuperAdmin || isOrgAdmin;
+
+      let entriesWithDetails;
+      if (isAdmin) {
+        // Admins get all entries for the organization
+        entriesWithDetails = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+      } else {
+        // Non-admins only get their own entries
+        entriesWithDetails = await storage.getTimesheetEntriesWithDetails(userId, organizationId, startDate, endDate);
+      }
       
       // Transform to expected format
       const enrichedEntries = entriesWithDetails.map(({ entry, task, project }) => ({
