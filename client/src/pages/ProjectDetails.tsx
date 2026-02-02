@@ -39,7 +39,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, CloudDownload, ArrowUpToLine, IndentIncrease, IndentDecrease } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, CloudDownload, ArrowUpToLine, IndentIncrease, IndentDecrease, Type } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -5429,11 +5429,15 @@ function TaskNameCell({
     }
   }, [isEditing]);
 
-  const handleStartEdit = (e: React.MouseEvent) => {
+  const handleStartInlineEdit = () => {
     if (isReadOnly) return;
-    e.stopPropagation();
     setEditValue(task.name);
     setIsEditing(true);
+  };
+
+  const handleNameClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit(task);
   };
 
   const handleSave = () => {
@@ -5511,10 +5515,10 @@ function TaskNameCell({
         ) : (
           <span 
             className={cn(
-              "truncate cursor-text hover:bg-muted/50 px-0.5 rounded flex items-center gap-1",
+              "truncate cursor-pointer hover:bg-muted/50 px-0.5 rounded flex items-center gap-1 hover:underline",
               task.progress === 100 && "line-through text-muted-foreground"
             )}
-            onClick={handleStartEdit}
+            onClick={handleNameClick}
             data-testid={`task-name-${task.id}`}
           >
             {task.progress === 100 && (
@@ -5541,6 +5545,10 @@ function TaskNameCell({
           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(task); }} data-testid={`task-edit-${task.id}`}>
             <Pencil className="h-3.5 w-3.5 mr-2" />
             Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStartInlineEdit(); }} disabled={isReadOnly} data-testid={`task-rename-${task.id}`}>
+            <Type className="h-3.5 w-3.5 mr-2" />
+            Edit Task Name
           </DropdownMenuItem>
           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEditDependencies(task); }} data-testid={`task-dependencies-${task.id}`}>
             <Link2 className="h-3.5 w-3.5 mr-2" />
