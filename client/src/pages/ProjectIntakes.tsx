@@ -289,7 +289,9 @@ export default function ProjectIntakes() {
   
   const filteredIntakes = intakesList.filter(intake => {
     const matchesSearch = intake.projectName.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || intake.status === statusFilter;
+    const matchesStatus = statusFilter === "all" 
+      || (statusFilter === "in_review" && (intake.status === "draft" || intake.status === "in_progress"))
+      || intake.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -340,7 +342,14 @@ export default function ProjectIntakes() {
       )}
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover-elevate",
+            statusFilter === "all" && "ring-2 ring-primary"
+          )}
+          onClick={() => setStatusFilter("all")}
+          data-testid="card-filter-all"
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-muted">
@@ -353,7 +362,14 @@ export default function ProjectIntakes() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover-elevate",
+            statusFilter === "in_review" && "ring-2 ring-blue-500"
+          )}
+          onClick={() => setStatusFilter("in_review")}
+          data-testid="card-filter-in-review"
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-500/10">
@@ -366,7 +382,14 @@ export default function ProjectIntakes() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover-elevate",
+            statusFilter === "approved" && "ring-2 ring-green-500"
+          )}
+          onClick={() => setStatusFilter("approved")}
+          data-testid="card-filter-approved"
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-green-500/10">
@@ -379,7 +402,14 @@ export default function ProjectIntakes() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover-elevate",
+            statusFilter === "rejected" && "ring-2 ring-red-500"
+          )}
+          onClick={() => setStatusFilter("rejected")}
+          data-testid="card-filter-rejected"
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-red-500/10">
@@ -412,6 +442,7 @@ export default function ProjectIntakes() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="in_review">In Review</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
