@@ -207,7 +207,16 @@ export default function PayPalSubscriptionButton({
       },
       onError: (err: any) => {
         subscriptionInProgress.current = false;
-        console.error("PayPal subscription error:", err);
+        // PayPal error objects don't serialize well, extract useful info
+        const errorDetails = {
+          message: err?.message || 'Unknown error',
+          name: err?.name,
+          stack: err?.stack,
+          details: err?.details,
+          raw: String(err),
+        };
+        console.error("PayPal subscription error:", errorDetails);
+        console.error("PayPal error raw:", err);
         if (onError) onError(err);
       },
     });
