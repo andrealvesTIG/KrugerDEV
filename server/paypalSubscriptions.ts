@@ -6,7 +6,23 @@ const PAYPAL_API_BASE = process.env.NODE_ENV === "production"
   ? "https://api-m.paypal.com"
   : "https://api-m.sandbox.paypal.com";
 
+// Custom error class for PayPal authentication failures
+class PayPalAuthError extends Error {
+  constructor(public details: any) {
+    super("PayPal authentication failed");
+    this.name = "PayPalAuthError";
+  }
+}
+
 async function getAccessToken(): Promise<string> {
+  // Validate credentials are configured
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    throw new PayPalAuthError({ 
+      error: "missing_credentials", 
+      error_description: "PayPal Client ID or Secret is not configured" 
+    });
+  }
+
   const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64");
   
   const response = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
@@ -19,6 +35,13 @@ async function getAccessToken(): Promise<string> {
   });
 
   const data = await response.json();
+  
+  // Check if authentication succeeded
+  if (!response.ok || !data.access_token) {
+    console.error("PayPal auth failed:", data);
+    throw new PayPalAuthError(data);
+  }
+  
   return data.access_token;
 }
 
@@ -45,6 +68,9 @@ export async function createProduct(req: Request, res: Response) {
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (error) {
+    if (error instanceof PayPalAuthError) {
+      return res.status(401).json({ message: "PayPal authentication failed", error: error.details });
+    }
     console.error("Failed to create product:", error);
     res.status(500).json({ error: "Failed to create product" });
   }
@@ -101,6 +127,9 @@ export async function createPlan(req: Request, res: Response) {
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (error) {
+    if (error instanceof PayPalAuthError) {
+      return res.status(401).json({ message: "PayPal authentication failed", error: error.details });
+    }
     console.error("Failed to create plan:", error);
     res.status(500).json({ error: "Failed to create plan" });
   }
@@ -135,6 +164,9 @@ export async function createSubscription(req: Request, res: Response) {
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (error) {
+    if (error instanceof PayPalAuthError) {
+      return res.status(401).json({ message: "PayPal authentication failed", error: error.details });
+    }
     console.error("Failed to create subscription:", error);
     res.status(500).json({ error: "Failed to create subscription" });
   }
@@ -156,6 +188,9 @@ export async function getSubscription(req: Request, res: Response) {
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (error) {
+    if (error instanceof PayPalAuthError) {
+      return res.status(401).json({ message: "PayPal authentication failed", error: error.details });
+    }
     console.error("Failed to get subscription:", error);
     res.status(500).json({ error: "Failed to get subscription" });
   }
@@ -183,6 +218,9 @@ export async function cancelSubscription(req: Request, res: Response) {
       res.status(response.status).json(data);
     }
   } catch (error) {
+    if (error instanceof PayPalAuthError) {
+      return res.status(401).json({ message: "PayPal authentication failed", error: error.details });
+    }
     console.error("Failed to cancel subscription:", error);
     res.status(500).json({ error: "Failed to cancel subscription" });
   }
@@ -209,6 +247,9 @@ export async function activateSubscription(req: Request, res: Response) {
       res.status(response.status).json(data);
     }
   } catch (error) {
+    if (error instanceof PayPalAuthError) {
+      return res.status(401).json({ message: "PayPal authentication failed", error: error.details });
+    }
     console.error("Failed to activate subscription:", error);
     res.status(500).json({ error: "Failed to activate subscription" });
   }
@@ -229,6 +270,9 @@ export async function listPlans(req: Request, res: Response) {
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (error) {
+    if (error instanceof PayPalAuthError) {
+      return res.status(401).json({ message: "PayPal authentication failed", error: error.details });
+    }
     console.error("Failed to list plans:", error);
     res.status(500).json({ error: "Failed to list plans" });
   }
