@@ -133,3 +133,24 @@ The application manages comprehensive data entities including:
 ### Recent Schema Fixes (January 2026)
 - **Projects Table**: Added missing `completed_at` and `completed_by` columns to track project completion status and who completed them.
 - **Video Assets**: Landing page demo video is compressed and served from `client/public/videos/` folder with dedicated Express route for production compatibility.
+
+### Schema Sync (February 2026)
+- **Tables Created**: Synced 7 missing tables that were defined in schema but not in database:
+  - `external_shares`: Cross-organization object sharing capabilities
+  - `time_categories`: Timesheet category definitions per organization
+  - `non_project_time_entries`: Non-project time tracking (PTO, admin time, etc.)
+  - `application_metrics`: Application performance and usage metrics
+  - `user_activity_logs`: User activity tracking for analytics
+  - `feature_usage_logs`: Feature usage tracking for analytics
+  - `error_logs`: Error tracking and debugging logs
+
+### Deprecated Tables (Pending Cleanup)
+The following tables are deprecated and scheduled for future removal. Data migration should be verified before cleanup:
+- **`risks`**: DEPRECATED - Risk tracking is now handled by the `issues` table with `itemType='risk'` filter. The unified issues table provides better consistency and reduces schema complexity.
+- **`risk_resource_assignments`**: DEPRECATED - Linked to deprecated `risks` table. Use `issueResourceAssignments` for risk resource assignments.
+- **`risk_change_logs`**: DEPRECATED - Linked to deprecated `risks` table. Use `issueChangeLogs` for risk change history.
+
+**Migration Notes**: Before removing deprecated tables:
+1. Verify no production data exists in `risks` table that needs migration
+2. Confirm all risk-related queries use `issues` table with appropriate `itemType` filters
+3. Update any remaining `riskResourceAssignments` references to use `issueResourceAssignments`
