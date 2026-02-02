@@ -9222,9 +9222,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
 
       const isSuperAdmin = user.role === 'super_admin';
       if (!isSuperAdmin) {
-        // Check if user is org_admin for this organization
-        const memberships = await storage.getOrganizationMemberships(userId);
-        const isOrgAdmin = memberships.some(m => m.organizationId === existing.organizationId && m.role === 'org_admin');
+        // Check if user is org_admin or owner for this organization
+        const memberships = await storage.getUserOrganizations(userId);
+        const isOrgAdmin = memberships.some(m => m.organizationId === existing.organizationId && (m.role === 'org_admin' || m.role === 'owner'));
         
         if (!isOrgAdmin) {
           return res.status(403).json({ message: "Only PMO/Admin users can convert intakes to projects" });
