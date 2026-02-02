@@ -969,8 +969,8 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
-  // Filter to only show escalated risks
-  const escalatedRisks = risks?.filter((risk: PortfolioRisk) => risk.escalatedToPortfolio) || [];
+  const allRisks = risks || [];
+  const escalatedRisks = allRisks.filter((risk: PortfolioRisk) => risk.escalatedToPortfolio);
 
   const probabilityColors: Record<string, string> = {
     Low: "bg-emerald-100 text-emerald-700",
@@ -985,14 +985,14 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
   };
 
   return (
-    <>
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-600" />
-            Escalated Risks
+            Portfolio Risks
           </CardTitle>
-          <CardDescription>Risks escalated to portfolio level from projects</CardDescription>
+          <CardDescription>All risks from projects in this portfolio ({allRisks.length} total, {escalatedRisks.length} escalated)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
@@ -1008,7 +1008,7 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
                 </tr>
               </thead>
               <tbody>
-                {escalatedRisks.map((risk: PortfolioRisk) => (
+                {allRisks.map((risk: PortfolioRisk) => (
                   <tr 
                     key={risk.id} 
                     className="border-b hover:bg-muted/30 transition-colors cursor-pointer group" 
@@ -1016,13 +1016,20 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
                     onClick={() => setEditingRisk(risk)}
                   >
                     <td className="p-3">
-                      <div>
-                        <p className="font-medium hover:text-primary">{risk.title}</p>
-                        <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
+                      <div className="flex items-center gap-2">
+                        {risk.escalatedToPortfolio && (
+                          <ArrowUpToLine className="h-4 w-4 text-amber-600 flex-shrink-0" title="Escalated to Portfolio" />
+                        )}
+                        <div>
+                          <p className="font-medium hover:text-primary">{risk.title}</p>
+                          <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
+                        </div>
                       </div>
                     </td>
-                    <td className="p-3">
-                      <Badge variant="outline" className="text-xs">{risk.projectName}</Badge>
+                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/projects/${risk.projectId}`}>
+                        <Badge variant="outline" className="text-xs cursor-pointer hover:bg-primary/10">{risk.projectName}</Badge>
+                      </Link>
                     </td>
                     <td className="p-3">
                       <Badge className={cn("text-xs", probabilityColors[risk.probability || "Medium"])}>{risk.probability}</Badge>
@@ -1058,9 +1065,9 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
                 ))}
               </tbody>
             </table>
-            {escalatedRisks.length === 0 && (
+            {allRisks.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No risks have been escalated to this portfolio.
+                No risks found in projects within this portfolio.
               </div>
             )}
           </div>
@@ -1180,7 +1187,7 @@ function RisksTab({ portfolioId }: { portfolioId: number }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }
 
@@ -1243,8 +1250,8 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
 
-  // Filter to only show escalated issues (not risks) - treat null itemType as issue for legacy data
-  const escalatedIssues = issues?.filter((issue: PortfolioIssue) => issue.escalatedToPortfolio && issue.itemType !== 'risk') || [];
+  const allIssues = issues?.filter((issue: PortfolioIssue) => issue.itemType !== 'risk') || [];
+  const escalatedIssues = allIssues.filter((issue: PortfolioIssue) => issue.escalatedToPortfolio);
 
   const priorityColors: Record<string, string> = {
     Low: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -1261,14 +1268,14 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
   };
 
   return (
-    <>
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bug className="h-5 w-5 text-rose-600" />
-            Escalated Issues
+            Portfolio Issues
           </CardTitle>
-          <CardDescription>Issues escalated to portfolio level from projects</CardDescription>
+          <CardDescription>All issues from projects in this portfolio ({allIssues.length} total, {escalatedIssues.length} escalated)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
@@ -1285,7 +1292,7 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                 </tr>
               </thead>
               <tbody>
-                {escalatedIssues.map((issue: PortfolioIssue) => (
+                {allIssues.map((issue: PortfolioIssue) => (
                   <tr 
                     key={issue.id} 
                     className="border-b hover:bg-muted/30 transition-colors cursor-pointer group" 
@@ -1293,9 +1300,14 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                     onClick={() => setEditingIssue(issue)}
                   >
                     <td className="p-3">
-                      <div>
-                        <p className="font-medium hover:text-primary">{issue.title}</p>
-                        <p className="text-sm text-muted-foreground line-clamp-1">{issue.description}</p>
+                      <div className="flex items-center gap-2">
+                        {issue.escalatedToPortfolio && (
+                          <ArrowUpToLine className="h-4 w-4 text-rose-600 flex-shrink-0" title="Escalated to Portfolio" />
+                        )}
+                        <div>
+                          <p className="font-medium hover:text-primary">{issue.title}</p>
+                          <p className="text-sm text-muted-foreground line-clamp-1">{issue.description}</p>
+                        </div>
                       </div>
                     </td>
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
@@ -1336,9 +1348,9 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                 ))}
               </tbody>
             </table>
-            {escalatedIssues.length === 0 && (
+            {allIssues.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No issues have been escalated to this portfolio.
+                No issues found in projects within this portfolio.
               </div>
             )}
           </div>
@@ -1457,7 +1469,7 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }
 
