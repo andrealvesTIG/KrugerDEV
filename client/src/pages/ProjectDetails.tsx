@@ -7872,7 +7872,10 @@ function ProjectGanttView({
         "p-0 flex flex-col",
         isFullscreen && "h-full"
       )}>
-        <div className="flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap">
+        <div className={cn(
+          "flex items-center justify-between gap-4 p-3 border-b bg-muted/30 flex-wrap flex-shrink-0",
+          isFullscreen && "sticky top-0 z-20"
+        )}>
           <div className="flex items-center gap-2">
             {!hideTimeline && (
               <span className="text-sm font-medium text-muted-foreground">
