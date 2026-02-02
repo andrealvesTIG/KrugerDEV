@@ -7512,6 +7512,7 @@ function ProjectGanttView({
     let duplicateCount = 0;
     let circularCount = 0;
     let errorCount = 0;
+    let lastErrorMessage = '';
     
     // Create a working copy of dependencies to track additions
     const workingDeps = [...projectDependencies];
@@ -7552,8 +7553,12 @@ function ProjectGanttView({
         });
         existingDepSet.add(depKey);
         successCount++;
-      } catch {
+      } catch (error: unknown) {
         errorCount++;
+        // Capture first error message for feedback
+        if (!lastErrorMessage && error instanceof Error) {
+          lastErrorMessage = error.message;
+        }
       }
     }
     
@@ -7562,7 +7567,8 @@ function ProjectGanttView({
     if (successCount > 0) messages.push(`${successCount} link${successCount !== 1 ? 's' : ''} created`);
     if (duplicateCount > 0) messages.push(`${duplicateCount} already existed`);
     if (circularCount > 0) messages.push(`${circularCount} blocked (circular)`);
-    if (errorCount > 0) messages.push(`${errorCount} failed`);
+    if (errorCount > 0 && lastErrorMessage) messages.push(lastErrorMessage);
+    else if (errorCount > 0) messages.push(`${errorCount} failed`);
     
     if (successCount > 0) {
       toast({ title: "Tasks linked", description: messages.join(', ') });
@@ -7570,6 +7576,8 @@ function ProjectGanttView({
       toast({ title: "Cannot link", description: "Would create circular dependencies", variant: "destructive" });
     } else if (duplicateCount > 0) {
       toast({ title: "Already linked", description: "All selected tasks are already linked in sequence" });
+    } else if (lastErrorMessage) {
+      toast({ title: "Cannot link tasks", description: lastErrorMessage, variant: "destructive" });
     } else {
       toast({ title: "Link failed", description: messages.join(', '), variant: "destructive" });
     }
@@ -7595,6 +7603,7 @@ function ProjectGanttView({
     
     let successCount = 0;
     let errorCount = 0;
+    let lastErrorMessage = '';
     
     for (const dep of depsToRemove) {
       try {
@@ -7603,8 +7612,11 @@ function ProjectGanttView({
           dependsOnTaskId: dep.dependsOnTaskId,
         });
         successCount++;
-      } catch {
+      } catch (error: unknown) {
         errorCount++;
+        if (!lastErrorMessage && error instanceof Error) {
+          lastErrorMessage = error.message;
+        }
       }
     }
     
@@ -7613,6 +7625,8 @@ function ProjectGanttView({
         title: "Tasks unlinked", 
         description: `${successCount} link${successCount !== 1 ? 's' : ''} removed${errorCount > 0 ? `, ${errorCount} failed` : ''}` 
       });
+    } else if (lastErrorMessage) {
+      toast({ title: "Cannot unlink tasks", description: lastErrorMessage, variant: "destructive" });
     } else {
       toast({ title: "Unlink failed", description: "Could not remove dependencies", variant: "destructive" });
     }
