@@ -5179,6 +5179,10 @@ interface InlineEditCellProps {
   min?: number;
   max?: number;
   suffix?: string;
+  // Navigation props for Enter/Tab handling
+  cellId?: string; // Unique ID for this cell (taskId-columnId)
+  focusedCellId?: string; // Currently focused cell ID
+  onNavigate?: (direction: 'down' | 'right') => void; // Called after save to navigate
 }
 
 function InlineEditCell({ 
@@ -5191,13 +5195,41 @@ function InlineEditCell({
   disabled = false,
   min,
   max,
-  suffix = ''
+  suffix = '',
+  cellId,
+  focusedCellId,
+  onNavigate,
 }: InlineEditCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState<string>('');
   const [selectOpen, setSelectOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<'down' | 'right' | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const displayRef = useRef<HTMLDivElement>(null);
+
+  // Auto-start editing when this cell becomes focused
+  useEffect(() => {
+    if (focusedCellId && cellId && focusedCellId === cellId && !isEditing && !disabled) {
+      // Start editing when focused programmatically
+      if (editType === 'date') {
+        setEditValue(value ? String(value) : '');
+      } else if (editType === 'number' || editType === 'progress') {
+        setEditValue(value != null ? String(value) : '');
+      } else if (editType === 'boolean') {
+        // Boolean cells toggle on focus, then navigate
+        const newVal = !value;
+        onSave(newVal);
+        if (onNavigate) {
+          onNavigate('down');
+        }
+        return;
+      } else {
+        setEditValue(value ? String(value) : '');
+      }
+      setIsEditing(true);
+    }
+  }, [focusedCellId, cellId, disabled, editType, value, onSave, onNavigate, isEditing]);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -5247,9 +5279,42 @@ function InlineEditCell({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSave();
+      e.preventDefault();
+      // Save first, then navigate down (next row)
+      handleSaveWithNavigation('down');
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      // Save first, then navigate right (next column)
+      handleSaveWithNavigation(e.shiftKey ? 'left' : 'right');
     } else if (e.key === 'Escape') {
       setIsEditing(false);
+    }
+  };
+  
+  const handleSaveWithNavigation = (direction: 'down' | 'right' | 'left') => {
+    setIsEditing(false);
+    let savedValue: string | number | boolean | null;
+    
+    if (editType === 'date') {
+      savedValue = editValue || null;
+    } else if (editType === 'number' || editType === 'progress') {
+      const numVal = editValue === '' ? null : parseFloat(editValue);
+      if (numVal !== null && !isNaN(numVal)) {
+        savedValue = Math.max(min ?? -Infinity, Math.min(max ?? Infinity, numVal));
+      } else {
+        savedValue = null;
+      }
+    } else {
+      savedValue = editValue || null;
+    }
+    
+    onSave(savedValue);
+    
+    // Navigate after a brief delay to allow state updates
+    if (onNavigate && (direction === 'down' || direction === 'right')) {
+      setTimeout(() => {
+        onNavigate(direction);
+      }, 0);
     }
   };
 
@@ -5632,6 +5697,8 @@ function ProjectGanttTaskRowMeta({
   hasDependencies,
   computedWbs,
   isReadOnly,
+  focusedCellId,
+  onCellNavigate,
 }: { 
   task: Task;
   rowIndex: number;
@@ -5662,6 +5729,8 @@ function ProjectGanttTaskRowMeta({
   hasDependencies?: boolean;
   computedWbs?: string;
   isReadOnly?: boolean;
+  focusedCellId?: string | null;
+  onCellNavigate?: (taskId: number, colId: GanttColumn, direction: 'down' | 'right') => void;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -5694,6 +5763,11 @@ function ProjectGanttTaskRowMeta({
         });
       }
     });
+  };
+  
+  // Helper to create navigation callback for a specific column
+  const createNavigateCallback = (colId: GanttColumn) => {
+    return onCellNavigate ? (direction: 'down' | 'right') => onCellNavigate(task.id, colId, direction) : undefined;
   };
 
   useEffect(() => {
@@ -5947,6 +6021,9 @@ function ProjectGanttTaskRowMeta({
                   editType="text"
                   onSave={(val) => handleInlineUpdate('taskNumber', val as string | null, task.taskNumber)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-taskNumber`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('taskNumber')}
                 />
               );
             case 'wbs':
@@ -5967,6 +6044,9 @@ function ProjectGanttTaskRowMeta({
                   editType="text"
                   onSave={(val) => handleInlineUpdate('description', val as string | null, task.description)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-description`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('description')}
                 />
               );
             case 'startDate':
@@ -5977,6 +6057,9 @@ function ProjectGanttTaskRowMeta({
                   editType="date"
                   onSave={(val) => handleInlineUpdate('startDate', val as string | null, task.startDate)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-startDate`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('startDate')}
                 />
               );
             case 'endDate':
@@ -5987,6 +6070,9 @@ function ProjectGanttTaskRowMeta({
                   editType="date"
                   onSave={(val) => handleInlineUpdate('endDate', val as string | null, task.endDate)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-endDate`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('endDate')}
                 />
               );
             case 'baselineStartDate':
@@ -5997,6 +6083,9 @@ function ProjectGanttTaskRowMeta({
                   editType="date"
                   onSave={(val) => handleInlineUpdate('baselineStartDate', val as string | null, task.baselineStartDate)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-baselineStartDate`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('baselineStartDate')}
                 />
               );
             case 'baselineEndDate':
@@ -6007,6 +6096,9 @@ function ProjectGanttTaskRowMeta({
                   editType="date"
                   onSave={(val) => handleInlineUpdate('baselineEndDate', val as string | null, task.baselineEndDate)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-baselineEndDate`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('baselineEndDate')}
                 />
               );
             case 'actualStartDate':
@@ -6017,6 +6109,9 @@ function ProjectGanttTaskRowMeta({
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualStartDate', val as string | null, task.actualStartDate)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-actualStartDate`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('actualStartDate')}
                 />
               );
             case 'actualEndDate':
@@ -6027,6 +6122,9 @@ function ProjectGanttTaskRowMeta({
                   editType="date"
                   onSave={(val) => handleInlineUpdate('actualEndDate', val as string | null, task.actualEndDate)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-actualEndDate`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('actualEndDate')}
                 />
               );
             case 'durationDays':
@@ -6038,6 +6136,9 @@ function ProjectGanttTaskRowMeta({
                   min={0}
                   onSave={(val) => handleInlineUpdate('durationDays', val as number | null, task.durationDays)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-durationDays`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('durationDays')}
                 />
               );
             case 'progress':
@@ -6050,6 +6151,9 @@ function ProjectGanttTaskRowMeta({
                   max={100}
                   onSave={(val) => handleInlineUpdate('progress', val as number | null, task.progress)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-progress`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('progress')}
                 />
               );
             case 'status':
@@ -6070,6 +6174,9 @@ function ProjectGanttTaskRowMeta({
                   options={statusOptions}
                   onSave={(val) => handleInlineUpdate('status', val as string | null, task.status)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-status`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('status')}
                 />
               );
             case 'priority':
@@ -6091,6 +6198,9 @@ function ProjectGanttTaskRowMeta({
                   options={priorityOptions}
                   onSave={(val) => handleInlineUpdate('priority', val as string | null, task.priority)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-priority`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('priority')}
                 />
               );
             case 'taskType':
@@ -6102,6 +6212,9 @@ function ProjectGanttTaskRowMeta({
                   options={taskTypeOptions}
                   onSave={(val) => handleInlineUpdate('taskType', val as string | null, task.taskType)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-taskType`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('taskType')}
                 />
               );
             case 'estimatedHours':
@@ -6113,6 +6226,9 @@ function ProjectGanttTaskRowMeta({
                   min={0}
                   onSave={(val) => handleInlineUpdate('estimatedHours', val as number | null, task.estimatedHours)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-estimatedHours`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('estimatedHours')}
                 />
               );
             case 'actualHours':
@@ -6124,6 +6240,9 @@ function ProjectGanttTaskRowMeta({
                   min={0}
                   onSave={(val) => handleInlineUpdate('actualHours', val as number | null, task.actualHours)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-actualHours`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('actualHours')}
                 />
               );
             case 'remainingHours':
@@ -6135,6 +6254,9 @@ function ProjectGanttTaskRowMeta({
                   min={0}
                   onSave={(val) => handleInlineUpdate('remainingHours', val as number | null, task.remainingHours)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-remainingHours`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('remainingHours')}
                 />
               );
             case 'cost':
@@ -6146,6 +6268,9 @@ function ProjectGanttTaskRowMeta({
                   min={0}
                   onSave={(val) => handleInlineUpdate('cost', val != null ? String(val) : null, task.cost)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-cost`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('cost')}
                 />
               );
             case 'actualCost':
@@ -6157,6 +6282,9 @@ function ProjectGanttTaskRowMeta({
                   min={0}
                   onSave={(val) => handleInlineUpdate('actualCost', val != null ? String(val) : null, task.actualCost)}
                   disabled={isSummaryTask || isReadOnly}
+                  cellId={`${task.id}-actualCost`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('actualCost')}
                 />
               );
             case 'assignee':
@@ -6167,6 +6295,9 @@ function ProjectGanttTaskRowMeta({
                   editType="text"
                   onSave={(val) => handleInlineUpdate('assignee', val as string | null, task.assignee)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-assignee`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('assignee')}
                 />
               );
             case 'constraintType':
@@ -6178,6 +6309,9 @@ function ProjectGanttTaskRowMeta({
                   options={constraintTypeOptions}
                   onSave={(val) => handleInlineUpdate('constraintType', val as string | null, task.constraintType)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-constraintType`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('constraintType')}
                 />
               );
             case 'constraintDate':
@@ -6188,6 +6322,9 @@ function ProjectGanttTaskRowMeta({
                   editType="date"
                   onSave={(val) => handleInlineUpdate('constraintDate', val as string | null, task.constraintDate)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-constraintDate`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('constraintDate')}
                 />
               );
             case 'isMilestone':
@@ -6198,6 +6335,9 @@ function ProjectGanttTaskRowMeta({
                   editType="boolean"
                   onSave={(val) => handleInlineUpdate('isMilestone', val as boolean, task.isMilestone)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-isMilestone`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('isMilestone')}
                 />
               );
             case 'isCritical':
@@ -6208,6 +6348,9 @@ function ProjectGanttTaskRowMeta({
                   editType="boolean"
                   onSave={(val) => handleInlineUpdate('isCritical', val as boolean, task.isCritical)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-isCritical`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('isCritical')}
                 />
               );
             case 'isSummary':
@@ -6220,6 +6363,9 @@ function ProjectGanttTaskRowMeta({
                   editType="text"
                   onSave={(val) => handleInlineUpdate('phase', val as string | null, task.phase)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-phase`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('phase')}
                 />
               );
             case 'category':
@@ -6230,6 +6376,9 @@ function ProjectGanttTaskRowMeta({
                   editType="text"
                   onSave={(val) => handleInlineUpdate('category', val as string | null, task.category)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-category`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('category')}
                 />
               );
             case 'labels':
@@ -6240,6 +6389,9 @@ function ProjectGanttTaskRowMeta({
                   editType="text"
                   onSave={(val) => handleInlineUpdate('labels', val as string | null, task.labels)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-labels`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('labels')}
                 />
               );
             case 'notes':
@@ -6250,6 +6402,9 @@ function ProjectGanttTaskRowMeta({
                   editType="text"
                   onSave={(val) => handleInlineUpdate('notes', val as string | null, task.notes)}
                   disabled={isReadOnly}
+                  cellId={`${task.id}-notes`}
+                  focusedCellId={focusedCellId ?? undefined}
+                  onNavigate={createNavigateCallback('notes')}
                 />
               );
             default:
@@ -6802,6 +6957,9 @@ function ProjectGanttView({
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [showProjectSummary, setShowProjectSummary] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
+  
+  // Cell navigation state for Enter/Tab key handling
+  const [focusedCellId, setFocusedCellId] = useState<string | null>(null);
   
   // Function to recalculate schedule based on dependencies
   const handleRecalculateSchedule = async () => {
@@ -7694,6 +7852,57 @@ function ProjectGanttView({
 
     return { visibleTasks, taskHasChildren, wbsMap };
   }, [tasks, collapsedTasks]);
+  
+  // Get editable columns in order (for Tab navigation)
+  const getEditableColumns = useCallback((): GanttColumn[] => {
+    return visibleColumns.filter(col => 
+      // Exclude read-only columns
+      !['taskIndex', 'wbs', 'outlineLevel'].includes(col)
+    );
+  }, [visibleColumns]);
+  
+  // Navigate to next cell based on direction (Enter/Tab key handling)
+  const handleCellNavigate = useCallback((currentTaskId: number, currentColId: GanttColumn, direction: 'down' | 'right') => {
+    const editableColumns = getEditableColumns();
+    const currentColIndex = editableColumns.indexOf(currentColId);
+    const currentTaskIndex = visibleTasks.findIndex(t => t.id === currentTaskId);
+    
+    if (currentTaskIndex === -1) {
+      setFocusedCellId(null);
+      return;
+    }
+    
+    let nextTaskId = currentTaskId;
+    let nextColId = currentColId;
+    
+    if (direction === 'down') {
+      // Move to next row, same column
+      if (currentTaskIndex < visibleTasks.length - 1) {
+        nextTaskId = visibleTasks[currentTaskIndex + 1].id;
+      } else {
+        // At last row, clear focus
+        setFocusedCellId(null);
+        return;
+      }
+    } else if (direction === 'right') {
+      // Move to next column, same row
+      if (currentColIndex < editableColumns.length - 1) {
+        nextColId = editableColumns[currentColIndex + 1];
+      } else {
+        // At last column, move to first column of next row
+        if (currentTaskIndex < visibleTasks.length - 1) {
+          nextTaskId = visibleTasks[currentTaskIndex + 1].id;
+          nextColId = editableColumns[0];
+        } else {
+          // At last cell, clear focus
+          setFocusedCellId(null);
+          return;
+        }
+      }
+    }
+    
+    setFocusedCellId(`${nextTaskId}-${nextColId}`);
+  }, [getEditableColumns, visibleTasks]);
 
   // Calculate project summary task (aggregated from all tasks)
   const projectSummaryTask = useMemo((): Partial<Task> & { id: number; projectId: number; name: string } | null => {
@@ -8705,6 +8914,8 @@ function ProjectGanttView({
                               hasDependencies={tasksWithDependencies.has(task.id)}
                               computedWbs={wbsMap.get(task.id)}
                               isReadOnly={isReadOnly}
+                              focusedCellId={focusedCellId}
+                              onCellNavigate={handleCellNavigate}
                             />
                           )}
                         </SortableTaskRow>
