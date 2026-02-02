@@ -1641,9 +1641,12 @@ export async function registerRoutes(
       const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
       res.json({ uploadURL, objectPath });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error generating logo upload URL:", err);
-      res.status(500).json({ message: 'Failed to generate upload URL' });
+      console.error("Error stack:", err?.stack);
+      console.error("Error message:", err?.message);
+      console.error("PRIVATE_OBJECT_DIR:", process.env.PRIVATE_OBJECT_DIR);
+      res.status(500).json({ message: 'Failed to generate upload URL', error: err?.message || 'Unknown error' });
     }
   });
 
