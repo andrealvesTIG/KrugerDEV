@@ -7445,6 +7445,177 @@ function ProjectGanttView({
     }
   };
 
+  // Circular dependency detection helper
+  const wouldCreateCircularDependency = (fromTaskId: number, toTaskId: number, existingDeps: typeof projectDependencies): boolean => {
+    // Check if adding fromTaskId -> toTaskId would create a cycle
+    // This means checking if there's already a path from toTaskId back to fromTaskId
+    const visited = new Set<number>();
+    const stack = [toTaskId];
+    
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current === fromTaskId) return true;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      
+      // Find all tasks that this task depends on
+      for (const dep of existingDeps) {
+        if (dep.taskId === current) {
+          stack.push(dep.dependsOnTaskId);
+        }
+      }
+    }
+    return false;
+  };
+
+  // Bulk link for selected tasks (FS dependencies in grid order)
+  const handleBulkLink = async () => {
+    if (selectedTaskIds.size < 2) {
+      toast({ title: "Select at least 2 tasks", description: "Link requires 2 or more tasks selected", variant: "destructive" });
+      return;
+    }
+    
+    // Get selected tasks in their grid order
+    const selectedTasksInOrder = tasks.filter(t => selectedTaskIds.has(t.id));
+    
+    // Check for summary tasks (tasks that have children)
+    const summaryTaskIds = new Set<number>();
+    for (const task of tasks) {
+      const parentId = task.parentTaskId;
+      if (parentId) summaryTaskIds.add(parentId);
+    }
+    
+    const summaryTasksSelected = selectedTasksInOrder.filter(t => summaryTaskIds.has(t.id));
+    if (summaryTasksSelected.length > 0) {
+      toast({ 
+        title: "Cannot link summary tasks", 
+        description: `${summaryTasksSelected.length} summary task${summaryTasksSelected.length !== 1 ? 's' : ''} skipped (${summaryTasksSelected.map(t => t.name).join(', ')})`,
+        variant: "destructive" 
+      });
+      // Filter out summary tasks and continue with remaining
+      const linkableTasks = selectedTasksInOrder.filter(t => !summaryTaskIds.has(t.id));
+      if (linkableTasks.length < 2) {
+        return;
+      }
+    }
+    
+    const linkableTasks = selectedTasksInOrder.filter(t => !summaryTaskIds.has(t.id));
+    
+    // Build set of existing dependencies for quick lookup
+    const existingDepSet = new Set(
+      projectDependencies.map(d => `${d.taskId}-${d.dependsOnTaskId}`)
+    );
+    
+    let successCount = 0;
+    let duplicateCount = 0;
+    let circularCount = 0;
+    let errorCount = 0;
+    
+    // Create a working copy of dependencies to track additions
+    const workingDeps = [...projectDependencies];
+    
+    // Link sequentially: task[0] -> task[1] -> task[2] ... (each depends on previous)
+    for (let i = 1; i < linkableTasks.length; i++) {
+      const successorTask = linkableTasks[i];
+      const predecessorTask = linkableTasks[i - 1];
+      
+      const depKey = `${successorTask.id}-${predecessorTask.id}`;
+      
+      // Check for duplicate
+      if (existingDepSet.has(depKey)) {
+        duplicateCount++;
+        continue;
+      }
+      
+      // Check for circular dependency
+      if (wouldCreateCircularDependency(predecessorTask.id, successorTask.id, workingDeps)) {
+        circularCount++;
+        continue;
+      }
+      
+      try {
+        await addDependency.mutateAsync({
+          taskId: successorTask.id,
+          dependsOnTaskId: predecessorTask.id,
+          projectId,
+        });
+        // Add to working deps for subsequent circular checks
+        workingDeps.push({
+          id: 0,
+          taskId: successorTask.id,
+          dependsOnTaskId: predecessorTask.id,
+          dependencyType: 'finish-to-start',
+          lagDays: 0,
+          createdAt: new Date(),
+        });
+        existingDepSet.add(depKey);
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+    
+    // Provide feedback
+    const messages: string[] = [];
+    if (successCount > 0) messages.push(`${successCount} link${successCount !== 1 ? 's' : ''} created`);
+    if (duplicateCount > 0) messages.push(`${duplicateCount} already existed`);
+    if (circularCount > 0) messages.push(`${circularCount} blocked (circular)`);
+    if (errorCount > 0) messages.push(`${errorCount} failed`);
+    
+    if (successCount > 0) {
+      toast({ title: "Tasks linked", description: messages.join(', ') });
+    } else if (circularCount > 0) {
+      toast({ title: "Cannot link", description: "Would create circular dependencies", variant: "destructive" });
+    } else if (duplicateCount > 0) {
+      toast({ title: "Already linked", description: "All selected tasks are already linked in sequence" });
+    } else {
+      toast({ title: "Link failed", description: messages.join(', '), variant: "destructive" });
+    }
+  };
+
+  // Bulk unlink for selected tasks (remove dependencies between them only)
+  const handleBulkUnlink = async () => {
+    if (selectedTaskIds.size < 2) {
+      toast({ title: "Select at least 2 tasks", description: "Unlink requires 2 or more tasks selected", variant: "destructive" });
+      return;
+    }
+    
+    // Find all dependencies that exist between the selected tasks
+    const selectedSet = selectedTaskIds;
+    const depsToRemove = projectDependencies.filter(
+      dep => selectedSet.has(dep.taskId) && selectedSet.has(dep.dependsOnTaskId)
+    );
+    
+    if (depsToRemove.length === 0) {
+      toast({ title: "No links found", description: "No dependencies exist between the selected tasks" });
+      return;
+    }
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const dep of depsToRemove) {
+      try {
+        await removeDependency.mutateAsync({
+          taskId: dep.taskId,
+          dependsOnTaskId: dep.dependsOnTaskId,
+        });
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+    
+    if (successCount > 0) {
+      toast({ 
+        title: "Tasks unlinked", 
+        description: `${successCount} link${successCount !== 1 ? 's' : ''} removed${errorCount > 0 ? `, ${errorCount} failed` : ''}` 
+      });
+    } else {
+      toast({ title: "Unlink failed", description: "Could not remove dependencies", variant: "destructive" });
+    }
+  };
+
   // Collapse/expand state management
   const [collapsedTasks, setCollapsedTasks] = useState<Set<number>>(new Set());
 
@@ -8221,6 +8392,27 @@ function ProjectGanttView({
                   >
                     <IndentDecrease className="h-4 w-4 mr-2" />
                     Outdent
+                  </Button>
+                  <div className="w-px h-5 bg-border" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkLink}
+                    disabled={selectedTaskIds.size < 2 || addDependency.isPending || isReadOnly}
+                    data-testid="button-bulk-link"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Link
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkUnlink}
+                    disabled={selectedTaskIds.size < 2 || removeDependency.isPending || isReadOnly}
+                    data-testid="button-bulk-unlink"
+                  >
+                    <LinkIcon className="h-4 w-4 mr-2 line-through" />
+                    Unlink
                   </Button>
                   <div className="w-px h-5 bg-border" />
                   <Button
