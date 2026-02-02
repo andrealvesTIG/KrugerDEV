@@ -1650,6 +1650,81 @@ export async function registerRoutes(
     }
   });
 
+  // Direct logo upload (uses local storage as fallback when object storage is unavailable)
+  app.post('/api/organizations/:id/logo/upload', imageUpload.single('logo'), async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      // Generate unique filename
+      const ext = req.file.mimetype.split('/')[1] || 'png';
+      const filename = `logo-org-${orgId}-${Date.now()}.${ext}`;
+      
+      // Try object storage first, fall back to local storage
+      let servePath: string;
+      
+      try {
+        const { objectStorageClient } = await import("./replit_integrations/object_storage/objectStorage");
+        const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+        
+        if (privateObjectDir) {
+          const objectPath = `${privateObjectDir}/uploads/${filename}`;
+          const pathParts = objectPath.split('/');
+          const bucketName = pathParts[1];
+          const objectName = pathParts.slice(2).join('/');
+
+          const bucket = objectStorageClient.bucket(bucketName);
+          const file = bucket.file(objectName);
+          
+          await file.save(req.file.buffer, {
+            contentType: req.file.mimetype,
+            metadata: {
+              originalName: req.file.originalname,
+              uploadedBy: userId,
+            },
+          });
+
+          servePath = `/objects/uploads/${filename}`;
+        } else {
+          throw new Error('Object storage not configured');
+        }
+      } catch (objectStorageError) {
+        // Fall back to local file storage
+        console.log("Object storage unavailable for logo, using local storage:", (objectStorageError as Error).message);
+        
+        const logoDir = path.join(process.cwd(), 'public', 'logos');
+        if (!fs.existsSync(logoDir)) {
+          fs.mkdirSync(logoDir, { recursive: true });
+        }
+        
+        const filePath = path.join(logoDir, filename);
+        fs.writeFileSync(filePath, req.file.buffer);
+        
+        servePath = `/logos/${filename}`;
+      }
+      
+      // Update organization logo in database
+      await storage.updateOrganization(orgId, { logoUrl: servePath });
+
+      res.json({ objectPath: servePath, success: true });
+    } catch (err) {
+      console.error("Error uploading logo:", err);
+      res.status(500).json({ message: 'Failed to upload logo' });
+    }
+  });
+
   // Deactivate organization (soft delete)
   app.delete('/api/organizations/:id', async (req, res) => {
     try {

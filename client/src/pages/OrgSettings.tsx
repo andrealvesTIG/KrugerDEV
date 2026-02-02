@@ -490,21 +490,29 @@ function GeneralSection({ organization }: { organization: Organization }) {
 
     setIsUploading(true);
     try {
-      // Get upload URL from server
-      const response = await apiRequest('POST', `/api/organizations/${organization.id}/logo/upload-url`);
-      const { uploadURL, objectPath } = await response.json() as { uploadURL: string; objectPath: string };
-
-      // Upload file to object storage
-      await fetch(uploadURL, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
+      // Use direct upload endpoint (handles both object storage and local fallback)
+      const formData = new FormData();
+      formData.append('logo', file);
+      
+      const response = await fetch(`/api/organizations/${organization.id}/logo/upload`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
       });
 
-      // Update organization with new logo URL (objectPath already includes /objects/ prefix)
-      await updateLogoMutation.mutateAsync(objectPath);
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const { objectPath } = await response.json() as { objectPath: string; success: boolean };
+      
+      // Invalidate organization queries to refresh the logo
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      
+      toast({
+        title: "Success",
+        description: "Your company logo has been updated successfully.",
+      });
     } catch (error) {
       console.error('Error uploading logo:', error);
       toast({

@@ -15,8 +15,9 @@ const app = express();
 app.use(cookieParser());
 const httpServer = createServer(app);
 
-// Serve static files from public directory (avatars, etc.)
+// Serve static files from public directory (avatars, logos, etc.)
 app.use('/avatars', express.static(path.join(process.cwd(), 'public', 'avatars')));
+app.use('/logos', express.static(path.join(process.cwd(), 'public', 'logos')));
 // Serve videos from client/public/videos (large files not bundled by Vite)
 app.use('/videos', express.static(path.join(process.cwd(), 'client', 'public', 'videos')));
 
