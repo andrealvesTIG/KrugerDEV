@@ -42,7 +42,7 @@ import { ViewsDropdown, type ProjectFilterView } from "@/components/ViewsDropdow
 import { useColumnState, sortData, type SortDirection, type ColumnSort } from "@/hooks/use-column-state";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 
-const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing"];
+const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
 
 export default function Projects() {
   const { currentOrganization, memberships } = useOrganization();
@@ -302,8 +302,8 @@ export default function Projects() {
       const matchesPortfolio = selectedPortfolio === "all" || 
         (!(p as any).isExternal && p.portfolioId === parseInt(selectedPortfolio));
       
-      // Filter view logic
-      const isClosed = p.status === "Closing";
+      // Filter view logic - "Closed" is the terminal locked state (not "Closing" which is still active)
+      const isClosed = p.status === "Closed";
       const isMyProject = p.managerId === user?.id || 
         p.businessSponsorId === user?.id || 
         p.businessOwnerId === user?.id ||

@@ -77,7 +77,11 @@ const PROJECT_STAGES = [
   { value: "Monitoring", label: "Monitoring", description: "Track & control" },
   { value: "Closing", label: "Closing", description: "Project completion" },
   { value: "Billing", label: "Billing", description: "Pending invoices & accounting" },
+  { value: "Closed", label: "Closed", description: "Project archived & locked", isTerminal: true },
 ];
+
+// Helper to check if a project status is the terminal locked state
+const isProjectStatusLocked = (status: string) => status === "Closed";
 
 function BusinessProcessFlow({ 
   currentStatus, 
