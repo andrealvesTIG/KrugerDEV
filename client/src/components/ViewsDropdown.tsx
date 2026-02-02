@@ -76,25 +76,25 @@ const FILTER_VIEW_OPTIONS: FilterViewOption[] = [
     id: "active",
     label: "Active Projects",
     icon: Users,
-    tooltip: "Projects not in 'Closing' status",
+    tooltip: "Projects not in 'Closed' status (locked/archived)",
   },
   {
     id: "my-active",
     label: "My Active Projects",
     icon: User,
-    tooltip: "Your assigned projects not in 'Closing' status",
+    tooltip: "Your assigned projects not in 'Closed' status",
   },
   {
     id: "closed",
     label: "Closed Projects",
     icon: Archive,
-    tooltip: "Projects with 'Closing' status",
+    tooltip: "Locked/archived projects with 'Closed' status",
   },
   {
     id: "my-closed",
     label: "My Closed Projects",
     icon: FolderCheck,
-    tooltip: "Your assigned projects with 'Closing' status",
+    tooltip: "Your assigned projects with 'Closed' status",
   },
 ];
 

@@ -2657,7 +2657,7 @@ function ProjectsGridView({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing"].map(status => (
+              {PROJECT_STATUS_LIST.map(status => (
                 <SelectItem key={status} value={status}>{status}</SelectItem>
               ))}
             </SelectContent>
@@ -3170,6 +3170,8 @@ const PROJECT_STATUSES = [
   { id: "Execution", label: "Execution", color: "bg-amber-100 text-amber-700 dark:bg-amber-800 dark:text-amber-200" },
   { id: "Monitoring", label: "Monitoring", color: "bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-200" },
   { id: "Closing", label: "Closing", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200" },
+  { id: "Billing", label: "Billing", color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-800 dark:text-cyan-200" },
+  { id: "Closed", label: "Closed", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", isLocked: true },
 ];
 
 function ProjectsKanbanView({ 

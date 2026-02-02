@@ -433,9 +433,44 @@ export default function ProjectDetails() {
     return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
+  // Check if project is in locked (terminal) state
+  const isProjectLocked = isProjectStatusLocked(project.status);
+
   const handleStatusChange = (status: string) => {
+    // If trying to lock the project, show confirmation
+    if (status === "Closed" && !isProjectLocked) {
+      const confirmed = window.confirm(
+        "Are you sure you want to close this project?\n\n" +
+        "This will:\n" +
+        "• Lock the project from all edits\n" +
+        "• Remove it from Active Projects listings\n" +
+        "• Archive it for historical reference\n\n" +
+        "This action can only be undone by a Super Admin."
+      );
+      if (!confirmed) return;
+    }
+    
+    // If project is locked and trying to change to anything other than Closed
+    if (isProjectLocked && status !== "Closed") {
+      toast({ 
+        title: "Project Locked", 
+        description: "This project is closed and cannot be modified. Contact a Super Admin to unlock.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
     updateProject({ id: project.id, status }, {
-      onSuccess: () => toast({ title: "Status Updated", description: `Project status changed to ${status}` })
+      onSuccess: () => {
+        if (status === "Closed") {
+          toast({ 
+            title: "Project Closed & Locked", 
+            description: "This project is now archived and protected from changes."
+          });
+        } else {
+          toast({ title: "Status Updated", description: `Project status changed to ${status}` });
+        }
+      }
     });
   };
 
@@ -460,6 +495,12 @@ export default function ProjectDetails() {
             )}>
               {project.health} Health
             </Badge>
+            {isProjectLocked && (
+              <Badge className="text-sm px-3 py-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900 gap-1">
+                <LockIcon className="h-3 w-3" />
+                Locked
+              </Badge>
+            )}
             {/* Planner Badge */}
             {project.source === "planner" && project.plannerPlanId && (
               <button
@@ -823,19 +864,19 @@ export default function ProjectDetails() {
         </TabsList>
         <div className="mt-6">
           <TabsContent value="summary">
-            <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} />
+            <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} readOnly={isProjectLocked} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
-            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} urlTaskId={urlTaskId} />
+            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} urlTaskId={urlTaskId} readOnly={isProjectLocked} />
           </TabsContent>
           <TabsContent value="risks">
-            <RisksTab projectId={project.id} projectName={project.name} portfolioId={project.portfolioId} urlRiskId={urlRiskId} />
+            <RisksTab projectId={project.id} projectName={project.name} portfolioId={project.portfolioId} urlRiskId={urlRiskId} readOnly={isProjectLocked} />
           </TabsContent>
           <TabsContent value="issues">
-            <IssuesTab projectId={project.id} projectName={project.name} portfolioId={project.portfolioId} urlIssueId={urlIssueId} />
+            <IssuesTab projectId={project.id} projectName={project.name} portfolioId={project.portfolioId} urlIssueId={urlIssueId} readOnly={isProjectLocked} />
           </TabsContent>
           <TabsContent value="financials">
-            <FinancialsTab projectId={project.id} />
+            <FinancialsTab projectId={project.id} readOnly={isProjectLocked} />
           </TabsContent>
           <TabsContent value="scoring">
             {project.organizationId && <ScoringTab projectId={project.id} organizationId={project.organizationId} />}
@@ -2343,7 +2384,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
   );
 }
 
-function ProjectSummaryTab({ project, onUpdate, tasks }: { project: any; onUpdate: any; tasks: Task[] }) {
+function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { project: any; onUpdate: any; tasks: Task[]; readOnly?: boolean }) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { data: resources } = useResources(currentOrganization?.id ?? null);
@@ -3232,7 +3273,7 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
   );
 }
 
-function RisksTab({ projectId, projectName, portfolioId, urlRiskId }: { projectId: number; projectName?: string; portfolioId?: number | null; urlRiskId?: string | null }) {
+function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = false }: { projectId: number; projectName?: string; portfolioId?: number | null; urlRiskId?: string | null; readOnly?: boolean }) {
   const { currentOrganization } = useOrganization();
   const { data: risks, isLoading } = useRisks(projectId);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -3375,7 +3416,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId }: { projectI
           <CardDescription>Track and mitigate potential issues.</CardDescription>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}>
-          <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
+          <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} disabled={readOnly}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>{editingRisk ? "Edit Risk" : "Add New Risk"}</DialogTitle>
@@ -3841,7 +3882,7 @@ function computeWbsValues(tasks: Task[]): Map<number, string> {
   return wbsMap;
 }
 
-function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId }: { 
+function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, readOnly = false }: { 
   projectId: number; 
   projectName?: string; 
   projectStartDate?: string | null; 
@@ -3853,6 +3894,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   dataverseOrgId?: string | null;
   dataverseTenantId?: string | null;
   urlTaskId?: string | null;
+  readOnly?: boolean;
 }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
@@ -4656,7 +4698,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </div>
           {<Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingTask(null); }}>
             <DialogTrigger asChild>
-              <Button onClick={openCreateDialog} data-testid="button-add-task">
+              <Button onClick={openCreateDialog} disabled={readOnly} data-testid="button-add-task">
                 <Plus className="mr-2 h-4 w-4" /> Add Task
               </Button>
             </DialogTrigger>
@@ -9773,7 +9815,7 @@ const typeIcons = {
   Question: HelpCircle,
 };
 
-function IssuesTab({ projectId, projectName, portfolioId, urlIssueId }: { projectId: number; projectName?: string; portfolioId?: number | null; urlIssueId?: string | null }) {
+function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, readOnly = false }: { projectId: number; projectName?: string; portfolioId?: number | null; urlIssueId?: string | null; readOnly?: boolean }) {
   const { currentOrganization } = useOrganization();
   const { data: issues, isLoading } = useIssues(projectId);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -9898,7 +9940,7 @@ function IssuesTab({ projectId, projectName, portfolioId, urlIssueId }: { projec
           <CardDescription>Track bugs, tasks, and enhancements.</CardDescription>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingIssue(null); }}>
-          <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} data-testid="button-add-issue"><Plus className="mr-2 h-4 w-4" /> Add Issue</Button></DialogTrigger>
+          <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} disabled={readOnly} data-testid="button-add-issue"><Plus className="mr-2 h-4 w-4" /> Add Issue</Button></DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>{editingIssue ? "Edit Issue" : "Add New Issue"}</DialogTitle>
@@ -10179,7 +10221,7 @@ function IssueHistoryDialog({ issueId, open, onOpenChange }: { issueId: number; 
   );
 }
 
-function FinancialsTab({ projectId }: { projectId: number }) {
+function FinancialsTab({ projectId, readOnly = false }: { projectId: number; readOnly?: boolean }) {
   const { data: financials, isLoading } = useProjectFinancials(projectId);
   const createFinancial = useCreateProjectFinancial(projectId);
   const updateFinancial = useUpdateProjectFinancial(projectId);
@@ -10299,7 +10341,7 @@ function FinancialsTab({ projectId }: { projectId: number }) {
         </div>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
-            <Button data-testid="button-add-financial">
+            <Button disabled={readOnly} data-testid="button-add-financial">
               <Plus className="h-4 w-4 mr-2" />
               Add Line Item
             </Button>
