@@ -1974,6 +1974,29 @@ export async function registerRoutes(
         userId,
         role: role || 'member'
       });
+      
+      // Automatically create a resource for this team member if one doesn't exist
+      const existingResources = await storage.getResources(orgId);
+      const existingResource = existingResources.find(r => r.userId === userId);
+      
+      if (!existingResource) {
+        // Get user details for resource creation
+        const user = await storage.getUser(userId);
+        if (user) {
+          await storage.createResource({
+            organizationId: orgId,
+            displayName: user.firstName && user.lastName 
+              ? `${user.firstName} ${user.lastName}` 
+              : user.username || user.email || 'Team Member',
+            email: user.email || null,
+            userId: userId,
+            isActive: true,
+            isApprover: false,
+            isIntakeApprover: false,
+          });
+        }
+      }
+      
       res.status(201).json(member);
     } catch (err) {
       res.status(500).json({ message: 'Failed to add member' });
@@ -2516,6 +2539,24 @@ export async function registerRoutes(
       
       if (!member) {
         return res.status(500).json({ message: 'Failed to accept invitation' });
+      }
+      
+      // Automatically create a resource for this team member if one doesn't exist
+      const existingResources = await storage.getResources(invite.organizationId);
+      const existingResource = existingResources.find(r => r.userId === currentUserId);
+      
+      if (!existingResource && user) {
+        await storage.createResource({
+          organizationId: invite.organizationId,
+          displayName: user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.username || user.email || 'Team Member',
+          email: user.email || null,
+          userId: currentUserId,
+          isActive: true,
+          isApprover: false,
+          isIntakeApprover: false,
+        });
       }
       
       // Get organization details for response
