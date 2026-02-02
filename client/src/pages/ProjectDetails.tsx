@@ -39,7 +39,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, CloudDownload, ArrowUpToLine, IndentIncrease, IndentDecrease, Type } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, LockOpen, CloudDownload, ArrowUpToLine, IndentIncrease, IndentDecrease, Type } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -101,9 +101,9 @@ function BusinessProcessFlow({
           const isUpcoming = index > currentIndex;
           const isTerminalStage = (stage as any).isTerminal;
           
-          // When project is locked (Closed), disable all clicks except viewing
-          // Only allow clicking on terminal stage if not already there
-          const isClickDisabled = isCurrentlyLocked && !isTerminalStage;
+          // When project is locked, allow clicking on non-terminal stages to reopen
+          // When unlocked, allow clicking on any stage including terminal
+          const isClickDisabled = isCurrent; // Only disable clicking current status
           
           return (
             <div key={stage.value} className="flex items-center flex-1">
@@ -116,7 +116,7 @@ function BusinessProcessFlow({
                       "flex flex-col items-center gap-1 group transition-all",
                       "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md p-2",
                       isClickDisabled 
-                        ? "cursor-not-allowed opacity-60" 
+                        ? "cursor-default" 
                         : "cursor-pointer"
                     )}
                     data-testid={`status-stage-${stage.value.toLowerCase()}`}
@@ -127,7 +127,9 @@ function BusinessProcessFlow({
                       isCurrent && !isTerminalStage && "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
                       isCurrent && isTerminalStage && "bg-amber-600 border-amber-600 text-white ring-4 ring-amber-600/20",
                       isUpcoming && !isTerminalStage && "bg-muted border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50 group-hover:bg-muted/80",
-                      isUpcoming && isTerminalStage && "bg-muted border-amber-500/30 text-amber-600 group-hover:border-amber-500/50 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/20"
+                      isUpcoming && isTerminalStage && "bg-muted border-amber-500/30 text-amber-600 group-hover:border-amber-500/50 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/20",
+                      // When locked, show green hover on non-terminal stages to indicate reopening
+                      isCurrentlyLocked && !isTerminalStage && !isCurrent && "group-hover:border-emerald-500/50 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/20"
                     )}>
                       {isTerminalStage ? (
                         <LockIcon className="h-5 w-5" />
@@ -143,7 +145,8 @@ function BusinessProcessFlow({
                       "text-xs font-medium transition-colors",
                       isCurrent && isTerminalStage && "text-amber-600",
                       (isCompleted || isCurrent) && !isTerminalStage && "text-foreground",
-                      isUpcoming && "text-muted-foreground group-hover:text-foreground"
+                      isUpcoming && "text-muted-foreground group-hover:text-foreground",
+                      isCurrentlyLocked && !isTerminalStage && !isCurrent && "group-hover:text-emerald-600"
                     )}>
                       {stage.label}
                     </span>
@@ -153,9 +156,11 @@ function BusinessProcessFlow({
                   <p className="font-medium">{stage.label}</p>
                   <p className="text-xs text-muted-foreground">{stage.description}</p>
                   {isCurrentlyLocked && !isTerminalStage ? (
-                    <p className="text-xs text-amber-600 mt-1">Project is locked - cannot change status</p>
-                  ) : isTerminalStage ? (
+                    <p className="text-xs text-emerald-600 mt-1">Click to reopen project at this stage</p>
+                  ) : isTerminalStage && !isCurrent ? (
                     <p className="text-xs text-amber-600 mt-1">Setting this will lock the project</p>
+                  ) : isCurrent ? (
+                    <p className="text-xs text-muted-foreground mt-1">Current status</p>
                   ) : (
                     <p className="text-xs text-muted-foreground mt-1">Click to set status</p>
                   )}
@@ -445,19 +450,22 @@ export default function ProjectDetails() {
         "• Lock the project from all edits\n" +
         "• Remove it from Active Projects listings\n" +
         "• Archive it for historical reference\n\n" +
-        "This action can only be undone by a Super Admin."
+        "You can reopen the project later if needed."
       );
       if (!confirmed) return;
     }
     
-    // If project is locked and trying to change to anything other than Closed
+    // If project is locked and trying to reopen (change to anything other than Closed)
     if (isProjectLocked && status !== "Closed") {
-      toast({ 
-        title: "Project Locked", 
-        description: "This project is closed and cannot be modified. Contact a Super Admin to unlock.", 
-        variant: "destructive" 
-      });
-      return;
+      const confirmed = window.confirm(
+        `Are you sure you want to reopen this project?\n\n` +
+        `This will:\n` +
+        `• Set the status to "${status}"\n` +
+        `• Unlock the project for editing\n` +
+        `• Return it to Active Projects listings\n\n` +
+        `The project will become editable again.`
+      );
+      if (!confirmed) return;
     }
     
     updateProject({ id: project.id, status }, {
@@ -466,6 +474,11 @@ export default function ProjectDetails() {
           toast({ 
             title: "Project Closed & Locked", 
             description: "This project is now archived and protected from changes."
+          });
+        } else if (isProjectLocked) {
+          toast({ 
+            title: "Project Reopened", 
+            description: `Project has been unlocked and status set to ${status}.`
           });
         } else {
           toast({ title: "Status Updated", description: `Project status changed to ${status}` });
@@ -496,10 +509,22 @@ export default function ProjectDetails() {
               {project.health} Health
             </Badge>
             {isProjectLocked && (
-              <Badge className="text-sm px-3 py-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900 gap-1">
-                <LockIcon className="h-3 w-3" />
-                Locked
-              </Badge>
+              <>
+                <Badge className="text-sm px-3 py-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900 gap-1">
+                  <LockIcon className="h-3 w-3" />
+                  Locked
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleStatusChange("Billing")}
+                  className="h-7 text-xs gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                  data-testid="button-reopen-project"
+                >
+                  <LockOpen className="h-3 w-3" />
+                  Reopen Project
+                </Button>
+              </>
             )}
             {/* Planner Badge */}
             {project.source === "planner" && project.plannerPlanId && (
