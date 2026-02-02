@@ -91,6 +91,7 @@ function BusinessProcessFlow({
   onStatusChange: (status: string) => void;
 }) {
   const currentIndex = PROJECT_STAGES.findIndex(s => s.value === currentStatus);
+  const isCurrentlyLocked = isProjectStatusLocked(currentStatus);
   
   return (
     <div className="flex items-center justify-between">
@@ -98,26 +99,39 @@ function BusinessProcessFlow({
           const isCompleted = index < currentIndex;
           const isCurrent = index === currentIndex;
           const isUpcoming = index > currentIndex;
+          const isTerminalStage = (stage as any).isTerminal;
+          
+          // When project is locked (Closed), disable all clicks except viewing
+          // Only allow clicking on terminal stage if not already there
+          const isClickDisabled = isCurrentlyLocked && !isTerminalStage;
           
           return (
             <div key={stage.value} className="flex items-center flex-1">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={() => onStatusChange(stage.value)}
+                    onClick={() => !isClickDisabled && onStatusChange(stage.value)}
+                    disabled={isClickDisabled}
                     className={cn(
-                      "flex flex-col items-center gap-1 group cursor-pointer transition-all",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md p-2"
+                      "flex flex-col items-center gap-1 group transition-all",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md p-2",
+                      isClickDisabled 
+                        ? "cursor-not-allowed opacity-60" 
+                        : "cursor-pointer"
                     )}
                     data-testid={`status-stage-${stage.value.toLowerCase()}`}
                   >
                     <div className={cn(
                       "w-10 h-10 rounded-full flex items-center justify-center transition-all border-2",
                       isCompleted && "bg-primary border-primary text-primary-foreground",
-                      isCurrent && "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
-                      isUpcoming && "bg-muted border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50 group-hover:bg-muted/80"
+                      isCurrent && !isTerminalStage && "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
+                      isCurrent && isTerminalStage && "bg-amber-600 border-amber-600 text-white ring-4 ring-amber-600/20",
+                      isUpcoming && !isTerminalStage && "bg-muted border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50 group-hover:bg-muted/80",
+                      isUpcoming && isTerminalStage && "bg-muted border-amber-500/30 text-amber-600 group-hover:border-amber-500/50 group-hover:bg-amber-50 dark:group-hover:bg-amber-950/20"
                     )}>
-                      {isCompleted ? (
+                      {isTerminalStage ? (
+                        <LockIcon className="h-5 w-5" />
+                      ) : isCompleted ? (
                         <CheckCircle2 className="h-5 w-5" />
                       ) : isCurrent ? (
                         <span className="text-sm font-bold">{index + 1}</span>
@@ -127,7 +141,9 @@ function BusinessProcessFlow({
                     </div>
                     <span className={cn(
                       "text-xs font-medium transition-colors",
-                      (isCompleted || isCurrent) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      isCurrent && isTerminalStage && "text-amber-600",
+                      (isCompleted || isCurrent) && !isTerminalStage && "text-foreground",
+                      isUpcoming && "text-muted-foreground group-hover:text-foreground"
                     )}>
                       {stage.label}
                     </span>
@@ -136,7 +152,13 @@ function BusinessProcessFlow({
                 <TooltipContent>
                   <p className="font-medium">{stage.label}</p>
                   <p className="text-xs text-muted-foreground">{stage.description}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Click to set status</p>
+                  {isCurrentlyLocked && !isTerminalStage ? (
+                    <p className="text-xs text-amber-600 mt-1">Project is locked - cannot change status</p>
+                  ) : isTerminalStage ? (
+                    <p className="text-xs text-amber-600 mt-1">Setting this will lock the project</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">Click to set status</p>
+                  )}
                 </TooltipContent>
               </Tooltip>
               
