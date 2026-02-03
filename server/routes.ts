@@ -14,7 +14,7 @@ import { setupDynamics365Routes } from "./services/dynamics365Sales";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import multer from "multer";
