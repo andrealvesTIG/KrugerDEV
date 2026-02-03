@@ -1088,6 +1088,97 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
+      {/* Methodologies Section */}
+      <section id="methodologies-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <Badge variant="secondary" className="mb-4 bg-blue-500/10 text-blue-400 border-blue-500/20">
+              Industry Standards
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Based on Proven Methodologies
+            </h2>
+            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
+              Our platform incorporates best practices from globally recognized project management frameworks and methodologies
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* PMI PMBOK */}
+            <a 
+              href="https://www.pmi.org/pmbok-guide-standards" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-6 rounded-xl bg-slate-700/50 border border-slate-600 hover:border-blue-400/50 hover:bg-slate-700/80 transition-all group"
+              data-testid="link-methodology-pmi"
+            >
+              <div className="w-14 h-14 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
+                <BookOpen className="h-7 w-7 text-blue-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-blue-400 transition-colors">
+                PMI PMBOK Guide
+              </h3>
+              <p className="text-slate-300 text-sm mb-4">
+                The global standard for project management, providing guidelines for managing individual projects and defining key concepts.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="text-xs border-slate-500 text-slate-400">Earned Value</Badge>
+                <Badge variant="outline" className="text-xs border-slate-500 text-slate-400">Cost Management</Badge>
+                <Badge variant="outline" className="text-xs border-slate-500 text-slate-400">Risk Management</Badge>
+              </div>
+            </a>
+
+            {/* PRINCE2 */}
+            <a 
+              href="https://www.axelos.com/certifications/propath/prince2-project-management" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-6 rounded-xl bg-slate-700/50 border border-slate-600 hover:border-purple-400/50 hover:bg-slate-700/80 transition-all group"
+              data-testid="link-methodology-prince2"
+            >
+              <div className="w-14 h-14 rounded-lg bg-purple-500/10 flex items-center justify-center mb-4 group-hover:bg-purple-500/20 transition-colors">
+                <Shield className="h-7 w-7 text-purple-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-purple-400 transition-colors">
+                PRINCE2
+              </h3>
+              <p className="text-slate-300 text-sm mb-4">
+                A structured project management method focusing on organization, control, and quality to deliver projects successfully.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="text-xs border-slate-500 text-slate-400">Stage Gates</Badge>
+                <Badge variant="outline" className="text-xs border-slate-500 text-slate-400">Health Checks</Badge>
+                <Badge variant="outline" className="text-xs border-slate-500 text-slate-400">Governance</Badge>
+              </div>
+            </a>
+
+            {/* Gartner */}
+            <a 
+              href="https://www.gartner.com/en/information-technology/role/strategic-portfolio-management" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-6 rounded-xl bg-slate-700/50 border border-slate-600 hover:border-teal-400/50 hover:bg-slate-700/80 transition-all group"
+              data-testid="link-methodology-gartner"
+            >
+              <div className="w-14 h-14 rounded-lg bg-teal-500/10 flex items-center justify-center mb-4 group-hover:bg-teal-500/20 transition-colors">
+                <TrendingUp className="h-7 w-7 text-teal-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-teal-400 transition-colors">
+                Gartner PPM Framework
+              </h3>
+              <p className="text-slate-300 text-sm mb-4">
+                Strategic portfolio management insights and best practices for aligning projects with business objectives.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="text-xs border-slate-500 text-slate-400">Portfolio Health</Badge>
+                <Badge variant="outline" className="text-xs border-slate-500 text-slate-400">Capacity Planning</Badge>
+                <Badge variant="outline" className="text-xs border-slate-500 text-slate-400">Strategy Alignment</Badge>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* FAQ Section */}
       <section id="faq-section" className="py-20 px-4 bg-slate-700/30">
         <div className="max-w-4xl mx-auto">

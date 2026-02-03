@@ -18,7 +18,10 @@ import {
   CreditCard,
   Building2,
   Settings,
-  BookOpen
+  BookOpen,
+  Shield,
+  TrendingUp,
+  ExternalLink
 } from "lucide-react";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 
@@ -49,6 +52,39 @@ function FooterLink({ href, name, icon: Icon, testId }: { href: string; name: st
     </a>
   );
 }
+
+const methodologyLinks = [
+  { 
+    name: "PMI PMBOK Guide", 
+    href: "https://www.pmi.org/pmbok-guide-standards", 
+    icon: BookOpen,
+    description: "Project management standards"
+  },
+  { 
+    name: "PRINCE2", 
+    href: "https://www.axelos.com/certifications/propath/prince2-project-management", 
+    icon: Shield,
+    description: "Structured project method"
+  },
+  { 
+    name: "Gartner SPM", 
+    href: "https://www.gartner.com/en/information-technology/role/strategic-portfolio-management", 
+    icon: TrendingUp,
+    description: "Portfolio management insights"
+  },
+  { 
+    name: "PMI Risk Management", 
+    href: "https://www.pmi.org/standards/risk-management", 
+    icon: Shield,
+    description: "Risk management standards"
+  },
+  { 
+    name: "PMI Earned Value", 
+    href: "https://www.pmi.org/standards/earned-value-management", 
+    icon: BarChart3,
+    description: "Cost & schedule performance"
+  },
+];
 
 const footerSections = {
   features: {
@@ -143,7 +179,28 @@ export function LandingFooter() {
           ))}
         </div>
 
-        <div className="border-t border-slate-800 mt-12 pt-8">
+        {/* Methodologies Section */}
+        <div className="border-t border-slate-800 mt-8 pt-8">
+          <h3 className="text-sm font-semibold text-white mb-4">Based on Industry Methodologies</h3>
+          <div className="flex flex-wrap gap-4">
+            {methodologyLinks.map((link) => (
+              <a
+                key={link.name}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors group"
+                data-testid={`footer-link-methodology-${link.name.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <link.icon className="h-3.5 w-3.5" />
+                <span>{link.name}</span>
+                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </a>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-slate-800 mt-8 pt-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-slate-400">
               Copyright {currentYear} Friday Report LLC. All rights reserved.
