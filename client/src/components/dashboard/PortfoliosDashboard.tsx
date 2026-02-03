@@ -274,14 +274,21 @@ export function PortfoliosDashboard() {
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={portfolioBudgets} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={4} dataKey="budget">
+                  <Pie 
+                    data={portfolioBudgets} 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius={45} 
+                    outerRadius={75} 
+                    paddingAngle={2} 
+                    dataKey="budget"
+                  >
                     {portfolioBudgets.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
-                    formatter={(value: number) => formatBudget(value)}
+                    formatter={(value: number, name: string) => [formatBudget(value), name]}
                   />
-                  <Legend wrapperStyle={{ fontSize: '10px' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
