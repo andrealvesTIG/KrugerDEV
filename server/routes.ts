@@ -14554,6 +14554,12 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'Timesheet entries are blocked for this project' });
       }
 
+      // Check if entry date is in a closed period
+      const closedPeriods = await storage.getClosedTimesheetPeriods(entry.organizationId, entry.entryDate, entry.entryDate);
+      if (closedPeriods.length > 0) {
+        return res.status(403).json({ message: 'Cannot edit entries in a closed period' });
+      }
+
       const { hours, notes } = req.body;
       
       // Validate hours if provided
@@ -14597,6 +14603,12 @@ Return ONLY valid JSON.`;
 
       if (entry.status !== 'Draft') {
         return res.status(400).json({ message: 'Only draft entries can be deleted' });
+      }
+
+      // Check if entry date is in a closed period
+      const closedPeriods = await storage.getClosedTimesheetPeriods(entry.organizationId, entry.entryDate, entry.entryDate);
+      if (closedPeriods.length > 0) {
+        return res.status(403).json({ message: 'Cannot delete entries in a closed period' });
       }
 
       await storage.deleteTimesheetEntry(id);
@@ -14661,6 +14673,12 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
       }
 
+      // Check if entry date is in a closed period
+      const closedPeriods = await storage.getClosedTimesheetPeriods(entry.organizationId, entry.entryDate, entry.entryDate);
+      if (closedPeriods.length > 0) {
+        return res.status(403).json({ message: 'Cannot approve entries in a closed period' });
+      }
+
       const updated = await storage.approveTimesheetEntry(id, userId);
       res.json(updated);
     } catch (error) {
@@ -14692,6 +14710,12 @@ Return ONLY valid JSON.`;
       
       if (!userResource?.isApprover) {
         return res.status(403).json({ message: 'You are not authorized to reject timesheets' });
+      }
+
+      // Check if entry date is in a closed period
+      const closedPeriods = await storage.getClosedTimesheetPeriods(entry.organizationId, entry.entryDate, entry.entryDate);
+      if (closedPeriods.length > 0) {
+        return res.status(403).json({ message: 'Cannot reject entries in a closed period' });
       }
 
       const updated = await storage.rejectTimesheetEntry(id, rejectionReason || '');
