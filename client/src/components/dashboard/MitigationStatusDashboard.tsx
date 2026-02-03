@@ -157,7 +157,15 @@ export function MitigationStatusDashboard() {
             Mitigation Status Dashboard
           </h2>
           <p className="text-muted-foreground text-sm">
-            PMI risk response and mitigation tracking
+            <a 
+              href="https://www.pmi.org/learning/library/risk-response-strategies-4817" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              PMI risk response
+            </a>
+            {" and mitigation tracking"}
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
@@ -332,7 +340,15 @@ export function MitigationStatusDashboard() {
               Response Strategy Effectiveness
             </CardTitle>
             <CardDescription className="text-xs">
-              PMI risk response strategies analysis
+              <a 
+                href="https://www.pmi.org/learning/library/risk-response-strategies-4817" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PMI risk response strategies
+              </a>
+              {" analysis"}
             </CardDescription>
           </CardHeader>
           <CardContent>

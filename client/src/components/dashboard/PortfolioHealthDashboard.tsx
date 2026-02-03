@@ -270,7 +270,15 @@ export function PortfolioHealthDashboard() {
               Health Distribution
             </CardTitle>
             <CardDescription className="text-xs">
-              PRINCE2 Traffic Light status
+              <a 
+                href="https://www.prince2.com/uk/blog/project-health-check" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PRINCE2 Traffic Light
+              </a>
+              {" status"}
             </CardDescription>
           </CardHeader>
           <CardContent>

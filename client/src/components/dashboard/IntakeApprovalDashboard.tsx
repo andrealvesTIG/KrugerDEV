@@ -254,7 +254,15 @@ export function IntakeApprovalDashboard() {
               Approval Criteria Scores
             </CardTitle>
             <CardDescription className="text-xs">
-              PMI business case evaluation metrics
+              <a 
+                href="https://www.pmi.org/learning/library/business-case-development-8262" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PMI business case
+              </a>
+              {" evaluation metrics"}
             </CardDescription>
           </CardHeader>
           <CardContent>

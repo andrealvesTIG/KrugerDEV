@@ -131,11 +131,36 @@ export function StrategicKPIsDashboard() {
             Strategic KPIs Dashboard
           </h2>
           <p className="text-muted-foreground text-sm">
-            PMI PMBOK & Gartner aligned metrics for strategic decision-making
+            <a 
+              href="https://www.pmi.org/pmbok-guide-standards" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              PMI PMBOK
+            </a>
+            {" & "}
+            <a 
+              href="https://www.gartner.com/en/information-technology/glossary/project-portfolio-management" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              Gartner
+            </a>
+            {" aligned metrics for strategic decision-making"}
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
-          Based on PMI PMBOK 7th Edition
+          Based on{" "}
+          <a 
+            href="https://www.pmi.org/pmbok-guide-standards" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            PMI PMBOK 7th Edition
+          </a>
         </Badge>
       </div>
 
@@ -236,7 +261,15 @@ export function StrategicKPIsDashboard() {
               Balanced Scorecard
             </CardTitle>
             <CardDescription className="text-xs">
-              Gartner PPM Framework alignment
+              <a 
+                href="https://www.gartner.com/en/information-technology/glossary/project-portfolio-management" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                Gartner PPM Framework
+              </a>
+              {" alignment"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -260,7 +293,15 @@ export function StrategicKPIsDashboard() {
               Project Health Distribution
             </CardTitle>
             <CardDescription className="text-xs">
-              PRINCE2 Health Gate status
+              <a 
+                href="https://www.prince2.com/uk/blog/project-health-check" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PRINCE2 Health Gate
+              </a>
+              {" status"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -335,7 +376,15 @@ export function StrategicKPIsDashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Strategic Objectives Alignment</CardTitle>
             <CardDescription className="text-xs">
-              PMI Benefits Realization tracking
+              <a 
+                href="https://www.pmi.org/learning/library/benefits-realization-management-9335" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PMI Benefits Realization
+              </a>
+              {" tracking"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -377,7 +426,15 @@ export function StrategicKPIsDashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Governance Metrics</CardTitle>
             <CardDescription className="text-xs">
-              PRINCE2 Governance compliance indicators
+              <a 
+                href="https://www.prince2.com/uk/prince2-principles" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PRINCE2 Governance
+              </a>
+              {" compliance indicators"}
             </CardDescription>
           </CardHeader>
           <CardContent>

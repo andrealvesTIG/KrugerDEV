@@ -146,7 +146,24 @@ export function RiskMatrixDashboard() {
             Risk Matrix Dashboard
           </h2>
           <p className="text-muted-foreground text-sm">
-            PMI PMBOK & PRINCE2 risk assessment matrix
+            <a 
+              href="https://www.pmi.org/learning/library/risk-management-standard-5765" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              PMI PMBOK
+            </a>
+            {" & "}
+            <a 
+              href="https://www.prince2.com/uk/blog/prince2-risk-management" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              PRINCE2
+            </a>
+            {" risk assessment matrix"}
           </p>
         </div>
         <Badge variant={riskMetrics.critical > 3 ? 'destructive' : 'outline'} className="text-xs">
@@ -230,7 +247,15 @@ export function RiskMatrixDashboard() {
               Probability-Impact Matrix
             </CardTitle>
             <CardDescription className="text-xs">
-              PMI risk assessment visualization
+              <a 
+                href="https://www.pmi.org/learning/library/risk-management-standard-5765" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PMI risk assessment
+              </a>
+              {" visualization"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -286,7 +311,15 @@ export function RiskMatrixDashboard() {
               Risk Dimension Analysis
             </CardTitle>
             <CardDescription className="text-xs">
-              PRINCE2 risk category assessment
+              <a 
+                href="https://www.prince2.com/uk/blog/prince2-risk-management" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PRINCE2 risk category
+              </a>
+              {" assessment"}
             </CardDescription>
           </CardHeader>
           <CardContent>

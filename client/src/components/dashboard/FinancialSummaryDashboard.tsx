@@ -145,11 +145,26 @@ export function FinancialSummaryDashboard() {
             Financial Summary Dashboard
           </h2>
           <p className="text-muted-foreground text-sm">
-            Comprehensive financial analysis aligned with PMI Cost Management
+            Comprehensive financial analysis aligned with{" "}
+            <a 
+              href="https://www.pmi.org/learning/library/cost-management-project-6535" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              PMI Cost Management
+            </a>
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
-          PMBOK Cost Management
+          <a 
+            href="https://www.pmi.org/pmbok-guide-standards" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            PMBOK Cost Management
+          </a>
         </Badge>
       </div>
 
@@ -355,7 +370,15 @@ export function FinancialSummaryDashboard() {
               Cumulative Spend (S-Curve)
             </CardTitle>
             <CardDescription className="text-xs">
-              PMBOK Earned Value baseline tracking
+              <a 
+                href="https://www.pmi.org/learning/library/earned-value-management-best-practices-7045" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PMBOK Earned Value
+              </a>
+              {" baseline tracking"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -413,7 +436,15 @@ export function FinancialSummaryDashboard() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Earned Value Management Metrics</CardTitle>
           <CardDescription className="text-xs">
-            PMI PMBOK EVM indicators for cost control
+            <a 
+              href="https://www.pmi.org/learning/library/earned-value-management-best-practices-7045" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              PMI PMBOK EVM
+            </a>
+            {" indicators for cost control"}
           </CardDescription>
         </CardHeader>
         <CardContent>

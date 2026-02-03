@@ -249,7 +249,15 @@ export function TrendAnalysisDashboard() {
               Performance Indices (SPI/CPI)
             </CardTitle>
             <CardDescription className="text-xs">
-              PMI Earned Value Management metrics
+              <a 
+                href="https://www.pmi.org/learning/library/earned-value-management-best-practices-7045" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:underline hover:text-primary transition-colors"
+              >
+                PMI Earned Value Management
+              </a>
+              {" metrics"}
             </CardDescription>
           </CardHeader>
           <CardContent>
