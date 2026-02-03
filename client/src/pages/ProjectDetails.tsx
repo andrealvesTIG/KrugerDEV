@@ -6338,49 +6338,57 @@ function ProjectGanttTaskRowMeta({
                     <div 
                       className={cn(
                         "px-2 h-full flex items-center cursor-default",
-                        task.estimatedHours != null ? "text-foreground" : "text-muted-foreground"
+                        task.estimatedHours != null ? "text-foreground font-medium" : "text-muted-foreground"
                       )}
                     >
                       {task.estimatedHours != null ? `${task.estimatedHours}h` : '—'}
                     </div>
                   </HoverCardTrigger>
-                  <HoverCardContent className="w-80" side="top">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium text-sm">Estimated Hours Breakdown</span>
+                  <HoverCardContent className="w-[340px] p-0" side="top">
+                    <div className="p-4 border-b bg-muted/30">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                          <Clock className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-sm">Hours Breakdown</h4>
+                          <p className="text-xs text-muted-foreground">{estHoursBreakdown.length} team member{estHoursBreakdown.length !== 1 ? 's' : ''} assigned</p>
+                        </div>
                       </div>
+                    </div>
+                    <div className="p-3 space-y-2 max-h-[240px] overflow-y-auto">
                       {estHoursBreakdown.length > 0 ? (
-                        <div className="space-y-2">
+                        <>
                           {estHoursBreakdown.map((item, idx) => (
-                            <div key={idx} className="border rounded-md p-2 space-y-1">
-                              <div className="font-medium text-sm">{item.displayName}</div>
-                              <div className="text-xs text-muted-foreground">{item.email || 'No email'}</div>
-                              <div className="grid grid-cols-3 gap-2 text-xs mt-1">
-                                <div>
-                                  <span className="text-muted-foreground">Hours:</span>
-                                  <span className="ml-1 font-medium">{item.hours}h</span>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Allocation:</span>
-                                  <span className="ml-1 font-medium">{item.allocation}%</span>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Remaining:</span>
-                                  <span className="ml-1 font-medium">{item.remainingAvailability}%</span>
-                                </div>
+                            <div key={idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold shrink-0">
+                                {item.displayName.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate">{item.displayName}</div>
+                                <div className="text-xs text-muted-foreground truncate">{item.email || 'No email'}</div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <div className="font-semibold text-sm text-primary">{item.hours}h</div>
+                                <div className="text-[10px] text-muted-foreground">{item.allocation}% allocated</div>
                               </div>
                             </div>
                           ))}
-                          <div className="border-t pt-2 flex justify-between text-sm">
-                            <span className="text-muted-foreground">Total Estimated:</span>
-                            <span className="font-medium">{task.estimatedHours || 0}h</span>
-                          </div>
-                        </div>
+                        </>
                       ) : (
-                        <p className="text-xs text-muted-foreground">No resources assigned. Assign resources to calculate estimated hours.</p>
+                        <div className="flex flex-col items-center justify-center py-6 text-center">
+                          <Users className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                          <p className="text-sm text-muted-foreground">No resources assigned</p>
+                          <p className="text-xs text-muted-foreground/70 mt-1">Assign resources to calculate hours</p>
+                        </div>
                       )}
                     </div>
+                    {estHoursBreakdown.length > 0 && (
+                      <div className="p-3 border-t bg-muted/20 flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Total Estimated</span>
+                        <span className="font-bold text-lg text-primary">{task.estimatedHours || 0}h</span>
+                      </div>
+                    )}
                   </HoverCardContent>
                 </HoverCard>
               );

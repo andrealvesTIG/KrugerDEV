@@ -170,63 +170,82 @@ export function ResourceAssignment({
   };
 
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-4", className)}>
       <div className="flex items-center gap-2">
-        <Users className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">{label}</span>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+          <Users className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <span className="text-sm font-semibold">{label}</span>
+          <p className="text-xs text-muted-foreground">{selectedResources.length} team member{selectedResources.length !== 1 ? 's' : ''} assigned</p>
+        </div>
       </div>
       
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="space-y-2">
         {selectedResources.map(resource => (
-          <div key={resource.id} className="flex items-center gap-1" data-testid={`badge-resource-${resource.id}`}>
-            <Badge 
-              variant="secondary" 
-              className="flex items-center gap-1 pr-1"
-              title={resource.email || resource.displayName}
-            >
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-semibold">
+          <div 
+            key={resource.id} 
+            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors group"
+            data-testid={`badge-resource-${resource.id}`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold shrink-0">
                 {resource.displayName.charAt(0).toUpperCase()}
-              </span>
-              <span className="truncate max-w-[100px]">{resource.displayName}</span>
+              </div>
+              <div className="min-w-0">
+                <div className="font-medium text-sm truncate">{resource.displayName}</div>
+                <div className="text-xs text-muted-foreground truncate">{resource.email || 'No email'}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {showAllocations && onAllocationsChange && (
+                <div className="flex items-center gap-1 bg-muted/50 rounded-md px-2 py-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={getAllocation(resource.id)}
+                    onChange={(e) => updateAllocation(resource.id, parseInt(e.target.value) || 0)}
+                    className="h-6 w-12 text-xs text-center px-1 border-0 bg-transparent focus-visible:ring-1"
+                    data-testid={`input-allocation-${resource.id}`}
+                  />
+                  <span className="text-xs text-muted-foreground font-medium">%</span>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); removeResource(resource.id); }}
-                className="ml-1 rounded-full p-0.5 hover:bg-foreground/10 transition-colors"
+                className="opacity-0 group-hover:opacity-100 rounded-full p-1.5 hover:bg-destructive/10 hover:text-destructive transition-all"
                 data-testid={`button-remove-resource-${resource.id}`}
               >
-                <X className="h-3 w-3" />
+                <X className="h-4 w-4" />
               </button>
-            </Badge>
-            {showAllocations && onAllocationsChange && (
-              <div className="flex items-center gap-1">
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={getAllocation(resource.id)}
-                  onChange={(e) => updateAllocation(resource.id, parseInt(e.target.value) || 0)}
-                  className="h-6 w-14 text-xs text-center px-1"
-                  data-testid={`input-allocation-${resource.id}`}
-                />
-                <span className="text-xs text-muted-foreground">%</span>
-              </div>
-            )}
+            </div>
           </div>
         ))}
         
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="sm"
-              className="h-7 gap-1"
-              data-testid="button-add-resource"
-            >
-              <Plus className="h-3 w-3" />
-              Add
-            </Button>
-          </PopoverTrigger>
+        {selectedResources.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 px-4 rounded-lg border border-dashed bg-muted/30">
+            <Users className="h-8 w-8 text-muted-foreground/50 mb-2" />
+            <p className="text-sm text-muted-foreground text-center">No team members assigned yet</p>
+            <p className="text-xs text-muted-foreground/70 text-center mt-1">Click the button below to add resources</p>
+          </div>
+        )}
+      </div>
+      
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm"
+            className="w-full gap-2 border-dashed hover:border-primary hover:bg-primary/5 transition-colors"
+            data-testid="button-add-resource"
+          >
+            <Plus className="h-4 w-4" />
+            Add Team Member
+          </Button>
+        </PopoverTrigger>
           <PopoverContent className="w-72 p-0" align="start">
             {showInviteForm ? (
               <div className="p-3 space-y-3">
@@ -331,11 +350,6 @@ export function ResourceAssignment({
             )}
           </PopoverContent>
         </Popover>
-      </div>
-      
-      {selectedResources.length === 0 && (
-        <p className="text-xs text-muted-foreground">No resources assigned</p>
-      )}
     </div>
   );
 }
