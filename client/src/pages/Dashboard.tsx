@@ -34,6 +34,9 @@ import {
   RisksIssuesDashboard,
   ResourceDashboard,
   ResourceManagementDashboard,
+  ResourceAllocationDashboard,
+  ResourceUtilizationDashboard,
+  ResourceCapacityDashboard,
   TimesheetReportDashboard,
   TimesheetWeeklySummaryDashboard,
   TimesheetProjectHoursDashboard,
@@ -776,11 +779,11 @@ export default function Dashboard() {
         {activeSubmenu === 'risks-issues-tracker' && <IssueTrackerDashboard />}
         {activeSubmenu === 'risks-issues-mitigation' && <MitigationStatusDashboard />}
         
-        {/* Resources Dashboard submenus (combined Resource + Resource Management) */}
+        {/* Resources Dashboard submenus */}
         {activeSubmenu === 'resources-overview' && <ResourceDashboard />}
-        {activeSubmenu === 'resources-allocation' && <ResourceDashboard />}
-        {activeSubmenu === 'resources-utilization' && <ResourceManagementDashboard />}
-        {activeSubmenu === 'resources-capacity' && <ResourceManagementDashboard />}
+        {activeSubmenu === 'resources-allocation' && <ResourceAllocationDashboard />}
+        {activeSubmenu === 'resources-utilization' && <ResourceUtilizationDashboard />}
+        {activeSubmenu === 'resources-capacity' && <ResourceCapacityDashboard />}
         
         {/* Timesheet Dashboard submenus */}
         {activeSubmenu === 'timesheet-overview' && <TimesheetReportDashboard />}
