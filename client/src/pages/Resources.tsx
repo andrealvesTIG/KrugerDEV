@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo } from "lucide-react";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -71,10 +71,44 @@ export default function Resources() {
   const [groupBy1, setGroupBy1] = useState<string>("resource");
   const [groupBy2, setGroupBy2] = useState<string>("none");
   const [groupBy3, setGroupBy3] = useState<string>("none");
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+
+  // Fetch task details when a task is selected
+  const { data: selectedTaskData, isLoading: isLoadingTask } = useQuery({
+    queryKey: ['/api/tasks', selectedTaskId],
+    queryFn: async () => {
+      const res = await fetch(`/api/tasks/${selectedTaskId}`);
+      if (!res.ok) throw new Error('Failed to fetch task');
+      return res.json();
+    },
+    enabled: !!selectedTaskId && isTaskDialogOpen,
+  });
+
+  // Fetch task resource assignments
+  const { data: taskResourcesData } = useQuery({
+    queryKey: ['/api/tasks', selectedTaskId, 'resources'],
+    queryFn: async () => {
+      const res = await fetch(`/api/tasks/${selectedTaskId}/resources`);
+      if (!res.ok) throw new Error('Failed to fetch task resources');
+      return res.json();
+    },
+    enabled: !!selectedTaskId && isTaskDialogOpen,
+  });
+
+  const openTaskDialog = (taskId: number) => {
+    setSelectedTaskId(taskId);
+    setIsTaskDialogOpen(true);
+  };
+
+  const closeTaskDialog = () => {
+    setIsTaskDialogOpen(false);
+    setSelectedTaskId(null);
+  };
 
   // Fetch resource assignments for Assignments View
   interface ResourceAssignment {
@@ -654,6 +688,7 @@ export default function Resources() {
                         groupBy3={groupBy3}
                         groupingOptions={groupingOptions}
                         setLocation={setLocation}
+                        onTaskClick={openTaskDialog}
                       />
                     ))}
                   </div>
@@ -720,6 +755,148 @@ export default function Resources() {
           toast({ title: "Success", description: "Resources merged successfully" });
         }}
       />
+
+      {/* Task View Dialog */}
+      <Dialog open={isTaskDialogOpen} onOpenChange={(open) => !open && closeTaskDialog()}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ListTodo className="h-5 w-5 text-primary" />
+              Task Details
+            </DialogTitle>
+          </DialogHeader>
+          {isLoadingTask ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : selectedTaskData ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">{selectedTaskData.name}</h3>
+                {selectedTaskData.description && (
+                  <p className="text-sm text-muted-foreground">{selectedTaskData.description}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Target className="h-3 w-3" />
+                    Status
+                  </p>
+                  <Badge className={`text-xs ${
+                    selectedTaskData.status === "Completed" ? "bg-emerald-100 text-emerald-700" :
+                    selectedTaskData.status === "In Progress" ? "bg-blue-100 text-blue-700" :
+                    selectedTaskData.status === "On Hold" ? "bg-yellow-100 text-yellow-700" :
+                    "bg-slate-100 text-slate-700"
+                  }`}>
+                    {selectedTaskData.status || "Not Started"}
+                  </Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Percent className="h-3 w-3" />
+                    Progress
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary rounded-full transition-all" 
+                        style={{ width: `${selectedTaskData.progress || 0}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium">{selectedTaskData.progress || 0}%</span>
+                  </div>
+                </div>
+                {selectedTaskData.startDate && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Start Date
+                    </p>
+                    <p className="text-sm font-medium">{format(new Date(selectedTaskData.startDate), "MMM d, yyyy")}</p>
+                  </div>
+                )}
+                {selectedTaskData.endDate && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      End Date
+                    </p>
+                    <p className="text-sm font-medium">{format(new Date(selectedTaskData.endDate), "MMM d, yyyy")}</p>
+                  </div>
+                )}
+                {selectedTaskData.estimatedHours && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Estimated Hours
+                    </p>
+                    <p className="text-sm font-medium">{selectedTaskData.estimatedHours}h</p>
+                  </div>
+                )}
+                {selectedTaskData.priority && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      Priority
+                    </p>
+                    <Badge variant="outline" className="text-xs">
+                      {selectedTaskData.priority}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {taskResourcesData && taskResourcesData.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium flex items-center gap-1">
+                    <Users className="h-4 w-4" />
+                    Assigned Resources ({taskResourcesData.length})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {taskResourcesData.map((res: any) => (
+                      <Badge 
+                        key={res.id} 
+                        variant="secondary" 
+                        className="cursor-pointer hover:bg-accent"
+                        onClick={() => {
+                          closeTaskDialog();
+                          setLocation(`/resources?id=${res.resourceId || res.resource?.id}`);
+                        }}
+                        data-testid={`task-resource-${res.resourceId || res.resource?.id}`}
+                      >
+                        {res.resource?.displayName || "Unknown"}
+                        {res.allocationPercentage && ` (${res.allocationPercentage}%)`}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="flex gap-2">
+                <Button variant="outline" onClick={closeTaskDialog} data-testid="button-close-task-dialog">
+                  Close
+                </Button>
+                <Button 
+                  onClick={() => {
+                    closeTaskDialog();
+                    setLocation(`/projects/${selectedTaskData.projectId}?task=${selectedTaskData.id}`);
+                  }}
+                  data-testid="button-edit-task"
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit Task
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              Task not found
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1150,9 +1327,10 @@ interface AssignmentGroupProps {
   groupBy3: string;
   groupingOptions: { value: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
   setLocation: (path: string) => void;
+  onTaskClick: (taskId: number) => void;
 }
 
-function AssignmentGroup({ groupKey, groupType, level2, groupBy2, groupBy3, groupingOptions, setLocation }: AssignmentGroupProps) {
+function AssignmentGroup({ groupKey, groupType, level2, groupBy2, groupBy3, groupingOptions, setLocation, onTaskClick }: AssignmentGroupProps) {
   const [isOpen, setIsOpen] = useState(true);
   
   const GroupIcon = groupingOptions.find(o => o.value === groupType)?.icon || Users;
@@ -1181,7 +1359,7 @@ function AssignmentGroup({ groupKey, groupType, level2, groupBy2, groupBy3, grou
             // Direct assignments list
             <div className="space-y-1">
               {Object.values(level2).flatMap(l3 => Object.values(l3).flat()).map((assignment) => (
-                <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+                <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} onTaskClick={onTaskClick} />
               ))}
             </div>
           ) : (
@@ -1195,6 +1373,7 @@ function AssignmentGroup({ groupKey, groupType, level2, groupBy2, groupBy3, grou
                 groupBy3={groupBy3}
                 groupingOptions={groupingOptions}
                 setLocation={setLocation}
+                onTaskClick={onTaskClick}
               />
             ))
           )}
@@ -1211,9 +1390,10 @@ interface AssignmentSubGroupProps {
   groupBy3: string;
   groupingOptions: { value: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
   setLocation: (path: string) => void;
+  onTaskClick: (taskId: number) => void;
 }
 
-function AssignmentSubGroup({ groupKey, groupType, level3, groupBy3, groupingOptions, setLocation }: AssignmentSubGroupProps) {
+function AssignmentSubGroup({ groupKey, groupType, level3, groupBy3, groupingOptions, setLocation, onTaskClick }: AssignmentSubGroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   
   const GroupIcon = groupingOptions.find(o => o.value === groupType)?.icon || Users;
@@ -1223,7 +1403,7 @@ function AssignmentSubGroup({ groupKey, groupType, level3, groupBy3, groupingOpt
     return (
       <div className="space-y-1">
         {Object.values(level3).flat().map((assignment) => (
-          <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+          <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} onTaskClick={onTaskClick} />
         ))}
       </div>
     );
@@ -1243,13 +1423,13 @@ function AssignmentSubGroup({ groupKey, groupType, level3, groupBy3, groupingOpt
         <div className="pl-6 mt-1 space-y-1">
           {groupBy3 === "none" ? (
             Object.values(level3).flat().map((assignment) => (
-              <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+              <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} onTaskClick={onTaskClick} />
             ))
           ) : (
             Object.entries(level3).map(([key3, assignments]) => (
               key3 === "_all" ? (
                 assignments.map((assignment) => (
-                  <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+                  <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} onTaskClick={onTaskClick} />
                 ))
               ) : (
                 <AssignmentLevel3Group
@@ -1259,6 +1439,7 @@ function AssignmentSubGroup({ groupKey, groupType, level3, groupBy3, groupingOpt
                   assignments={assignments}
                   groupingOptions={groupingOptions}
                   setLocation={setLocation}
+                  onTaskClick={onTaskClick}
                 />
               )
             ))
@@ -1275,9 +1456,10 @@ interface AssignmentLevel3GroupProps {
   assignments: ResourceAssignment[];
   groupingOptions: { value: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
   setLocation: (path: string) => void;
+  onTaskClick: (taskId: number) => void;
 }
 
-function AssignmentLevel3Group({ groupKey, groupType, assignments, groupingOptions, setLocation }: AssignmentLevel3GroupProps) {
+function AssignmentLevel3Group({ groupKey, groupType, assignments, groupingOptions, setLocation, onTaskClick }: AssignmentLevel3GroupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const GroupIcon = groupingOptions.find(o => o.value === groupType)?.icon || Users;
 
@@ -1294,7 +1476,7 @@ function AssignmentLevel3Group({ groupKey, groupType, assignments, groupingOptio
       <CollapsibleContent>
         <div className="pl-5 mt-1 space-y-1">
           {assignments.map((assignment) => (
-            <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+            <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} onTaskClick={onTaskClick} />
           ))}
         </div>
       </CollapsibleContent>
@@ -1305,9 +1487,10 @@ function AssignmentLevel3Group({ groupKey, groupType, assignments, groupingOptio
 interface AssignmentRowProps {
   assignment: ResourceAssignment;
   setLocation: (path: string) => void;
+  onTaskClick?: (taskId: number) => void;
 }
 
-function AssignmentRow({ assignment, setLocation }: AssignmentRowProps) {
+function AssignmentRow({ assignment, setLocation, onTaskClick }: AssignmentRowProps) {
   const statusColors: Record<string, string> = {
     "Not Started": "bg-slate-100 text-slate-700",
     "In Progress": "bg-blue-100 text-blue-700",
@@ -1318,7 +1501,11 @@ function AssignmentRow({ assignment, setLocation }: AssignmentRowProps) {
 
   const handleTaskClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setLocation(`/projects/${assignment.projectId}?task=${assignment.taskId}`);
+    if (onTaskClick) {
+      onTaskClick(assignment.taskId);
+    } else {
+      setLocation(`/projects/${assignment.projectId}?task=${assignment.taskId}`);
+    }
   };
 
   const handleProjectClick = (e: React.MouseEvent) => {
