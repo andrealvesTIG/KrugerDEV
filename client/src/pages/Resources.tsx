@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User, Grid3X3, LayoutList } from "lucide-react";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -28,7 +28,7 @@ import type { InsertResource, Resource } from "@shared/schema";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, addWeeks, isWithinInterval, parseISO, differenceInDays } from "date-fns";
 import {
   Table,
   TableBody,
@@ -73,6 +73,7 @@ export default function Resources() {
   const [groupBy3, setGroupBy3] = useState<string>("none");
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -641,7 +642,7 @@ export default function Resources() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {groupBy2 !== "none" && (
+                  {groupBy2 !== "none" && !showHeatmap && (
                     <div className="flex items-center gap-2">
                       <Label className="text-xs text-muted-foreground whitespace-nowrap">then by:</Label>
                       <Select value={groupBy3} onValueChange={setGroupBy3}>
@@ -662,6 +663,26 @@ export default function Resources() {
                       </Select>
                     </div>
                   )}
+                  <div className="flex items-center gap-1 border rounded-lg p-0.5">
+                    <Button
+                      size="sm"
+                      variant={!showHeatmap ? "default" : "ghost"}
+                      className="h-7 px-2"
+                      onClick={() => setShowHeatmap(false)}
+                      data-testid="button-list-view"
+                    >
+                      <LayoutList className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={showHeatmap ? "default" : "ghost"}
+                      className="h-7 px-2"
+                      onClick={() => setShowHeatmap(true)}
+                      data-testid="button-heatmap-view"
+                    >
+                      <Grid3X3 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -675,6 +696,12 @@ export default function Resources() {
                   <ClipboardList className="mx-auto h-12 w-12 text-slate-300 mb-4" />
                   <p>No task assignments found. Assign resources to tasks to see them here.</p>
                 </div>
+              ) : showHeatmap ? (
+                <ResourceHeatmap 
+                  assignments={assignmentsData} 
+                  resources={resources || []}
+                  onTaskClick={openTaskDialog}
+                />
               ) : (
                 <ScrollArea className="h-[600px]">
                   <div className="space-y-3 pr-4">
@@ -930,6 +957,207 @@ export default function Resources() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// Heatmap component for resource allocation visualization
+interface ResourceHeatmapProps {
+  assignments: ResourceAssignment[];
+  resources: Resource[];
+  onTaskClick: (taskId: number) => void;
+}
+
+function ResourceHeatmap({ assignments, resources, onTaskClick }: ResourceHeatmapProps) {
+  // Generate 12 weeks from today
+  const today = new Date();
+  const weeks = useMemo(() => {
+    const result = [];
+    for (let i = 0; i < 12; i++) {
+      const weekStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
+      result.push({ start: weekStart, end: weekEnd, label: format(weekStart, "MMM d") });
+    }
+    return result;
+  }, []);
+
+  // Group assignments by resource and calculate weekly allocations
+  const resourceAllocations = useMemo(() => {
+    const allocations: Record<number, {
+      resource: Resource | null;
+      resourceName: string;
+      weeklyCapacity: number;
+      weeks: { allocation: number; tasks: { id: number; name: string; allocation: number }[] }[];
+    }> = {};
+
+    // Get unique resource IDs from assignments
+    const resourceIds = [...new Set(assignments.map(a => a.resourceId))];
+
+    resourceIds.forEach(resourceId => {
+      const resource = resources.find(r => r.id === resourceId) || null;
+      const resourceAssignments = assignments.filter(a => a.resourceId === resourceId);
+      const weeklyCapacity = resource?.weeklyCapacity ? Number(resource.weeklyCapacity) : 40;
+      
+      const weekData = weeks.map(week => {
+        let totalAllocation = 0;
+        const tasksInWeek: { id: number; name: string; allocation: number }[] = [];
+
+        resourceAssignments.forEach(assignment => {
+          if (!assignment.taskStartDate || !assignment.taskEndDate) return;
+          
+          const taskStart = parseISO(assignment.taskStartDate);
+          const taskEnd = parseISO(assignment.taskEndDate);
+          
+          // Check if task overlaps with this week
+          const overlaps = (taskStart <= week.end && taskEnd >= week.start);
+          
+          if (overlaps) {
+            // Calculate how many days of the task fall in this week
+            const overlapStart = taskStart > week.start ? taskStart : week.start;
+            const overlapEnd = taskEnd < week.end ? taskEnd : week.end;
+            const overlapDays = Math.max(0, differenceInDays(overlapEnd, overlapStart) + 1);
+            const workDays = Math.min(overlapDays, 5); // Max 5 work days per week
+            
+            // Calculate allocation for this week (allocation % * work days / 5)
+            const weekAllocation = ((assignment.allocationPercentage || 100) / 100) * (workDays / 5) * weeklyCapacity;
+            totalAllocation += weekAllocation;
+            
+            tasksInWeek.push({
+              id: assignment.taskId,
+              name: assignment.taskName,
+              allocation: assignment.allocationPercentage || 100
+            });
+          }
+        });
+
+        return { allocation: totalAllocation, tasks: tasksInWeek };
+      });
+
+      allocations[resourceId] = {
+        resource,
+        resourceName: resource?.displayName || resourceAssignments[0]?.resourceName || "Unknown",
+        weeklyCapacity,
+        weeks: weekData
+      };
+    });
+
+    return Object.values(allocations);
+  }, [assignments, resources, weeks]);
+
+  // Get heat color based on utilization
+  const getHeatColor = (allocation: number, capacity: number) => {
+    if (allocation === 0) return "bg-slate-50 dark:bg-slate-900";
+    
+    const utilization = allocation / capacity;
+    
+    if (utilization <= 0.5) return "bg-emerald-100 dark:bg-emerald-900/30";
+    if (utilization <= 0.75) return "bg-emerald-200 dark:bg-emerald-800/40";
+    if (utilization <= 0.9) return "bg-emerald-300 dark:bg-emerald-700/50";
+    if (utilization <= 1.0) return "bg-emerald-400 dark:bg-emerald-600/60";
+    if (utilization <= 1.1) return "bg-yellow-300 dark:bg-yellow-700/50";
+    if (utilization <= 1.25) return "bg-orange-300 dark:bg-orange-700/50";
+    return "bg-red-400 dark:bg-red-600/60";
+  };
+
+  const getTextColor = (allocation: number, capacity: number) => {
+    if (allocation === 0) return "text-muted-foreground";
+    const utilization = allocation / capacity;
+    if (utilization > 1.0) return "text-red-900 dark:text-red-100 font-medium";
+    if (utilization > 0.75) return "text-emerald-900 dark:text-emerald-100";
+    return "text-emerald-800 dark:text-emerald-200";
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-[900px]">
+        {/* Header row with week labels */}
+        <div className="flex border-b sticky top-0 bg-background z-10">
+          <div className="w-48 flex-shrink-0 p-2 font-medium text-sm border-r">
+            Resource
+          </div>
+          <div className="flex-1 flex">
+            {weeks.map((week, idx) => (
+              <div 
+                key={idx} 
+                className="flex-1 p-2 text-center text-xs font-medium border-r text-muted-foreground min-w-[70px]"
+              >
+                {week.label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Resource rows */}
+        <ScrollArea className="h-[500px]">
+          {resourceAllocations.map((resourceData, idx) => (
+            <div key={idx} className="flex border-b hover:bg-muted/20 transition-colors">
+              <div className="w-48 flex-shrink-0 p-2 border-r">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
+                    {resourceData.resourceName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{resourceData.resourceName}</p>
+                    <p className="text-[10px] text-muted-foreground">{resourceData.weeklyCapacity}h/week</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 flex">
+                {resourceData.weeks.map((weekData, weekIdx) => (
+                  <div
+                    key={weekIdx}
+                    className={`flex-1 p-1.5 border-r min-w-[70px] ${getHeatColor(weekData.allocation, resourceData.weeklyCapacity)} transition-colors cursor-pointer hover:opacity-80`}
+                    title={weekData.tasks.length > 0 
+                      ? `${weekData.tasks.map(t => `${t.name} (${t.allocation}%)`).join('\n')}\n\nTotal: ${weekData.allocation.toFixed(0)}h / ${resourceData.weeklyCapacity}h`
+                      : "No assignments"
+                    }
+                    onClick={() => {
+                      if (weekData.tasks.length === 1) {
+                        onTaskClick(weekData.tasks[0].id);
+                      }
+                    }}
+                    data-testid={`heatmap-cell-${idx}-${weekIdx}`}
+                  >
+                    <div className={`text-center text-xs ${getTextColor(weekData.allocation, resourceData.weeklyCapacity)}`}>
+                      {weekData.allocation > 0 ? `${weekData.allocation.toFixed(0)}h` : "-"}
+                    </div>
+                    {weekData.tasks.length > 0 && (
+                      <div className="text-center text-[9px] text-muted-foreground truncate">
+                        {weekData.tasks.length} task{weekData.tasks.length > 1 ? 's' : ''}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </ScrollArea>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
+          <span className="font-medium">Utilization:</span>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-900/30" />
+            <span>0-50%</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 rounded bg-emerald-300 dark:bg-emerald-700/50" />
+            <span>50-90%</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 rounded bg-emerald-400 dark:bg-emerald-600/60" />
+            <span>90-100%</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 rounded bg-yellow-300 dark:bg-yellow-700/50" />
+            <span>100-110%</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 rounded bg-red-400 dark:bg-red-600/60" />
+            <span>&gt;125%</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
