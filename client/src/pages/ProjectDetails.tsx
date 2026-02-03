@@ -5829,12 +5829,13 @@ function ProjectGanttTaskRowMeta({
           // Valid: end >= start - recalculate duration
           updates.durationDays = calculatedDuration;
         } else {
-          // Invalid: end moved before start - clamp to same-day
-          // If original was a milestone (0), preserve it; otherwise set to 1
-          const originalDuration = task.durationDays ?? 1;
-          const newDuration = originalDuration === 0 ? 0 : 1;
-          updates.endDate = task.startDate;
-          updates.durationDays = newDuration;
+          // Invalid: end moved before start - notify user and don't save
+          toast({
+            title: "Invalid date",
+            description: `End date cannot be before start date (${format(start, 'MM/dd/yyyy')})`,
+            variant: "destructive"
+          });
+          return; // Don't save - let user pick a valid date
         }
       } else if (value && !task.startDate) {
         // End date set but no start date - set start = end with existing or default duration
