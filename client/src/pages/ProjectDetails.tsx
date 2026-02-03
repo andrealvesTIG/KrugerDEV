@@ -5782,10 +5782,40 @@ function ProjectGanttTaskRowMeta({
       onTrackChange(task.id, task.projectId, field, oldValue ?? null, value);
     }
     
+    // Build update object with auto-calculated related fields
+    const updates: Record<string, string | number | boolean | null> = {
+      [field]: value,
+    };
+    
+    // Auto-calculate duration when start or end date changes
+    if (field === 'startDate' && value && task.endDate) {
+      const start = parseISO(value as string);
+      const end = parseISO(task.endDate);
+      const calculatedDuration = differenceInDays(end, start) + 1;
+      if (calculatedDuration >= 0) {
+        updates.durationDays = calculatedDuration;
+      }
+    } else if (field === 'endDate' && value && task.startDate) {
+      const start = parseISO(task.startDate);
+      const end = parseISO(value as string);
+      const calculatedDuration = differenceInDays(end, start) + 1;
+      if (calculatedDuration >= 0) {
+        updates.durationDays = calculatedDuration;
+      }
+    }
+    // Auto-calculate end date when duration changes (if start date exists)
+    else if (field === 'durationDays' && value !== null && task.startDate) {
+      const start = parseISO(task.startDate);
+      const duration = value as number;
+      // Duration 0 = milestone (end = start), Duration 1+ = end = start + duration - 1
+      const end = duration === 0 ? start : addDays(start, duration - 1);
+      updates.endDate = format(end, 'yyyy-MM-dd');
+    }
+    
     updateTask.mutate({
       id: task.id,
       projectId: task.projectId,
-      [field]: value,
+      ...updates,
     }, {
       onError: (error) => {
         toast({ 
@@ -6131,10 +6161,16 @@ function ProjectGanttTaskRowMeta({
                 />
               );
             case 'durationDays':
+              // Calculate duration from dates if not stored
+              const calculatedDuration = task.durationDays ?? (
+                task.startDate && task.endDate 
+                  ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
+                  : null
+              );
               return (
                 <InlineEditCell
-                  value={task.durationDays}
-                  displayValue={task.durationDays != null ? `${task.durationDays}d` : '—'}
+                  value={calculatedDuration}
+                  displayValue={calculatedDuration != null ? `${calculatedDuration}d` : '—'}
                   editType="number"
                   min={0}
                   onSave={(val) => handleInlineUpdate('durationDays', val as number | null, task.durationDays)}
