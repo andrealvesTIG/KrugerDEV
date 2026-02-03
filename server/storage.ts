@@ -2197,21 +2197,77 @@ export class DatabaseStorage implements IStorage {
   async updateTaskResourceAssignments(taskId: number, resourceIds: number[], allocations?: { resourceId: number; allocationPercentage: number }[]): Promise<void> {
     // Remove all existing assignments
     await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, taskId));
+    
     // Add new assignments (only for resources in resourceIds, ignore stale allocations)
+    const resourceIdSet = new Set(resourceIds);
+    const assignmentData: { taskId: number; resourceId: number; allocationPercentage: number }[] = [];
+    
     if (resourceIds.length > 0) {
-      const resourceIdSet = new Set(resourceIds);
-      await db.insert(taskResourceAssignments).values(
-        resourceIds.map(resourceId => {
-          // Only use allocation if it's for a resource that's actually being assigned
-          const allocation = allocations?.find(a => a.resourceId === resourceId && resourceIdSet.has(a.resourceId));
-          return { 
-            taskId, 
-            resourceId,
-            allocationPercentage: allocation?.allocationPercentage ?? 100
-          };
-        })
-      );
+      for (const resourceId of resourceIds) {
+        const allocation = allocations?.find(a => a.resourceId === resourceId && resourceIdSet.has(a.resourceId));
+        assignmentData.push({ 
+          taskId, 
+          resourceId,
+          allocationPercentage: allocation?.allocationPercentage ?? 100
+        });
+      }
+      await db.insert(taskResourceAssignments).values(assignmentData);
     }
+    
+    // Calculate estimated hours based on resource allocations
+    // Formula: sum of (allocation% / 100) * (weeklyCapacity / 5 days) * durationDays
+    const task = await this.getTask(taskId);
+    
+    if (resourceIds.length === 0) {
+      // No resources assigned - clear estimated hours
+      await db.update(tasks)
+        .set({ estimatedHours: null })
+        .where(eq(tasks.id, taskId));
+      return;
+    }
+    
+    if (!task) return;
+    
+    // Get task duration (from stored value or calculate from dates)
+    // Duration semantics: 0 = milestone, 1 = same-day, N = N days
+    let durationDays = task.durationDays;
+    if (durationDays == null && task.startDate && task.endDate) {
+      const start = new Date(task.startDate);
+      const end = new Date(task.endDate);
+      // Calculate inclusive days: floor(diffMs / msPerDay) + 1
+      const diffMs = end.getTime() - start.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      durationDays = diffDays + 1; // +1 for inclusive (same day = 1 day)
+    }
+    
+    // If no valid duration, clear estimated hours
+    if (durationDays == null || durationDays <= 0) {
+      await db.update(tasks)
+        .set({ estimatedHours: null })
+        .where(eq(tasks.id, taskId));
+      return;
+    }
+    
+    // Get resources with their weekly capacities
+    const assignedResources = await db.select()
+      .from(resources)
+      .where(inArray(resources.id, resourceIds));
+    
+    // Calculate total estimated hours
+    let totalEstimatedHours = 0;
+    for (const resource of assignedResources) {
+      const assignment = assignmentData.find(a => a.resourceId === resource.id);
+      const allocationPct = assignment?.allocationPercentage ?? 100;
+      const weeklyCapacity = parseFloat(resource.weeklyCapacity || "40");
+      const dailyCapacity = weeklyCapacity / 5; // Assuming 5 working days per week
+      const resourceHours = (allocationPct / 100) * dailyCapacity * durationDays;
+      totalEstimatedHours += resourceHours;
+    }
+    
+    // Update task's estimated hours (round to 2 decimal places)
+    await db.update(tasks)
+      .set({ estimatedHours: String(Math.round(totalEstimatedHours * 100) / 100) })
+      .where(eq(tasks.id, taskId));
   }
 
   // Issue Resource Assignments
