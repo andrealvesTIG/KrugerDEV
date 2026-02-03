@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User } from "lucide-react";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -849,29 +849,62 @@ export default function Resources() {
               </div>
 
               {taskResourcesData && taskResourcesData.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium flex items-center gap-1">
-                    <Users className="h-4 w-4" />
-                    Assigned Resources ({taskResourcesData.length})
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {taskResourcesData.map((res: any) => (
-                      <Badge 
-                        key={res.id} 
-                        variant="secondary" 
-                        className="cursor-pointer hover:bg-accent"
-                        onClick={() => {
-                          closeTaskDialog();
-                          setLocation(`/resources?id=${res.resourceId || res.resource?.id}`);
-                        }}
-                        data-testid={`task-resource-${res.resourceId || res.resource?.id}`}
-                      >
-                        {res.resource?.displayName || "Unknown"}
-                        {res.allocationPercentage && ` (${res.allocationPercentage}%)`}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
+                <Collapsible defaultOpen={true}>
+                  <CollapsibleTrigger className="w-full" data-testid="trigger-task-assignments">
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer">
+                      <ChevronDown className="h-4 w-4 text-muted-foreground collapsible-chevron" />
+                      <Users className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">Task Assignments</span>
+                      <Badge variant="secondary" className="text-xs ml-auto">{taskResourcesData.length}</Badge>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="mt-2 space-y-2 pl-2">
+                      {taskResourcesData.map((res: any) => (
+                        <div 
+                          key={res.id}
+                          className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+                          data-testid={`task-assignment-row-${res.id}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <User className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                              <p 
+                                className="text-sm font-medium cursor-pointer hover:text-primary transition-colors"
+                                onClick={() => {
+                                  closeTaskDialog();
+                                  setLocation(`/resources?id=${res.resourceId || res.resource?.id}`);
+                                }}
+                                data-testid={`task-resource-link-${res.resourceId || res.resource?.id}`}
+                              >
+                                {res.resource?.displayName || "Unknown Resource"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {res.resource?.role || res.resource?.jobTitle || "Team Member"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {res.allocationPercentage && (
+                              <div className="text-right">
+                                <p className="text-xs text-muted-foreground">Allocation</p>
+                                <p className="text-sm font-medium">{res.allocationPercentage}%</p>
+                              </div>
+                            )}
+                            {res.estimatedHours && (
+                              <div className="text-right">
+                                <p className="text-xs text-muted-foreground">Est. Hours</p>
+                                <p className="text-sm font-medium">{res.estimatedHours}h</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               )}
 
               <DialogFooter className="flex gap-2">
