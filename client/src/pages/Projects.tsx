@@ -3560,6 +3560,67 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
     setTimelineStart(startOfMonth(new Date()));
   };
 
+  // Auto-fit to show all project bars
+  const handleAutoFit = () => {
+    setRangePreset("custom");
+    
+    // Find the earliest start date and latest end date across all projects
+    const projectsWithDates = projects.filter(p => p.startDate || p.endDate);
+    if (projectsWithDates.length === 0) {
+      // No projects with dates, default to showing current month
+      setTimelineStart(startOfMonth(new Date()));
+      setZoomDays(90);
+      return;
+    }
+    
+    let earliestStart: Date | null = null;
+    let latestEnd: Date | null = null;
+    
+    for (const project of projectsWithDates) {
+      if (project.startDate) {
+        const start = parseISO(project.startDate);
+        if (!earliestStart || start < earliestStart) {
+          earliestStart = start;
+        }
+      }
+      if (project.endDate) {
+        const end = parseISO(project.endDate);
+        if (!latestEnd || end > latestEnd) {
+          latestEnd = end;
+        }
+      }
+    }
+    
+    // If we only have start dates but no end dates, use start dates for both
+    if (!earliestStart && latestEnd) earliestStart = latestEnd;
+    if (!latestEnd && earliestStart) latestEnd = earliestStart;
+    
+    if (!earliestStart || !latestEnd) {
+      setTimelineStart(startOfMonth(new Date()));
+      setZoomDays(90);
+      return;
+    }
+    
+    // Add some padding (1 week before and after)
+    const paddedStart = addDays(earliestStart, -7);
+    const paddedEnd = addDays(latestEnd, 7);
+    
+    // Calculate the number of days needed
+    const daysNeeded = differenceInDays(paddedEnd, paddedStart) + 1;
+    
+    // Find the smallest zoom level that fits all projects
+    let bestZoom: ZoomLevel = 1825; // Start with largest
+    for (const zoom of [...zoomDaysArray].reverse()) {
+      if (zoom >= daysNeeded) {
+        bestZoom = zoom;
+      }
+    }
+    
+    // Set timeline start to the beginning of the month of the earliest date
+    setTimelineStart(startOfMonth(paddedStart));
+    setZoomDays(bestZoom);
+  };
+
   const timeMarkers = getTimeMarkers();
 
   const defaultGanttWidths = useMemo(() => ({ name: 256 }), []);
@@ -3686,21 +3747,14 @@ function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; 
             <Button variant="outline" size="sm" onClick={handleZoomOut} disabled={zoomDaysArray.indexOf(zoomDays) === zoomDaysArray.length - 1} data-testid="button-zoom-out">
               -
             </Button>
+            <Button variant="outline" size="sm" onClick={handleAutoFit} data-testid="button-auto-fit">
+              Fit All
+            </Button>
           </div>
 
           <span className="text-sm text-muted-foreground">
             {format(timelineStart, 'MMM d, yyyy')} - {format(timelineEnd, 'MMM d, yyyy')}
           </span>
-          {/* Debug: Show today position status */}
-          {todayPosition !== null ? (
-            <span className="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded ml-2">
-              Today visible at {todayPosition.toFixed(1)}%
-            </span>
-          ) : (
-            <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded ml-2">
-              Today not in range
-            </span>
-          )}
         </div>
 
         <div className="relative overflow-x-auto">
