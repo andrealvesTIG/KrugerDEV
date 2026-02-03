@@ -8436,21 +8436,36 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       // Auto-calculate estimated hours based on resource assignments
       // Formula: sum of (allocation% / 100) × (weeklyCapacity / 5 days) × durationDays
       const task = await storage.getTask(taskId);
-      if (task && task.durationDays && task.durationDays > 0 && assignments.length > 0) {
-        let totalEstimatedHours = 0;
-        for (const assignment of assignments) {
-          const allocationPct = assignment.allocationPercentage ?? 100;
-          const weeklyCapacityStr = assignment.resource?.weeklyCapacity;
-          const weeklyCapacity = weeklyCapacityStr ? parseFloat(weeklyCapacityStr) : 40;
-          const dailyHours = weeklyCapacity / 5; // 5-day work week
-          const hoursForResource = (allocationPct / 100) * dailyHours * task.durationDays;
-          totalEstimatedHours += hoursForResource;
+      if (task && assignments.length > 0) {
+        // Calculate duration from dates if durationDays is not set
+        let duration = task.durationDays;
+        if (!duration && task.startDate && task.endDate) {
+          const start = new Date(task.startDate);
+          const end = new Date(task.endDate);
+          const diffMs = end.getTime() - start.getTime();
+          const msPerDay = 24 * 60 * 60 * 1000;
+          duration = Math.floor(diffMs / msPerDay) + 1; // +1 for inclusive
         }
-        // Update task with calculated estimated hours (estimatedHours is numeric/string type)
-        const roundedHours = Math.round(totalEstimatedHours * 100) / 100;
-        await storage.updateTask(taskId, { estimatedHours: String(roundedHours) });
-      } else if (task && (assignments.length === 0 || !task.durationDays || task.durationDays <= 0)) {
-        // Clear estimated hours if no resources or invalid duration
+        
+        if (duration && duration > 0) {
+          let totalEstimatedHours = 0;
+          for (const assignment of assignments) {
+            const allocationPct = assignment.allocationPercentage ?? 100;
+            const weeklyCapacityStr = assignment.resource?.weeklyCapacity;
+            const weeklyCapacity = weeklyCapacityStr ? parseFloat(weeklyCapacityStr) : 40;
+            const dailyHours = weeklyCapacity / 5; // 5-day work week
+            const hoursForResource = (allocationPct / 100) * dailyHours * duration;
+            totalEstimatedHours += hoursForResource;
+          }
+          // Update task with calculated estimated hours (estimatedHours is numeric/string type)
+          const roundedHours = Math.round(totalEstimatedHours * 100) / 100;
+          await storage.updateTask(taskId, { estimatedHours: String(roundedHours) });
+        } else {
+          // Clear estimated hours if no valid duration
+          await storage.updateTask(taskId, { estimatedHours: null });
+        }
+      } else if (task && assignments.length === 0) {
+        // Clear estimated hours if no resources assigned
         await storage.updateTask(taskId, { estimatedHours: null });
       }
       
