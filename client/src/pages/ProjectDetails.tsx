@@ -5255,7 +5255,7 @@ const COLUMN_CATEGORIES: { id: GanttColumnConfig['category']; label: string }[] 
   { id: 'metadata', label: 'Metadata' },
 ];
 
-const DEFAULT_GANTT_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'task', 'startDate', 'endDate', 'progress', 'resources'];
+const DEFAULT_GANTT_COLUMNS: GanttColumn[] = ['taskIndex', 'wbs', 'task', 'startDate', 'endDate', 'durationDays', 'progress', 'estimatedHours', 'resources'];
 
 // NOTE: Legacy ProjectGanttTaskRow removed - use ProjectGanttTaskRowMeta + ProjectGanttTaskRowTimeline instead
 
