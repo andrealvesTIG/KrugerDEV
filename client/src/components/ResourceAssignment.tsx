@@ -101,6 +101,10 @@ export function ResourceAssignment({
         // This ensures the state is correct before any form submission
         if (!selectedResourceIds.includes(data.resource.id)) {
           onSelectionChange([...selectedResourceIds, data.resource.id]);
+          // Add default allocation for the new resource
+          if (onAllocationsChange) {
+            onAllocationsChange([...allocations, { resourceId: data.resource.id, allocationPercentage: 100 }]);
+          }
         }
         // Notify parent that invite already handled the assignment
         // This prevents form submission from overwriting with stale state
@@ -108,6 +112,10 @@ export function ResourceAssignment({
       } else if (data.resource) {
         // No taskId, just add to selection for later save
         onSelectionChange([...selectedResourceIds, data.resource.id]);
+        // Add default allocation for the new resource
+        if (onAllocationsChange) {
+          onAllocationsChange([...allocations, { resourceId: data.resource.id, allocationPercentage: 100 }]);
+        }
       }
       
       setInviteEmail("");
@@ -125,14 +133,25 @@ export function ResourceAssignment({
 
   const toggleResource = (resourceId: number) => {
     if (selectedResourceIds.includes(resourceId)) {
+      // Remove resource and its allocation
       onSelectionChange(selectedResourceIds.filter(id => id !== resourceId));
+      if (onAllocationsChange) {
+        onAllocationsChange(allocations.filter(a => a.resourceId !== resourceId));
+      }
     } else {
+      // Add resource with default 100% allocation
       onSelectionChange([...selectedResourceIds, resourceId]);
+      if (onAllocationsChange) {
+        onAllocationsChange([...allocations, { resourceId, allocationPercentage: 100 }]);
+      }
     }
   };
 
   const removeResource = (resourceId: number) => {
     onSelectionChange(selectedResourceIds.filter(id => id !== resourceId));
+    if (onAllocationsChange) {
+      onAllocationsChange(allocations.filter(a => a.resourceId !== resourceId));
+    }
   };
 
   const handleInvite = (e: React.FormEvent) => {

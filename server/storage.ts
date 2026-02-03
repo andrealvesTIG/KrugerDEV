@@ -2197,11 +2197,13 @@ export class DatabaseStorage implements IStorage {
   async updateTaskResourceAssignments(taskId: number, resourceIds: number[], allocations?: { resourceId: number; allocationPercentage: number }[]): Promise<void> {
     // Remove all existing assignments
     await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, taskId));
-    // Add new assignments
+    // Add new assignments (only for resources in resourceIds, ignore stale allocations)
     if (resourceIds.length > 0) {
+      const resourceIdSet = new Set(resourceIds);
       await db.insert(taskResourceAssignments).values(
         resourceIds.map(resourceId => {
-          const allocation = allocations?.find(a => a.resourceId === resourceId);
+          // Only use allocation if it's for a resource that's actually being assigned
+          const allocation = allocations?.find(a => a.resourceId === resourceId && resourceIdSet.has(a.resourceId));
           return { 
             taskId, 
             resourceId,
