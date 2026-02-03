@@ -147,7 +147,7 @@ export function RiskMatrixDashboard() {
           </h2>
           <p className="text-muted-foreground text-sm">
             <a 
-              href="https://www.pmi.org/learning/library/risk-management-standard-5765" 
+              href="https://www.pmi.org/standards/risk-management" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:underline hover:text-primary transition-colors"
@@ -156,7 +156,7 @@ export function RiskMatrixDashboard() {
             </a>
             {" & "}
             <a 
-              href="https://www.prince2.com/uk/blog/prince2-risk-management" 
+              href="https://www.axelos.com/certifications/propath/prince2-project-management" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:underline hover:text-primary transition-colors"
@@ -248,7 +248,7 @@ export function RiskMatrixDashboard() {
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.pmi.org/learning/library/risk-management-standard-5765" 
+                href="https://www.pmi.org/standards/risk-management" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"
@@ -312,7 +312,7 @@ export function RiskMatrixDashboard() {
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.prince2.com/uk/blog/prince2-risk-management" 
+                href="https://www.axelos.com/certifications/propath/prince2-project-management" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"

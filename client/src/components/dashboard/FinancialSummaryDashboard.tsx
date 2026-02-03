@@ -147,7 +147,7 @@ export function FinancialSummaryDashboard() {
           <p className="text-muted-foreground text-sm">
             Comprehensive financial analysis aligned with{" "}
             <a 
-              href="https://www.pmi.org/learning/library/cost-management-project-6535" 
+              href="https://www.pmi.org/pmbok-guide-standards" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:underline hover:text-primary transition-colors"
@@ -371,7 +371,7 @@ export function FinancialSummaryDashboard() {
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.pmi.org/learning/library/earned-value-management-best-practices-7045" 
+                href="https://www.pmi.org/standards/earned-value-management" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"
@@ -437,7 +437,7 @@ export function FinancialSummaryDashboard() {
           <CardTitle className="text-sm font-medium">Earned Value Management Metrics</CardTitle>
           <CardDescription className="text-xs">
             <a 
-              href="https://www.pmi.org/learning/library/earned-value-management-best-practices-7045" 
+              href="https://www.pmi.org/standards/earned-value-management" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:underline hover:text-primary transition-colors"

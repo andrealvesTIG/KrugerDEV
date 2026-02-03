@@ -141,7 +141,7 @@ export function StrategicKPIsDashboard() {
             </a>
             {" & "}
             <a 
-              href="https://www.gartner.com/en/information-technology/glossary/project-portfolio-management" 
+              href="https://www.gartner.com/en/information-technology/role/strategic-portfolio-management" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:underline hover:text-primary transition-colors"
@@ -262,7 +262,7 @@ export function StrategicKPIsDashboard() {
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.gartner.com/en/information-technology/glossary/project-portfolio-management" 
+                href="https://www.gartner.com/en/information-technology/role/strategic-portfolio-management" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"
@@ -294,7 +294,7 @@ export function StrategicKPIsDashboard() {
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.prince2.com/uk/blog/project-health-check" 
+                href="https://www.axelos.com/certifications/propath/prince2-project-management" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"
@@ -377,7 +377,7 @@ export function StrategicKPIsDashboard() {
             <CardTitle className="text-sm font-medium">Strategic Objectives Alignment</CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.pmi.org/learning/library/benefits-realization-management-9335" 
+                href="https://www.pmi.org/standards/benefits-realization" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"
@@ -427,7 +427,7 @@ export function StrategicKPIsDashboard() {
             <CardTitle className="text-sm font-medium">Governance Metrics</CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.prince2.com/uk/prince2-principles" 
+                href="https://www.axelos.com/certifications/propath/prince2-project-management" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"

@@ -158,7 +158,7 @@ export function MitigationStatusDashboard() {
           </h2>
           <p className="text-muted-foreground text-sm">
             <a 
-              href="https://www.pmi.org/learning/library/risk-response-strategies-4817" 
+              href="https://www.pmi.org/standards/risk-management" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:underline hover:text-primary transition-colors"
@@ -341,7 +341,7 @@ export function MitigationStatusDashboard() {
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.pmi.org/learning/library/risk-response-strategies-4817" 
+                href="https://www.pmi.org/standards/risk-management" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"

@@ -144,7 +144,7 @@ export function IntakeCapacityDashboard() {
           </h2>
           <p className="text-muted-foreground text-sm">
             <a 
-              href="https://www.gartner.com/en/information-technology/glossary/capacity-planning" 
+              href="https://www.gartner.com/en/information-technology/role/strategic-portfolio-management" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:underline hover:text-primary transition-colors"

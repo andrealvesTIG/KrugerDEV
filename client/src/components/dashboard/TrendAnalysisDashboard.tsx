@@ -250,7 +250,7 @@ export function TrendAnalysisDashboard() {
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.pmi.org/learning/library/earned-value-management-best-practices-7045" 
+                href="https://www.pmi.org/standards/earned-value-management" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"
