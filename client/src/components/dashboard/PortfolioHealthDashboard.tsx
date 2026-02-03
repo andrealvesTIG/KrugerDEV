@@ -165,7 +165,7 @@ export function PortfolioHealthDashboard() {
           </h2>
           <p className="text-muted-foreground text-sm">
             <a 
-              href="https://www.axelos.com/certifications/propath/prince2-project-management" 
+              href="https://www.prince2.com/" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:underline hover:text-primary transition-colors"
@@ -271,7 +271,7 @@ export function PortfolioHealthDashboard() {
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.axelos.com/certifications/propath/prince2-project-management" 
+                href="https://www.prince2.com/" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"

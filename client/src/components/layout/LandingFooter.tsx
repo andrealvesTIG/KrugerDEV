@@ -62,7 +62,7 @@ const methodologyLinks = [
   },
   { 
     name: "PRINCE2", 
-    href: "https://www.axelos.com/certifications/propath/prince2-project-management", 
+    href: "https://www.prince2.com/", 
     icon: Shield,
     description: "Structured project method"
   },

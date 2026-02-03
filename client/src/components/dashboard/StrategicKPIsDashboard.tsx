@@ -294,7 +294,7 @@ export function StrategicKPIsDashboard() {
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.axelos.com/certifications/propath/prince2-project-management" 
+                href="https://www.prince2.com/" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"
@@ -427,7 +427,7 @@ export function StrategicKPIsDashboard() {
             <CardTitle className="text-sm font-medium">Governance Metrics</CardTitle>
             <CardDescription className="text-xs">
               <a 
-                href="https://www.axelos.com/certifications/propath/prince2-project-management" 
+                href="https://www.prince2.com/" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="hover:underline hover:text-primary transition-colors"

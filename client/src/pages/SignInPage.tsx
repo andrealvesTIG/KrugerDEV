@@ -1130,7 +1130,7 @@ export default function SignInPage() {
 
             {/* PRINCE2 */}
             <a 
-              href="https://www.axelos.com/certifications/propath/prince2-project-management" 
+              href="https://www.prince2.com/" 
               target="_blank" 
               rel="noopener noreferrer"
               className="p-6 rounded-xl bg-slate-700/50 border border-slate-600 hover:border-purple-400/50 hover:bg-slate-700/80 transition-all group"
