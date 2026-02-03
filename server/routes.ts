@@ -8099,14 +8099,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
-  // Get a single resource
-  app.get('/api/resources/:id', async (req, res) => {
-    const resource = await storage.getResource(Number(req.params.id));
-    if (!resource) return res.status(404).json({ message: "Resource not found" });
-    res.json(resource);
-  });
-
   // Get all resource assignments for an organization (for Assignments View)
+  // NOTE: This route MUST come before /api/resources/:id to avoid "assignments" being treated as an ID
   app.get('/api/resources/assignments', async (req, res) => {
     try {
       const organizationId = Number(req.query.organizationId);
@@ -8151,6 +8145,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       console.error("Error fetching resource assignments:", err);
       res.status(500).json({ message: "Failed to fetch resource assignments" });
     }
+  });
+
+  // Get a single resource
+  app.get('/api/resources/:id', async (req, res) => {
+    const resource = await storage.getResource(Number(req.params.id));
+    if (!resource) return res.status(404).json({ message: "Resource not found" });
+    res.json(resource);
   });
 
   // Get task assignments for a resource
