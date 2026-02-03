@@ -701,7 +701,7 @@ export default function Resources() {
                   assignments={assignmentsData} 
                   resources={resources || []}
                   onTaskClick={openTaskDialog}
-                  groupBy={groupBy1 as "resource" | "project"}
+                  groupBy={groupBy1}
                 />
               ) : (
                 <ScrollArea className="h-[600px]">
@@ -967,7 +967,7 @@ interface ResourceHeatmapProps {
   assignments: ResourceAssignment[];
   resources: Resource[];
   onTaskClick: (taskId: number) => void;
-  groupBy: "resource" | "project";
+  groupBy: string;
 }
 
 interface HeatmapGroup {
@@ -1023,25 +1023,63 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
     return { assignment, weeks: weekData };
   };
 
+  // Get grouping key and name based on groupBy type
+  const getGroupInfo = (assignment: ResourceAssignment): { key: string; name: string; capacity: number } => {
+    switch (groupBy) {
+      case "resource": {
+        const resource = resources.find(r => r.id === assignment.resourceId);
+        return {
+          key: `resource-${assignment.resourceId}`,
+          name: assignment.resourceName || "Unknown Resource",
+          capacity: resource?.weeklyCapacity ? Number(resource.weeklyCapacity) : 40
+        };
+      }
+      case "project":
+        return {
+          key: `project-${assignment.projectId}`,
+          name: assignment.projectName || "Unknown Project",
+          capacity: 40
+        };
+      case "portfolio":
+        return {
+          key: `portfolio-${assignment.portfolioId || 0}`,
+          name: assignment.portfolioName || "No Portfolio",
+          capacity: 40
+        };
+      case "skills": {
+        const resource = resources.find(r => r.id === assignment.resourceId);
+        const skills = resource?.skills || [];
+        const skillKey = skills.length > 0 ? skills.sort().join(",") : "none";
+        return {
+          key: `skills-${skillKey}`,
+          name: skills.length > 0 ? skills.join(", ") : "No Skills",
+          capacity: 40
+        };
+      }
+      case "department": {
+        const resource = resources.find(r => r.id === assignment.resourceId);
+        const dept = resource?.department || "No Department";
+        return {
+          key: `department-${dept}`,
+          name: dept,
+          capacity: 40
+        };
+      }
+      default:
+        return {
+          key: `resource-${assignment.resourceId}`,
+          name: assignment.resourceName || "Unknown Resource",
+          capacity: 40
+        };
+    }
+  };
+
   // Group assignments and calculate rollups
   const groupedData = useMemo(() => {
     const groups: Record<string, HeatmapGroup> = {};
     
     assignments.forEach(assignment => {
-      let groupKey: string;
-      let groupName: string;
-      let capacity: number;
-      
-      if (groupBy === "resource") {
-        groupKey = `resource-${assignment.resourceId}`;
-        groupName = assignment.resourceName || "Unknown Resource";
-        const resource = resources.find(r => r.id === assignment.resourceId);
-        capacity = resource?.weeklyCapacity ? Number(resource.weeklyCapacity) : 40;
-      } else {
-        groupKey = `project-${assignment.projectId}`;
-        groupName = assignment.projectName || "Unknown Project";
-        capacity = 40; // Default capacity for project grouping
-      }
+      const { key: groupKey, name: groupName, capacity } = getGroupInfo(assignment);
       
       if (!groups[groupKey]) {
         groups[groupKey] = {
@@ -1111,7 +1149,11 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
         {/* Header row with week labels */}
         <div className="flex border-b sticky top-0 bg-background z-10">
           <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r">
-            {groupBy === "resource" ? "Resource / Task" : "Project / Task"}
+            {groupBy === "resource" ? "Resource" : 
+             groupBy === "project" ? "Project" :
+             groupBy === "portfolio" ? "Portfolio" :
+             groupBy === "skills" ? "Skills" :
+             groupBy === "department" ? "Department" : "Group"} / Task
           </div>
           <div className="flex-1 flex">
             {weeks.map((week, idx) => (
@@ -1197,7 +1239,12 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                               {assignment.taskName}
                             </p>
                             <p className="text-[10px] text-muted-foreground truncate">
-                              {groupBy === "resource" ? assignment.projectName : assignment.resourceName}
+                              {groupBy === "resource" ? assignment.projectName : 
+                               groupBy === "project" ? assignment.resourceName :
+                               groupBy === "portfolio" ? `${assignment.projectName} • ${assignment.resourceName}` :
+                               groupBy === "skills" ? `${assignment.projectName} • ${assignment.resourceName}` :
+                               groupBy === "department" ? `${assignment.projectName} • ${assignment.resourceName}` :
+                               assignment.resourceName}
                               {assignment.allocationPercentage && ` • ${assignment.allocationPercentage}%`}
                             </p>
                           </div>
