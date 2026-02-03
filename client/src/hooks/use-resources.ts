@@ -109,8 +109,12 @@ export function useAllTaskResourceAssignments(organizationId: number | null) {
 export function useUpdateTaskResourceAssignments() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ taskId, resourceIds }: { taskId: number; resourceIds: number[] }) => {
-      const response = await apiRequest("PUT", `/api/tasks/${taskId}/resources`, { resourceIds });
+    mutationFn: async ({ taskId, resourceIds, allocations }: { 
+      taskId: number; 
+      resourceIds: number[]; 
+      allocations?: { resourceId: number; allocationPercentage: number }[];
+    }) => {
+      const response = await apiRequest("PUT", `/api/tasks/${taskId}/resources`, { resourceIds, allocations });
       return response.json();
     },
     onSuccess: (_, variables) => {

@@ -10,7 +10,7 @@ import { usePortfolios } from "@/hooks/use-portfolios";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
-import { ResourceAssignment } from "@/components/ResourceAssignment";
+import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ export default function Tasks() {
   const [deleteTaskData, setDeleteTaskData] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
   const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
   const createTask = useCreateTask();
@@ -80,11 +81,15 @@ export default function Tasks() {
   // Track when an invite already assigned resources to prevent form from overwriting
   const inviteAssignedRef = useRef(false);
 
-  // Only sync selectedResourceIds from server on INITIAL load for a task
+  // Only sync selectedResourceIds and allocations from server on INITIAL load for a task
   // Don't overwrite user changes when query refetches
   useEffect(() => {
     if (taskAssignments && editingTask && lastInitializedTaskId.current !== editingTask.id) {
       setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      setResourceAllocations(taskAssignments.map(a => ({
+        resourceId: a.resourceId,
+        allocationPercentage: a.allocationPercentage ?? 100
+      })));
       lastInitializedTaskId.current = editingTask.id;
     }
   }, [taskAssignments, editingTask]);
@@ -408,7 +413,11 @@ export default function Tasks() {
           // Only update resources if invite didn't already handle it
           // inviteAssignedRef prevents race condition where form uses stale state
           if (!inviteAssignedRef.current) {
-            updateTaskResources.mutate({ taskId: editingTask.id, resourceIds: selectedResourceIds });
+            updateTaskResources.mutate({ 
+              taskId: editingTask.id, 
+              resourceIds: selectedResourceIds,
+              allocations: resourceAllocations 
+            });
           }
           inviteAssignedRef.current = false; // Reset for next edit
           toast({ title: "Success", description: "Task updated" });
@@ -424,7 +433,11 @@ export default function Tasks() {
       createTask.mutate(taskData, {
         onSuccess: (newTask: any) => {
           if (selectedResourceIds.length > 0 && newTask?.id) {
-            updateTaskResources.mutate({ taskId: newTask.id, resourceIds: selectedResourceIds });
+            updateTaskResources.mutate({ 
+              taskId: newTask.id, 
+              resourceIds: selectedResourceIds,
+              allocations: resourceAllocations 
+            });
           }
           toast({ title: "Success", description: "Task created" });
           setIsDialogOpen(false);
@@ -809,6 +822,9 @@ export default function Tasks() {
                   organizationId={currentOrganization?.id || null}
                   selectedResourceIds={selectedResourceIds}
                   onSelectionChange={setSelectedResourceIds}
+                  allocations={resourceAllocations}
+                  onAllocationsChange={setResourceAllocations}
+                  showAllocations={true}
                   label="Assigned Resources"
                   projectId={editingTask?.projectId || form.watch("projectId")}
                   projectName={projectMap.get(editingTask?.projectId || form.watch("projectId") || 0)?.name}
@@ -1177,11 +1193,16 @@ function GanttTaskRow({
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const [isEditingResources, setIsEditingResources] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [resourceAllocations, setResourceAllocations] = useState<ResourceAllocation[]>([]);
   const inviteAssignedRef = useRef(false);
 
   useEffect(() => {
     if (taskAssignments) {
       setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      setResourceAllocations(taskAssignments.map(a => ({
+        resourceId: a.resourceId,
+        allocationPercentage: a.allocationPercentage ?? 100
+      })));
     }
   }, [taskAssignments]);
   
@@ -1232,7 +1253,11 @@ function GanttTaskRow({
   const handleSaveResources = () => {
     // Only update resources if invite didn't already handle it
     if (!inviteAssignedRef.current) {
-      updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+      updateTaskResources.mutate({ 
+        taskId: task.id, 
+        resourceIds: selectedResourceIds,
+        allocations: resourceAllocations 
+      });
     }
     inviteAssignedRef.current = false;
     setIsEditingResources(false);
@@ -1476,6 +1501,9 @@ function GanttTaskRow({
                 organizationId={organizationId}
                 selectedResourceIds={selectedResourceIds}
                 onSelectionChange={setSelectedResourceIds}
+                allocations={resourceAllocations}
+                onAllocationsChange={setResourceAllocations}
+                showAllocations={true}
                 label="Resources"
                 projectId={task.projectId}
                 projectName={getProjectName(task.projectId)}

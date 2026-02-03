@@ -246,7 +246,7 @@ export interface IStorage {
   getAssignedTasksForResource(resourceId: number, organizationId: number): Promise<{ task: Task; project: Project }[]>;
   addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment>;
   removeTaskResourceAssignment(taskId: number, resourceId: number): Promise<void>;
-  updateTaskResourceAssignments(taskId: number, resourceIds: number[]): Promise<void>;
+  updateTaskResourceAssignments(taskId: number, resourceIds: number[], allocations?: { resourceId: number; allocationPercentage: number }[]): Promise<void>;
 
   // Issue Resource Assignments
   getIssueResourceAssignments(issueId: number): Promise<(IssueResourceAssignment & { resource: Resource })[]>;
@@ -2194,13 +2194,20 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
-  async updateTaskResourceAssignments(taskId: number, resourceIds: number[]): Promise<void> {
+  async updateTaskResourceAssignments(taskId: number, resourceIds: number[], allocations?: { resourceId: number; allocationPercentage: number }[]): Promise<void> {
     // Remove all existing assignments
     await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, taskId));
     // Add new assignments
     if (resourceIds.length > 0) {
       await db.insert(taskResourceAssignments).values(
-        resourceIds.map(resourceId => ({ taskId, resourceId }))
+        resourceIds.map(resourceId => {
+          const allocation = allocations?.find(a => a.resourceId === resourceId);
+          return { 
+            taskId, 
+            resourceId,
+            allocationPercentage: allocation?.allocationPercentage ?? 100
+          };
+        })
       );
     }
   }

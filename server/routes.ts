@@ -8420,7 +8420,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   app.put('/api/tasks/:taskId/resources', async (req, res) => {
     try {
       const taskId = Number(req.params.taskId);
-      const { resourceIds } = req.body;
+      const { resourceIds, allocations } = req.body;
       if (!Array.isArray(resourceIds)) {
         return res.status(400).json({ message: "resourceIds must be an array" });
       }
@@ -8429,7 +8429,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const existingAssignments = await storage.getTaskResourceAssignments(taskId);
       const existingResourceIds = new Set(existingAssignments.map(a => a.resourceId));
       
-      await storage.updateTaskResourceAssignments(taskId, resourceIds);
+      // Pass allocations to storage (array of { resourceId, allocationPercentage })
+      await storage.updateTaskResourceAssignments(taskId, resourceIds, allocations);
       const assignments = await storage.getTaskResourceAssignments(taskId);
       
       // Create notifications for newly assigned resources
