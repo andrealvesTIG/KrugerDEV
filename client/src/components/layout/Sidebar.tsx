@@ -281,7 +281,7 @@ export function Sidebar() {
         />
       )}
       <div className={cn(
-        "flex h-screen flex-col bg-slate-900 text-white transition-all duration-300 relative",
+        "flex h-[100dvh] md:h-screen flex-col bg-slate-900 text-white transition-all duration-300 relative",
         "fixed md:relative z-50",
         "md:translate-x-0",
         isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
