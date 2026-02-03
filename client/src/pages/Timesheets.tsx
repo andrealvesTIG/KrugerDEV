@@ -286,6 +286,8 @@ interface TimesheetGridProps {
   hasChanges: boolean;
   setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
   onAutoSave: () => void;
+  isDateInClosedPeriod: (date: Date) => boolean;
+  getClosedPeriodName: (date: Date) => string | null;
 }
 
 const QUICK_TIME_PRESETS = [
@@ -295,7 +297,7 @@ const QUICK_TIME_PRESETS = [
   { label: "1h", value: "1" },
 ];
 
-function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave }: TimesheetGridProps) {
+function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName }: TimesheetGridProps) {
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
@@ -2078,6 +2080,8 @@ export default function Timesheets() {
               hasChanges={hasChanges}
               setHasChanges={setHasChanges}
               onAutoSave={handleAutoSave}
+              isDateInClosedPeriod={isDateInClosedPeriod}
+              getClosedPeriodName={getClosedPeriodName}
             />
           )}
         </div>
@@ -2629,6 +2633,8 @@ export default function Timesheets() {
                   hasChanges={hasChanges}
                   setHasChanges={setHasChanges}
                   onAutoSave={handleAutoSave}
+                  isDateInClosedPeriod={isDateInClosedPeriod}
+                  getClosedPeriodName={getClosedPeriodName}
                 />
               </motion.div>
             )}
