@@ -12,10 +12,18 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Resource } from "@shared/schema";
 
+export interface ResourceAllocation {
+  resourceId: number;
+  allocationPercentage: number; // 0-100%
+}
+
 interface ResourceAssignmentProps {
   organizationId: number | null;
   selectedResourceIds: number[];
   onSelectionChange: (resourceIds: number[]) => void;
+  allocations?: ResourceAllocation[];
+  onAllocationsChange?: (allocations: ResourceAllocation[]) => void;
+  showAllocations?: boolean;
   label?: string;
   className?: string;
   projectId?: number;
@@ -29,6 +37,9 @@ export function ResourceAssignment({
   organizationId, 
   selectedResourceIds, 
   onSelectionChange,
+  allocations = [],
+  onAllocationsChange,
+  showAllocations = false,
   label = "Resources",
   className,
   projectId,
@@ -43,6 +54,18 @@ export function ResourceAssignment({
   const [inviteEmail, setInviteEmail] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const getAllocation = (resourceId: number): number => {
+    const allocation = allocations.find(a => a.resourceId === resourceId);
+    return allocation?.allocationPercentage ?? 100;
+  };
+
+  const updateAllocation = (resourceId: number, percentage: number) => {
+    if (!onAllocationsChange) return;
+    const newAllocations = allocations.filter(a => a.resourceId !== resourceId);
+    newAllocations.push({ resourceId, allocationPercentage: Math.min(100, Math.max(0, percentage)) });
+    onAllocationsChange(newAllocations);
+  };
 
   const selectedResources = resources?.filter(r => selectedResourceIds.includes(r.id)) || [];
   const availableResources = resources?.filter(r => r.isActive) || [];
@@ -134,25 +157,40 @@ export function ResourceAssignment({
       
       <div className="flex flex-wrap gap-2 items-center">
         {selectedResources.map(resource => (
-          <Badge 
-            key={resource.id} 
-            variant="secondary" 
-            className="flex items-center gap-1 pr-1"
-            data-testid={`badge-resource-${resource.id}`}
-          >
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-semibold">
-              {resource.displayName.charAt(0).toUpperCase()}
-            </span>
-            <span className="truncate max-w-[100px]">{resource.displayName}</span>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); removeResource(resource.id); }}
-              className="ml-1 rounded-full p-0.5 hover:bg-foreground/10 transition-colors"
-              data-testid={`button-remove-resource-${resource.id}`}
+          <div key={resource.id} className="flex items-center gap-1" data-testid={`badge-resource-${resource.id}`}>
+            <Badge 
+              variant="secondary" 
+              className="flex items-center gap-1 pr-1"
+              title={resource.email || resource.displayName}
             >
-              <X className="h-3 w-3" />
-            </button>
-          </Badge>
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-semibold">
+                {resource.displayName.charAt(0).toUpperCase()}
+              </span>
+              <span className="truncate max-w-[100px]">{resource.displayName}</span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); removeResource(resource.id); }}
+                className="ml-1 rounded-full p-0.5 hover:bg-foreground/10 transition-colors"
+                data-testid={`button-remove-resource-${resource.id}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+            {showAllocations && onAllocationsChange && (
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={getAllocation(resource.id)}
+                  onChange={(e) => updateAllocation(resource.id, parseInt(e.target.value) || 0)}
+                  className="h-6 w-14 text-xs text-center px-1"
+                  data-testid={`input-allocation-${resource.id}`}
+                />
+                <span className="text-xs text-muted-foreground">%</span>
+              </div>
+            )}
+          </div>
         ))}
         
         <Popover open={open} onOpenChange={setOpen}>
@@ -236,14 +274,16 @@ export function ResourceAssignment({
                             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
                               {resource.displayName.charAt(0).toUpperCase()}
                             </div>
-                            <div className="flex-1 truncate">
-                              <div className="text-sm font-medium">{resource.displayName}</div>
-                              {resource.title && (
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">{resource.displayName}</div>
+                              {resource.email ? (
+                                <div className="text-xs text-muted-foreground truncate">{resource.email}</div>
+                              ) : resource.title ? (
                                 <div className="text-xs text-muted-foreground truncate">{resource.title}</div>
-                              )}
+                              ) : null}
                             </div>
                             {selectedResourceIds.includes(resource.id) && (
-                              <Check className="h-4 w-4 text-primary" />
+                              <Check className="h-4 w-4 text-primary shrink-0" />
                             )}
                           </div>
                         </CommandItem>
