@@ -39,7 +39,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, LockOpen, CloudDownload, ArrowUpToLine, IndentIncrease, IndentDecrease, Type } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Users, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, LockOpen, CloudDownload, ArrowUpToLine, IndentIncrease, IndentDecrease, Type } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -63,6 +63,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { GanttDependencyLinks } from "@/components/GanttDependencyLinks";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -6312,15 +6313,76 @@ function ProjectGanttTaskRowMeta({
                 />
               );
             case 'estimatedHours':
+              // Est Hours is read-only - calculated from resource assignments
+              const durationForCalc = task.durationDays ?? (task.startDate && task.endDate 
+                ? Math.floor((new Date(task.endDate).getTime() - new Date(task.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1 
+                : 0);
+              const estHoursBreakdown = taskAssignments?.map(assignment => {
+                const weeklyCapacity = Number(assignment.resource.weeklyCapacity) || 40;
+                const dailyHours = weeklyCapacity / 5;
+                const allocation = assignment.allocationPercentage ?? 100;
+                const hoursContributed = (allocation / 100) * dailyHours * durationForCalc;
+                const remainingAvailability = (assignment.resource.availability ?? 100) - allocation;
+                return {
+                  displayName: assignment.resource.displayName,
+                  email: assignment.resource.email,
+                  hours: Math.round(hoursContributed * 10) / 10,
+                  allocation,
+                  remainingAvailability: Math.max(0, remainingAvailability),
+                };
+              }) || [];
+              
               return (
-                <InlineEditCell
-                  value={task.estimatedHours}
-                  displayValue={task.estimatedHours != null ? `${task.estimatedHours}h` : '—'}
-                  editType="number"
-                  min={0}
-                  onSave={(val) => handleInlineUpdate('estimatedHours', val as number | null, task.estimatedHours)}
-                  disabled={isSummaryTask || isReadOnly}
-                />
+                <HoverCard>
+                  <HoverCardTrigger asChild>
+                    <div 
+                      className={cn(
+                        "px-2 h-full flex items-center cursor-default",
+                        task.estimatedHours != null ? "text-foreground" : "text-muted-foreground"
+                      )}
+                    >
+                      {task.estimatedHours != null ? `${task.estimatedHours}h` : '—'}
+                    </div>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80" side="top">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium text-sm">Estimated Hours Breakdown</span>
+                      </div>
+                      {estHoursBreakdown.length > 0 ? (
+                        <div className="space-y-2">
+                          {estHoursBreakdown.map((item, idx) => (
+                            <div key={idx} className="border rounded-md p-2 space-y-1">
+                              <div className="font-medium text-sm">{item.displayName}</div>
+                              <div className="text-xs text-muted-foreground">{item.email || 'No email'}</div>
+                              <div className="grid grid-cols-3 gap-2 text-xs mt-1">
+                                <div>
+                                  <span className="text-muted-foreground">Hours:</span>
+                                  <span className="ml-1 font-medium">{item.hours}h</span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Allocation:</span>
+                                  <span className="ml-1 font-medium">{item.allocation}%</span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Remaining:</span>
+                                  <span className="ml-1 font-medium">{item.remainingAvailability}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <div className="border-t pt-2 flex justify-between text-sm">
+                            <span className="text-muted-foreground">Total Estimated:</span>
+                            <span className="font-medium">{task.estimatedHours || 0}h</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No resources assigned. Assign resources to calculate estimated hours.</p>
+                      )}
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
               );
             case 'actualHours':
               return (
