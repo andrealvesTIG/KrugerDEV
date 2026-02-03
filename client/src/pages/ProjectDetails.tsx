@@ -5777,39 +5777,95 @@ function ProjectGanttTaskRowMeta({
     // Prevent updates for read-only projects (Planner and MS Project imports)
     if (isReadOnly) return;
     
-    // Track the change for undo/redo if callback provided (track even if oldValue is undefined/null)
-    if (onTrackChange) {
-      onTrackChange(task.id, task.projectId, field, oldValue ?? null, value);
-    }
-    
     // Build update object with auto-calculated related fields
     const updates: Record<string, string | number | boolean | null> = {
       [field]: value,
     };
     
+    // Duration semantics (consistent throughout):
+    // - 0 = milestone marker (treated as same-day, end = start)
+    // - 1 = same-day task (start == end, 1 working day)
+    // - N = N-day task (end = start + N - 1)
+    // When calculating from dates: duration = end - start + 1 (minimum 1 for same-day)
+    
     // Auto-calculate duration when start or end date changes
-    if (field === 'startDate' && value && task.endDate) {
-      const start = parseISO(value as string);
-      const end = parseISO(task.endDate);
-      const calculatedDuration = differenceInDays(end, start) + 1;
-      if (calculatedDuration >= 0) {
-        updates.durationDays = calculatedDuration;
+    if (field === 'startDate') {
+      if (value && task.endDate) {
+        const start = parseISO(value as string);
+        const end = parseISO(task.endDate);
+        const calculatedDuration = differenceInDays(end, start) + 1;
+        if (calculatedDuration >= 1) {
+          // Valid: start <= end - recalculate duration
+          updates.durationDays = calculatedDuration;
+        } else {
+          // Invalid: start moved past end - preserve duration, adjust end date
+          // Preserve 0 (milestone) if that was the original value
+          const currentDuration = task.durationDays ?? 1;
+          const effectiveDuration = currentDuration === 0 ? 0 : Math.max(1, currentDuration);
+          const newEnd = effectiveDuration === 0 ? start : addDays(start, effectiveDuration - 1);
+          updates.endDate = format(newEnd, 'yyyy-MM-dd');
+          updates.durationDays = effectiveDuration;
+        }
+      } else if (value && !task.endDate) {
+        // Start date set but no end date - use existing duration if any, otherwise 1 day
+        const duration = task.durationDays ?? 1;
+        const effectiveDuration = duration === 0 ? 0 : Math.max(1, duration);
+        const start = parseISO(value as string);
+        const newEnd = effectiveDuration === 0 ? start : addDays(start, effectiveDuration - 1);
+        updates.endDate = format(newEnd, 'yyyy-MM-dd');
+        updates.durationDays = effectiveDuration;
+      } else if (!value) {
+        // Start date cleared - clear all date-related fields for consistency
+        updates.endDate = null;
+        updates.durationDays = null;
       }
-    } else if (field === 'endDate' && value && task.startDate) {
-      const start = parseISO(task.startDate);
-      const end = parseISO(value as string);
-      const calculatedDuration = differenceInDays(end, start) + 1;
-      if (calculatedDuration >= 0) {
-        updates.durationDays = calculatedDuration;
+    } else if (field === 'endDate') {
+      if (value && task.startDate) {
+        const start = parseISO(task.startDate);
+        const end = parseISO(value as string);
+        const calculatedDuration = differenceInDays(end, start) + 1;
+        if (calculatedDuration >= 1) {
+          // Valid: end >= start - recalculate duration
+          updates.durationDays = calculatedDuration;
+        } else {
+          // Invalid: end moved before start - clamp to same-day
+          // If original was a milestone (0), preserve it; otherwise set to 1
+          const originalDuration = task.durationDays ?? 1;
+          const newDuration = originalDuration === 0 ? 0 : 1;
+          updates.endDate = task.startDate;
+          updates.durationDays = newDuration;
+        }
+      } else if (value && !task.startDate) {
+        // End date set but no start date - set start = end with existing or default duration
+        const duration = task.durationDays ?? 1;
+        const effectiveDuration = duration === 0 ? 0 : Math.max(1, duration);
+        const end = parseISO(value as string);
+        const newStart = effectiveDuration === 0 ? end : addDays(end, -(effectiveDuration - 1));
+        updates.startDate = format(newStart, 'yyyy-MM-dd');
+        updates.durationDays = effectiveDuration;
+      } else if (!value) {
+        // End date cleared - clear duration, keep start date (typical UX expectation)
+        updates.durationDays = null;
       }
     }
-    // Auto-calculate end date when duration changes (if start date exists)
-    else if (field === 'durationDays' && value !== null && task.startDate) {
-      const start = parseISO(task.startDate);
-      const duration = value as number;
-      // Duration 0 = milestone (end = start), Duration 1+ = end = start + duration - 1
-      const end = duration === 0 ? start : addDays(start, duration - 1);
-      updates.endDate = format(end, 'yyyy-MM-dd');
+    // Auto-calculate end date when duration changes
+    else if (field === 'durationDays') {
+      const duration = Math.max(0, (value as number) ?? 0); // Clamp to non-negative
+      updates.durationDays = duration;
+      
+      if (task.startDate) {
+        const start = parseISO(task.startDate);
+        // Duration 0 = milestone (end = start), Duration 1+ = end = start + duration - 1
+        const end = duration === 0 ? start : addDays(start, duration - 1);
+        updates.endDate = format(end, 'yyyy-MM-dd');
+      }
+      // If no start date, just store the duration - it will be applied when start is set
+    }
+    
+    // Track the change for undo/redo if callback provided (track even if oldValue is undefined/null)
+    // Note: oldValue is the actual stored value, updates may contain calculated values
+    if (onTrackChange) {
+      onTrackChange(task.id, task.projectId, field, oldValue ?? null, value);
     }
     
     updateTask.mutate({
@@ -6173,7 +6229,7 @@ function ProjectGanttTaskRowMeta({
                   displayValue={calculatedDuration != null ? `${calculatedDuration}d` : '—'}
                   editType="number"
                   min={0}
-                  onSave={(val) => handleInlineUpdate('durationDays', val as number | null, task.durationDays)}
+                  onSave={(val) => handleInlineUpdate('durationDays', val as number | null, calculatedDuration)}
                   disabled={isSummaryTask || isReadOnly}
                 />
               );
