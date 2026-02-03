@@ -701,6 +701,7 @@ export default function Resources() {
                   assignments={assignmentsData} 
                   resources={resources || []}
                   onTaskClick={openTaskDialog}
+                  groupBy={groupBy1 as "resource" | "project"}
                 />
               ) : (
                 <ScrollArea className="h-[600px]">
@@ -966,9 +967,25 @@ interface ResourceHeatmapProps {
   assignments: ResourceAssignment[];
   resources: Resource[];
   onTaskClick: (taskId: number) => void;
+  groupBy: "resource" | "project";
 }
 
-function ResourceHeatmap({ assignments, resources, onTaskClick }: ResourceHeatmapProps) {
+interface HeatmapGroup {
+  key: string;
+  name: string;
+  capacity: number;
+  assignments: ResourceAssignment[];
+  weeks: { allocation: number; tasks: { id: number; name: string; allocation: number }[] }[];
+}
+
+interface AssignmentWeekData {
+  assignment: ResourceAssignment;
+  weeks: { allocation: number; active: boolean }[];
+}
+
+function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: ResourceHeatmapProps) {
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
   // Generate 12 weeks from today
   const today = new Date();
   const weeks = useMemo(() => {
@@ -981,75 +998,96 @@ function ResourceHeatmap({ assignments, resources, onTaskClick }: ResourceHeatma
     return result;
   }, []);
 
-  // Group assignments by resource and calculate weekly allocations
-  const resourceAllocations = useMemo(() => {
-    const allocations: Record<number, {
-      resource: Resource | null;
-      resourceName: string;
-      weeklyCapacity: number;
-      weeks: { allocation: number; tasks: { id: number; name: string; allocation: number }[] }[];
-    }> = {};
-
-    // Get unique resource IDs from assignments
-    const resourceIds = [...new Set(assignments.map(a => a.resourceId))];
-
-    resourceIds.forEach(resourceId => {
-      const resource = resources.find(r => r.id === resourceId) || null;
-      const resourceAssignments = assignments.filter(a => a.resourceId === resourceId);
-      const weeklyCapacity = resource?.weeklyCapacity ? Number(resource.weeklyCapacity) : 40;
+  // Calculate weekly allocation for a single assignment
+  const getAssignmentWeekData = (assignment: ResourceAssignment, capacity: number): AssignmentWeekData => {
+    const weekData = weeks.map(week => {
+      if (!assignment.taskStartDate || !assignment.taskEndDate) {
+        return { allocation: 0, active: false };
+      }
       
-      const weekData = weeks.map(week => {
-        let totalAllocation = 0;
-        const tasksInWeek: { id: number; name: string; allocation: number }[] = [];
-
-        resourceAssignments.forEach(assignment => {
-          if (!assignment.taskStartDate || !assignment.taskEndDate) return;
-          
-          const taskStart = parseISO(assignment.taskStartDate);
-          const taskEnd = parseISO(assignment.taskEndDate);
-          
-          // Check if task overlaps with this week
-          const overlaps = (taskStart <= week.end && taskEnd >= week.start);
-          
-          if (overlaps) {
-            // Calculate how many days of the task fall in this week
-            const overlapStart = taskStart > week.start ? taskStart : week.start;
-            const overlapEnd = taskEnd < week.end ? taskEnd : week.end;
-            const overlapDays = Math.max(0, differenceInDays(overlapEnd, overlapStart) + 1);
-            const workDays = Math.min(overlapDays, 5); // Max 5 work days per week
-            
-            // Calculate allocation for this week (allocation % * work days / 5)
-            const weekAllocation = ((assignment.allocationPercentage || 100) / 100) * (workDays / 5) * weeklyCapacity;
-            totalAllocation += weekAllocation;
-            
-            tasksInWeek.push({
-              id: assignment.taskId,
-              name: assignment.taskName,
-              allocation: assignment.allocationPercentage || 100
-            });
-          }
-        });
-
-        return { allocation: totalAllocation, tasks: tasksInWeek };
-      });
-
-      allocations[resourceId] = {
-        resource,
-        resourceName: resource?.displayName || resourceAssignments[0]?.resourceName || "Unknown",
-        weeklyCapacity,
-        weeks: weekData
-      };
+      const taskStart = parseISO(assignment.taskStartDate);
+      const taskEnd = parseISO(assignment.taskEndDate);
+      const overlaps = (taskStart <= week.end && taskEnd >= week.start);
+      
+      if (!overlaps) return { allocation: 0, active: false };
+      
+      const overlapStart = taskStart > week.start ? taskStart : week.start;
+      const overlapEnd = taskEnd < week.end ? taskEnd : week.end;
+      const overlapDays = Math.max(0, differenceInDays(overlapEnd, overlapStart) + 1);
+      const workDays = Math.min(overlapDays, 5);
+      const weekAllocation = ((assignment.allocationPercentage || 100) / 100) * (workDays / 5) * capacity;
+      
+      return { allocation: weekAllocation, active: true };
     });
+    
+    return { assignment, weeks: weekData };
+  };
 
-    return Object.values(allocations);
-  }, [assignments, resources, weeks]);
+  // Group assignments and calculate rollups
+  const groupedData = useMemo(() => {
+    const groups: Record<string, HeatmapGroup> = {};
+    
+    assignments.forEach(assignment => {
+      let groupKey: string;
+      let groupName: string;
+      let capacity: number;
+      
+      if (groupBy === "resource") {
+        groupKey = `resource-${assignment.resourceId}`;
+        groupName = assignment.resourceName || "Unknown Resource";
+        const resource = resources.find(r => r.id === assignment.resourceId);
+        capacity = resource?.weeklyCapacity ? Number(resource.weeklyCapacity) : 40;
+      } else {
+        groupKey = `project-${assignment.projectId}`;
+        groupName = assignment.projectName || "Unknown Project";
+        capacity = 40; // Default capacity for project grouping
+      }
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          key: groupKey,
+          name: groupName,
+          capacity,
+          assignments: [],
+          weeks: weeks.map(() => ({ allocation: 0, tasks: [] }))
+        };
+      }
+      
+      groups[groupKey].assignments.push(assignment);
+      
+      // Calculate rollup
+      const assignmentWeekData = getAssignmentWeekData(assignment, capacity);
+      assignmentWeekData.weeks.forEach((w, idx) => {
+        if (w.active) {
+          groups[groupKey].weeks[idx].allocation += w.allocation;
+          groups[groupKey].weeks[idx].tasks.push({
+            id: assignment.taskId,
+            name: assignment.taskName,
+            allocation: assignment.allocationPercentage || 100
+          });
+        }
+      });
+    });
+    
+    return Object.values(groups);
+  }, [assignments, resources, weeks, groupBy]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   // Get heat color based on utilization
   const getHeatColor = (allocation: number, capacity: number) => {
     if (allocation === 0) return "bg-slate-50 dark:bg-slate-900";
-    
     const utilization = allocation / capacity;
-    
     if (utilization <= 0.5) return "bg-emerald-100 dark:bg-emerald-900/30";
     if (utilization <= 0.75) return "bg-emerald-200 dark:bg-emerald-800/40";
     if (utilization <= 0.9) return "bg-emerald-300 dark:bg-emerald-700/50";
@@ -1072,14 +1110,14 @@ function ResourceHeatmap({ assignments, resources, onTaskClick }: ResourceHeatma
       <div className="min-w-[900px]">
         {/* Header row with week labels */}
         <div className="flex border-b sticky top-0 bg-background z-10">
-          <div className="w-48 flex-shrink-0 p-2 font-medium text-sm border-r">
-            Resource
+          <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r">
+            {groupBy === "resource" ? "Resource / Task" : "Project / Task"}
           </div>
           <div className="flex-1 flex">
             {weeks.map((week, idx) => (
               <div 
                 key={idx} 
-                className="flex-1 p-2 text-center text-xs font-medium border-r text-muted-foreground min-w-[70px]"
+                className="flex-1 p-2 text-center text-xs font-medium border-r text-muted-foreground min-w-[65px]"
               >
                 {week.label}
               </div>
@@ -1087,54 +1125,112 @@ function ResourceHeatmap({ assignments, resources, onTaskClick }: ResourceHeatma
           </div>
         </div>
 
-        {/* Resource rows */}
+        {/* Grouped rows */}
         <ScrollArea className="h-[500px]">
-          {resourceAllocations.map((resourceData, idx) => (
-            <div key={idx} className="flex border-b hover:bg-muted/20 transition-colors">
-              <div className="w-48 flex-shrink-0 p-2 border-r">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
-                    {resourceData.resourceName.charAt(0).toUpperCase()}
+          {groupedData.map((group) => {
+            const isExpanded = expandedGroups.has(group.key);
+            
+            return (
+              <div key={group.key}>
+                {/* Group header row with rollup */}
+                <div 
+                  className="flex border-b bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => toggleGroup(group.key)}
+                  data-testid={`heatmap-group-${group.key}`}
+                >
+                  <div className="w-64 flex-shrink-0 p-2 border-r">
+                    <div className="flex items-center gap-2">
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      )}
+                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold flex-shrink-0">
+                        {group.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{group.name}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {group.assignments.length} assignment{group.assignments.length > 1 ? 's' : ''} • {group.capacity}h/week
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{resourceData.resourceName}</p>
-                    <p className="text-[10px] text-muted-foreground">{resourceData.weeklyCapacity}h/week</p>
+                  <div className="flex-1 flex">
+                    {group.weeks.map((weekData, weekIdx) => (
+                      <div
+                        key={weekIdx}
+                        className={`flex-1 p-1.5 border-r min-w-[65px] ${getHeatColor(weekData.allocation, group.capacity)} transition-colors`}
+                        title={weekData.tasks.length > 0 
+                          ? `${weekData.tasks.map(t => `${t.name} (${t.allocation}%)`).join('\n')}\n\nTotal: ${weekData.allocation.toFixed(0)}h / ${group.capacity}h`
+                          : "No assignments"
+                        }
+                      >
+                        <div className={`text-center text-xs ${getTextColor(weekData.allocation, group.capacity)}`}>
+                          {weekData.allocation > 0 ? `${weekData.allocation.toFixed(0)}h` : "-"}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-              <div className="flex-1 flex">
-                {resourceData.weeks.map((weekData, weekIdx) => (
-                  <div
-                    key={weekIdx}
-                    className={`flex-1 p-1.5 border-r min-w-[70px] ${getHeatColor(weekData.allocation, resourceData.weeklyCapacity)} transition-colors cursor-pointer hover:opacity-80`}
-                    title={weekData.tasks.length > 0 
-                      ? `${weekData.tasks.map(t => `${t.name} (${t.allocation}%)`).join('\n')}\n\nTotal: ${weekData.allocation.toFixed(0)}h / ${resourceData.weeklyCapacity}h`
-                      : "No assignments"
-                    }
-                    onClick={() => {
-                      if (weekData.tasks.length === 1) {
-                        onTaskClick(weekData.tasks[0].id);
-                      }
-                    }}
-                    data-testid={`heatmap-cell-${idx}-${weekIdx}`}
-                  >
-                    <div className={`text-center text-xs ${getTextColor(weekData.allocation, resourceData.weeklyCapacity)}`}>
-                      {weekData.allocation > 0 ? `${weekData.allocation.toFixed(0)}h` : "-"}
-                    </div>
-                    {weekData.tasks.length > 0 && (
-                      <div className="text-center text-[9px] text-muted-foreground truncate">
-                        {weekData.tasks.length} task{weekData.tasks.length > 1 ? 's' : ''}
+                
+                {/* Expanded assignment rows */}
+                {isExpanded && group.assignments.map((assignment) => {
+                  const assignmentData = getAssignmentWeekData(assignment, group.capacity);
+                  return (
+                    <div 
+                      key={assignment.assignmentId}
+                      className="flex border-b bg-background hover:bg-muted/10 transition-colors"
+                      data-testid={`heatmap-assignment-${assignment.assignmentId}`}
+                    >
+                      <div className="w-64 flex-shrink-0 p-2 border-r pl-10">
+                        <div className="flex items-center gap-2">
+                          <ListTodo className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p 
+                              className="text-xs font-medium truncate cursor-pointer hover:text-primary transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onTaskClick(assignment.taskId);
+                              }}
+                            >
+                              {assignment.taskName}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {groupBy === "resource" ? assignment.projectName : assignment.resourceName}
+                              {assignment.allocationPercentage && ` • ${assignment.allocationPercentage}%`}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      <div className="flex-1 flex">
+                        {assignmentData.weeks.map((weekData, weekIdx) => (
+                          <div
+                            key={weekIdx}
+                            className={`flex-1 p-1.5 border-r min-w-[65px] ${weekData.active ? 'bg-primary/10' : 'bg-slate-50 dark:bg-slate-900'} transition-colors cursor-pointer hover:opacity-80`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (weekData.active) {
+                                onTaskClick(assignment.taskId);
+                              }
+                            }}
+                          >
+                            <div className={`text-center text-xs ${weekData.active ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                              {weekData.active ? `${weekData.allocation.toFixed(0)}h` : "-"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </ScrollArea>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
+        <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
           <span className="font-medium">Utilization:</span>
           <div className="flex items-center gap-1">
             <div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-900/30" />
