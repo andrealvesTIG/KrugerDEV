@@ -286,7 +286,11 @@ export function ResourceAssignment({
                         <CommandItem
                           key={resource.id}
                           value={resource.displayName}
-                          onSelect={() => toggleResource(resource.id)}
+                          onSelect={() => {
+                            toggleResource(resource.id);
+                            // Keep popover open to allow multiple selections
+                          }}
+                          onPointerDown={(e) => e.preventDefault()}
                           data-testid={`resource-option-${resource.id}`}
                         >
                           <div className="flex items-center gap-2 w-full">
