@@ -145,6 +145,8 @@ export function ResourceAssignment({
         onAllocationsChange([...allocations, { resourceId, allocationPercentage: 100 }]);
       }
     }
+    // Close the dropdown after selection
+    setOpen(false);
   };
 
   const removeResource = (resourceId: number) => {
