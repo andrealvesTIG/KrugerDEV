@@ -8974,6 +8974,29 @@ function ProjectGanttView({
                   {/* Empty row for add task alignment - must match left pane condition */}
                   {!isReadOnly && <div className="h-[28px] border-t bg-muted/20" />}
                   
+                  {/* TODAY vertical indicator line */}
+                  {(() => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const totalDays = differenceInDays(adjustedMaxDate, adjustedMinDate) || 1;
+                    const todayOffset = differenceInDays(today, adjustedMinDate);
+                    const todayPercent = (todayOffset / totalDays) * 100;
+                    
+                    // Only show if today is within the visible range
+                    if (todayPercent < 0 || todayPercent > 100) return null;
+                    
+                    return (
+                      <div
+                        className="absolute top-0 bottom-0 w-[2px] bg-red-500 z-20 pointer-events-none"
+                        style={{ left: `${todayPercent}%` }}
+                        data-testid="gantt-today-indicator"
+                      >
+                        <div className="absolute -top-0 left-1/2 -translate-x-1/2 bg-red-500 text-white text-[9px] font-medium px-1.5 py-0.5 rounded-b whitespace-nowrap">
+                          TODAY
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 </div>
               </div>
