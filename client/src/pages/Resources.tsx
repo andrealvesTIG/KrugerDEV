@@ -1316,21 +1316,67 @@ function AssignmentRow({ assignment, setLocation }: AssignmentRowProps) {
     "Cancelled": "bg-red-100 text-red-700",
   };
 
+  const handleTaskClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLocation(`/projects/${assignment.projectId}?task=${assignment.taskId}`);
+  };
+
+  const handleProjectClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLocation(`/projects/${assignment.projectId}`);
+  };
+
+  const handleResourceClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLocation(`/resources?id=${assignment.resourceId}`);
+  };
+
+  const handlePortfolioClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (assignment.portfolioId) {
+      setLocation(`/portfolios/${assignment.portfolioId}`);
+    }
+  };
+
   return (
     <div 
-      className="flex items-center gap-3 p-2 rounded-md border bg-card hover:bg-accent/30 transition-colors cursor-pointer group"
-      onClick={() => setLocation(`/projects/${assignment.projectId}`)}
+      className="flex items-center gap-3 p-2 rounded-md border bg-card hover:bg-accent/30 transition-colors group"
       data-testid={`assignment-row-${assignment.assignmentId}`}
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm truncate">{assignment.taskName}</span>
-          <Badge variant="outline" className="text-[10px] h-4 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span 
+            className="font-medium text-sm truncate cursor-pointer hover:text-primary hover:underline"
+            onClick={handleTaskClick}
+            data-testid={`task-link-${assignment.taskId}`}
+          >
+            {assignment.taskName}
+          </span>
+          <Badge 
+            variant="outline" 
+            className="text-[10px] h-4 shrink-0 cursor-pointer hover:bg-accent"
+            onClick={handleProjectClick}
+            data-testid={`project-link-${assignment.projectId}`}
+          >
             {assignment.projectName}
           </Badge>
+          {assignment.portfolioName && (
+            <Badge 
+              variant="secondary" 
+              className="text-[10px] h-4 shrink-0 cursor-pointer hover:bg-accent"
+              onClick={handlePortfolioClick}
+              data-testid={`portfolio-link-${assignment.portfolioId}`}
+            >
+              {assignment.portfolioName}
+            </Badge>
+          )}
         </div>
-        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
+        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+          <span 
+            className="flex items-center gap-1 cursor-pointer hover:text-primary hover:underline"
+            onClick={handleResourceClick}
+            data-testid={`resource-link-${assignment.resourceId}`}
+          >
             <Users className="h-3 w-3" />
             {assignment.resourceName}
           </span>
@@ -1372,7 +1418,15 @@ function AssignmentRow({ assignment, setLocation }: AssignmentRowProps) {
             {assignment.taskStatus}
           </Badge>
         )}
-        <ArrowRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={handleProjectClick}
+          data-testid={`goto-project-${assignment.projectId}`}
+        >
+          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+        </Button>
       </div>
     </div>
   );
