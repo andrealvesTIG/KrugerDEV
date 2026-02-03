@@ -23,7 +23,7 @@ import { useProjectFinancials, useCreateProjectFinancial, useUpdateProjectFinanc
 import { useRiskResourceAssignments, useUpdateRiskResourceAssignments, useTaskResourceAssignments, useUpdateTaskResourceAssignments, useIssueResourceAssignments, useUpdateIssueResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
-import { ResourceAssignment } from "@/components/ResourceAssignment";
+import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
 import { ResourceSelector } from "@/components/ResourceSelector";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
@@ -5770,6 +5770,7 @@ function ProjectGanttTaskRowMeta({
   const { toast } = useToast();
   const [isEditingResources, setIsEditingResources] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [allocations, setAllocations] = useState<ResourceAllocation[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
   const inviteAssignedRef = useRef(false);
   
@@ -5899,6 +5900,11 @@ function ProjectGanttTaskRowMeta({
   useEffect(() => {
     if (isEditingResources && taskAssignments) {
       setSelectedResourceIds(taskAssignments.map(a => a.resourceId));
+      // Initialize allocations from existing task assignments
+      setAllocations(taskAssignments.map(a => ({
+        resourceId: a.resourceId,
+        allocationPercentage: a.allocationPercentage ?? 100
+      })));
     }
   }, [isEditingResources, taskAssignments]);
 
@@ -5908,7 +5914,11 @@ function ProjectGanttTaskRowMeta({
 
   const handleSaveResources = () => {
     if (!inviteAssignedRef.current) {
-      updateTaskResources.mutate({ taskId: task.id, resourceIds: selectedResourceIds });
+      updateTaskResources.mutate({ 
+        taskId: task.id, 
+        resourceIds: selectedResourceIds,
+        allocations: allocations.filter(a => selectedResourceIds.includes(a.resourceId))
+      });
     }
     inviteAssignedRef.current = false;
     setIsEditingResources(false);
@@ -6067,6 +6077,9 @@ function ProjectGanttTaskRowMeta({
                       organizationId={organizationId}
                       selectedResourceIds={selectedResourceIds}
                       onSelectionChange={setSelectedResourceIds}
+                      allocations={allocations}
+                      onAllocationsChange={setAllocations}
+                      showAllocations={true}
                       label="Assigned Resources"
                       projectId={task.projectId}
                       projectName={projectName}
