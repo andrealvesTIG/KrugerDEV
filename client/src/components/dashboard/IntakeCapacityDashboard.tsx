@@ -143,7 +143,14 @@ export function IntakeCapacityDashboard() {
             Capacity Analysis Dashboard
           </h2>
           <p className="text-muted-foreground text-sm">
-            Gartner demand-capacity planning framework
+            <a 
+              href="https://www.gartner.com/en/information-technology/glossary/capacity-planning" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              Gartner demand-capacity planning framework
+            </a>
           </p>
         </div>
         <Badge variant={capacityMetrics.utilization > 90 ? 'destructive' : 'outline'} className="text-xs">
