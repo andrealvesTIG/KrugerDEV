@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Loader2, Users, UserCheck, Calendar, TrendingUp, AlertTriangle, Filter, Search, X, Clock, BarChart3, ArrowUp, ArrowDown } from "lucide-react";
-import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, LineChart, Line } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, LineChart, Line, Cell } from "recharts";
 import type { Task, Resource, TaskResourceAssignment } from "@shared/schema";
 import { format, addWeeks, startOfWeek, endOfWeek, differenceInDays, parseISO } from "date-fns";
 
