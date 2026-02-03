@@ -127,7 +127,15 @@ export function IntakeApprovalDashboard() {
             Approval Workflow Dashboard
           </h2>
           <p className="text-muted-foreground text-sm">
-            PRINCE2 stage gate approval process analytics
+            <a 
+              href="https://www.prince2.com/uk/blog/prince2-stage-gates" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              PRINCE2 stage gate approval process
+            </a>
+            {" analytics"}
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
