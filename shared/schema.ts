@@ -555,6 +555,32 @@ export const insertNonProjectTimeEntrySchema = createInsertSchema(nonProjectTime
 export type InsertNonProjectTimeEntry = z.infer<typeof insertNonProjectTimeEntrySchema>;
 export type NonProjectTimeEntry = typeof nonProjectTimeEntries.$inferSelect;
 
+// Timesheet Periods (for closing/locking time periods)
+export const timesheetPeriods = pgTable("timesheet_periods", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(), // e.g., "January 2024", "Week 1 - 2024"
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  status: text("status").default("open").notNull(), // open, closed
+  closedBy: varchar("closed_by").references(() => users.id),
+  closedAt: timestamp("closed_at"),
+  reopenedBy: varchar("reopened_by").references(() => users.id),
+  reopenedAt: timestamp("reopened_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+});
+
+export const insertTimesheetPeriodSchema = createInsertSchema(timesheetPeriods).omit({
+  id: true,
+  createdAt: true,
+  closedAt: true,
+  reopenedAt: true,
+});
+export type InsertTimesheetPeriod = z.infer<typeof insertTimesheetPeriodSchema>;
+export type TimesheetPeriod = typeof timesheetPeriods.$inferSelect;
+
 // Change Requests (Project change control)
 export const changeRequests = pgTable("change_requests", {
   id: serial("id").primaryKey(),

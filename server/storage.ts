@@ -49,6 +49,7 @@ import {
   type TimesheetEntry, type InsertTimesheetEntry, type UpdateTimesheetEntryRequest,
   timeCategories, type TimeCategory, type InsertTimeCategory,
   nonProjectTimeEntries, type NonProjectTimeEntry, type InsertNonProjectTimeEntry,
+  timesheetPeriods, type TimesheetPeriod, type InsertTimesheetPeriod,
   type RecycleBinItem, type RecycleBinItemType,
   type ProjectView, type InsertProjectView, type UpdateProjectViewRequest,
   type SystemProjectView, type InsertSystemProjectView, type UpdateSystemProjectViewRequest,
@@ -393,6 +394,15 @@ export interface IStorage {
   createNonProjectTimeEntry(entry: InsertNonProjectTimeEntry): Promise<NonProjectTimeEntry>;
   updateNonProjectTimeEntry(id: number, updates: Partial<InsertNonProjectTimeEntry>): Promise<NonProjectTimeEntry>;
   deleteNonProjectTimeEntry(id: number): Promise<void>;
+
+  // Timesheet Periods (for closing/locking time periods)
+  getTimesheetPeriods(organizationId: number): Promise<TimesheetPeriod[]>;
+  getTimesheetPeriod(id: number): Promise<TimesheetPeriod | undefined>;
+  getClosedPeriodsForDateRange(organizationId: number, startDate: string, endDate: string): Promise<TimesheetPeriod[]>;
+  createTimesheetPeriod(period: InsertTimesheetPeriod): Promise<TimesheetPeriod>;
+  closeTimesheetPeriod(id: number, closedBy: string): Promise<TimesheetPeriod>;
+  reopenTimesheetPeriod(id: number, reopenedBy: string): Promise<TimesheetPeriod>;
+  deleteTimesheetPeriod(id: number): Promise<void>;
 
   // User Consents
   getUserConsents(userId: string): Promise<UserConsent[]>;
@@ -3276,6 +3286,56 @@ export class DatabaseStorage implements IStorage {
       .where(eq(timesheetEntries.id, id))
       .returning();
     return updated;
+  }
+
+  // Timesheet Periods
+  async getTimesheetPeriods(organizationId: number): Promise<TimesheetPeriod[]> {
+    return await db.select().from(timesheetPeriods)
+      .where(eq(timesheetPeriods.organizationId, organizationId))
+      .orderBy(desc(timesheetPeriods.startDate));
+  }
+
+  async getTimesheetPeriod(id: number): Promise<TimesheetPeriod | undefined> {
+    const [period] = await db.select().from(timesheetPeriods)
+      .where(eq(timesheetPeriods.id, id));
+    return period;
+  }
+
+  async getClosedPeriodsForDateRange(organizationId: number, startDate: string, endDate: string): Promise<TimesheetPeriod[]> {
+    return await db.select().from(timesheetPeriods)
+      .where(and(
+        eq(timesheetPeriods.organizationId, organizationId),
+        eq(timesheetPeriods.status, "closed"),
+        // Period overlaps with date range
+        sql`${timesheetPeriods.startDate} <= ${endDate}`,
+        sql`${timesheetPeriods.endDate} >= ${startDate}`
+      ))
+      .orderBy(asc(timesheetPeriods.startDate));
+  }
+
+  async createTimesheetPeriod(period: InsertTimesheetPeriod): Promise<TimesheetPeriod> {
+    const [created] = await db.insert(timesheetPeriods).values(period).returning();
+    return created;
+  }
+
+  async closeTimesheetPeriod(id: number, closedBy: string): Promise<TimesheetPeriod> {
+    const [updated] = await db.update(timesheetPeriods)
+      .set({ status: "closed", closedBy, closedAt: new Date() })
+      .where(eq(timesheetPeriods.id, id))
+      .returning();
+    return updated;
+  }
+
+  async reopenTimesheetPeriod(id: number, reopenedBy: string): Promise<TimesheetPeriod> {
+    const [updated] = await db.update(timesheetPeriods)
+      .set({ status: "open", reopenedBy, reopenedAt: new Date() })
+      .where(eq(timesheetPeriods.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTimesheetPeriod(id: number): Promise<void> {
+    await db.delete(timesheetPeriods).where(eq(timesheetPeriods.id, id));
   }
 
   // Time Categories
