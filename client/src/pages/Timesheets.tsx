@@ -14,6 +14,11 @@ import {
   useNonProjectTimeEntries,
   useCreateNonProjectTimeEntry,
   useDeleteNonProjectTimeEntry,
+  useTimesheetPeriods,
+  useCreateTimesheetPeriod,
+  useCloseTimesheetPeriod,
+  useReopenTimesheetPeriod,
+  useDeleteTimesheetPeriod,
   type TimesheetEntryWithDetails,
   type NonProjectTimeEntryWithCategory
 } from "@/hooks/use-timesheets";
@@ -66,13 +71,16 @@ import {
   AlertTriangle,
   Plus,
   Palmtree,
-  Trash2
+  Trash2,
+  Lock,
+  LockOpen,
+  CalendarRange
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isToday, parseISO, isSameDay, startOfDay, endOfDay, isWeekend, getDay } from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isToday, parseISO, isSameDay, startOfDay, endOfDay, isWeekend, getDay, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,7 +93,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Task, Project, InsertTimesheetEntry } from "@shared/schema";
+import type { Task, Project, InsertTimesheetEntry, TimesheetPeriod } from "@shared/schema";
 
 type ViewMode = "workweek" | "week" | "day";
 
@@ -973,6 +981,376 @@ function ApprovalTab() {
   );
 }
 
+function PeriodManagementTab() {
+  const { currentOrganization } = useOrganization();
+  const { toast } = useToast();
+  const { data: periods = [], isLoading } = useTimesheetPeriods(currentOrganization?.id || null);
+  const createPeriod = useCreateTimesheetPeriod();
+  const closePeriod = useCloseTimesheetPeriod();
+  const reopenPeriod = useReopenTimesheetPeriod();
+  const deletePeriod = useDeleteTimesheetPeriod();
+  
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newPeriod, setNewPeriod] = useState({
+    name: "",
+    startDate: "",
+    endDate: "",
+    notes: "",
+  });
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; open: boolean }>({ id: 0, open: false });
+
+  const handleCreatePeriod = async () => {
+    if (!currentOrganization?.id || !newPeriod.name || !dateRange.from || !dateRange.to) {
+      toast({ title: "Error", description: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await createPeriod.mutateAsync({
+        organizationId: currentOrganization.id,
+        name: newPeriod.name,
+        startDate: format(dateRange.from, "yyyy-MM-dd"),
+        endDate: format(dateRange.to, "yyyy-MM-dd"),
+        notes: newPeriod.notes || undefined,
+      });
+      toast({ title: "Success", description: "Period created successfully" });
+      setShowCreateDialog(false);
+      setNewPeriod({ name: "", startDate: "", endDate: "", notes: "" });
+      setDateRange({ from: undefined, to: undefined });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to create period", variant: "destructive" });
+    }
+  };
+
+  const handleClosePeriod = async (id: number) => {
+    try {
+      await closePeriod.mutateAsync(id);
+      toast({ title: "Success", description: "Period closed successfully. Time entries in this period are now locked." });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to close period", variant: "destructive" });
+    }
+  };
+
+  const handleReopenPeriod = async (id: number) => {
+    try {
+      await reopenPeriod.mutateAsync(id);
+      toast({ title: "Success", description: "Period reopened. Time entries can be modified again." });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to reopen period", variant: "destructive" });
+    }
+  };
+
+  const handleDeletePeriod = async () => {
+    if (!deleteConfirm.id) return;
+    try {
+      await deletePeriod.mutateAsync(deleteConfirm.id);
+      toast({ title: "Success", description: "Period deleted successfully" });
+      setDeleteConfirm({ id: 0, open: false });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete period", variant: "destructive" });
+    }
+  };
+
+  const setQuickPeriod = (type: "lastWeek" | "lastMonth" | "thisMonth") => {
+    const today = new Date();
+    let from: Date;
+    let to: Date;
+    let name: string;
+
+    switch (type) {
+      case "lastWeek":
+        from = startOfWeek(subWeeks(today, 1), { weekStartsOn: 1 });
+        to = endOfWeek(subWeeks(today, 1), { weekStartsOn: 1 });
+        name = `Week of ${format(from, "MMM d, yyyy")}`;
+        break;
+      case "lastMonth":
+        from = startOfMonth(subMonths(today, 1));
+        to = endOfMonth(subMonths(today, 1));
+        name = format(from, "MMMM yyyy");
+        break;
+      case "thisMonth":
+        from = startOfMonth(today);
+        to = endOfMonth(today);
+        name = format(from, "MMMM yyyy");
+        break;
+    }
+
+    setDateRange({ from, to });
+    setNewPeriod(prev => ({ ...prev, name }));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
+          <div>
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <CalendarRange className="h-5 w-5 text-primary" />
+              Timesheet Periods
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage time periods to lock timesheet entries for specific date ranges
+            </p>
+          </div>
+          <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-period">
+            <Plus className="h-4 w-4 mr-2" />
+            New Period
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {periods.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <CalendarRange className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">No Periods Created</h3>
+              <p className="text-muted-foreground max-w-md mb-4">
+                Create timesheet periods to lock time entries for specific date ranges. 
+                This prevents users from modifying entries in closed periods.
+              </p>
+              <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-first-period">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Your First Period
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {periods.map((period) => (
+                <div
+                  key={period.id}
+                  className={`flex items-center justify-between p-4 rounded-lg border ${
+                    period.status === "closed" 
+                      ? "bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800" 
+                      : "bg-card border-border"
+                  }`}
+                  data-testid={`period-${period.id}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`p-2 rounded-lg ${
+                      period.status === "closed" 
+                        ? "bg-red-100 dark:bg-red-900/30" 
+                        : "bg-muted"
+                    }`}>
+                      {period.status === "closed" ? (
+                        <Lock className="h-5 w-5 text-red-600 dark:text-red-400" />
+                      ) : (
+                        <LockOpen className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-foreground">{period.name}</h4>
+                        <Badge variant={period.status === "closed" ? "destructive" : "secondary"} className="text-xs">
+                          {period.status === "closed" ? "Closed" : "Open"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {format(parseISO(period.startDate), "MMM d, yyyy")} - {format(parseISO(period.endDate), "MMM d, yyyy")}
+                      </p>
+                      {period.notes && (
+                        <p className="text-xs text-muted-foreground mt-1">{period.notes}</p>
+                      )}
+                      {period.status === "closed" && period.closedAt && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Closed on {format(new Date(period.closedAt), "MMM d, yyyy 'at' h:mm a")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {period.status === "open" ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleClosePeriod(period.id)}
+                        disabled={closePeriod.isPending}
+                        data-testid={`button-close-period-${period.id}`}
+                      >
+                        {closePeriod.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Lock className="h-4 w-4 mr-1" />
+                            Close Period
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReopenPeriod(period.id)}
+                        disabled={reopenPeriod.isPending}
+                        data-testid={`button-reopen-period-${period.id}`}
+                      >
+                        {reopenPeriod.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <LockOpen className="h-4 w-4 mr-1" />
+                            Reopen
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeleteConfirm({ id: period.id, open: true })}
+                      className="text-muted-foreground hover:text-destructive"
+                      data-testid={`button-delete-period-${period.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create Period Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Create New Period</DialogTitle>
+            <DialogDescription>
+              Create a timesheet period to manage and lock time entries for a specific date range.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="period-name">Period Name</Label>
+              <Input
+                id="period-name"
+                value={newPeriod.name}
+                onChange={(e) => setNewPeriod(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g., January 2024, Week 1"
+                data-testid="input-period-name"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Quick Select</Label>
+              <div className="flex gap-2 flex-wrap">
+                <Button type="button" variant="outline" size="sm" onClick={() => setQuickPeriod("lastWeek")}>
+                  Last Week
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setQuickPeriod("lastMonth")}>
+                  Last Month
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setQuickPeriod("thisMonth")}>
+                  This Month
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Date Range</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Start Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateRange.from ? format(dateRange.from, "MMM d, yyyy") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={dateRange.from}
+                        onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">End Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateRange.to ? format(dateRange.to, "MMM d, yyyy") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={dateRange.to}
+                        onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="period-notes">Notes (Optional)</Label>
+              <Textarea
+                id="period-notes"
+                value={newPeriod.notes}
+                onChange={(e) => setNewPeriod(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Add any notes about this period..."
+                data-testid="input-period-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreatePeriod} 
+              disabled={createPeriod.isPending || !newPeriod.name || !dateRange.from || !dateRange.to}
+              data-testid="button-confirm-create-period"
+            >
+              {createPeriod.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Create Period
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirm.open} onOpenChange={(open) => setDeleteConfirm(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Period?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this period. Time entries will no longer be locked by this period.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePeriod} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete Period
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export default function Timesheets() {
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
@@ -1739,6 +2117,28 @@ export default function Timesheets() {
                 )}
               </button>
             )}
+            {currentResource?.isApprover && (
+              <button
+                onClick={() => setActiveTab("periods")}
+                className={`pb-3 text-sm font-medium transition-colors relative ${
+                  activeTab === "periods" 
+                    ? "text-foreground" 
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid="tab-periods"
+              >
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Periods
+                </div>
+                {activeTab === "periods" && (
+                  <motion.div 
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                  />
+                )}
+              </button>
+            )}
           </nav>
         </div>
 
@@ -2200,6 +2600,15 @@ export default function Timesheets() {
             animate={{ opacity: 1, y: 0 }}
           >
             <ApprovalTab />
+          </motion.div>
+        )}
+
+        {activeTab === "periods" && currentResource?.isApprover && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <PeriodManagementTab />
           </motion.div>
         )}
       </div>
