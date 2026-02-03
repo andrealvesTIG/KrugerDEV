@@ -14349,7 +14349,7 @@ Return ONLY valid JSON.`;
       }
 
       // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedTimesheetPeriods(organizationId, entryDate, entryDate);
+      const closedPeriods = await storage.getClosedPeriodsForDateRange(organizationId, entryDate, entryDate);
       if (closedPeriods.length > 0) {
         return res.status(403).json({ message: 'Cannot create entries in a closed period' });
       }
@@ -14436,7 +14436,7 @@ Return ONLY valid JSON.`;
         if (closedPeriodCache[entryDate] !== undefined) {
           return closedPeriodCache[entryDate];
         }
-        const closedPeriods = await storage.getClosedTimesheetPeriods(organizationId, entryDate, entryDate);
+        const closedPeriods = await storage.getClosedPeriodsForDateRange(organizationId, entryDate, entryDate);
         closedPeriodCache[entryDate] = closedPeriods.length > 0;
         return closedPeriodCache[entryDate];
       };
@@ -14555,7 +14555,7 @@ Return ONLY valid JSON.`;
       }
 
       // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedTimesheetPeriods(entry.organizationId, entry.entryDate, entry.entryDate);
+      const closedPeriods = await storage.getClosedPeriodsForDateRange(entry.organizationId, entry.entryDate, entry.entryDate);
       if (closedPeriods.length > 0) {
         return res.status(403).json({ message: 'Cannot edit entries in a closed period' });
       }
@@ -14606,7 +14606,7 @@ Return ONLY valid JSON.`;
       }
 
       // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedTimesheetPeriods(entry.organizationId, entry.entryDate, entry.entryDate);
+      const closedPeriods = await storage.getClosedPeriodsForDateRange(entry.organizationId, entry.entryDate, entry.entryDate);
       if (closedPeriods.length > 0) {
         return res.status(403).json({ message: 'Cannot delete entries in a closed period' });
       }
@@ -14634,7 +14634,7 @@ Return ONLY valid JSON.`;
       }
 
       // Check if any dates in the week fall within a closed period
-      const closedPeriods = await storage.getClosedTimesheetPeriods(organizationId, startDate, endDate);
+      const closedPeriods = await storage.getClosedPeriodsForDateRange(organizationId, startDate, endDate);
       if (closedPeriods.length > 0) {
         return res.status(403).json({ 
           message: 'Cannot submit entries in a closed period. Some dates in this week are locked.',
@@ -14674,7 +14674,7 @@ Return ONLY valid JSON.`;
       }
 
       // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedTimesheetPeriods(entry.organizationId, entry.entryDate, entry.entryDate);
+      const closedPeriods = await storage.getClosedPeriodsForDateRange(entry.organizationId, entry.entryDate, entry.entryDate);
       if (closedPeriods.length > 0) {
         return res.status(403).json({ message: 'Cannot approve entries in a closed period' });
       }
@@ -14713,7 +14713,7 @@ Return ONLY valid JSON.`;
       }
 
       // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedTimesheetPeriods(entry.organizationId, entry.entryDate, entry.entryDate);
+      const closedPeriods = await storage.getClosedPeriodsForDateRange(entry.organizationId, entry.entryDate, entry.entryDate);
       if (closedPeriods.length > 0) {
         return res.status(403).json({ message: 'Cannot reject entries in a closed period' });
       }
@@ -15128,7 +15128,7 @@ Return ONLY valid JSON.`;
       }
 
       // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedTimesheetPeriods(organizationId, entryDate, entryDate);
+      const closedPeriods = await storage.getClosedPeriodsForDateRange(organizationId, entryDate, entryDate);
       if (closedPeriods.length > 0) {
         return res.status(403).json({ message: 'Cannot create entries in a closed period' });
       }
@@ -15211,7 +15211,7 @@ Return ONLY valid JSON.`;
       }
 
       // Check if entry date is in a closed period
-      const closedPeriods = await storage.getClosedTimesheetPeriods(existingEntry.organizationId, existingEntry.entryDate, existingEntry.entryDate);
+      const closedPeriods = await storage.getClosedPeriodsForDateRange(existingEntry.organizationId, existingEntry.entryDate, existingEntry.entryDate);
       if (closedPeriods.length > 0) {
         return res.status(403).json({ message: 'Cannot delete entries in a closed period' });
       }
