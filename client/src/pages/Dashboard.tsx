@@ -35,6 +35,9 @@ import {
   ResourceDashboard,
   ResourceManagementDashboard,
   TimesheetReportDashboard,
+  TimesheetWeeklySummaryDashboard,
+  TimesheetProjectHoursDashboard,
+  TimesheetResourceHoursDashboard,
   IntakeDashboard,
   CustomDashboard,
   CreateCustomDashboardDialog,
@@ -780,7 +783,10 @@ export default function Dashboard() {
         {activeSubmenu === 'resources-capacity' && <ResourceManagementDashboard />}
         
         {/* Timesheet Dashboard submenus */}
-        {activeSubmenu.startsWith('timesheet-') && <TimesheetReportDashboard />}
+        {activeSubmenu === 'timesheet-overview' && <TimesheetReportDashboard />}
+        {activeSubmenu === 'timesheet-weekly' && <TimesheetWeeklySummaryDashboard />}
+        {activeSubmenu === 'timesheet-project' && <TimesheetProjectHoursDashboard />}
+        {activeSubmenu === 'timesheet-resource' && <TimesheetResourceHoursDashboard />}
         
         {/* Custom Dashboards */}
         {activeSubmenu.startsWith('custom-') && selectedCustomDashboard && (
