@@ -19,6 +19,7 @@ import {
   useCloseTimesheetPeriod,
   useReopenTimesheetPeriod,
   useDeleteTimesheetPeriod,
+  useClosedTimesheetPeriods,
   type TimesheetEntryWithDetails,
   type NonProjectTimeEntryWithCategory
 } from "@/hooks/use-timesheets";
@@ -130,9 +131,11 @@ interface TaskRowProps {
   index: number;
   indented?: boolean;
   inputRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
+  isDateInClosedPeriod: (date: Date) => boolean;
+  getClosedPeriodName: (date: Date) => string | null;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, index, indented, inputRefs }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
   const isRowOvertime = rowTotal > 40;
   
@@ -158,7 +161,9 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         const dateKey = formatDateKey(date);
         const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
         const status = entry?.status;
-        const isEditable = !status || status === "Draft" || status === "Rejected";
+        const isPeriodClosed = isDateInClosedPeriod(date);
+        const closedPeriodName = isPeriodClosed ? getClosedPeriodName(date) : null;
+        const isEditable = (!status || status === "Draft" || status === "Rejected") && !isPeriodClosed;
         const hasNote = !!(gridData[task.id]?.[dateKey]?.notes);
         const isTodayDate = isToday(date);
         const isWeekendDay = isWeekend(date);
@@ -167,6 +172,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         
         return (
           <td key={dateKey} className={`p-2 ${
+            isPeriodClosed ? "bg-red-50/30 dark:bg-red-900/10" :
             isTodayDate ? "bg-blue-500/5" : 
             isWeekendDay ? "bg-muted/40" : ""
           }`}>
@@ -185,7 +191,9 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 placeholder="0"
                 disabled={!isEditable}
                 className={`w-16 text-center h-9 rounded-lg border-2 ${
-                  isCellOvertime
+                  isPeriodClosed
+                    ? "border-red-300 bg-red-50/50 dark:border-red-700 dark:bg-red-900/30"
+                    : isCellOvertime
                     ? "border-amber-400 bg-amber-50/50 dark:border-amber-600 dark:bg-amber-900/20"
                     : isTodayDate 
                     ? "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-900/20" 
@@ -198,7 +206,19 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 focus:ring-2 focus:ring-primary/20`}
                 data-testid={`input-hours-${task.id}-${dateKey}`}
               />
-              {isCellOvertime && (
+              {isPeriodClosed && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="absolute -top-1 -left-1">
+                      <Lock className="h-3 w-3 text-red-500" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    Period locked: {closedPeriodName || "Closed period"}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {!isPeriodClosed && isCellOvertime && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="absolute -top-1 -left-1">
@@ -590,16 +610,31 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 const isWeekendDay = isWeekend(date);
                 const dayTotal = getColumnTotal(formatDateKey(date));
                 const isDayOvertime = dayTotal > 8;
+                const isPeriodClosed = isDateInClosedPeriod(date);
+                const closedPeriodName = isPeriodClosed ? getClosedPeriodName(date) : null;
                 return (
                   <th key={formatDateKey(date)} className={`p-3 text-center min-w-[80px] ${
+                    isPeriodClosed ? "bg-red-50/50 dark:bg-red-900/20" :
                     isTodayDate ? "bg-blue-500/10" : isWeekendDay ? "bg-muted/40" : ""
                   }`}>
-                    <div className={`text-xs font-medium ${
+                    <div className={`text-xs font-medium flex items-center justify-center gap-1 ${
+                      isPeriodClosed ? "text-red-600 dark:text-red-400" :
                       isTodayDate ? "text-blue-600" : isWeekendDay ? "text-muted-foreground/70" : "text-muted-foreground"
                     }`}>
+                      {isPeriodClosed && (
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Lock className="h-3 w-3" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            Period locked: {closedPeriodName || "Closed period"}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                       {format(date, "EEE")}
                     </div>
                     <div className={`text-lg font-semibold ${
+                      isPeriodClosed ? "text-red-600 dark:text-red-400" :
                       isTodayDate ? "text-blue-600" : isWeekendDay ? "text-muted-foreground" : "text-foreground"
                     }`}>
                       {format(date, "d")}
@@ -695,6 +730,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             index={flatIndex}
                             indented
                             inputRefs={inputRefs}
+                            isDateInClosedPeriod={isDateInClosedPeriod}
+                            getClosedPeriodName={getClosedPeriodName}
                           />
                         );
                       })}
@@ -719,6 +756,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   openNoteEditor={openNoteEditor}
                   index={index}
                   inputRefs={inputRefs}
+                  isDateInClosedPeriod={isDateInClosedPeriod}
+                  getClosedPeriodName={getClosedPeriodName}
                 />
               ))
             )}
@@ -1420,6 +1459,28 @@ export default function Timesheets() {
   );
   const createNonProjectTime = useCreateNonProjectTimeEntry();
   const deleteNonProjectTime = useDeleteNonProjectTimeEntry();
+
+  // Closed periods for locking time entries
+  const { data: closedPeriods = [] } = useClosedTimesheetPeriods(
+    currentOrganization?.id || null,
+    startDate,
+    endDate
+  );
+
+  // Helper function to check if a date falls within a closed period
+  const isDateInClosedPeriod = useCallback((date: Date): boolean => {
+    const dateStr = formatDateKey(date);
+    return closedPeriods.some(period => {
+      return dateStr >= period.startDate && dateStr <= period.endDate;
+    });
+  }, [closedPeriods]);
+
+  // Get the name of the closed period for a date (for tooltip)
+  const getClosedPeriodName = useCallback((date: Date): string | null => {
+    const dateStr = formatDateKey(date);
+    const period = closedPeriods.find(p => dateStr >= p.startDate && dateStr <= p.endDate);
+    return period ? period.name : null;
+  }, [closedPeriods]);
 
   // Time off popover state
   const [timeOffPopoverOpen, setTimeOffPopoverOpen] = useState(false);

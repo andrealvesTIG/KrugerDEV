@@ -14348,6 +14348,12 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'Timesheet entries are blocked for this project' });
       }
 
+      // Check if entry date is in a closed period
+      const closedPeriods = await storage.getClosedTimesheetPeriods(organizationId, entryDate, entryDate);
+      if (closedPeriods.length > 0) {
+        return res.status(403).json({ message: 'Cannot create entries in a closed period' });
+      }
+
       const entry = await storage.createTimesheetEntry({
         organizationId,
         userId,
@@ -14424,6 +14430,17 @@ Return ONLY valid JSON.`;
         return projectBlockedCache[projectId];
       };
 
+      // Cache for checking if date is in a closed period
+      const closedPeriodCache: Record<string, boolean> = {};
+      const isDateInClosedPeriod = async (entryDate: string): Promise<boolean> => {
+        if (closedPeriodCache[entryDate] !== undefined) {
+          return closedPeriodCache[entryDate];
+        }
+        const closedPeriods = await storage.getClosedTimesheetPeriods(organizationId, entryDate, entryDate);
+        closedPeriodCache[entryDate] = closedPeriods.length > 0;
+        return closedPeriodCache[entryDate];
+      };
+
       const results = [];
       for (const entry of entries) {
         // Validate hours for all entries
@@ -14450,6 +14467,12 @@ Return ONLY valid JSON.`;
           if (isBlocked) {
             continue; // Skip blocked tasks/projects
           }
+
+          // Check if entry date is in a closed period
+          const isPeriodClosed = await isDateInClosedPeriod(existing.entryDate);
+          if (isPeriodClosed) {
+            continue; // Skip entries in closed periods
+          }
           
           const updated = await storage.updateTimesheetEntry(entry.id, {
             hours: String(hoursNum),
@@ -14467,6 +14490,12 @@ Return ONLY valid JSON.`;
           const isBlocked = await isTaskOrProjectBlocked(entry.taskId, entry.projectId);
           if (isBlocked) {
             continue; // Skip blocked tasks/projects
+          }
+
+          // Check if entry date is in a closed period
+          const isPeriodClosed = await isDateInClosedPeriod(entry.entryDate);
+          if (isPeriodClosed) {
+            continue; // Skip entries in closed periods
           }
           
           const created = await storage.createTimesheetEntry({
@@ -14590,6 +14619,15 @@ Return ONLY valid JSON.`;
       
       if (!organizationId || !startDate || !endDate) {
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      // Check if any dates in the week fall within a closed period
+      const closedPeriods = await storage.getClosedTimesheetPeriods(organizationId, startDate, endDate);
+      if (closedPeriods.length > 0) {
+        return res.status(403).json({ 
+          message: 'Cannot submit entries in a closed period. Some dates in this week are locked.',
+          closedPeriods: closedPeriods.map(p => p.name)
+        });
       }
 
       await storage.submitTimesheetWeek(userId, organizationId, startDate, endDate);
@@ -15065,6 +15103,12 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'No resource record found for this user' });
       }
 
+      // Check if entry date is in a closed period
+      const closedPeriods = await storage.getClosedTimesheetPeriods(organizationId, entryDate, entryDate);
+      if (closedPeriods.length > 0) {
+        return res.status(403).json({ message: 'Cannot create entries in a closed period' });
+      }
+
       // Always use authenticated user's ID (ignore any client-supplied userId)
       const entry = await storage.createNonProjectTimeEntry({
         organizationId,
@@ -15140,6 +15184,12 @@ Return ONLY valid JSON.`;
       // Verify the authenticated user owns this entry
       if (existingEntry.userId !== userId) {
         return res.status(403).json({ message: 'Access denied' });
+      }
+
+      // Check if entry date is in a closed period
+      const closedPeriods = await storage.getClosedTimesheetPeriods(existingEntry.organizationId, existingEntry.entryDate, existingEntry.entryDate);
+      if (closedPeriods.length > 0) {
+        return res.status(403).json({ message: 'Cannot delete entries in a closed period' });
       }
 
       await storage.deleteNonProjectTimeEntry(id);
