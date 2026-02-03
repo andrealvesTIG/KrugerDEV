@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useQuery } from "@tanstack/react-query";
@@ -11,7 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent } from "lucide-react";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,6 +28,7 @@ import type { InsertResource, Resource } from "@shared/schema";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { format } from "date-fns";
 import {
   Table,
   TableBody,
@@ -63,9 +67,116 @@ export default function Resources() {
   const [search, setSearch] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"resources" | "assignments">("resources");
+  const [groupBy1, setGroupBy1] = useState<string>("resource");
+  const [groupBy2, setGroupBy2] = useState<string>("none");
+  const [groupBy3, setGroupBy3] = useState<string>("none");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
+
+  // Fetch resource assignments for Assignments View
+  interface ResourceAssignment {
+    assignmentId: number;
+    taskId: number;
+    resourceId: number;
+    allocationPercentage: number | null;
+    role: string | null;
+    taskName: string;
+    taskStatus: string | null;
+    taskProgress: number | null;
+    taskStartDate: string | null;
+    taskEndDate: string | null;
+    taskEstimatedHours: string | null;
+    projectId: number;
+    projectName: string;
+    projectStatus: string | null;
+    portfolioId: number | null;
+    portfolioName: string | null;
+    resourceName: string;
+    resourceEmail: string | null;
+    resourceTitle: string | null;
+    resourceDepartment: string | null;
+    resourceSkills: string | null;
+  }
+
+  const { data: assignmentsData, isLoading: isLoadingAssignments } = useQuery<ResourceAssignment[]>({
+    queryKey: ['/api/resources/assignments', currentOrganization?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/resources/assignments?organizationId=${currentOrganization?.id}`);
+      if (!res.ok) throw new Error('Failed to fetch assignments');
+      return res.json();
+    },
+    enabled: !!currentOrganization?.id && activeTab === "assignments",
+  });
+
+  const groupingOptions = [
+    { value: "resource", label: "Resource", icon: Users },
+    { value: "department", label: "Department", icon: Building2 },
+    { value: "skills", label: "Skills", icon: Wrench },
+    { value: "project", label: "Project", icon: FolderKanban },
+    { value: "portfolio", label: "Portfolio", icon: Layers },
+  ];
+
+  // Reset dependent groupings when parent grouping changes
+  useEffect(() => {
+    if (groupBy2 === groupBy1 || groupBy2 === "none") {
+      setGroupBy2("none");
+      setGroupBy3("none");
+    } else if (groupBy3 === groupBy1 || groupBy3 === groupBy2) {
+      setGroupBy3("none");
+    }
+  }, [groupBy1]);
+
+  useEffect(() => {
+    if (groupBy3 === groupBy2 || groupBy2 === "none") {
+      setGroupBy3("none");
+    }
+  }, [groupBy2]);
+
+  const getGroupValue = (assignment: ResourceAssignment, groupKey: string): string => {
+    switch (groupKey) {
+      case "resource": return assignment.resourceName || "Unassigned";
+      case "department": return assignment.resourceDepartment || "No Department";
+      case "skills": return assignment.resourceSkills?.split(",")[0]?.trim() || "No Skills";
+      case "project": return assignment.projectName || "No Project";
+      case "portfolio": return assignment.portfolioName || "No Portfolio";
+      default: return "All";
+    }
+  };
+
+  const groupedAssignments = useMemo(() => {
+    if (!assignmentsData) return {};
+    
+    const grouped: Record<string, Record<string, Record<string, ResourceAssignment[]>>> = {};
+    
+    assignmentsData.forEach((assignment) => {
+      const key1 = getGroupValue(assignment, groupBy1);
+      const key2 = groupBy2 !== "none" ? getGroupValue(assignment, groupBy2) : "_all";
+      const key3 = groupBy3 !== "none" ? getGroupValue(assignment, groupBy3) : "_all";
+      
+      if (!grouped[key1]) grouped[key1] = {};
+      if (!grouped[key1][key2]) grouped[key1][key2] = {};
+      if (!grouped[key1][key2][key3]) grouped[key1][key2][key3] = [];
+      
+      grouped[key1][key2][key3].push(assignment);
+    });
+
+    // Sort keys alphabetically
+    const sortedGrouped: typeof grouped = {};
+    Object.keys(grouped).sort().forEach(k1 => {
+      sortedGrouped[k1] = {};
+      Object.keys(grouped[k1]).sort().forEach(k2 => {
+        sortedGrouped[k1][k2] = {};
+        Object.keys(grouped[k1][k2]).sort().forEach(k3 => {
+          sortedGrouped[k1][k2][k3] = grouped[k1][k2][k3];
+        });
+      });
+    });
+
+    return sortedGrouped;
+  }, [assignmentsData, groupBy1, groupBy2, groupBy3]);
 
   // Auto-open merge dialog when navigating from import wizard
   useEffect(() => {
@@ -268,25 +379,42 @@ export default function Resources() {
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <Input 
-          className="pl-10 max-w-md bg-card border-border" 
-          placeholder="Search resources..." 
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          data-testid="input-search-resources"
-        />
-      </div>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "resources" | "assignments")} className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <TabsList>
+            <TabsTrigger value="resources" className="gap-2" data-testid="tab-resources">
+              <Users className="h-4 w-4" />
+              Team Resources
+            </TabsTrigger>
+            <TabsTrigger value="assignments" className="gap-2" data-testid="tab-assignments">
+              <ClipboardList className="h-4 w-4" />
+              Assignments View
+            </TabsTrigger>
+          </TabsList>
+          
+          {activeTab === "resources" && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input 
+                className="pl-10 max-w-md bg-card border-border" 
+                placeholder="Search resources..." 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                data-testid="input-search-resources"
+              />
+            </div>
+          )}
+        </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            <CardTitle>Team Resources</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <TabsContent value="resources" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                <CardTitle>Team Resources</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -426,8 +554,115 @@ export default function Resources() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="assignments" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-primary" />
+                  <CardTitle>Resource Assignments</CardTitle>
+                  {assignmentsData && (
+                    <Badge variant="secondary">{assignmentsData.length} assignments</Badge>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Group by:</Label>
+                    <Select value={groupBy1} onValueChange={setGroupBy1}>
+                      <SelectTrigger className="h-8 w-[130px]" data-testid="select-group-by-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groupingOptions.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            <div className="flex items-center gap-2">
+                              <opt.icon className="h-3 w-3" />
+                              {opt.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">then by:</Label>
+                    <Select value={groupBy2} onValueChange={(v) => { setGroupBy2(v); if (v === "none") setGroupBy3("none"); }}>
+                      <SelectTrigger className="h-8 w-[130px]" data-testid="select-group-by-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {groupingOptions.filter(opt => opt.value !== groupBy1).map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            <div className="flex items-center gap-2">
+                              <opt.icon className="h-3 w-3" />
+                              {opt.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {groupBy2 !== "none" && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs text-muted-foreground whitespace-nowrap">then by:</Label>
+                      <Select value={groupBy3} onValueChange={setGroupBy3}>
+                        <SelectTrigger className="h-8 w-[130px]" data-testid="select-group-by-3">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {groupingOptions.filter(opt => opt.value !== groupBy1 && opt.value !== groupBy2).map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              <div className="flex items-center gap-2">
+                                <opt.icon className="h-3 w-3" />
+                                {opt.label}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingAssignments ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : !assignmentsData || assignmentsData.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ClipboardList className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+                  <p>No task assignments found. Assign resources to tasks to see them here.</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[600px]">
+                  <div className="space-y-3 pr-4">
+                    {Object.entries(groupedAssignments).map(([key1, level2]) => (
+                      <AssignmentGroup 
+                        key={key1} 
+                        groupKey={key1}
+                        groupType={groupBy1}
+                        level2={level2}
+                        groupBy2={groupBy2}
+                        groupBy3={groupBy3}
+                        groupingOptions={groupingOptions}
+                        setLocation={setLocation}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <ResourceDialog
         open={isCreateDialogOpen}
@@ -879,5 +1114,266 @@ function MergeResourcesDialog({ open, onOpenChange, organizationId, onMergeCompl
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Assignment Group Component for hierarchical display
+interface ResourceAssignment {
+  assignmentId: number;
+  taskId: number;
+  resourceId: number;
+  allocationPercentage: number | null;
+  role: string | null;
+  taskName: string;
+  taskStatus: string | null;
+  taskProgress: number | null;
+  taskStartDate: string | null;
+  taskEndDate: string | null;
+  taskEstimatedHours: string | null;
+  projectId: number;
+  projectName: string;
+  projectStatus: string | null;
+  portfolioId: number | null;
+  portfolioName: string | null;
+  resourceName: string;
+  resourceEmail: string | null;
+  resourceTitle: string | null;
+  resourceDepartment: string | null;
+  resourceSkills: string | null;
+}
+
+interface AssignmentGroupProps {
+  groupKey: string;
+  groupType: string;
+  level2: Record<string, Record<string, ResourceAssignment[]>>;
+  groupBy2: string;
+  groupBy3: string;
+  groupingOptions: { value: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  setLocation: (path: string) => void;
+}
+
+function AssignmentGroup({ groupKey, groupType, level2, groupBy2, groupBy3, groupingOptions, setLocation }: AssignmentGroupProps) {
+  const [isOpen, setIsOpen] = useState(true);
+  
+  const GroupIcon = groupingOptions.find(o => o.value === groupType)?.icon || Users;
+  const totalAssignments = Object.values(level2).flatMap(l3 => Object.values(l3).flat()).length;
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger className="w-full" data-testid={`group-trigger-${groupKey}`}>
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+          {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary/80 to-primary text-primary-foreground text-sm font-semibold">
+            {groupKey.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 text-left">
+            <div className="font-medium">{groupKey}</div>
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
+              <GroupIcon className="h-3 w-3" />
+              {totalAssignments} assignment{totalAssignments !== 1 ? 's' : ''}
+            </div>
+          </div>
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pl-6 mt-2 space-y-2">
+          {groupBy2 === "none" ? (
+            // Direct assignments list
+            <div className="space-y-1">
+              {Object.values(level2).flatMap(l3 => Object.values(l3).flat()).map((assignment) => (
+                <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+              ))}
+            </div>
+          ) : (
+            // Nested level 2
+            Object.entries(level2).map(([key2, level3]) => (
+              <AssignmentSubGroup
+                key={key2}
+                groupKey={key2}
+                groupType={groupBy2}
+                level3={level3}
+                groupBy3={groupBy3}
+                groupingOptions={groupingOptions}
+                setLocation={setLocation}
+              />
+            ))
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+interface AssignmentSubGroupProps {
+  groupKey: string;
+  groupType: string;
+  level3: Record<string, ResourceAssignment[]>;
+  groupBy3: string;
+  groupingOptions: { value: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  setLocation: (path: string) => void;
+}
+
+function AssignmentSubGroup({ groupKey, groupType, level3, groupBy3, groupingOptions, setLocation }: AssignmentSubGroupProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const GroupIcon = groupingOptions.find(o => o.value === groupType)?.icon || Users;
+  const totalAssignments = Object.values(level3).flat().length;
+
+  if (groupKey === "_all") {
+    return (
+      <div className="space-y-1">
+        {Object.values(level3).flat().map((assignment) => (
+          <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger className="w-full" data-testid={`subgroup-trigger-${groupKey}`}>
+        <div className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/30 transition-colors cursor-pointer">
+          {isOpen ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+          <GroupIcon className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{groupKey}</span>
+          <Badge variant="outline" className="text-[10px] h-5">{totalAssignments}</Badge>
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pl-6 mt-1 space-y-1">
+          {groupBy3 === "none" ? (
+            Object.values(level3).flat().map((assignment) => (
+              <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+            ))
+          ) : (
+            Object.entries(level3).map(([key3, assignments]) => (
+              key3 === "_all" ? (
+                assignments.map((assignment) => (
+                  <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+                ))
+              ) : (
+                <AssignmentLevel3Group
+                  key={key3}
+                  groupKey={key3}
+                  groupType={groupBy3}
+                  assignments={assignments}
+                  groupingOptions={groupingOptions}
+                  setLocation={setLocation}
+                />
+              )
+            ))
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+interface AssignmentLevel3GroupProps {
+  groupKey: string;
+  groupType: string;
+  assignments: ResourceAssignment[];
+  groupingOptions: { value: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  setLocation: (path: string) => void;
+}
+
+function AssignmentLevel3Group({ groupKey, groupType, assignments, groupingOptions, setLocation }: AssignmentLevel3GroupProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const GroupIcon = groupingOptions.find(o => o.value === groupType)?.icon || Users;
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger className="w-full" data-testid={`level3-trigger-${groupKey}`}>
+        <div className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/20 transition-colors cursor-pointer">
+          {isOpen ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+          <GroupIcon className="h-3 w-3 text-muted-foreground" />
+          <span className="text-sm">{groupKey}</span>
+          <span className="text-[10px] text-muted-foreground">({assignments.length})</span>
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pl-5 mt-1 space-y-1">
+          {assignments.map((assignment) => (
+            <AssignmentRow key={assignment.assignmentId} assignment={assignment} setLocation={setLocation} />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+interface AssignmentRowProps {
+  assignment: ResourceAssignment;
+  setLocation: (path: string) => void;
+}
+
+function AssignmentRow({ assignment, setLocation }: AssignmentRowProps) {
+  const statusColors: Record<string, string> = {
+    "Not Started": "bg-slate-100 text-slate-700",
+    "In Progress": "bg-blue-100 text-blue-700",
+    "On Hold": "bg-yellow-100 text-yellow-700",
+    "Completed": "bg-emerald-100 text-emerald-700",
+    "Cancelled": "bg-red-100 text-red-700",
+  };
+
+  return (
+    <div 
+      className="flex items-center gap-3 p-2 rounded-md border bg-card hover:bg-accent/30 transition-colors cursor-pointer group"
+      onClick={() => setLocation(`/projects/${assignment.projectId}`)}
+      data-testid={`assignment-row-${assignment.assignmentId}`}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm truncate">{assignment.taskName}</span>
+          <Badge variant="outline" className="text-[10px] h-4 shrink-0">
+            {assignment.projectName}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Users className="h-3 w-3" />
+            {assignment.resourceName}
+          </span>
+          {assignment.taskStartDate && (
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {format(new Date(assignment.taskStartDate), "MMM d")}
+              {assignment.taskEndDate && ` - ${format(new Date(assignment.taskEndDate), "MMM d")}`}
+            </span>
+          )}
+          {assignment.allocationPercentage && (
+            <span className="flex items-center gap-1">
+              <Percent className="h-3 w-3" />
+              {assignment.allocationPercentage}%
+            </span>
+          )}
+          {assignment.taskEstimatedHours && (
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {assignment.taskEstimatedHours}h
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {assignment.taskProgress != null && (
+          <div className="w-16 flex items-center gap-1">
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary rounded-full transition-all" 
+                style={{ width: `${assignment.taskProgress}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-muted-foreground">{assignment.taskProgress}%</span>
+          </div>
+        )}
+        {assignment.taskStatus && (
+          <Badge className={`text-[10px] h-5 ${statusColors[assignment.taskStatus] || "bg-muted text-muted-foreground"}`}>
+            {assignment.taskStatus}
+          </Badge>
+        )}
+        <ArrowRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </div>
   );
 }

@@ -8106,6 +8106,53 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.json(resource);
   });
 
+  // Get all resource assignments for an organization (for Assignments View)
+  app.get('/api/resources/assignments', async (req, res) => {
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) {
+        return res.status(400).json({ message: "Organization ID is required" });
+      }
+
+      // Get all task resource assignments with related data
+      const assignments = await db.select({
+        assignmentId: taskResourceAssignments.id,
+        taskId: taskResourceAssignments.taskId,
+        resourceId: taskResourceAssignments.resourceId,
+        allocationPercentage: taskResourceAssignments.allocationPercentage,
+        role: taskResourceAssignments.role,
+        taskName: tasks.name,
+        taskStatus: tasks.status,
+        taskProgress: tasks.progress,
+        taskStartDate: tasks.startDate,
+        taskEndDate: tasks.endDate,
+        taskEstimatedHours: tasks.estimatedHours,
+        projectId: tasks.projectId,
+        projectName: projects.name,
+        projectStatus: projects.status,
+        portfolioId: projects.portfolioId,
+        portfolioName: portfolios.name,
+        resourceName: resources.displayName,
+        resourceEmail: resources.email,
+        resourceTitle: resources.title,
+        resourceDepartment: resources.department,
+        resourceSkills: resources.skills,
+      })
+        .from(taskResourceAssignments)
+        .innerJoin(tasks, eq(taskResourceAssignments.taskId, tasks.id))
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .innerJoin(resources, eq(taskResourceAssignments.resourceId, resources.id))
+        .leftJoin(portfolios, eq(projects.portfolioId, portfolios.id))
+        .where(eq(resources.organizationId, organizationId))
+        .orderBy(resources.displayName, projects.name, tasks.name);
+
+      res.json(assignments);
+    } catch (err) {
+      console.error("Error fetching resource assignments:", err);
+      res.status(500).json({ message: "Failed to fetch resource assignments" });
+    }
+  });
+
   // Get task assignments for a resource
   app.get('/api/resources/:id/task-assignments', async (req, res) => {
     try {
