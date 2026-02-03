@@ -1110,7 +1110,7 @@ export class DatabaseStorage implements IStorage {
   async getTasks(projectId: number): Promise<Task[]> {
     return await db.select().from(tasks).where(
       and(eq(tasks.projectId, projectId), isNull(tasks.deletedAt))
-    ).orderBy(asc(tasks.taskIndex));
+    ).orderBy(sql`COALESCE(${tasks.taskIndex}, 999999) ASC, ${tasks.createdAt} ASC`);
   }
   
   async getTasksByProject(projectId: number): Promise<Task[]> {
