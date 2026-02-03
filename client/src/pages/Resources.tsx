@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User, Grid3X3, LayoutList } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -28,7 +28,7 @@ import type { InsertResource, Resource } from "@shared/schema";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { format, startOfWeek, endOfWeek, addWeeks, isWithinInterval, parseISO, differenceInDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, addWeeks, isWithinInterval, parseISO, differenceInDays, startOfDay, endOfDay, addDays, startOfMonth, endOfMonth, addMonths, startOfQuarter, endOfQuarter, addQuarters, startOfYear, endOfYear, addYears, min, max } from "date-fns";
 import {
   Table,
   TableBody,
@@ -983,41 +983,184 @@ interface AssignmentWeekData {
   weeks: { allocation: number; active: boolean }[];
 }
 
+type TimeScale = "day" | "week" | "month" | "quarter" | "year";
+
+interface TimePeriod {
+  start: Date;
+  end: Date;
+  label: string;
+  workDays: number;
+}
+
+const DEFAULT_PERIODS: Record<TimeScale, number> = {
+  day: 14,
+  week: 12,
+  month: 6,
+  quarter: 4,
+  year: 2
+};
+
 function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: ResourceHeatmapProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [timeScale, setTimeScale] = useState<TimeScale>("week");
+  const [periodCount, setPeriodCount] = useState<number>(12);
 
-  // Generate 12 weeks from today
-  const today = new Date();
-  const weeks = useMemo(() => {
-    const result = [];
-    for (let i = 0; i < 12; i++) {
-      const weekStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
-      result.push({ start: weekStart, end: weekEnd, label: format(weekStart, "MMM d") });
+  // Calculate data range from assignments
+  const dataRange = useMemo(() => {
+    let minDate = new Date();
+    let maxDate = new Date();
+    
+    assignments.forEach(a => {
+      if (a.taskStartDate) {
+        const start = parseISO(a.taskStartDate);
+        if (start < minDate) minDate = start;
+      }
+      if (a.taskEndDate) {
+        const end = parseISO(a.taskEndDate);
+        if (end > maxDate) maxDate = end;
+      }
+    });
+    
+    return { minDate, maxDate };
+  }, [assignments]);
+
+  // Autofit handler
+  const handleAutofit = () => {
+    const { minDate, maxDate } = dataRange;
+    const daysDiff = differenceInDays(maxDate, minDate);
+    
+    if (daysDiff <= 21) {
+      setTimeScale("day");
+      setPeriodCount(Math.min(Math.max(daysDiff + 7, 14), 30));
+    } else if (daysDiff <= 90) {
+      setTimeScale("week");
+      setPeriodCount(Math.min(Math.ceil(daysDiff / 7) + 2, 16));
+    } else if (daysDiff <= 365) {
+      setTimeScale("month");
+      setPeriodCount(Math.min(Math.ceil(daysDiff / 30) + 1, 12));
+    } else if (daysDiff <= 730) {
+      setTimeScale("quarter");
+      setPeriodCount(Math.min(Math.ceil(daysDiff / 90) + 1, 8));
+    } else {
+      setTimeScale("year");
+      setPeriodCount(Math.min(Math.ceil(daysDiff / 365) + 1, 5));
     }
-    return result;
-  }, []);
+  };
 
-  // Calculate weekly allocation for a single assignment
-  const getAssignmentWeekData = (assignment: ResourceAssignment, capacity: number): AssignmentWeekData => {
-    const weekData = weeks.map(week => {
+  // Zoom handlers
+  const handleZoomIn = () => {
+    const scales: TimeScale[] = ["year", "quarter", "month", "week", "day"];
+    const currentIdx = scales.indexOf(timeScale);
+    if (currentIdx < scales.length - 1) {
+      const newScale = scales[currentIdx + 1];
+      setTimeScale(newScale);
+      setPeriodCount(DEFAULT_PERIODS[newScale]);
+    } else {
+      setPeriodCount(Math.min(periodCount + 7, 30));
+    }
+  };
+
+  const handleZoomOut = () => {
+    const scales: TimeScale[] = ["year", "quarter", "month", "week", "day"];
+    const currentIdx = scales.indexOf(timeScale);
+    if (currentIdx > 0) {
+      const newScale = scales[currentIdx - 1];
+      setTimeScale(newScale);
+      setPeriodCount(DEFAULT_PERIODS[newScale]);
+    } else {
+      setPeriodCount(Math.max(periodCount - 1, 2));
+    }
+  };
+
+  // Generate time periods based on scale
+  const today = new Date();
+  const periods = useMemo((): TimePeriod[] => {
+    const result: TimePeriod[] = [];
+    
+    for (let i = 0; i < periodCount; i++) {
+      let periodStart: Date, periodEnd: Date, label: string, workDays: number;
+      
+      switch (timeScale) {
+        case "day":
+          periodStart = startOfDay(addDays(today, i));
+          periodEnd = endOfDay(addDays(today, i));
+          label = format(periodStart, "MMM d");
+          workDays = [0, 6].includes(periodStart.getDay()) ? 0 : 1;
+          break;
+        case "week":
+          periodStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
+          periodEnd = endOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
+          label = format(periodStart, "MMM d");
+          workDays = 5;
+          break;
+        case "month":
+          periodStart = startOfMonth(addMonths(today, i));
+          periodEnd = endOfMonth(addMonths(today, i));
+          label = format(periodStart, "MMM yy");
+          workDays = 22; // Approx work days per month
+          break;
+        case "quarter":
+          periodStart = startOfQuarter(addQuarters(today, i));
+          periodEnd = endOfQuarter(addQuarters(today, i));
+          label = `Q${Math.floor(periodStart.getMonth() / 3) + 1} ${format(periodStart, "yy")}`;
+          workDays = 65; // Approx work days per quarter
+          break;
+        case "year":
+          periodStart = startOfYear(addYears(today, i));
+          periodEnd = endOfYear(addYears(today, i));
+          label = format(periodStart, "yyyy");
+          workDays = 260; // Approx work days per year
+          break;
+      }
+      
+      result.push({ start: periodStart, end: periodEnd, label, workDays });
+    }
+    
+    return result;
+  }, [timeScale, periodCount]);
+
+  // Get capacity for a period based on timescale
+  const getPeriodCapacity = (weeklyCapacity: number, period: TimePeriod): number => {
+    switch (timeScale) {
+      case "day": return weeklyCapacity / 5;
+      case "week": return weeklyCapacity;
+      case "month": return weeklyCapacity * 4.33;
+      case "quarter": return weeklyCapacity * 13;
+      case "year": return weeklyCapacity * 52;
+    }
+  };
+
+  // Calculate allocation for a single assignment in a period
+  const getAssignmentPeriodData = (assignment: ResourceAssignment, weeklyCapacity: number): AssignmentWeekData => {
+    const weekData = periods.map(period => {
       if (!assignment.taskStartDate || !assignment.taskEndDate) {
         return { allocation: 0, active: false };
       }
       
       const taskStart = parseISO(assignment.taskStartDate);
       const taskEnd = parseISO(assignment.taskEndDate);
-      const overlaps = (taskStart <= week.end && taskEnd >= week.start);
+      const overlaps = (taskStart <= period.end && taskEnd >= period.start);
       
       if (!overlaps) return { allocation: 0, active: false };
       
-      const overlapStart = taskStart > week.start ? taskStart : week.start;
-      const overlapEnd = taskEnd < week.end ? taskEnd : week.end;
+      const overlapStart = taskStart > period.start ? taskStart : period.start;
+      const overlapEnd = taskEnd < period.end ? taskEnd : period.end;
       const overlapDays = Math.max(0, differenceInDays(overlapEnd, overlapStart) + 1);
-      const workDays = Math.min(overlapDays, 5);
-      const weekAllocation = ((assignment.allocationPercentage || 100) / 100) * (workDays / 5) * capacity;
       
-      return { allocation: weekAllocation, active: true };
+      // Calculate work days in the overlap period
+      let workDaysInPeriod = 0;
+      if (timeScale === "day") {
+        workDaysInPeriod = [0, 6].includes(overlapStart.getDay()) ? 0 : 1;
+      } else {
+        workDaysInPeriod = Math.min(overlapDays, period.workDays) * (5 / 7); // Rough estimate
+      }
+      
+      const periodCapacity = getPeriodCapacity(weeklyCapacity, period);
+      const maxWorkDays = period.workDays;
+      const allocationRatio = workDaysInPeriod / maxWorkDays;
+      const periodAllocation = ((assignment.allocationPercentage || 100) / 100) * allocationRatio * periodCapacity;
+      
+      return { allocation: periodAllocation, active: true };
     });
     
     return { assignment, weeks: weekData };
@@ -1048,7 +1191,10 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
         };
       case "skills": {
         const resource = resources.find(r => r.id === assignment.resourceId);
-        const skills = resource?.skills || [];
+        const skillsRaw = resource?.skills || "";
+        const skills = typeof skillsRaw === "string" 
+          ? skillsRaw.split(",").map(s => s.trim()).filter(Boolean) 
+          : [];
         const skillKey = skills.length > 0 ? skills.sort().join(",") : "none";
         return {
           key: `skills-${skillKey}`,
@@ -1087,15 +1233,15 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
           name: groupName,
           capacity,
           assignments: [],
-          weeks: weeks.map(() => ({ allocation: 0, tasks: [] }))
+          weeks: periods.map(() => ({ allocation: 0, tasks: [] }))
         };
       }
       
       groups[groupKey].assignments.push(assignment);
       
       // Calculate rollup
-      const assignmentWeekData = getAssignmentWeekData(assignment, capacity);
-      assignmentWeekData.weeks.forEach((w, idx) => {
+      const assignmentPeriodData = getAssignmentPeriodData(assignment, capacity);
+      assignmentPeriodData.weeks.forEach((w, idx) => {
         if (w.active) {
           groups[groupKey].weeks[idx].allocation += w.allocation;
           groups[groupKey].weeks[idx].tasks.push({
@@ -1108,7 +1254,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
     });
     
     return Object.values(groups);
-  }, [assignments, resources, weeks, groupBy]);
+  }, [assignments, resources, periods, groupBy]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups(prev => {
@@ -1144,28 +1290,60 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
   };
 
   return (
-    <div className="overflow-x-auto">
-      <div className="min-w-[900px]">
-        {/* Header row with week labels */}
-        <div className="flex border-b sticky top-0 bg-background z-10">
-          <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r">
-            {groupBy === "resource" ? "Resource" : 
-             groupBy === "project" ? "Project" :
-             groupBy === "portfolio" ? "Portfolio" :
-             groupBy === "skills" ? "Skills" :
-             groupBy === "department" ? "Department" : "Group"} / Task
-          </div>
-          <div className="flex-1 flex">
-            {weeks.map((week, idx) => (
-              <div 
-                key={idx} 
-                className="flex-1 p-2 text-center text-xs font-medium border-r text-muted-foreground min-w-[65px]"
-              >
-                {week.label}
-              </div>
-            ))}
-          </div>
+    <div className="space-y-2">
+      {/* Timescale controls */}
+      <div className="flex items-center justify-between gap-4 pb-2 border-b">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Scale:</span>
+          <Select value={timeScale} onValueChange={(v) => { setTimeScale(v as TimeScale); setPeriodCount(DEFAULT_PERIODS[v as TimeScale]); }}>
+            <SelectTrigger className="w-[100px] h-8" data-testid="select-timescale">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="day">Days</SelectItem>
+              <SelectItem value="week">Weeks</SelectItem>
+              <SelectItem value="month">Months</SelectItem>
+              <SelectItem value="quarter">Quarters</SelectItem>
+              <SelectItem value="year">Years</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomOut} title="Zoom out" data-testid="button-zoom-out">
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomIn} title="Zoom in" data-testid="button-zoom-in">
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" className="h-8" onClick={handleAutofit} title="Autofit to data range" data-testid="button-autofit">
+            <Maximize2 className="h-4 w-4 mr-1" />
+            Autofit
+          </Button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[900px]">
+          {/* Header row with period labels */}
+          <div className="flex border-b sticky top-0 bg-background z-10">
+            <div className="w-64 flex-shrink-0 p-2 font-medium text-sm border-r">
+              {groupBy === "resource" ? "Resource" : 
+               groupBy === "project" ? "Project" :
+               groupBy === "portfolio" ? "Portfolio" :
+               groupBy === "skills" ? "Skills" :
+               groupBy === "department" ? "Department" : "Group"} / Task
+            </div>
+            <div className="flex-1 flex">
+              {periods.map((period, idx) => (
+                <div 
+                  key={idx} 
+                  className={`flex-1 p-2 text-center text-xs font-medium border-r text-muted-foreground ${timeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"}`}
+                >
+                  {period.label}
+                </div>
+              ))}
+            </div>
+          </div>
 
         {/* Grouped rows */}
         <ScrollArea className="h-[500px]">
@@ -1218,7 +1396,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                 
                 {/* Expanded assignment rows */}
                 {isExpanded && group.assignments.map((assignment) => {
-                  const assignmentData = getAssignmentWeekData(assignment, group.capacity);
+                  const assignmentData = getAssignmentPeriodData(assignment, group.capacity);
                   return (
                     <div 
                       key={assignment.assignmentId}
@@ -1276,28 +1454,29 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
           })}
         </ScrollArea>
 
-        {/* Legend */}
-        <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
-          <span className="font-medium">Utilization:</span>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-900/30" />
-            <span>0-50%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-emerald-300 dark:bg-emerald-700/50" />
-            <span>50-90%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-emerald-400 dark:bg-emerald-600/60" />
-            <span>90-100%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-yellow-300 dark:bg-yellow-700/50" />
-            <span>100-110%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-red-400 dark:bg-red-600/60" />
-            <span>&gt;125%</span>
+          {/* Legend */}
+          <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground flex-wrap">
+            <span className="font-medium">Utilization:</span>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-4 rounded bg-emerald-100 dark:bg-emerald-900/30" />
+              <span>0-50%</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-4 rounded bg-emerald-300 dark:bg-emerald-700/50" />
+              <span>50-90%</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-4 rounded bg-emerald-400 dark:bg-emerald-600/60" />
+              <span>90-100%</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-4 rounded bg-yellow-300 dark:bg-yellow-700/50" />
+              <span>100-110%</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-4 rounded bg-red-400 dark:bg-red-600/60" />
+              <span>&gt;125%</span>
+            </div>
           </div>
         </div>
       </div>
