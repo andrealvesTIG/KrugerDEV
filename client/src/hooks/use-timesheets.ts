@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { TimesheetEntry, InsertTimesheetEntry, Task, Resource, Project, TimeCategory, NonProjectTimeEntry, InsertNonProjectTimeEntry } from "@shared/schema";
+import type { TimesheetEntry, InsertTimesheetEntry, Task, Resource, Project, TimeCategory, NonProjectTimeEntry, InsertNonProjectTimeEntry, TimesheetPeriod, InsertTimesheetPeriod } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
 export interface TimesheetEntryWithDetails extends TimesheetEntry {
@@ -211,6 +211,84 @@ export function useDeleteNonProjectTimeEntry() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/non-project-time"] });
+    },
+  });
+}
+
+// Timesheet Periods (for closing/locking time periods)
+export function useTimesheetPeriods(organizationId: number | null) {
+  return useQuery<TimesheetPeriod[]>({
+    queryKey: ["/api/timesheet-periods", organizationId],
+    enabled: !!organizationId,
+    staleTime: 1000 * 60, // Cache for 1 minute
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheet-periods?organizationId=${organizationId}`);
+      if (!response.ok) throw new Error("Failed to fetch timesheet periods");
+      return response.json();
+    },
+  });
+}
+
+export function useClosedTimesheetPeriods(organizationId: number | null, startDate: string, endDate: string) {
+  return useQuery<TimesheetPeriod[]>({
+    queryKey: ["/api/timesheet-periods/closed", organizationId, startDate, endDate],
+    enabled: !!organizationId && !!startDate && !!endDate,
+    staleTime: 1000 * 30, // Cache for 30 seconds
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheet-periods/closed?organizationId=${organizationId}&startDate=${startDate}&endDate=${endDate}`);
+      if (!response.ok) throw new Error("Failed to fetch closed periods");
+      return response.json();
+    },
+  });
+}
+
+export function useCreateTimesheetPeriod() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (period: { organizationId: number; name: string; startDate: string; endDate: string; notes?: string }) => {
+      const response = await apiRequest("POST", "/api/timesheet-periods", period);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheet-periods"] });
+    },
+  });
+}
+
+export function useCloseTimesheetPeriod() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest("POST", `/api/timesheet-periods/${id}/close`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheet-periods"] });
+    },
+  });
+}
+
+export function useReopenTimesheetPeriod() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest("POST", `/api/timesheet-periods/${id}/reopen`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheet-periods"] });
+    },
+  });
+}
+
+export function useDeleteTimesheetPeriod() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/timesheet-periods/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheet-periods"] });
     },
   });
 }
