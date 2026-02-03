@@ -7184,6 +7184,21 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     res.json(tasks);
   });
 
+  // Get single task by ID
+  app.get('/api/tasks/:id', async (req, res) => {
+    try {
+      const taskId = Number(req.params.id);
+      const task = await storage.getTask(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      res.json(task);
+    } catch (err) {
+      console.error("Error fetching task:", err);
+      res.status(500).json({ message: "Error fetching task" });
+    }
+  });
+
   app.get(api.tasks.listAll.path, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     
