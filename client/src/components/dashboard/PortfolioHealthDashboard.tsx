@@ -164,7 +164,23 @@ export function PortfolioHealthDashboard() {
             Portfolio Health Dashboard
           </h2>
           <p className="text-muted-foreground text-sm">
-            PRINCE2 Health Check and Gartner Portfolio Health Assessment
+            <a 
+              href="https://www.prince2.com/uk/blog/project-health-check" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              PRINCE2 Health Check
+            </a>
+            {" and "}
+            <a 
+              href="https://www.gartner.com/en/information-technology/glossary/portfolio-management" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline hover:text-primary transition-colors"
+            >
+              Gartner Portfolio Health Assessment
+            </a>
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
