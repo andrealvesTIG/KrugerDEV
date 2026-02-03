@@ -14664,6 +14664,193 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ===== Timesheet Periods (Period Closing/Locking) =====
+  
+  // Get all timesheet periods for organization (approvers only)
+  app.get('/api/timesheet-periods', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) {
+        return res.status(400).json({ message: 'organizationId is required' });
+      }
+
+      // Verify user belongs to this organization
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const periods = await storage.getTimesheetPeriods(organizationId);
+      res.json(periods);
+    } catch (error) {
+      console.error('Error getting timesheet periods:', error);
+      res.status(500).json({ message: 'Failed to get timesheet periods' });
+    }
+  });
+
+  // Get closed periods for a date range (for checking if dates are editable)
+  app.get('/api/timesheet-periods/closed', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      
+      if (!organizationId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      const periods = await storage.getClosedPeriodsForDateRange(organizationId, startDate, endDate);
+      res.json(periods);
+    } catch (error) {
+      console.error('Error getting closed periods:', error);
+      res.status(500).json({ message: 'Failed to get closed periods' });
+    }
+  });
+
+  // Create a new timesheet period (approvers only)
+  app.post('/api/timesheet-periods', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const { organizationId, name, startDate, endDate, notes } = req.body;
+      
+      if (!organizationId || !name || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, name, startDate, and endDate are required' });
+      }
+
+      // Verify user is an approver
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'You must be an approver to manage timesheet periods' });
+      }
+
+      const period = await storage.createTimesheetPeriod({
+        organizationId,
+        name,
+        startDate,
+        endDate,
+        notes,
+        status: 'open',
+        createdBy: userId,
+      });
+      
+      res.status(201).json(period);
+    } catch (error) {
+      console.error('Error creating timesheet period:', error);
+      res.status(500).json({ message: 'Failed to create timesheet period' });
+    }
+  });
+
+  // Close a timesheet period (approvers only)
+  app.post('/api/timesheet-periods/:id/close', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      const period = await storage.getTimesheetPeriod(id);
+      
+      if (!period) {
+        return res.status(404).json({ message: 'Timesheet period not found' });
+      }
+
+      // Verify user is an approver
+      const resources = await storage.getResources(period.organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'You must be an approver to close timesheet periods' });
+      }
+
+      const updated = await storage.closeTimesheetPeriod(id, userId);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error closing timesheet period:', error);
+      res.status(500).json({ message: 'Failed to close timesheet period' });
+    }
+  });
+
+  // Reopen a timesheet period (approvers only)
+  app.post('/api/timesheet-periods/:id/reopen', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      const period = await storage.getTimesheetPeriod(id);
+      
+      if (!period) {
+        return res.status(404).json({ message: 'Timesheet period not found' });
+      }
+
+      // Verify user is an approver
+      const resources = await storage.getResources(period.organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'You must be an approver to reopen timesheet periods' });
+      }
+
+      const updated = await storage.reopenTimesheetPeriod(id, userId);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error reopening timesheet period:', error);
+      res.status(500).json({ message: 'Failed to reopen timesheet period' });
+    }
+  });
+
+  // Delete a timesheet period (approvers only)
+  app.delete('/api/timesheet-periods/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const id = Number(req.params.id);
+      const period = await storage.getTimesheetPeriod(id);
+      
+      if (!period) {
+        return res.status(404).json({ message: 'Timesheet period not found' });
+      }
+
+      // Verify user is an approver
+      const resources = await storage.getResources(period.organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      
+      if (!userResource?.isApprover) {
+        return res.status(403).json({ message: 'You must be an approver to delete timesheet periods' });
+      }
+
+      await storage.deleteTimesheetPeriod(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting timesheet period:', error);
+      res.status(500).json({ message: 'Failed to delete timesheet period' });
+    }
+  });
+
   // ===== Time Categories (Non-Project Time Types) =====
   
   // Get time categories for organization
