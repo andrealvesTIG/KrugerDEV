@@ -119,6 +119,8 @@ export function useUpdateTaskResourceAssignments() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks", variables.taskId, "resources"] });
+      // Also invalidate project queries since estimated hours may have been recalculated
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
     },
   });
 }
