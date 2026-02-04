@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useOrganization } from "@/hooks/use-organization";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -8,10 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Plus, Mail, Clock, Calendar, Trash2, Send, Edit2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -65,21 +68,42 @@ const TIMEZONES = [
   { value: "Australia/Sydney", label: "Sydney (AEST)" },
 ];
 
+const subscriptionFormSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or less"),
+  dashboards: z.array(z.string()).min(1, "Select at least one dashboard"),
+  frequency: z.enum(["daily", "weekly", "monthly"]),
+  dayOfWeek: z.number().min(0).max(6).nullable(),
+  dayOfMonth: z.number().min(1).max(28).nullable(),
+  timeOfDay: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format"),
+  timezone: z.string().min(1, "Timezone is required"),
+  recipients: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+type SubscriptionFormValues = z.infer<typeof subscriptionFormSchema>;
+
 export default function ReportSubscriptions() {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<ReportSubscription | null>(null);
   
-  // Form state
-  const [formName, setFormName] = useState("");
-  const [formDashboards, setFormDashboards] = useState<string[]>([]);
-  const [formFrequency, setFormFrequency] = useState<string>("weekly");
-  const [formDayOfWeek, setFormDayOfWeek] = useState<number>(1);
-  const [formDayOfMonth, setFormDayOfMonth] = useState<number>(1);
-  const [formTimeOfDay, setFormTimeOfDay] = useState("09:00");
-  const [formTimezone, setFormTimezone] = useState("America/New_York");
-  const [formRecipients, setFormRecipients] = useState("");
+  const form = useForm<SubscriptionFormValues>({
+    resolver: zodResolver(subscriptionFormSchema),
+    defaultValues: {
+      name: "",
+      dashboards: [],
+      frequency: "weekly",
+      dayOfWeek: 1,
+      dayOfMonth: 1,
+      timeOfDay: "09:00",
+      timezone: "America/New_York",
+      recipients: "",
+      isActive: true,
+    },
+  });
+  
+  const watchFrequency = form.watch("frequency");
   
   const { data: dashboards = [], isLoading: dashboardsLoading } = useQuery<Dashboard[]>({
     queryKey: ['/api/report-subscriptions/dashboards'],
@@ -92,29 +116,49 @@ export default function ReportSubscriptions() {
   });
   
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiRequest('POST', `/api/organizations/${currentOrganization?.id}/report-subscriptions`, data);
+    mutationFn: async (data: SubscriptionFormValues) => {
+      const recipients = data.recipients
+        ?.split(",")
+        .map(e => e.trim())
+        .filter(e => e.length > 0) || [];
+      
+      return apiRequest('POST', `/api/organizations/${currentOrganization?.id}/report-subscriptions`, {
+        ...data,
+        dayOfWeek: data.frequency === 'weekly' ? data.dayOfWeek : null,
+        dayOfMonth: data.frequency === 'monthly' ? data.dayOfMonth : null,
+        recipients,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'report-subscriptions'] });
       toast({ title: "Subscription created", description: "Your report subscription has been set up successfully." });
       closeDialog();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to create subscription", variant: "destructive" });
     },
   });
   
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      return apiRequest('PUT', `/api/organizations/${currentOrganization?.id}/report-subscriptions/${id}`, data);
+    mutationFn: async ({ id, data }: { id: number; data: SubscriptionFormValues }) => {
+      const recipients = data.recipients
+        ?.split(",")
+        .map(e => e.trim())
+        .filter(e => e.length > 0) || [];
+      
+      return apiRequest('PUT', `/api/organizations/${currentOrganization?.id}/report-subscriptions/${id}`, {
+        ...data,
+        dayOfWeek: data.frequency === 'weekly' ? data.dayOfWeek : null,
+        dayOfMonth: data.frequency === 'monthly' ? data.dayOfMonth : null,
+        recipients,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'report-subscriptions'] });
       toast({ title: "Subscription updated", description: "Your report subscription has been updated." });
       closeDialog();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to update subscription", variant: "destructive" });
     },
   });
@@ -127,7 +171,7 @@ export default function ReportSubscriptions() {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'report-subscriptions'] });
       toast({ title: "Subscription deleted", description: "The report subscription has been removed." });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to delete subscription", variant: "destructive" });
     },
   });
@@ -140,7 +184,7 @@ export default function ReportSubscriptions() {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'report-subscriptions'] });
       toast({ title: "Report sent", description: "The report has been sent to all recipients." });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to send report", variant: "destructive" });
     },
   });
@@ -152,34 +196,40 @@ export default function ReportSubscriptions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'report-subscriptions'] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to update subscription", variant: "destructive" });
     },
   });
   
   const openCreateDialog = () => {
     setEditingSubscription(null);
-    setFormName("");
-    setFormDashboards([]);
-    setFormFrequency("weekly");
-    setFormDayOfWeek(1);
-    setFormDayOfMonth(1);
-    setFormTimeOfDay("09:00");
-    setFormTimezone("America/New_York");
-    setFormRecipients("");
+    form.reset({
+      name: "",
+      dashboards: [],
+      frequency: "weekly",
+      dayOfWeek: 1,
+      dayOfMonth: 1,
+      timeOfDay: "09:00",
+      timezone: "America/New_York",
+      recipients: "",
+      isActive: true,
+    });
     setIsDialogOpen(true);
   };
   
   const openEditDialog = (subscription: ReportSubscription) => {
     setEditingSubscription(subscription);
-    setFormName(subscription.name);
-    setFormDashboards(subscription.dashboards);
-    setFormFrequency(subscription.frequency);
-    setFormDayOfWeek(subscription.dayOfWeek ?? 1);
-    setFormDayOfMonth(subscription.dayOfMonth ?? 1);
-    setFormTimeOfDay(subscription.timeOfDay);
-    setFormTimezone(subscription.timezone);
-    setFormRecipients(subscription.recipients?.join(", ") || "");
+    form.reset({
+      name: subscription.name,
+      dashboards: subscription.dashboards,
+      frequency: subscription.frequency as "daily" | "weekly" | "monthly",
+      dayOfWeek: subscription.dayOfWeek ?? 1,
+      dayOfMonth: subscription.dayOfMonth ?? 1,
+      timeOfDay: subscription.timeOfDay,
+      timezone: subscription.timezone,
+      recipients: subscription.recipients?.join(", ") || "",
+      isActive: subscription.isActive,
+    });
     setIsDialogOpen(true);
   };
   
@@ -188,42 +238,12 @@ export default function ReportSubscriptions() {
     setEditingSubscription(null);
   };
   
-  const handleSubmit = () => {
-    if (!formName.trim() || formDashboards.length === 0) {
-      toast({ title: "Validation Error", description: "Please provide a name and select at least one dashboard.", variant: "destructive" });
-      return;
-    }
-    
-    const recipients = formRecipients
-      .split(",")
-      .map(e => e.trim())
-      .filter(e => e.length > 0);
-    
-    const data = {
-      name: formName,
-      dashboards: formDashboards,
-      frequency: formFrequency,
-      dayOfWeek: formFrequency === 'weekly' ? formDayOfWeek : null,
-      dayOfMonth: formFrequency === 'monthly' ? formDayOfMonth : null,
-      timeOfDay: formTimeOfDay,
-      timezone: formTimezone,
-      recipients,
-      isActive: true,
-    };
-    
+  const onSubmit = (data: SubscriptionFormValues) => {
     if (editingSubscription) {
       updateMutation.mutate({ id: editingSubscription.id, data });
     } else {
       createMutation.mutate(data);
     }
-  };
-  
-  const toggleDashboard = (dashboardId: string) => {
-    setFormDashboards(prev => 
-      prev.includes(dashboardId)
-        ? prev.filter(d => d !== dashboardId)
-        : [...prev, dashboardId]
-    );
   };
   
   const getFrequencyLabel = (sub: ReportSubscription) => {
@@ -251,7 +271,7 @@ export default function ReportSubscriptions() {
   return (
     <AppLayout>
       <div className="flex-1 p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-semibold">Scheduled Reports</h1>
             <p className="text-muted-foreground">Set up automatic email delivery of dashboard reports</p>
@@ -286,7 +306,7 @@ export default function ReportSubscriptions() {
               <Card key={subscription.id} data-testid={`card-subscription-${subscription.id}`}>
                 <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-2">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <CardTitle className="text-lg">{subscription.name}</CardTitle>
                       <Badge variant={subscription.isActive ? "default" : "secondary"}>
                         {subscription.isActive ? "Active" : "Paused"}
@@ -324,7 +344,7 @@ export default function ReportSubscriptions() {
                     )}
                   </div>
                   
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
@@ -379,148 +399,225 @@ export default function ReportSubscriptions() {
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Subscription Name</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g., Weekly Portfolio Summary"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  data-testid="input-subscription-name"
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Subscription Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., Weekly Portfolio Summary"
+                          {...field}
+                          data-testid="input-subscription-name"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Dashboards to Include</Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
-                  {dashboards.map((dashboard) => (
-                    <div key={dashboard.id} className="flex items-start space-x-3">
-                      <Checkbox
-                        id={`dashboard-${dashboard.id}`}
-                        checked={formDashboards.includes(dashboard.id)}
-                        onCheckedChange={() => toggleDashboard(dashboard.id)}
-                        data-testid={`checkbox-dashboard-${dashboard.id}`}
-                      />
-                      <div className="flex-1">
-                        <label
-                          htmlFor={`dashboard-${dashboard.id}`}
-                          className="text-sm font-medium cursor-pointer"
-                        >
-                          {dashboard.name}
-                        </label>
-                        <p className="text-xs text-muted-foreground">{dashboard.description}</p>
+                
+                <FormField
+                  control={form.control}
+                  name="dashboards"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Dashboards to Include</FormLabel>
+                      <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                        {dashboards.map((dashboard) => (
+                          <div key={dashboard.id} className="flex items-start space-x-3">
+                            <Checkbox
+                              id={`dashboard-${dashboard.id}`}
+                              checked={field.value.includes(dashboard.id)}
+                              onCheckedChange={(checked) => {
+                                const newValue = checked
+                                  ? [...field.value, dashboard.id]
+                                  : field.value.filter(d => d !== dashboard.id);
+                                field.onChange(newValue);
+                              }}
+                              data-testid={`checkbox-dashboard-${dashboard.id}`}
+                            />
+                            <div className="flex-1">
+                              <label
+                                htmlFor={`dashboard-${dashboard.id}`}
+                                className="text-sm font-medium cursor-pointer"
+                              >
+                                {dashboard.name}
+                              </label>
+                              <p className="text-xs text-muted-foreground">{dashboard.description}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Frequency</Label>
-                  <Select value={formFrequency} onValueChange={setFormFrequency}>
-                    <SelectTrigger data-testid="select-frequency">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="frequency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Frequency</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-frequency">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  {watchFrequency === 'weekly' && (
+                    <FormField
+                      control={form.control}
+                      name="dayOfWeek"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Day of Week</FormLabel>
+                          <Select 
+                            value={String(field.value ?? 1)} 
+                            onValueChange={(v) => field.onChange(Number(v))}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="select-day-of-week">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {DAYS_OF_WEEK.map((day) => (
+                                <SelectItem key={day.value} value={String(day.value)}>{day.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  
+                  {watchFrequency === 'monthly' && (
+                    <FormField
+                      control={form.control}
+                      name="dayOfMonth"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Day of Month</FormLabel>
+                          <Select 
+                            value={String(field.value ?? 1)} 
+                            onValueChange={(v) => field.onChange(Number(v))}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="select-day-of-month">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                                <SelectItem key={day} value={String(day)}>{day}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
                 
-                {formFrequency === 'weekly' && (
-                  <div className="space-y-2">
-                    <Label>Day of Week</Label>
-                    <Select value={String(formDayOfWeek)} onValueChange={(v) => setFormDayOfWeek(Number(v))}>
-                      <SelectTrigger data-testid="select-day-of-week">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DAYS_OF_WEEK.map((day) => (
-                          <SelectItem key={day.value} value={String(day.value)}>{day.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                
-                {formFrequency === 'monthly' && (
-                  <div className="space-y-2">
-                    <Label>Day of Month</Label>
-                    <Select value={String(formDayOfMonth)} onValueChange={(v) => setFormDayOfMonth(Number(v))}>
-                      <SelectTrigger data-testid="select-day-of-month">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
-                          <SelectItem key={day} value={String(day)}>{day}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="time">Time of Day</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    value={formTimeOfDay}
-                    onChange={(e) => setFormTimeOfDay(e.target.value)}
-                    data-testid="input-time"
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="timeOfDay"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Time of Day</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="time"
+                            {...field}
+                            data-testid="input-time"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="timezone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Timezone</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-timezone">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {TIMEZONES.map((tz) => (
+                              <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label>Timezone</Label>
-                  <Select value={formTimezone} onValueChange={setFormTimezone}>
-                    <SelectTrigger data-testid="select-timezone">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIMEZONES.map((tz) => (
-                        <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="recipients">Additional Recipients (optional)</Label>
-                <Input
-                  id="recipients"
-                  placeholder="email1@example.com, email2@example.com"
-                  value={formRecipients}
-                  onChange={(e) => setFormRecipients(e.target.value)}
-                  data-testid="input-recipients"
+                <FormField
+                  control={form.control}
+                  name="recipients"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Additional Recipients (optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="email1@example.com, email2@example.com"
+                          {...field}
+                          data-testid="input-recipients"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Comma-separated email addresses. Your email is included automatically.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Comma-separated email addresses. Your email is included automatically.
-                </p>
-              </div>
-            </div>
-            
-            <DialogFooter>
-              <Button variant="outline" onClick={closeDialog}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSubmit}
-                disabled={createMutation.isPending || updateMutation.isPending}
-                data-testid="button-submit-subscription"
-              >
-                {(createMutation.isPending || updateMutation.isPending) && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                {editingSubscription ? "Save Changes" : "Create Subscription"}
-              </Button>
-            </DialogFooter>
+                
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={closeDialog}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit"
+                    disabled={createMutation.isPending || updateMutation.isPending}
+                    data-testid="button-submit-subscription"
+                  >
+                    {(createMutation.isPending || updateMutation.isPending) && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    {editingSubscription ? "Save Changes" : "Create Subscription"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
       </div>
