@@ -5382,8 +5382,23 @@ export async function registerRoutes(
       // Get existing tasks for this project
       const existingTasks = await storage.getTasksByProject(projectId);
       
+      // Preserve timesheet entries by collecting them with their task names
+      // We'll reassign them to matching new tasks after sync
+      const timesheetEntriesByTaskName = new Map<string, { entries: any[]; oldTaskId: number }[]>();
+      for (const task of existingTasks) {
+        const entries = await db.select().from(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
+        if (entries.length > 0) {
+          const taskName = task.name.toLowerCase().trim();
+          if (!timesheetEntriesByTaskName.has(taskName)) {
+            timesheetEntriesByTaskName.set(taskName, []);
+          }
+          timesheetEntriesByTaskName.get(taskName)!.push({ entries, oldTaskId: task.id });
+        }
+      }
+      console.log(`Planner sync: Found ${timesheetEntriesByTaskName.size} tasks with timesheet entries to preserve`);
+
       // Delete all existing tasks for this project (full sync)
-      // First delete timesheet entries to avoid FK constraint violations
+      // First delete timesheet entries temporarily (we'll recreate them with new task IDs)
       for (const task of existingTasks) {
         await db.delete(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
       }
@@ -5419,6 +5434,7 @@ export async function registerRoutes(
       // Create new tasks from Planner
       let taskIndex = 0;
       const createdTasks: { task: any; plannerTaskId: string; assignments: any }[] = [];
+      const newTasksByName = new Map<string, number>();
 
       for (const plannerTask of plannerTasks) {
         taskIndex++;
@@ -5449,7 +5465,44 @@ export async function registerRoutes(
         });
 
         createdTasks.push({ task, plannerTaskId: plannerTask.id, assignments: plannerTask.assignments });
+        
+        // Track new tasks by name for timesheet entry reassignment
+        const taskNameKey = plannerTask.title.toLowerCase().trim();
+        if (!newTasksByName.has(taskNameKey)) {
+          newTasksByName.set(taskNameKey, task.id);
+        }
       }
+
+      // Reassign preserved timesheet entries to matching new tasks
+      let timesheetEntriesPreserved = 0;
+      let timesheetEntriesLost = 0;
+      for (const [taskName, taskGroups] of timesheetEntriesByTaskName) {
+        const newTaskId = newTasksByName.get(taskName);
+        if (newTaskId) {
+          for (const { entries } of taskGroups) {
+            for (const entry of entries) {
+              try {
+                await db.insert(timesheetEntries).values({
+                  ...entry,
+                  id: undefined,
+                  taskId: newTaskId,
+                });
+                timesheetEntriesPreserved++;
+              } catch (err) {
+                console.log(`Planner sync: Failed to preserve timesheet entry:`, err);
+                timesheetEntriesLost++;
+              }
+            }
+          }
+          console.log(`Planner sync: Reassigned timesheet entries for task "${taskName}" to new task ID ${newTaskId}`);
+        } else {
+          for (const { entries } of taskGroups) {
+            timesheetEntriesLost += entries.length;
+          }
+          console.log(`Planner sync: Could not find matching task for "${taskName}" - ${taskGroups.reduce((sum, g) => sum + g.entries.length, 0)} entries lost`);
+        }
+      }
+      console.log(`Planner sync: Preserved ${timesheetEntriesPreserved} timesheet entries, lost ${timesheetEntriesLost}`)
 
       // Import resources and assignments from Planner (same logic as initial import)
       let resourcesSynced = 0;
