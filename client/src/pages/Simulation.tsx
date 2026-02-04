@@ -34,7 +34,14 @@ import {
   ArrowDownRight,
   Activity,
   BarChart3,
-  LineChart
+  LineChart,
+  Truck,
+  Shield,
+  Cpu,
+  Cloud,
+  Sparkles,
+  Globe,
+  Newspaper
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -134,6 +141,213 @@ const SCENARIOS = [
   { value: "baseline", label: "Baseline", riskMultiplier: 1.0, varianceRange: 0.1 },
   { value: "pessimistic", label: "Pessimistic", riskMultiplier: 1.5, varianceRange: 0.2 }
 ];
+
+const MARKET_NEWS_EVENTS = [
+  { 
+    category: "economic", 
+    title: "Federal Reserve Raises Interest Rates",
+    description: "Interest rates increased by 25 basis points, affecting borrowing costs and project financing.",
+    severity: "high",
+    budgetImpactPercent: 0.03,
+    scheduleDays: 0,
+    probability: 0.15
+  },
+  { 
+    category: "economic", 
+    title: "Inflation Exceeds Expectations",
+    description: "Consumer price index rose 0.4% month-over-month, increasing material and labor costs.",
+    severity: "medium",
+    budgetImpactPercent: 0.025,
+    scheduleDays: 0,
+    probability: 0.2
+  },
+  { 
+    category: "supply_chain", 
+    title: "Global Semiconductor Shortage Worsens",
+    description: "Chip delivery times extended by 8-12 weeks affecting technology projects.",
+    severity: "critical",
+    budgetImpactPercent: 0.08,
+    scheduleDays: 21,
+    probability: 0.1
+  },
+  { 
+    category: "supply_chain", 
+    title: "Major Port Congestion Delays Shipments",
+    description: "Container backlog at key ports causing 2-3 week delays in equipment delivery.",
+    severity: "high",
+    budgetImpactPercent: 0.02,
+    scheduleDays: 14,
+    probability: 0.12
+  },
+  { 
+    category: "supply_chain", 
+    title: "Raw Material Prices Surge",
+    description: "Steel and aluminum prices up 15% due to supply constraints.",
+    severity: "medium",
+    budgetImpactPercent: 0.04,
+    scheduleDays: 0,
+    probability: 0.18
+  },
+  { 
+    category: "regulatory", 
+    title: "New Compliance Requirements Announced",
+    description: "Updated industry regulations require additional documentation and review processes.",
+    severity: "medium",
+    budgetImpactPercent: 0.015,
+    scheduleDays: 10,
+    probability: 0.08
+  },
+  { 
+    category: "regulatory", 
+    title: "Data Privacy Law Takes Effect",
+    description: "New privacy regulations require system updates and security audits.",
+    severity: "high",
+    budgetImpactPercent: 0.035,
+    scheduleDays: 14,
+    probability: 0.06
+  },
+  { 
+    category: "labor", 
+    title: "Tech Talent Market Tightens",
+    description: "Industry-wide hiring competition driving up contractor rates by 12%.",
+    severity: "medium",
+    budgetImpactPercent: 0.05,
+    scheduleDays: 7,
+    probability: 0.15
+  },
+  { 
+    category: "labor", 
+    title: "Key Vendor Announces Layoffs",
+    description: "Strategic partner reducing workforce, potential impact on delivery commitments.",
+    severity: "high",
+    budgetImpactPercent: 0.02,
+    scheduleDays: 21,
+    probability: 0.07
+  },
+  { 
+    category: "market", 
+    title: "Competitor Launches Similar Product",
+    description: "Market pressure to accelerate timeline and add features.",
+    severity: "high",
+    budgetImpactPercent: 0.06,
+    scheduleDays: -14,
+    probability: 0.1
+  },
+  { 
+    category: "market", 
+    title: "Customer Demand Exceeds Forecast",
+    description: "Positive market response requiring capacity expansion.",
+    severity: "low",
+    budgetImpactPercent: 0.04,
+    scheduleDays: 7,
+    probability: 0.12
+  },
+  { 
+    category: "technology", 
+    title: "Critical Security Vulnerability Discovered",
+    description: "Industry-wide CVE requires immediate patching and security review.",
+    severity: "critical",
+    budgetImpactPercent: 0.025,
+    scheduleDays: 7,
+    probability: 0.08
+  },
+  { 
+    category: "technology", 
+    title: "Cloud Provider Outage Impacts Services",
+    description: "Major cloud platform experiencing degraded performance in multiple regions.",
+    severity: "high",
+    budgetImpactPercent: 0.01,
+    scheduleDays: 3,
+    probability: 0.05
+  },
+  { 
+    category: "weather", 
+    title: "Severe Weather Disrupts Operations",
+    description: "Hurricane/winter storm affecting key facilities and team availability.",
+    severity: "high",
+    budgetImpactPercent: 0.015,
+    scheduleDays: 5,
+    probability: 0.06
+  },
+  { 
+    category: "economic", 
+    title: "Currency Exchange Rate Volatility",
+    description: "USD strengthening against international currencies affecting global contracts.",
+    severity: "medium",
+    budgetImpactPercent: 0.03,
+    scheduleDays: 0,
+    probability: 0.1
+  },
+  { 
+    category: "positive", 
+    title: "Government Incentive Program Announced",
+    description: "New tax credits available for qualifying technology investments.",
+    severity: "low",
+    budgetImpactPercent: -0.05,
+    scheduleDays: 0,
+    probability: 0.05
+  },
+  { 
+    category: "positive", 
+    title: "Strategic Partnership Opportunity",
+    description: "Potential collaboration could accelerate delivery and reduce costs.",
+    severity: "low",
+    budgetImpactPercent: -0.03,
+    scheduleDays: -7,
+    probability: 0.08
+  },
+  { 
+    category: "positive", 
+    title: "Breakthrough Technology Available",
+    description: "New tool/framework can significantly improve team productivity.",
+    severity: "low",
+    budgetImpactPercent: -0.02,
+    scheduleDays: -5,
+    probability: 0.1
+  }
+];
+
+const EVENT_CATEGORY_ICONS: Record<string, string> = {
+  economic: "TrendingUp",
+  supply_chain: "Truck",
+  regulatory: "Shield",
+  labor: "Users",
+  market: "BarChart",
+  technology: "Cpu",
+  weather: "Cloud",
+  positive: "Sparkles",
+  risk: "AlertTriangle"
+};
+
+function getEventCategoryLabel(category: string): string {
+  const labels: Record<string, string> = {
+    economic: "Economic News",
+    supply_chain: "Supply Chain",
+    regulatory: "Regulatory",
+    labor: "Labor Market",
+    market: "Market News",
+    technology: "Technology",
+    weather: "Weather Event",
+    positive: "Opportunity",
+    risk: "Risk Triggered"
+  };
+  return labels[category] || category;
+}
+
+function EventCategoryIcon({ category, className }: { category: string; className?: string }) {
+  switch (category) {
+    case "economic": return <TrendingUp className={className} />;
+    case "supply_chain": return <Truck className={className} />;
+    case "regulatory": return <Shield className={className} />;
+    case "labor": return <Users className={className} />;
+    case "market": return <Globe className={className} />;
+    case "technology": return <Cpu className={className} />;
+    case "weather": return <Cloud className={className} />;
+    case "positive": return <Sparkles className={className} />;
+    case "risk": return <AlertTriangle className={className} />;
+    default: return <Newspaper className={className} />;
+  }
+}
 
 function getHealthColor(health: string) {
   switch (health) {
@@ -596,8 +810,57 @@ export default function Simulation() {
       let newTriggeredRisks = prev.triggeredRisks;
       let newOpenIssues = prev.openIssues;
 
+      // Check for market/news events (portfolio-wide impacts)
+      let marketBudgetImpact = 0;
+      let marketScheduleImpact = 0;
+      
+      MARKET_NEWS_EVENTS.forEach(marketEvent => {
+        const adjustedProbability = marketEvent.probability * scenarioConfig.riskMultiplier * 0.15;
+        
+        if (Math.random() < adjustedProbability) {
+          const portfolioBudget = prev.totalBudget;
+          const budgetImpact = portfolioBudget * marketEvent.budgetImpactPercent;
+          const scheduleImpact = marketEvent.scheduleDays;
+          
+          marketBudgetImpact += budgetImpact;
+          marketScheduleImpact += scheduleImpact;
+          
+          if (budgetImpact > 0) {
+            newTriggeredRisks++;
+          }
+          
+          const newEvent: SimulationEventDisplay = {
+            id: Date.now() + Math.random(),
+            stepNumber: newStep,
+            eventDate: newDate.toISOString(),
+            eventType: marketEvent.category,
+            severity: marketEvent.severity,
+            sourceName: getEventCategoryLabel(marketEvent.category),
+            projectName: "All Projects",
+            title: marketEvent.title,
+            description: marketEvent.description,
+            impactBudget: Math.abs(budgetImpact) > 0 ? budgetImpact : undefined,
+            impactScheduleDays: scheduleImpact !== 0 ? scheduleImpact : undefined,
+            isNew: true
+          };
+          
+          newEvents.push(newEvent);
+          setActiveNotifications(n => [...n, newEvent]);
+        }
+      });
+
       const newProjectStates = prev.projectStates.map(ps => {
         let newPs = { ...ps };
+        
+        // Apply market-wide impacts proportionally to each project
+        if (marketBudgetImpact !== 0) {
+          const projectShare = ps.budget / prev.totalBudget;
+          newPs.spent += marketBudgetImpact * projectShare;
+          newPs.forecast += marketBudgetImpact * projectShare * 0.9;
+        }
+        if (marketScheduleImpact !== 0) {
+          newPs.scheduleVarianceDays += Math.round(marketScheduleImpact * (0.7 + Math.random() * 0.3));
+        }
         
         const projectRisks = risks.filter(r => r.projectId === ps.projectId);
         projectRisks.forEach(risk => {
@@ -627,7 +890,7 @@ export default function Simulation() {
               id: Date.now() + Math.random(),
               stepNumber: newStep,
               eventDate: newDate.toISOString(),
-              eventType: "risk_triggered",
+              eventType: "risk",
               severity: eventSeverity,
               sourceName: risk.title,
               projectName: ps.projectName,
@@ -644,6 +907,14 @@ export default function Simulation() {
             setActiveNotifications(n => [...n, newEvent]);
           }
         });
+
+        // Update health based on cumulative impacts
+        newPs.costVariance = newPs.spent - newPs.budget * stepProgress;
+        if (newPs.scheduleVarianceDays > 14 || newPs.costVariance > newPs.budget * 0.1) {
+          newPs.health = newPs.scheduleVarianceDays > 30 || newPs.costVariance > newPs.budget * 0.2 ? "Red" : "Yellow";
+        } else if (newPs.scheduleVarianceDays < 0 && newPs.costVariance < 0) {
+          newPs.health = "Green";
+        }
 
         const burnRate = (newPs.budget / prev.totalSteps) * (1 + (Math.random() - 0.5) * scenarioConfig.varianceRange);
         newPs.spent += burnRate * 0.3;
@@ -991,26 +1262,37 @@ export default function Simulation() {
                       >
                         <div className="flex items-start justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                            <EventCategoryIcon category={event.eventType} className="h-4 w-4 flex-shrink-0" />
                             <span className="font-medium">{event.title}</span>
                           </div>
-                          <Badge variant="outline" className="text-xs flex-shrink-0">
-                            Step {event.stepNumber}
-                          </Badge>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {getEventCategoryLabel(event.eventType)}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              Step {event.stepNumber}
+                            </Badge>
+                          </div>
                         </div>
                         <p className="mt-1 text-xs opacity-80">{event.description}</p>
                         <div className="flex items-center gap-3 mt-2 text-xs opacity-70 flex-wrap">
-                          <span>{event.projectName}</span>
-                          {event.impactBudget && (
-                            <span className="flex items-center gap-1">
+                          <span className="font-medium">{event.projectName}</span>
+                          {event.impactBudget !== undefined && (
+                            <span className={cn(
+                              "flex items-center gap-1",
+                              event.impactBudget < 0 ? "text-green-600 dark:text-green-400" : ""
+                            )}>
                               <DollarSign className="h-3 w-3" />
-                              +{formatCurrency(event.impactBudget, { compact: true })}
+                              {event.impactBudget > 0 ? "+" : ""}{formatCurrency(event.impactBudget, { compact: true })}
                             </span>
                           )}
-                          {event.impactScheduleDays && (
-                            <span className="flex items-center gap-1">
+                          {event.impactScheduleDays !== undefined && event.impactScheduleDays !== 0 && (
+                            <span className={cn(
+                              "flex items-center gap-1",
+                              event.impactScheduleDays < 0 ? "text-green-600 dark:text-green-400" : ""
+                            )}>
                               <Clock className="h-3 w-3" />
-                              +{event.impactScheduleDays}d
+                              {event.impactScheduleDays > 0 ? "+" : ""}{event.impactScheduleDays}d
                             </span>
                           )}
                         </div>
