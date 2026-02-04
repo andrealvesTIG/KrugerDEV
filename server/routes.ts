@@ -4855,8 +4855,27 @@ export async function registerRoutes(
         // Get existing tasks for this project
         const existingTasks = await storage.getTasksByProject(projectId);
         
+        // Preserve timesheet entries by collecting them with their task names
+        // We'll reassign them to matching new tasks after sync
+        const timesheetEntriesByTaskName = new Map<string, { entries: any[]; oldTaskId: number }[]>();
+        for (const task of existingTasks) {
+          const entries = await db.select().from(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
+          if (entries.length > 0) {
+            const taskName = task.name.toLowerCase().trim();
+            if (!timesheetEntriesByTaskName.has(taskName)) {
+              timesheetEntriesByTaskName.set(taskName, []);
+            }
+            timesheetEntriesByTaskName.get(taskName)!.push({ entries, oldTaskId: task.id });
+          }
+        }
+        console.log(`Planner Premium sync: Found ${timesheetEntriesByTaskName.size} tasks with timesheet entries to preserve`);
+
         // Delete all existing tasks for this project (full sync)
-        // First delete task resource assignments to avoid FK constraint violations
+        // First delete timesheet entries temporarily (we'll recreate them with new task IDs)
+        for (const task of existingTasks) {
+          await db.delete(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
+        }
+        // Then delete task resource assignments to avoid FK constraint violations
         for (const task of existingTasks) {
           await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, task.id));
         }
@@ -5324,6 +5343,59 @@ export async function registerRoutes(
           // Continue without failing the sync - resources are optional
         }
 
+        // Reassign preserved timesheet entries to new tasks based on name matching
+        let timesheetEntriesPreserved = 0;
+        let timesheetEntriesLost = 0;
+        
+        // Build map of new task names -> new task IDs
+        const newTaskNameToId = new Map<string, number>();
+        for (const task of createdTasks) {
+          const taskName = task.name.toLowerCase().trim();
+          if (!newTaskNameToId.has(taskName)) {
+            newTaskNameToId.set(taskName, task.id);
+          }
+        }
+        
+        // Recreate timesheet entries with new task IDs
+        for (const [taskName, entriesData] of timesheetEntriesByTaskName) {
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId) {
+            for (const { entries } of entriesData) {
+              for (const entry of entries) {
+                try {
+                  await db.insert(timesheetEntries).values({
+                    userId: entry.userId,
+                    taskId: newTaskId,
+                    projectId: entry.projectId,
+                    date: entry.date,
+                    hours: entry.hours,
+                    description: entry.description,
+                    category: entry.category,
+                    status: entry.status,
+                    reviewedBy: entry.reviewedBy,
+                    reviewedAt: entry.reviewedAt,
+                    createdAt: entry.createdAt,
+                    updatedAt: new Date(),
+                  });
+                  timesheetEntriesPreserved++;
+                } catch (err) {
+                  console.log(`Failed to recreate timesheet entry for task ${taskName}:`, err);
+                  timesheetEntriesLost++;
+                }
+              }
+            }
+          } else {
+            // Task name doesn't match any new task (task was renamed/deleted in Planner)
+            for (const { entries } of entriesData) {
+              timesheetEntriesLost += entries.length;
+            }
+          }
+        }
+        
+        if (timesheetEntriesPreserved > 0 || timesheetEntriesLost > 0) {
+          console.log(`Planner Premium sync: Timesheet entries preserved: ${timesheetEntriesPreserved}, lost: ${timesheetEntriesLost}`);
+        }
+
         // Update project dates
         if (projectStartDate || projectEndDate) {
           await storage.updateProject(projectId, {
@@ -5335,7 +5407,9 @@ export async function registerRoutes(
         return res.json({ 
           synced: createdTasks.length,
           resourcesSynced,
-          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''} from Planner Premium`
+          timesheetEntriesPreserved,
+          timesheetEntriesLost,
+          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''} from Planner Premium`
         });
       }
 
