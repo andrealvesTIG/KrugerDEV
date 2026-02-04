@@ -5380,16 +5380,19 @@ export async function registerRoutes(
               for (const entry of entries) {
                 try {
                   await db.insert(timesheetEntries).values({
+                    organizationId: entry.organizationId,
                     userId: entry.userId,
+                    resourceId: entry.resourceId,
                     taskId: newTaskId,
                     projectId: entry.projectId,
-                    date: entry.date,
+                    entryDate: entry.entryDate,
                     hours: entry.hours,
-                    description: entry.description,
-                    category: entry.category,
+                    notes: entry.notes,
                     status: entry.status,
-                    reviewedBy: entry.reviewedBy,
-                    reviewedAt: entry.reviewedAt,
+                    submittedAt: entry.submittedAt,
+                    approvedBy: entry.approvedBy,
+                    approvedAt: entry.approvedAt,
+                    rejectionReason: entry.rejectionReason,
                     createdAt: entry.createdAt,
                     updatedAt: new Date(),
                   });
@@ -5610,9 +5613,21 @@ export async function registerRoutes(
             for (const entry of entries) {
               try {
                 await db.insert(timesheetEntries).values({
-                  ...entry,
-                  id: undefined,
+                  organizationId: entry.organizationId,
+                  userId: entry.userId,
+                  resourceId: entry.resourceId,
                   taskId: newTaskId,
+                  projectId: entry.projectId,
+                  entryDate: entry.entryDate,
+                  hours: entry.hours,
+                  notes: entry.notes,
+                  status: entry.status,
+                  submittedAt: entry.submittedAt,
+                  approvedBy: entry.approvedBy,
+                  approvedAt: entry.approvedAt,
+                  rejectionReason: entry.rejectionReason,
+                  createdAt: entry.createdAt,
+                  updatedAt: new Date(),
                 });
                 timesheetEntriesPreserved++;
               } catch (err) {
