@@ -41,7 +41,10 @@ import {
   Cloud,
   Sparkles,
   Globe,
-  Newspaper
+  Newspaper,
+  Maximize2,
+  Minimize2,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -666,6 +669,7 @@ export default function Simulation() {
   const [timeHorizon, setTimeHorizon] = useState("3months");
   const [scenario, setScenario] = useState("baseline");
   const [activeNotifications, setActiveNotifications] = useState<SimulationEventDisplay[]>([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const [simState, setSimState] = useState<SimulationState>({
     isRunning: false,
@@ -1018,12 +1022,27 @@ export default function Simulation() {
   const startDate = new Date();
   const endDate = new Date(startDate.getTime() + horizon.days * 24 * 60 * 60 * 1000);
 
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-10 gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Portfolio Simulation</h1>
-          <p className="text-sm text-muted-foreground">Run what-if scenarios to forecast project outcomes</p>
+  const simulationContent = (
+    <>
+      <div className={cn(
+        "flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-10 gap-4 flex-wrap",
+        isFullscreen && "bg-background"
+      )}>
+        <div className="flex items-center gap-4">
+          {isFullscreen && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setIsFullscreen(false)}
+              data-testid="button-exit-fullscreen"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          )}
+          <div>
+            <h1 className="text-2xl font-bold" data-testid="text-page-title">Portfolio Simulation</h1>
+            <p className="text-sm text-muted-foreground">Run what-if scenarios to forecast project outcomes</p>
+          </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <Select value={selectedPortfolioId} onValueChange={setSelectedPortfolioId}>
@@ -1057,6 +1076,14 @@ export default function Simulation() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            data-testid="button-fullscreen-toggle"
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
         </div>
       </div>
 
@@ -1363,6 +1390,23 @@ export default function Simulation() {
           />
         ))}
       </div>
+    </>
+  );
+
+  if (isFullscreen) {
+    return (
+      <div 
+        className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden"
+        data-testid="simulation-fullscreen"
+      >
+        {simulationContent}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {simulationContent}
     </div>
   );
 }
