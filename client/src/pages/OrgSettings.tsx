@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2 } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2, PlayCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -721,6 +721,7 @@ const availableModules = [
   { key: "intakes", name: "Intakes", icon: FileInput, description: "Project intake requests" },
   { key: "tasks", name: "Tasks", icon: CheckSquare, description: "Task tracking" },
   { key: "issues", name: "Issues", icon: CircleDot, description: "Issue tracking" },
+  { key: "simulation", name: "Simulation", icon: PlayCircle, description: "What-if scenario forecasting" },
   { key: "invoices", name: "Invoices", icon: Receipt, description: "Invoice management and tracking" },
   { key: "timesheets", name: "Timesheets", icon: Clock, description: "Time tracking" },
   { key: "lessons-learned", name: "Lessons Learned", icon: Lightbulb, description: "Document lessons from projects" },
@@ -736,6 +737,7 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
   intakes: FileInput,
   tasks: CheckSquare,
   issues: CircleDot,
+  simulation: PlayCircle,
   invoices: Receipt,
   timesheets: Clock,
   "lessons-learned": Lightbulb,

@@ -147,6 +147,28 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     })
   }));
   
+  // Ensure simulation module is in the menu group
+  const hasSimulation = updatedStructure.some(g => 
+    g.items.some(item => item.type === "module" && item.key === "simulation")
+  );
+  
+  if (!hasSimulation) {
+    const menuGroup = updatedStructure.find(g => g.id === "menu");
+    if (menuGroup) {
+      updatedStructure = updatedStructure.map(g => {
+        if (g.id === "menu") {
+          // Add simulation after issues if it exists, otherwise at the end
+          const issuesIndex = g.items.findIndex(item => item.type === "module" && item.key === "issues");
+          const insertIndex = issuesIndex >= 0 ? issuesIndex + 1 : g.items.length;
+          const newItems = [...g.items];
+          newItems.splice(insertIndex, 0, { type: "module" as const, key: "simulation", hidden: false });
+          return { ...g, items: newItems };
+        }
+        return g;
+      });
+    }
+  }
+  
   // Ensure timesheets module is in the menu group
   const hasTimesheets = updatedStructure.some(g => 
     g.items.some(item => item.type === "module" && item.key === "timesheets")
@@ -157,9 +179,10 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     if (menuGroup) {
       updatedStructure = updatedStructure.map(g => {
         if (g.id === "menu") {
-          // Add timesheets after issues if it exists, otherwise at the end
+          // Add timesheets after simulation if it exists, otherwise after issues, otherwise at the end
+          const simulationIndex = g.items.findIndex(item => item.type === "module" && item.key === "simulation");
           const issuesIndex = g.items.findIndex(item => item.type === "module" && item.key === "issues");
-          const insertIndex = issuesIndex >= 0 ? issuesIndex + 1 : g.items.length;
+          const insertIndex = simulationIndex >= 0 ? simulationIndex + 1 : (issuesIndex >= 0 ? issuesIndex + 1 : g.items.length);
           const newItems = [...g.items];
           newItems.splice(insertIndex, 0, { type: "module" as const, key: "timesheets", hidden: false });
           return { ...g, items: newItems };
