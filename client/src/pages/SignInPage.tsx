@@ -413,6 +413,7 @@ export default function SignInPage() {
                 ref={videoRef}
                 autoPlay
                 loop
+                muted
                 playsInline
                 controls
                 className="w-full h-auto block rounded-lg"
