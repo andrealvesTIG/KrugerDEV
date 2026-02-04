@@ -50,6 +50,7 @@ import TermsOfService from "@/pages/TermsOfService";
 import PrivacyStatement from "@/pages/PrivacyStatement";
 import PublicUserGuide from "@/pages/PublicUserGuide";
 import FridayPage from "@/pages/FridayPage";
+import Simulation from "@/pages/Simulation";
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -162,6 +163,7 @@ function Router() {
         </Route>
         <GuardedRoute path="/tasks" component={Tasks} moduleKey="tasks" />
         <GuardedRoute path="/issues" component={Issues} moduleKey="issues" />
+        <GuardedRoute path="/simulation" component={Simulation} moduleKey="simulation" />
         <GuardedRoute path="/lessons-learned" component={LessonsLearned} moduleKey="lessons-learned" />
         <GuardedRoute path="/invoices" component={Invoices} moduleKey="invoices" />
         <GuardedRoute path="/timesheets" component={Timesheets} moduleKey="timesheets" />

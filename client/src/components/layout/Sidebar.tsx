@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
 import { useAuth } from "@/hooks/use-auth";
@@ -85,6 +85,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   intakes: { name: "Intakes", href: "/intakes", icon: FileInput },
   tasks: { name: "Tasks", href: "/tasks", icon: CheckSquare },
   issues: { name: "Issues & Risks", href: "/issues", icon: CircleDot },
+  simulation: { name: "Simulation", href: "/simulation", icon: PlayCircle },
   "lessons-learned": { name: "Lessons Learned", href: "/lessons-learned", icon: Lightbulb },
   invoices: { name: "Invoices", href: "/invoices", icon: Receipt },
   timesheets: { name: "Timesheets", href: "/timesheets", icon: Clock },
@@ -100,6 +101,7 @@ const navigation = [
   { name: "Intakes", href: "/intakes", icon: FileInput, key: "intakes" },
   { name: "Tasks", href: "/tasks", icon: CheckSquare, key: "tasks" },
   { name: "Issues & Risks", href: "/issues", icon: CircleDot, key: "issues" },
+  { name: "Simulation", href: "/simulation", icon: PlayCircle, key: "simulation" },
   { name: "Lessons Learned", href: "/lessons-learned", icon: Lightbulb, key: "lessons-learned" },
   { name: "Invoices", href: "/invoices", icon: Receipt, key: "invoices" },
   { name: "Timesheets", href: "/timesheets", icon: Clock, key: "timesheets" },
@@ -112,7 +114,7 @@ const helpNavigation = [
 ];
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
-  const mainModules = ["dashboard", "portfolios", "projects", "intakes", "tasks", "issues", "lessons-learned", "invoices", "timesheets", "resources", "calendar"];
+  const mainModules = ["dashboard", "portfolios", "projects", "intakes", "tasks", "issues", "simulation", "lessons-learned", "invoices", "timesheets", "resources", "calendar"];
   const defaultOrder = mainModules;
   const order = moduleOrder && moduleOrder.length > 0 ? moduleOrder.filter(k => mainModules.includes(k)) : defaultOrder;
   const hidden = hiddenModules || [];
