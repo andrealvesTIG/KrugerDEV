@@ -5,7 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useOrganization } from "@/hooks/use-organization";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -269,8 +268,7 @@ export default function ReportSubscriptions() {
   const isLoading = dashboardsLoading || subscriptionsLoading;
   
   return (
-    <AppLayout>
-      <div className="flex-1 p-6 space-y-6">
+    <div className="flex-1 p-6 space-y-6 overflow-auto">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-semibold">Scheduled Reports</h1>
@@ -620,7 +618,6 @@ export default function ReportSubscriptions() {
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
-    </AppLayout>
+    </div>
   );
 }
