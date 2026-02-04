@@ -264,6 +264,7 @@ export function useCloseTimesheetPeriod() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/timesheet-periods"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheet-periods/closed"] });
     },
   });
 }
@@ -277,6 +278,7 @@ export function useReopenTimesheetPeriod() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/timesheet-periods"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheet-periods/closed"] });
     },
   });
 }
