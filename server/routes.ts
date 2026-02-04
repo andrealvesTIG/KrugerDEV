@@ -14,7 +14,7 @@ import { setupDynamics365Routes } from "./services/dynamics365Sales";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -4855,6 +4855,12 @@ export async function registerRoutes(
         // Get existing tasks for this project
         const existingTasks = await storage.getTasksByProject(projectId);
         
+        // Build old task ID to name mapping for relationship preservation
+        const oldTaskIdToName = new Map<number, string>();
+        for (const task of existingTasks) {
+          oldTaskIdToName.set(task.id, task.name.toLowerCase().trim());
+        }
+        
         // Preserve hours (estimatedHours, actualHours) by task name
         // We'll restore them to matching new tasks after sync
         const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
@@ -4885,11 +4891,75 @@ export async function registerRoutes(
           }
         }
         console.log(`Planner Premium sync: Found ${timesheetEntriesByTaskName.size} tasks with timesheet entries to preserve`);
+        
+        // Preserve task change logs by task name
+        const changeLogsByTaskName = new Map<string, any[]>();
+        for (const task of existingTasks) {
+          const logs = await db.select().from(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+          if (logs.length > 0) {
+            const taskName = task.name.toLowerCase().trim();
+            if (!changeLogsByTaskName.has(taskName)) {
+              changeLogsByTaskName.set(taskName, []);
+            }
+            changeLogsByTaskName.get(taskName)!.push(...logs);
+          }
+        }
+        console.log(`Planner Premium sync: Found ${changeLogsByTaskName.size} tasks with change logs to preserve`);
+        
+        // Preserve task dependencies by task names (source -> target)
+        const dependenciesByTaskNames = new Map<string, { dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
+        for (const task of existingTasks) {
+          const deps = await db.select().from(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+          if (deps.length > 0) {
+            const taskName = task.name.toLowerCase().trim();
+            if (!dependenciesByTaskNames.has(taskName)) {
+              dependenciesByTaskNames.set(taskName, []);
+            }
+            for (const dep of deps) {
+              const dependsOnName = oldTaskIdToName.get(dep.dependsOnTaskId);
+              if (dependsOnName) {
+                dependenciesByTaskNames.get(taskName)!.push({
+                  dependsOnTaskName: dependsOnName,
+                  dependencyType: dep.dependencyType || 'finish-to-start',
+                  lagDays: dep.lagDays || 0,
+                });
+              }
+            }
+          }
+        }
+        console.log(`Planner Premium sync: Found ${dependenciesByTaskNames.size} tasks with dependencies to preserve`);
+        
+        // Collect issues with relatedTaskId for this project's tasks to update later
+        const issuesWithRelatedTasks = new Map<number, string>(); // issueId -> taskName
+        for (const task of existingTasks) {
+          const relatedIssues = await db.select().from(issues).where(eq(issues.relatedTaskId, task.id));
+          for (const issue of relatedIssues) {
+            issuesWithRelatedTasks.set(issue.id, task.name.toLowerCase().trim());
+          }
+        }
+        console.log(`Planner Premium sync: Found ${issuesWithRelatedTasks.size} issues with related tasks to preserve`);
 
         // Delete all existing tasks for this project (full sync)
         // First delete timesheet entries temporarily (we'll recreate them with new task IDs)
         for (const task of existingTasks) {
           await db.delete(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
+        }
+        // Delete task change logs temporarily
+        for (const task of existingTasks) {
+          await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+        }
+        // Delete task dependencies
+        for (const task of existingTasks) {
+          await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+          await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
+        }
+        // Clear relatedTaskId on issues (will be restored later)
+        for (const task of existingTasks) {
+          await db.update(issues).set({ relatedTaskId: null }).where(eq(issues.relatedTaskId, task.id));
+        }
+        // Clean up orphaned notifications referencing these tasks
+        for (const task of existingTasks) {
+          await db.delete(notifications).where(eq(notifications.taskId, task.id));
         }
         // Then delete task resource assignments to avoid FK constraint violations
         for (const task of existingTasks) {
@@ -5435,6 +5505,92 @@ export async function registerRoutes(
         if (hoursPreserved > 0) {
           console.log(`Planner Premium sync: Restored hours for ${hoursPreserved} tasks`);
         }
+        
+        // Restore task change logs to matching new tasks
+        let changeLogsPreserved = 0;
+        let changeLogsLost = 0;
+        for (const [taskName, logs] of changeLogsByTaskName) {
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId) {
+            for (const log of logs) {
+              try {
+                await db.insert(taskChangeLogs).values({
+                  taskId: newTaskId,
+                  changedBy: log.changedBy,
+                  changedByName: log.changedByName,
+                  changedAt: log.changedAt,
+                  changeType: log.changeType,
+                  changeSummary: log.changeSummary,
+                  previousValues: log.previousValues,
+                  newValues: log.newValues,
+                });
+                changeLogsPreserved++;
+              } catch (err) {
+                console.log(`Planner Premium sync: Failed to preserve change log:`, err);
+                changeLogsLost++;
+              }
+            }
+          } else {
+            changeLogsLost += logs.length;
+          }
+        }
+        if (changeLogsPreserved > 0 || changeLogsLost > 0) {
+          console.log(`Planner Premium sync: Preserved ${changeLogsPreserved} change logs, lost ${changeLogsLost}`);
+        }
+        
+        // Restore task dependencies to matching new tasks
+        let dependenciesPreserved = 0;
+        let dependenciesLost = 0;
+        for (const [taskName, deps] of dependenciesByTaskNames) {
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId) {
+            for (const dep of deps) {
+              const dependsOnTaskId = newTaskNameToId.get(dep.dependsOnTaskName);
+              if (dependsOnTaskId) {
+                try {
+                  await db.insert(taskDependencies).values({
+                    taskId: newTaskId,
+                    dependsOnTaskId: dependsOnTaskId,
+                    dependencyType: dep.dependencyType,
+                    lagDays: dep.lagDays,
+                  });
+                  dependenciesPreserved++;
+                } catch (err) {
+                  console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
+                  dependenciesLost++;
+                }
+              } else {
+                dependenciesLost++;
+              }
+            }
+          } else {
+            dependenciesLost += deps.length;
+          }
+        }
+        if (dependenciesPreserved > 0 || dependenciesLost > 0) {
+          console.log(`Planner Premium sync: Preserved ${dependenciesPreserved} dependencies, lost ${dependenciesLost}`);
+        }
+        
+        // Restore issue/risk relatedTaskId links to matching new tasks
+        let issueLinksPreserved = 0;
+        let issueLinksLost = 0;
+        for (const [issueId, taskName] of issuesWithRelatedTasks) {
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId) {
+            try {
+              await db.update(issues).set({ relatedTaskId: newTaskId }).where(eq(issues.id, issueId));
+              issueLinksPreserved++;
+            } catch (err) {
+              console.log(`Planner Premium sync: Failed to restore issue task link:`, err);
+              issueLinksLost++;
+            }
+          } else {
+            issueLinksLost++;
+          }
+        }
+        if (issueLinksPreserved > 0 || issueLinksLost > 0) {
+          console.log(`Planner Premium sync: Preserved ${issueLinksPreserved} issue task links, lost ${issueLinksLost}`);
+        }
 
         // Update project dates
         if (projectStartDate || projectEndDate) {
@@ -5496,6 +5652,12 @@ export async function registerRoutes(
       // Get existing tasks for this project
       const existingTasks = await storage.getTasksByProject(projectId);
       
+      // Build old task ID to name mapping for relationship preservation
+      const oldTaskIdToName = new Map<number, string>();
+      for (const task of existingTasks) {
+        oldTaskIdToName.set(task.id, task.name.toLowerCase().trim());
+      }
+      
       // Preserve hours (estimatedHours, actualHours) by task name
       // We'll restore them to matching new tasks after sync
       const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
@@ -5526,11 +5688,75 @@ export async function registerRoutes(
         }
       }
       console.log(`Planner sync: Found ${timesheetEntriesByTaskName.size} tasks with timesheet entries to preserve`);
+      
+      // Preserve task change logs by task name
+      const changeLogsByTaskName = new Map<string, any[]>();
+      for (const task of existingTasks) {
+        const logs = await db.select().from(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+        if (logs.length > 0) {
+          const taskName = task.name.toLowerCase().trim();
+          if (!changeLogsByTaskName.has(taskName)) {
+            changeLogsByTaskName.set(taskName, []);
+          }
+          changeLogsByTaskName.get(taskName)!.push(...logs);
+        }
+      }
+      console.log(`Planner sync: Found ${changeLogsByTaskName.size} tasks with change logs to preserve`);
+      
+      // Preserve task dependencies by task names (source -> target)
+      const dependenciesByTaskNames = new Map<string, { dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
+      for (const task of existingTasks) {
+        const deps = await db.select().from(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+        if (deps.length > 0) {
+          const taskName = task.name.toLowerCase().trim();
+          if (!dependenciesByTaskNames.has(taskName)) {
+            dependenciesByTaskNames.set(taskName, []);
+          }
+          for (const dep of deps) {
+            const dependsOnName = oldTaskIdToName.get(dep.dependsOnTaskId);
+            if (dependsOnName) {
+              dependenciesByTaskNames.get(taskName)!.push({
+                dependsOnTaskName: dependsOnName,
+                dependencyType: dep.dependencyType || 'finish-to-start',
+                lagDays: dep.lagDays || 0,
+              });
+            }
+          }
+        }
+      }
+      console.log(`Planner sync: Found ${dependenciesByTaskNames.size} tasks with dependencies to preserve`);
+      
+      // Collect issues with relatedTaskId for this project's tasks to update later
+      const issuesWithRelatedTasks = new Map<number, string>(); // issueId -> taskName
+      for (const task of existingTasks) {
+        const relatedIssues = await db.select().from(issues).where(eq(issues.relatedTaskId, task.id));
+        for (const issue of relatedIssues) {
+          issuesWithRelatedTasks.set(issue.id, task.name.toLowerCase().trim());
+        }
+      }
+      console.log(`Planner sync: Found ${issuesWithRelatedTasks.size} issues with related tasks to preserve`);
 
       // Delete all existing tasks for this project (full sync)
       // First delete timesheet entries temporarily (we'll recreate them with new task IDs)
       for (const task of existingTasks) {
         await db.delete(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
+      }
+      // Delete task change logs temporarily
+      for (const task of existingTasks) {
+        await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+      }
+      // Delete task dependencies
+      for (const task of existingTasks) {
+        await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+        await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
+      }
+      // Clear relatedTaskId on issues (will be restored later)
+      for (const task of existingTasks) {
+        await db.update(issues).set({ relatedTaskId: null }).where(eq(issues.relatedTaskId, task.id));
+      }
+      // Clean up orphaned notifications referencing these tasks
+      for (const task of existingTasks) {
+        await db.delete(notifications).where(eq(notifications.taskId, task.id));
       }
       // Then delete task resource assignments to avoid FK constraint violations
       for (const task of existingTasks) {
@@ -5664,6 +5890,86 @@ export async function registerRoutes(
         }
       }
       console.log(`Planner sync: Restored hours for ${hoursPreserved} tasks`);
+      
+      // Restore task change logs to matching new tasks
+      let changeLogsPreserved = 0;
+      let changeLogsLost = 0;
+      for (const [taskName, logs] of changeLogsByTaskName) {
+        const newTaskId = newTasksByName.get(taskName);
+        if (newTaskId) {
+          for (const log of logs) {
+            try {
+              await db.insert(taskChangeLogs).values({
+                taskId: newTaskId,
+                changedBy: log.changedBy,
+                changedByName: log.changedByName,
+                changedAt: log.changedAt,
+                changeType: log.changeType,
+                changeSummary: log.changeSummary,
+                previousValues: log.previousValues,
+                newValues: log.newValues,
+              });
+              changeLogsPreserved++;
+            } catch (err) {
+              console.log(`Planner sync: Failed to preserve change log:`, err);
+              changeLogsLost++;
+            }
+          }
+        } else {
+          changeLogsLost += logs.length;
+        }
+      }
+      console.log(`Planner sync: Preserved ${changeLogsPreserved} change logs, lost ${changeLogsLost}`);
+      
+      // Restore task dependencies to matching new tasks
+      let dependenciesPreserved = 0;
+      let dependenciesLost = 0;
+      for (const [taskName, deps] of dependenciesByTaskNames) {
+        const newTaskId = newTasksByName.get(taskName);
+        if (newTaskId) {
+          for (const dep of deps) {
+            const dependsOnTaskId = newTasksByName.get(dep.dependsOnTaskName);
+            if (dependsOnTaskId) {
+              try {
+                await db.insert(taskDependencies).values({
+                  taskId: newTaskId,
+                  dependsOnTaskId: dependsOnTaskId,
+                  dependencyType: dep.dependencyType,
+                  lagDays: dep.lagDays,
+                });
+                dependenciesPreserved++;
+              } catch (err) {
+                console.log(`Planner sync: Failed to preserve dependency:`, err);
+                dependenciesLost++;
+              }
+            } else {
+              dependenciesLost++;
+            }
+          }
+        } else {
+          dependenciesLost += deps.length;
+        }
+      }
+      console.log(`Planner sync: Preserved ${dependenciesPreserved} dependencies, lost ${dependenciesLost}`);
+      
+      // Restore issue/risk relatedTaskId links to matching new tasks
+      let issueLinksPreserved = 0;
+      let issueLinksLost = 0;
+      for (const [issueId, taskName] of issuesWithRelatedTasks) {
+        const newTaskId = newTasksByName.get(taskName);
+        if (newTaskId) {
+          try {
+            await db.update(issues).set({ relatedTaskId: newTaskId }).where(eq(issues.id, issueId));
+            issueLinksPreserved++;
+          } catch (err) {
+            console.log(`Planner sync: Failed to restore issue task link:`, err);
+            issueLinksLost++;
+          }
+        } else {
+          issueLinksLost++;
+        }
+      }
+      console.log(`Planner sync: Preserved ${issueLinksPreserved} issue task links, lost ${issueLinksLost}`);
 
       // Import resources and assignments from Planner (same logic as initial import)
       let resourcesSynced = 0;
