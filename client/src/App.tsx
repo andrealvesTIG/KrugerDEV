@@ -10,6 +10,8 @@ import { OnboardingDialog } from "@/components/OnboardingDialog";
 import { TermsConsentModal } from "@/components/TermsConsentModal";
 import NotFound from "@/pages/not-found";
 import { ReactNode, useEffect } from "react";
+import { initGA } from "@/lib/analytics";
+import { useAnalytics } from "@/hooks/use-analytics";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -143,6 +145,9 @@ function HomePage() {
 }
 
 function Router() {
+  // Track page views when routes change
+  useAnalytics();
+  
   return (
     <AppLayout>
       <TermsConsentModal />
@@ -187,6 +192,15 @@ function Router() {
 }
 
 function App() {
+  // Initialize Google Analytics when app loads
+  useEffect(() => {
+    if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
+      console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
+    } else {
+      initGA();
+    }
+  }, []);
+
   return (
     <ThemeProvider defaultTheme="light" storageKey="ppm-ui-theme">
       <QueryClientProvider client={queryClient}>
