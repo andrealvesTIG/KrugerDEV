@@ -68,6 +68,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
+import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
 
 const sections = [
   { id: "overview", name: "Overview", icon: BookOpen },
@@ -929,8 +930,7 @@ export default function PublicUserGuide() {
           <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
             <div className="flex items-center gap-4">
               <Link href="/" className="flex items-center gap-2 sm:gap-3" data-testid="link-home-logo">
-                <img src={logoIcon} alt="FridayReport.AI" className="h-7 w-7 sm:h-8 sm:w-8" />
-                <span className="text-base sm:text-xl font-bold text-white" data-testid="text-brand-name">FridayReport.AI</span>
+                <img src={logoWhite} alt="FridayReport.AI" className="h-6 sm:h-7" data-testid="img-brand-logo" />
               </Link>
               <span className="hidden sm:inline-flex items-center text-slate-400">
                 <ChevronRight className="h-4 w-4" />

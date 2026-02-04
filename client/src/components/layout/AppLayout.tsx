@@ -1,5 +1,6 @@
 import { ReactNode, useState } from "react";
-import { Sidebar, SidebarProvider, useSidebarState, logoIcon } from "./Sidebar";
+import { Sidebar, SidebarProvider, useSidebarState, logoIcon, logoBlack, logoWhite } from "./Sidebar";
+import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
@@ -49,6 +50,11 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
   const [location] = useLocation();
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
+  const { theme } = useTheme();
+  
+  // Determine the correct logo based on theme
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const fullLogo = isDark ? logoWhite : logoBlack;
   
   const isFullBleedPage = location.startsWith('/embed');
 
@@ -69,13 +75,11 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             </button>
             {/* Logo - show on mobile always, on desktop only when collapsed */}
             <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity md:hidden">
-              <img src={logoIcon} alt="FridayReport.AI" className="h-8 w-8" />
-              <span className="font-display font-bold text-lg text-foreground">FridayReport.AI</span>
+              <img src={fullLogo} alt="FridayReport.AI" className="h-6" />
             </Link>
             {isCollapsed && (
               <Link href="/" className="hidden md:flex items-center gap-3 hover:opacity-80 transition-opacity">
-                <img src={logoIcon} alt="FridayReport.AI" className="h-8 w-8" />
-                <span className="font-display font-bold text-lg text-foreground">FridayReport.AI</span>
+                <img src={fullLogo} alt="FridayReport.AI" className="h-6" />
               </Link>
             )}
             {organizations.length > 0 && (

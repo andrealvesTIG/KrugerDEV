@@ -78,7 +78,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export { logoIcon };
+export { logoIcon, logoBlack, logoWhite };
 
 const moduleDefinitions: Record<string, { name: string; href: string; icon: React.ComponentType<{ className?: string }> }> = {
   dashboard: { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -322,17 +322,33 @@ export function Sidebar() {
             isMicrosoftConnected={!!currentOrganization}
             onNavigate={() => setIsMobileOpen(false)}
           />
-          {!isCollapsed && (
+          {isCollapsed ? (
+            <img 
+              src={logoIcon} 
+              alt="FridayReport.AI" 
+              className="h-8 w-8 flex-shrink-0 object-contain"
+            />
+          ) : (
             <>
-              <img 
-                src={logoLoadFailed || !currentOrganization?.logoUrl ? logoIcon : currentOrganization.logoUrl} 
-                alt={currentOrganization?.name || "FridayReport.AI"} 
-                className="h-8 w-8 flex-shrink-0 object-contain"
-                onError={() => setLogoLoadFailed(true)}
-              />
-              <span className="text-lg font-display font-bold tracking-tight">
-                {currentOrganization?.logoUrl && !logoLoadFailed ? currentOrganization.name : "FridayReport.AI"}
-              </span>
+              {currentOrganization?.logoUrl && !logoLoadFailed ? (
+                <>
+                  <img 
+                    src={currentOrganization.logoUrl} 
+                    alt={currentOrganization?.name || "FridayReport.AI"} 
+                    className="h-8 w-8 flex-shrink-0 object-contain"
+                    onError={() => setLogoLoadFailed(true)}
+                  />
+                  <span className="text-lg font-display font-bold tracking-tight">
+                    {currentOrganization.name}
+                  </span>
+                </>
+              ) : (
+                <img 
+                  src={logoWhite} 
+                  alt="FridayReport.AI" 
+                  className="h-6 flex-shrink-0 object-contain"
+                />
+              )}
             </>
           )}
         </div>
