@@ -134,10 +134,10 @@ const SCENARIOS = [
 
 function getHealthColor(health: string) {
   switch (health) {
-    case "Green": return "bg-green-500";
-    case "Yellow": return "bg-yellow-500";
-    case "Red": return "bg-red-500";
-    default: return "bg-gray-500";
+    case "Green": return "bg-green-500 dark:bg-green-400";
+    case "Yellow": return "bg-yellow-500 dark:bg-yellow-400";
+    case "Red": return "bg-red-500 dark:bg-red-400";
+    default: return "bg-gray-500 dark:bg-gray-400";
   }
 }
 
@@ -152,11 +152,11 @@ function getHealthBadgeVariant(health: string): "default" | "secondary" | "destr
 
 function getSeverityColor(severity: string) {
   switch (severity) {
-    case "critical": return "text-red-600 bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800";
-    case "high": return "text-orange-600 bg-orange-50 border-orange-200 dark:bg-orange-950 dark:border-orange-800";
-    case "medium": return "text-yellow-600 bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800";
-    case "low": return "text-blue-600 bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800";
-    default: return "text-gray-600 bg-gray-50 border-gray-200 dark:bg-gray-950 dark:border-gray-800";
+    case "critical": return "text-red-600 dark:text-red-400 bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800";
+    case "high": return "text-orange-600 dark:text-orange-400 bg-orange-50 border-orange-200 dark:bg-orange-950 dark:border-orange-800";
+    case "medium": return "text-yellow-600 dark:text-yellow-400 bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800";
+    case "low": return "text-blue-600 dark:text-blue-400 bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800";
+    default: return "text-gray-600 dark:text-gray-400 bg-gray-50 border-gray-200 dark:bg-gray-950 dark:border-gray-800";
   }
 }
 
@@ -214,7 +214,8 @@ function KPICard({
   trend,
   trendValue,
   className,
-  pulse
+  pulse,
+  testId
 }: { 
   title: string;
   value: number;
@@ -225,11 +226,12 @@ function KPICard({
   trendValue?: string;
   className?: string;
   pulse?: boolean;
+  testId?: string;
 }) {
   return (
-    <Card className={cn("relative overflow-visible", pulse && "ring-2 ring-primary ring-offset-2 animate-pulse", className)}>
+    <Card className={cn("relative overflow-visible", pulse && "ring-2 ring-primary ring-offset-2 animate-pulse", className)} data-testid={testId}>
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-md bg-muted">
               <Icon className="h-4 w-4 text-muted-foreground" />
@@ -239,14 +241,14 @@ function KPICard({
           {trend && (
             <div className={cn(
               "flex items-center gap-1 text-xs",
-              trend === "up" ? "text-green-600" : trend === "down" ? "text-red-600" : "text-muted-foreground"
+              trend === "up" ? "text-green-600 dark:text-green-400" : trend === "down" ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
             )}>
               {trend === "up" ? <ArrowUpRight className="h-3 w-3" /> : trend === "down" ? <ArrowDownRight className="h-3 w-3" /> : null}
               {trendValue}
             </div>
           )}
         </div>
-        <div className="mt-2">
+        <div className="mt-2" data-testid={testId ? `${testId}-value` : undefined}>
           <AnimatedNumber 
             value={value} 
             prefix={prefix} 
@@ -267,14 +269,17 @@ function EventNotification({ event, onDismiss }: { event: SimulationEventDisplay
   }, [onDismiss]);
 
   return (
-    <div className={cn(
-      "flex items-start gap-3 p-4 rounded-lg border animate-in slide-in-from-right duration-300",
-      getSeverityColor(event.severity)
-    )}>
+    <div 
+      className={cn(
+        "flex items-start gap-3 p-4 rounded-lg border animate-in slide-in-from-right duration-300",
+        getSeverityColor(event.severity)
+      )}
+      data-testid={`notification-event-${event.id}`}
+    >
       <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{event.title}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-sm" data-testid={`text-event-title-${event.id}`}>{event.title}</span>
           <Badge variant="outline" className="text-xs">
             {event.projectName}
           </Badge>
@@ -282,22 +287,28 @@ function EventNotification({ event, onDismiss }: { event: SimulationEventDisplay
         <p className="text-xs mt-1 opacity-80">{event.description}</p>
         <div className="flex items-center gap-3 mt-2 text-xs opacity-70">
           {event.impactBudget && (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1" data-testid={`text-impact-budget-${event.id}`}>
               <DollarSign className="h-3 w-3" />
               +${(event.impactBudget / 1000).toFixed(0)}k
             </span>
           )}
           {event.impactScheduleDays && (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1" data-testid={`text-impact-schedule-${event.id}`}>
               <Clock className="h-3 w-3" />
               +{event.impactScheduleDays} days
             </span>
           )}
         </div>
       </div>
-      <button onClick={onDismiss} className="text-current opacity-50 hover:opacity-100">
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        onClick={onDismiss} 
+        className="flex-shrink-0"
+        data-testid={`button-dismiss-event-${event.id}`}
+      >
         <XCircle className="h-4 w-4" />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -326,19 +337,20 @@ function TimelineScrubber({
   }));
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>{startDate.toLocaleDateString()}</span>
-        <span className="font-medium text-foreground">
+    <div className="space-y-2" data-testid="timeline-scrubber">
+      <div className="flex items-center justify-between text-sm text-muted-foreground gap-2 flex-wrap">
+        <span data-testid="text-start-date">{startDate.toLocaleDateString()}</span>
+        <span className="font-medium text-foreground" data-testid="text-current-date">
           {currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
         </span>
-        <span>{endDate.toLocaleDateString()}</span>
+        <span data-testid="text-end-date">{endDate.toLocaleDateString()}</span>
       </div>
       <div className="relative h-8">
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2 bg-muted rounded-full overflow-hidden">
           <div 
             className="h-full bg-primary transition-all duration-300 rounded-full"
             style={{ width: `${progress}%` }}
+            data-testid="progress-bar"
           />
         </div>
         {eventPositions.map((ep, i) => (
@@ -346,11 +358,12 @@ function TimelineScrubber({
             key={i}
             className={cn(
               "absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-background",
-              ep.severity === "critical" ? "bg-red-500" :
-              ep.severity === "high" ? "bg-orange-500" :
-              ep.severity === "medium" ? "bg-yellow-500" : "bg-blue-500"
+              ep.severity === "critical" ? "bg-destructive" :
+              ep.severity === "high" ? "bg-orange-500 dark:bg-orange-400" :
+              ep.severity === "medium" ? "bg-yellow-500 dark:bg-yellow-400" : "bg-blue-500 dark:bg-blue-400"
             )}
             style={{ left: `${ep.position}%`, marginLeft: "-6px" }}
+            data-testid={`timeline-event-marker-${i}`}
           />
         ))}
         <Slider
@@ -359,11 +372,12 @@ function TimelineScrubber({
           step={1}
           onValueChange={([v]) => onSeek(v)}
           className="absolute inset-0"
+          data-testid="slider-timeline"
         />
       </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Step {currentStep} of {totalSteps}</span>
-        <span>{Math.round(progress)}% complete</span>
+      <div className="flex items-center justify-between text-xs text-muted-foreground gap-2">
+        <span data-testid="text-current-step">Step {currentStep} of {totalSteps}</span>
+        <span data-testid="text-progress-percent">{Math.round(progress)}% complete</span>
       </div>
     </div>
   );
@@ -378,39 +392,42 @@ function ProjectHealthChart({ projectStates }: { projectStates: ProjectSimState[
   const total = projectStates.length || 1;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="chart-health-distribution">
       <div className="flex gap-1 h-6 rounded-md overflow-hidden">
         {healthCounts.Green > 0 && (
           <div 
-            className="bg-green-500 transition-all duration-500"
+            className="bg-green-500 dark:bg-green-400 transition-all duration-500"
             style={{ width: `${(healthCounts.Green / total) * 100}%` }}
+            data-testid="health-bar-green"
           />
         )}
         {healthCounts.Yellow > 0 && (
           <div 
-            className="bg-yellow-500 transition-all duration-500"
+            className="bg-yellow-500 dark:bg-yellow-400 transition-all duration-500"
             style={{ width: `${(healthCounts.Yellow / total) * 100}%` }}
+            data-testid="health-bar-yellow"
           />
         )}
         {healthCounts.Red > 0 && (
           <div 
-            className="bg-red-500 transition-all duration-500"
+            className="bg-red-500 dark:bg-red-400 transition-all duration-500"
             style={{ width: `${(healthCounts.Red / total) * 100}%` }}
+            data-testid="health-bar-red"
           />
         )}
       </div>
-      <div className="flex items-center justify-center gap-4 text-sm">
+      <div className="flex items-center justify-center gap-4 flex-wrap text-sm">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-green-500" />
-          <span>{healthCounts.Green} On Track</span>
+          <div className="w-3 h-3 rounded-full bg-green-500 dark:bg-green-400" />
+          <span data-testid="text-count-on-track">{healthCounts.Green} On Track</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-yellow-500" />
-          <span>{healthCounts.Yellow} At Risk</span>
+          <div className="w-3 h-3 rounded-full bg-yellow-500 dark:bg-yellow-400" />
+          <span data-testid="text-count-at-risk">{healthCounts.Yellow} At Risk</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-red-500" />
-          <span>{healthCounts.Red} Off Track</span>
+          <div className="w-3 h-3 rounded-full bg-red-500 dark:bg-red-400" />
+          <span data-testid="text-count-off-track">{healthCounts.Red} Off Track</span>
         </div>
       </div>
     </div>
@@ -727,20 +744,20 @@ export default function Simulation() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-10">
+      <div className="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-10 gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-page-title">Portfolio Simulation</h1>
           <p className="text-sm text-muted-foreground">Run what-if scenarios to forecast project outcomes</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Select value={selectedPortfolioId} onValueChange={setSelectedPortfolioId}>
             <SelectTrigger className="w-[200px]" data-testid="select-portfolio">
               <SelectValue placeholder="Select Portfolio" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
+              <SelectItem value="all" data-testid="option-portfolio-all">All Projects</SelectItem>
               {portfolios.map(p => (
-                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                <SelectItem key={p.id} value={String(p.id)} data-testid={`option-portfolio-${p.id}`}>{p.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -750,7 +767,7 @@ export default function Simulation() {
             </SelectTrigger>
             <SelectContent>
               {TIME_HORIZONS.map(h => (
-                <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>
+                <SelectItem key={h.value} value={h.value} data-testid={`option-horizon-${h.value}`}>{h.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -760,7 +777,7 @@ export default function Simulation() {
             </SelectTrigger>
             <SelectContent>
               {SCENARIOS.map(s => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                <SelectItem key={s.value} value={s.value} data-testid={`option-scenario-${s.value}`}>{s.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -770,8 +787,8 @@ export default function Simulation() {
       <div className="flex-1 overflow-auto p-4 space-y-4">
         <Card>
           <CardContent className="p-4">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4 mb-4 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 {!simState.isRunning ? (
                   <Button onClick={startSimulation} data-testid="button-play">
                     <Play className="h-4 w-4 mr-2" />
@@ -788,7 +805,7 @@ export default function Simulation() {
                   Reset
                 </Button>
               </div>
-              <div className="flex items-center gap-2 ml-4">
+              <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Speed:</span>
                 <div className="flex items-center gap-1">
                   {[0.5, 1, 2, 4].map(s => (
@@ -804,17 +821,20 @@ export default function Simulation() {
                   ))}
                 </div>
               </div>
-              <div className="flex items-center gap-2 ml-auto">
-                <div className={cn(
-                  "px-3 py-1.5 rounded-full flex items-center gap-2 text-sm font-medium",
-                  simState.isRunning ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
-                  simState.isPaused ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300" :
-                  "bg-muted text-muted-foreground"
-                )}>
+              <div className="flex items-center gap-2 ml-auto flex-wrap">
+                <div 
+                  className={cn(
+                    "px-3 py-1.5 rounded-full flex items-center gap-2 text-sm font-medium",
+                    simState.isRunning ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
+                    simState.isPaused ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300" :
+                    "bg-muted text-muted-foreground"
+                  )}
+                  data-testid="status-simulation"
+                >
                   <Activity className={cn("h-4 w-4", simState.isRunning && "animate-pulse")} />
                   {simState.isRunning ? "Running" : simState.isPaused ? "Paused" : "Ready"}
                 </div>
-                <Badge variant={getHealthBadgeVariant(simState.portfolioHealth)} className="px-3 py-1">
+                <Badge variant={getHealthBadgeVariant(simState.portfolioHealth)} className="px-3 py-1" data-testid="badge-portfolio-health">
                   Portfolio: {simState.portfolioHealth}
                 </Badge>
               </div>
@@ -838,6 +858,7 @@ export default function Simulation() {
             prefix="$"
             suffix="k"
             icon={DollarSign}
+            testId="card-kpi-budget"
           />
           <KPICard
             title="Spent to Date"
@@ -847,6 +868,7 @@ export default function Simulation() {
             icon={TrendingUp}
             trend={simState.totalSpent > simState.totalBudget * (simState.currentStep / simState.totalSteps) ? "down" : "up"}
             pulse={simState.totalSpent > simState.totalBudget * 0.9}
+            testId="card-kpi-spent"
           />
           <KPICard
             title="Forecast"
@@ -856,6 +878,7 @@ export default function Simulation() {
             icon={Target}
             trend={simState.budgetVariance > 5 ? "down" : simState.budgetVariance < -5 ? "up" : "neutral"}
             trendValue={`${simState.budgetVariance > 0 ? "+" : ""}${simState.budgetVariance.toFixed(1)}%`}
+            testId="card-kpi-forecast"
           />
           <KPICard
             title="Schedule Variance"
@@ -863,12 +886,14 @@ export default function Simulation() {
             suffix=" days"
             icon={Calendar}
             trend={simState.scheduleVarianceDays > 7 ? "down" : simState.scheduleVarianceDays < 0 ? "up" : "neutral"}
+            testId="card-kpi-schedule"
           />
           <KPICard
             title="Risks Triggered"
             value={simState.triggeredRisks}
             icon={AlertTriangle}
             pulse={simState.triggeredRisks > 0 && simState.events.some(e => e.isNew)}
+            testId="card-kpi-risks"
           />
           <KPICard
             title="Resource Util."
@@ -876,6 +901,7 @@ export default function Simulation() {
             suffix="%"
             icon={Users}
             trend={simState.resourceUtilization > 90 ? "down" : "neutral"}
+            testId="card-kpi-resources"
           />
         </div>
 
@@ -903,7 +929,7 @@ export default function Simulation() {
                   </thead>
                   <tbody>
                     {simState.projectStates.map(ps => (
-                      <tr key={ps.projectId} className="border-b last:border-0">
+                      <tr key={ps.projectId} className="border-b last:border-0" data-testid={`row-project-${ps.projectId}`}>
                         <td className="py-2 font-medium">{ps.projectName}</td>
                         <td className="py-2 text-center">
                           <Badge variant={getHealthBadgeVariant(ps.health)} className="text-xs">
@@ -914,13 +940,13 @@ export default function Simulation() {
                         <td className="py-2 text-right">${(ps.spent / 1000).toFixed(0)}k</td>
                         <td className={cn(
                           "py-2 text-right",
-                          ps.costVariance > 0 ? "text-red-600" : "text-green-600"
+                          ps.costVariance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                         )}>
                           {ps.costVariance > 0 ? "+" : ""}{((ps.costVariance / ps.budget) * 100).toFixed(1)}%
                         </td>
                         <td className={cn(
                           "py-2 text-right",
-                          ps.scheduleVarianceDays > 0 ? "text-red-600" : "text-green-600"
+                          ps.scheduleVarianceDays > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                         )}>
                           {ps.scheduleVarianceDays > 0 ? "+" : ""}{ps.scheduleVarianceDays}d
                         </td>
@@ -932,20 +958,20 @@ export default function Simulation() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-testid="card-event-log">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Zap className="h-5 w-5" />
                 Event Log
                 {simState.events.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">{simState.events.length}</Badge>
+                  <Badge variant="secondary" className="ml-2" data-testid="badge-event-count">{simState.events.length}</Badge>
                 )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[400px]">
+              <ScrollArea className="h-[400px]" data-testid="scrollarea-events">
                 {simState.events.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center h-32 text-muted-foreground" data-testid="text-empty-events">
                     <AlertCircle className="h-8 w-8 mb-2" />
                     <p className="text-sm">No events yet. Start the simulation.</p>
                   </div>
@@ -959,8 +985,9 @@ export default function Simulation() {
                           getSeverityColor(event.severity),
                           event.isNew && "animate-in fade-in slide-in-from-top-2"
                         )}
+                        data-testid={`card-event-${event.id}`}
                       >
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                             <span className="font-medium">{event.title}</span>
@@ -970,7 +997,7 @@ export default function Simulation() {
                           </Badge>
                         </div>
                         <p className="mt-1 text-xs opacity-80">{event.description}</p>
-                        <div className="flex items-center gap-3 mt-2 text-xs opacity-70">
+                        <div className="flex items-center gap-3 mt-2 text-xs opacity-70 flex-wrap">
                           <span>{event.projectName}</span>
                           {event.impactBudget && (
                             <span className="flex items-center gap-1">
@@ -995,7 +1022,7 @@ export default function Simulation() {
         </div>
 
         {simState.currentStep >= simState.totalSteps && simState.totalSteps > 0 && (
-          <Card className="border-primary">
+          <Card className="border-primary" data-testid="card-simulation-complete">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 text-primary" />
@@ -1007,19 +1034,19 @@ export default function Simulation() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-4 rounded-lg bg-muted">
+                <div className="text-center p-4 rounded-lg bg-muted" data-testid="summary-on-track">
                   <div className="text-2xl font-bold">{simState.projectsOnTrack}</div>
                   <div className="text-sm text-muted-foreground">Projects On Track</div>
                 </div>
-                <div className="text-center p-4 rounded-lg bg-muted">
-                  <div className="text-2xl font-bold text-yellow-600">{simState.projectsAtRisk}</div>
+                <div className="text-center p-4 rounded-lg bg-muted" data-testid="summary-at-risk">
+                  <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{simState.projectsAtRisk}</div>
                   <div className="text-sm text-muted-foreground">Projects At Risk</div>
                 </div>
-                <div className="text-center p-4 rounded-lg bg-muted">
-                  <div className="text-2xl font-bold text-red-600">{simState.projectsOffTrack}</div>
+                <div className="text-center p-4 rounded-lg bg-muted" data-testid="summary-off-track">
+                  <div className="text-2xl font-bold text-red-600 dark:text-red-400">{simState.projectsOffTrack}</div>
                   <div className="text-sm text-muted-foreground">Projects Off Track</div>
                 </div>
-                <div className="text-center p-4 rounded-lg bg-muted">
+                <div className="text-center p-4 rounded-lg bg-muted" data-testid="summary-risks">
                   <div className="text-2xl font-bold">{simState.triggeredRisks}</div>
                   <div className="text-sm text-muted-foreground">Risks Materialized</div>
                 </div>
@@ -1027,13 +1054,13 @@ export default function Simulation() {
               <div className="mt-4 p-4 rounded-lg bg-muted">
                 <h4 className="font-medium mb-2">Summary</h4>
                 <ul className="text-sm space-y-1 text-muted-foreground">
-                  <li>Budget variance: <span className={simState.budgetVariance > 0 ? "text-red-600" : "text-green-600"}>
+                  <li>Budget variance: <span className={simState.budgetVariance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"} data-testid="text-final-budget-variance">
                     {simState.budgetVariance > 0 ? "+" : ""}{simState.budgetVariance.toFixed(1)}%
                   </span></li>
-                  <li>Average schedule slippage: <span className={simState.scheduleVarianceDays > 0 ? "text-red-600" : "text-green-600"}>
+                  <li>Average schedule slippage: <span className={simState.scheduleVarianceDays > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"} data-testid="text-final-schedule-variance">
                     {simState.scheduleVarianceDays} days
                   </span></li>
-                  <li>Final portfolio health: <Badge variant={getHealthBadgeVariant(simState.portfolioHealth)}>
+                  <li>Final portfolio health: <Badge variant={getHealthBadgeVariant(simState.portfolioHealth)} data-testid="badge-final-health">
                     {simState.portfolioHealth}
                   </Badge></li>
                 </ul>
