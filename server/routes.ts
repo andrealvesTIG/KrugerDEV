@@ -4855,6 +4855,22 @@ export async function registerRoutes(
         // Get existing tasks for this project
         const existingTasks = await storage.getTasksByProject(projectId);
         
+        // Preserve hours (estimatedHours, actualHours) by task name
+        // We'll restore them to matching new tasks after sync
+        const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
+        for (const task of existingTasks) {
+          if (task.estimatedHours || task.actualHours) {
+            const taskName = task.name.toLowerCase().trim();
+            if (!hoursByTaskName.has(taskName)) {
+              hoursByTaskName.set(taskName, {
+                estimatedHours: task.estimatedHours,
+                actualHours: task.actualHours,
+              });
+            }
+          }
+        }
+        console.log(`Planner Premium sync: Found ${hoursByTaskName.size} tasks with hours to preserve`);
+        
         // Preserve timesheet entries by collecting them with their task names
         // We'll reassign them to matching new tasks after sync
         const timesheetEntriesByTaskName = new Map<string, { entries: any[]; oldTaskId: number }[]>();
@@ -5396,6 +5412,27 @@ export async function registerRoutes(
           console.log(`Planner Premium sync: Timesheet entries preserved: ${timesheetEntriesPreserved}, lost: ${timesheetEntriesLost}`);
         }
 
+        // Restore preserved hours (estimatedHours, actualHours) to matching new tasks
+        let hoursPreserved = 0;
+        for (const [taskName, hours] of hoursByTaskName) {
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId && (hours.estimatedHours || hours.actualHours)) {
+            try {
+              await storage.updateTask(newTaskId, {
+                estimatedHours: hours.estimatedHours,
+                actualHours: hours.actualHours,
+              });
+              hoursPreserved++;
+              console.log(`Planner Premium sync: Restored hours for task "${taskName}" (estimated: ${hours.estimatedHours}, actual: ${hours.actualHours})`);
+            } catch (err) {
+              console.log(`Planner Premium sync: Failed to restore hours for task "${taskName}":`, err);
+            }
+          }
+        }
+        if (hoursPreserved > 0) {
+          console.log(`Planner Premium sync: Restored hours for ${hoursPreserved} tasks`);
+        }
+
         // Update project dates
         if (projectStartDate || projectEndDate) {
           await storage.updateProject(projectId, {
@@ -5455,6 +5492,22 @@ export async function registerRoutes(
 
       // Get existing tasks for this project
       const existingTasks = await storage.getTasksByProject(projectId);
+      
+      // Preserve hours (estimatedHours, actualHours) by task name
+      // We'll restore them to matching new tasks after sync
+      const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
+      for (const task of existingTasks) {
+        if (task.estimatedHours || task.actualHours) {
+          const taskName = task.name.toLowerCase().trim();
+          if (!hoursByTaskName.has(taskName)) {
+            hoursByTaskName.set(taskName, {
+              estimatedHours: task.estimatedHours,
+              actualHours: task.actualHours,
+            });
+          }
+        }
+      }
+      console.log(`Planner sync: Found ${hoursByTaskName.size} tasks with hours to preserve`);
       
       // Preserve timesheet entries by collecting them with their task names
       // We'll reassign them to matching new tasks after sync
@@ -5577,6 +5630,25 @@ export async function registerRoutes(
         }
       }
       console.log(`Planner sync: Preserved ${timesheetEntriesPreserved} timesheet entries, lost ${timesheetEntriesLost}`)
+
+      // Restore preserved hours (estimatedHours, actualHours) to matching new tasks
+      let hoursPreserved = 0;
+      for (const [taskName, hours] of hoursByTaskName) {
+        const newTaskId = newTasksByName.get(taskName);
+        if (newTaskId && (hours.estimatedHours || hours.actualHours)) {
+          try {
+            await storage.updateTask(newTaskId, {
+              estimatedHours: hours.estimatedHours,
+              actualHours: hours.actualHours,
+            });
+            hoursPreserved++;
+            console.log(`Planner sync: Restored hours for task "${taskName}" (estimated: ${hours.estimatedHours}, actual: ${hours.actualHours})`);
+          } catch (err) {
+            console.log(`Planner sync: Failed to restore hours for task "${taskName}":`, err);
+          }
+        }
+      }
+      console.log(`Planner sync: Restored hours for ${hoursPreserved} tasks`);
 
       // Import resources and assignments from Planner (same logic as initial import)
       let resourcesSynced = 0;
