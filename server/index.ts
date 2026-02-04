@@ -8,6 +8,8 @@ import { createServer } from "http";
 import path from "path";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import cron from "node-cron";
+import { checkAndSendDueReports } from "./services/scheduledReports";
 
 const app = express();
 
@@ -157,6 +159,19 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      
+      // Schedule report check every 15 minutes
+      cron.schedule('*/15 * * * *', async () => {
+        try {
+          const sentCount = await checkAndSendDueReports();
+          if (sentCount > 0) {
+            log(`Sent ${sentCount} scheduled reports`, "cron");
+          }
+        } catch (error) {
+          console.error("Error in scheduled reports cron job:", error);
+        }
+      });
+      log("Scheduled reports cron job started (every 15 minutes)", "cron");
     },
   );
 })();

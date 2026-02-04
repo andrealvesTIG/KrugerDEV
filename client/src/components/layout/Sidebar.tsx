@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -221,6 +221,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
 
 const userMenuItems = [
   { name: "Profile", href: "/profile", icon: User },
+  { name: "Scheduled Reports", href: "/scheduled-reports", icon: Mail },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Org Settings", href: "/org-settings", icon: Building2 },
   { name: "Super Admin", href: "/super-admin", icon: Crown, superAdminOnly: true },

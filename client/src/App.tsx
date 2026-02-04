@@ -50,6 +50,7 @@ import TermsOfService from "@/pages/TermsOfService";
 import PrivacyStatement from "@/pages/PrivacyStatement";
 import PublicUserGuide from "@/pages/PublicUserGuide";
 import FridayPage from "@/pages/FridayPage";
+import ReportSubscriptions from "@/pages/ReportSubscriptions";
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -177,6 +178,7 @@ function Router() {
         <Route path="/org-settings" component={OrgSettings} />
         <Route path="/profile" component={Profile} />
         <Route path="/user-guide" component={UserGuide} />
+        <Route path="/scheduled-reports" component={ReportSubscriptions} />
         <Route path="/embed" component={Embed} />
         <Route component={NotFound} />
       </Switch>

@@ -13,8 +13,9 @@ import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataver
 import { setupDynamics365Routes } from "./services/dynamics365Sales";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
+import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, initializeSubscriptionSchedule, calculateNextScheduledTime } from "./services/scheduledReports";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -17931,6 +17932,240 @@ Return ONLY valid JSON.`;
     } catch (error) {
       console.error('Error deleting help ticket:', error);
       res.status(500).json({ message: 'Failed to delete help ticket' });
+    }
+  });
+
+  // ===== REPORT SUBSCRIPTIONS (Scheduled Email Reports) =====
+  
+  // Get available dashboards for report subscriptions
+  app.get('/api/report-subscriptions/dashboards', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    res.json(AVAILABLE_DASHBOARDS);
+  });
+  
+  // Get all report subscriptions for current user and organization
+  app.get('/api/organizations/:orgId/report-subscriptions', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const userSubscriptions = await db.select()
+        .from(reportSubscriptions)
+        .where(
+          and(
+            eq(reportSubscriptions.userId, userId),
+            eq(reportSubscriptions.organizationId, orgId)
+          )
+        )
+        .orderBy(desc(reportSubscriptions.createdAt));
+      
+      res.json(userSubscriptions);
+    } catch (error) {
+      console.error('Error fetching report subscriptions:', error);
+      res.status(500).json({ message: 'Failed to fetch report subscriptions' });
+    }
+  });
+  
+  // Create a new report subscription
+  app.post('/api/organizations/:orgId/report-subscriptions', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const { name, dashboards, frequency, dayOfWeek, dayOfMonth, timeOfDay, timezone, recipients, isActive } = req.body;
+      
+      if (!name || !dashboards || dashboards.length === 0 || !frequency) {
+        return res.status(400).json({ message: 'Name, dashboards, and frequency are required' });
+      }
+      
+      const nextScheduled = calculateNextScheduledTime(
+        frequency,
+        timeOfDay || '09:00',
+        timezone || 'America/New_York',
+        dayOfWeek,
+        dayOfMonth
+      );
+      
+      const [subscription] = await db.insert(reportSubscriptions)
+        .values({
+          userId,
+          organizationId: orgId,
+          name,
+          dashboards,
+          frequency,
+          dayOfWeek: dayOfWeek ?? null,
+          dayOfMonth: dayOfMonth ?? null,
+          timeOfDay: timeOfDay || '09:00',
+          timezone: timezone || 'America/New_York',
+          recipients: recipients || [],
+          isActive: isActive ?? true,
+          nextScheduledAt: nextScheduled,
+        })
+        .returning();
+      
+      res.status(201).json(subscription);
+    } catch (error) {
+      console.error('Error creating report subscription:', error);
+      res.status(500).json({ message: 'Failed to create report subscription' });
+    }
+  });
+  
+  // Update a report subscription
+  app.put('/api/organizations/:orgId/report-subscriptions/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const subscriptionId = parseInt(req.params.id);
+      const { name, dashboards, frequency, dayOfWeek, dayOfMonth, timeOfDay, timezone, recipients, isActive } = req.body;
+      
+      // Verify ownership
+      const [existing] = await db.select()
+        .from(reportSubscriptions)
+        .where(
+          and(
+            eq(reportSubscriptions.id, subscriptionId),
+            eq(reportSubscriptions.userId, userId),
+            eq(reportSubscriptions.organizationId, orgId)
+          )
+        );
+      
+      if (!existing) {
+        return res.status(404).json({ message: 'Subscription not found' });
+      }
+      
+      const nextScheduled = calculateNextScheduledTime(
+        frequency || existing.frequency,
+        timeOfDay || existing.timeOfDay,
+        timezone || existing.timezone,
+        dayOfWeek ?? existing.dayOfWeek,
+        dayOfMonth ?? existing.dayOfMonth
+      );
+      
+      const [updated] = await db.update(reportSubscriptions)
+        .set({
+          name: name || existing.name,
+          dashboards: dashboards || existing.dashboards,
+          frequency: frequency || existing.frequency,
+          dayOfWeek: dayOfWeek ?? existing.dayOfWeek,
+          dayOfMonth: dayOfMonth ?? existing.dayOfMonth,
+          timeOfDay: timeOfDay || existing.timeOfDay,
+          timezone: timezone || existing.timezone,
+          recipients: recipients ?? existing.recipients,
+          isActive: isActive ?? existing.isActive,
+          nextScheduledAt: nextScheduled,
+          updatedAt: new Date(),
+        })
+        .where(eq(reportSubscriptions.id, subscriptionId))
+        .returning();
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating report subscription:', error);
+      res.status(500).json({ message: 'Failed to update report subscription' });
+    }
+  });
+  
+  // Delete a report subscription
+  app.delete('/api/organizations/:orgId/report-subscriptions/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const subscriptionId = parseInt(req.params.id);
+      
+      // Verify ownership
+      const [existing] = await db.select()
+        .from(reportSubscriptions)
+        .where(
+          and(
+            eq(reportSubscriptions.id, subscriptionId),
+            eq(reportSubscriptions.userId, userId),
+            eq(reportSubscriptions.organizationId, orgId)
+          )
+        );
+      
+      if (!existing) {
+        return res.status(404).json({ message: 'Subscription not found' });
+      }
+      
+      await db.delete(reportSubscriptions)
+        .where(eq(reportSubscriptions.id, subscriptionId));
+      
+      res.json({ message: 'Subscription deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting report subscription:', error);
+      res.status(500).json({ message: 'Failed to delete report subscription' });
+    }
+  });
+  
+  // Send a test report immediately
+  app.post('/api/organizations/:orgId/report-subscriptions/:id/send-now', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const subscriptionId = parseInt(req.params.id);
+      
+      // Verify ownership
+      const [existing] = await db.select()
+        .from(reportSubscriptions)
+        .where(
+          and(
+            eq(reportSubscriptions.id, subscriptionId),
+            eq(reportSubscriptions.userId, userId),
+            eq(reportSubscriptions.organizationId, orgId)
+          )
+        );
+      
+      if (!existing) {
+        return res.status(404).json({ message: 'Subscription not found' });
+      }
+      
+      const success = await sendScheduledReport(subscriptionId);
+      
+      if (success) {
+        res.json({ message: 'Report sent successfully' });
+      } else {
+        res.status(500).json({ message: 'Failed to send report' });
+      }
+    } catch (error) {
+      console.error('Error sending report:', error);
+      res.status(500).json({ message: 'Failed to send report' });
+    }
+  });
+  
+  // Admin endpoint to manually trigger scheduled report check (for testing/cron)
+  app.post('/api/admin/report-subscriptions/check', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+    
+    try {
+      const sentCount = await checkAndSendDueReports();
+      res.json({ message: `Sent ${sentCount} scheduled reports` });
+    } catch (error) {
+      console.error('Error checking scheduled reports:', error);
+      res.status(500).json({ message: 'Failed to check scheduled reports' });
     }
   });
 

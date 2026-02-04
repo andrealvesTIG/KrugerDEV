@@ -1954,3 +1954,33 @@ export const insertHelpTicketSchema = createInsertSchema(helpTickets).omit({
 });
 export type InsertHelpTicket = z.infer<typeof insertHelpTicketSchema>;
 export type HelpTicket = typeof helpTickets.$inferSelect;
+
+// Report Subscriptions - scheduled email reports for dashboards
+export const reportSubscriptions = pgTable("report_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(), // e.g., "Weekly Portfolio Summary"
+  dashboards: text("dashboards").array().notNull(), // e.g., ["timesheet-overview", "project-hours"]
+  frequency: text("frequency").notNull(), // daily, weekly, monthly
+  dayOfWeek: integer("day_of_week"), // 0-6 for weekly (0=Sunday)
+  dayOfMonth: integer("day_of_month"), // 1-31 for monthly
+  timeOfDay: text("time_of_day").notNull().default("09:00"), // HH:mm format
+  timezone: text("timezone").notNull().default("America/New_York"),
+  recipients: text("recipients").array(), // Additional email addresses
+  isActive: boolean("is_active").notNull().default(true),
+  lastSentAt: timestamp("last_sent_at"),
+  nextScheduledAt: timestamp("next_scheduled_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertReportSubscriptionSchema = createInsertSchema(reportSubscriptions).omit({
+  id: true,
+  lastSentAt: true,
+  nextScheduledAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertReportSubscription = z.infer<typeof insertReportSubscriptionSchema>;
+export type ReportSubscription = typeof reportSubscriptions.$inferSelect;
