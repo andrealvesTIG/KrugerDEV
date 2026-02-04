@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
+import { usePortfolios } from "@/hooks/use-portfolios";
+import { useProjects } from "@/hooks/use-projects";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -480,19 +482,15 @@ export default function Simulation() {
   const [initialProjectStates, setInitialProjectStates] = useState<ProjectSimState[]>([]);
   const [risks, setRisks] = useState<RiskForSim[]>([]);
 
-  const { data: portfolios = [] } = useQuery<Portfolio[]>({
-    queryKey: ["/api/portfolios"],
-    enabled: !!currentOrganization
-  });
+  const { data: portfoliosData } = usePortfolios(currentOrganization?.id);
+  const portfolios = portfoliosData || [];
 
-  const { data: projectsData = [] } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
-    enabled: !!currentOrganization
-  });
+  const { data: projectsDataRaw } = useProjects(currentOrganization?.id);
+  const projectsData = projectsDataRaw || [];
 
   const { data: risksData = [] } = useQuery<any[]>({
-    queryKey: ["/api/issues", { itemType: "risk" }],
-    enabled: !!currentOrganization
+    queryKey: ["/api/issues", { itemType: "risk", organizationId: currentOrganization?.id }],
+    enabled: !!currentOrganization?.id
   });
 
   const filteredProjects = selectedPortfolioId === "all" 
