@@ -749,25 +749,25 @@ export default function SignInPage() {
               </div>
             </div>
             
-            <Card className="bg-slate-700/50 border-slate-600 backdrop-blur-sm">
+            <Card className="bg-white/95 dark:bg-slate-800/95 border-slate-200 dark:border-slate-600 backdrop-blur-md shadow-2xl">
               {emailSent ? (
                 <>
-                  <CardHeader className="text-center">
-                    <div className="mx-auto w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mb-4">
-                      <CheckCircle className="h-8 w-8 text-green-400" />
+                  <CardHeader className="text-center pb-4">
+                    <div className="mx-auto w-16 h-16 rounded-full bg-green-100 dark:bg-green-500/20 flex items-center justify-center mb-4">
+                      <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
                     </div>
-                    <CardTitle className="text-2xl text-white">Check Your Email</CardTitle>
-                    <CardDescription className="text-slate-300">
-                      We sent a link to <strong className="text-white">{email}</strong>
+                    <CardTitle className="text-2xl text-slate-900 dark:text-white">Check Your Email</CardTitle>
+                    <CardDescription className="text-slate-600 dark:text-slate-300">
+                      We sent a link to <strong className="text-slate-900 dark:text-white">{email}</strong>
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="text-sm text-slate-400 text-center">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
                       Click the link in your email to continue. The link expires in 15 minutes.
                     </p>
                     <Button 
                       variant="outline" 
-                      className="w-full border-slate-600 text-slate-300 hover:bg-slate-700" 
+                      className="w-full border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700" 
                       onClick={() => setEmailSent(false)}
                       data-testid="button-try-another-email"
                     >
@@ -777,20 +777,20 @@ export default function SignInPage() {
                 </>
               ) : (
                 <>
-                  <CardHeader className="text-center">
+                  <CardHeader className="text-center pb-4">
                     <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                       <Mail className="h-8 w-8 text-primary" />
                     </div>
-                    <CardTitle className="text-2xl text-white">Get Started Free</CardTitle>
-                    <CardDescription className="text-slate-300">
+                    <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">Get Started Free</CardTitle>
+                    <CardDescription className="text-slate-600 dark:text-slate-300">
                       Enter your work email to sign in or create an account
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-6">
+                  <CardContent className="space-y-5">
                     <form onSubmit={handleSubmit} className="space-y-4">
                       <HoneypotField onDataChange={handleHoneypotChange} />
                       <div className="space-y-2">
-                        <Label htmlFor="email" className="text-slate-300">Work Email</Label>
+                        <Label htmlFor="email" className="text-slate-700 dark:text-slate-200 font-medium">Work Email</Label>
                         <Input
                           id="email"
                           type="email"
@@ -798,7 +798,7 @@ export default function SignInPage() {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           required
-                          className="bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-primary"
+                          className="h-11 bg-white dark:bg-slate-900/50 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/20"
                           data-testid="input-signin-email"
                         />
                       </div>
@@ -808,20 +808,20 @@ export default function SignInPage() {
                         onExpire={() => setTurnstileToken(null)}
                         className="flex justify-center"
                       />
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700">
                         <Checkbox
                           id="terms"
                           checked={termsAccepted}
                           onCheckedChange={(checked) => setTermsAccepted(checked === true)}
-                          className="mt-0.5"
+                          className="mt-0.5 border-slate-400 dark:border-slate-500 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                           data-testid="checkbox-terms-accept"
                         />
-                        <Label htmlFor="terms" className="text-sm text-slate-400 leading-relaxed cursor-pointer">
+                        <Label htmlFor="terms" className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed cursor-pointer">
                           I agree to the{" "}
                           <a 
                             href="/terms" 
                             target="_blank" 
-                            className="text-primary hover:underline"
+                            className="text-primary font-medium hover:underline"
                             data-testid="link-terms-of-service"
                           >
                             Terms of Service
@@ -830,7 +830,7 @@ export default function SignInPage() {
                           <a 
                             href="/privacy" 
                             target="_blank" 
-                            className="text-primary hover:underline"
+                            className="text-primary font-medium hover:underline"
                             data-testid="link-privacy-policy"
                           >
                             Privacy Policy
@@ -839,28 +839,29 @@ export default function SignInPage() {
                       </div>
                       <Button 
                         type="submit" 
-                        className="w-full bg-primary hover:bg-primary/90" 
+                        size="lg"
+                        className="w-full h-12 text-base font-semibold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25" 
                         disabled={isLoading || !email.trim() || !termsAccepted}
                         data-testid="button-send-signin-link"
                       >
                         {isLoading ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                         ) : (
-                          <Mail className="h-4 w-4 mr-2" />
+                          <Mail className="h-5 w-5 mr-2" />
                         )}
                         Continue with Email
-                        <ChevronRight className="h-4 w-4 ml-2" />
+                        <ChevronRight className="h-5 w-5 ml-2" />
                       </Button>
                     </form>
 
                     {(msStatus?.configured || googleStatus?.configured) && (
                       <>
-                        <div className="relative">
+                        <div className="relative py-2">
                           <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t border-slate-700" />
+                            <span className="w-full border-t border-slate-200 dark:border-slate-700" />
                           </div>
                           <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-slate-800/50 px-2 text-slate-500">Or</span>
+                            <span className="bg-white dark:bg-slate-800 px-3 text-slate-400 dark:text-slate-500 font-medium">Or continue with</span>
                           </div>
                         </div>
 
@@ -868,11 +869,12 @@ export default function SignInPage() {
                           {msStatus?.configured && (
                             <Button 
                               variant="outline" 
-                              className="w-full border-slate-600 text-slate-300 hover:bg-slate-700" 
+                              size="lg"
+                              className="w-full h-11 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900/50 hover:bg-slate-50 dark:hover:bg-slate-700 font-medium" 
                               onClick={handleMicrosoftSignIn}
                               data-testid="button-microsoft-signin"
                             >
-                              <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <svg className="mr-2 h-5 w-5" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
                                 <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
                                 <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
@@ -884,11 +886,12 @@ export default function SignInPage() {
                           {googleStatus?.configured && (
                             <Button 
                               variant="outline" 
-                              className="w-full border-slate-600 text-slate-300 hover:bg-slate-700" 
+                              size="lg"
+                              className="w-full h-11 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900/50 hover:bg-slate-50 dark:hover:bg-slate-700 font-medium" 
                               onClick={handleGoogleSignIn}
                               data-testid="button-google-signin"
                             >
-                              <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
@@ -901,9 +904,9 @@ export default function SignInPage() {
                       </>
                     )}
 
-                    <p className="text-center text-sm text-slate-500">
+                    <p className="text-center text-sm text-slate-500 dark:text-slate-400 pt-2">
                       Already have an account?{" "}
-                      <Link href="/auth" className="text-primary hover:underline" data-testid="link-signin">
+                      <Link href="/auth" className="text-primary font-semibold hover:underline" data-testid="link-signin">
                         Sign in
                       </Link>
                     </p>
