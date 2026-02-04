@@ -3,6 +3,8 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useResources } from "@/hooks/use-resources";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
+import { useAuth } from "@/hooks/use-auth";
+import { useCurrentUserResource } from "@/hooks/use-timesheets";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardActionBar } from "./DashboardActionBar";
 import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
@@ -11,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Clock, Target, CheckCircle2, AlertCircle, FileCheck, TrendingUp, Calendar, Users } from "lucide-react";
+import { Loader2, Clock, Target, CheckCircle2, AlertCircle, FileCheck, TrendingUp, Calendar, Users, Eye } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import type { TimesheetEntry } from "@shared/schema";
 
@@ -26,11 +28,20 @@ const COLORS = {
 };
 
 export function TimesheetReportDashboard() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, memberships } = useOrganization();
+  const { user } = useAuth();
+  const { data: currentResource } = useCurrentUserResource(currentOrganization?.id ?? null, user?.id);
   const { data: resources, isLoading: resourcesLoading } = useResources(currentOrganization?.id ?? null);
   const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
   const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
   const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
+  
+  // Determine if user can view team data (admin, owner, or approver)
+  const isSuperAdmin = user?.role === 'super_admin';
+  const currentMembership = memberships.find(m => m.organizationId === currentOrganization?.id);
+  const isOrgAdmin = currentMembership?.role === 'org_admin' || currentMembership?.role === 'owner';
+  const isApprover = currentResource?.isApprover === true;
+  const canViewTeam = isSuperAdmin || isOrgAdmin || isApprover;
 
   const today = new Date();
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -184,11 +195,21 @@ export function TimesheetReportDashboard() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">Timesheet Report</h2>
-          <p className="text-sm text-muted-foreground">Track time logging, compliance, and approval status.</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-xl font-semibold">Timesheet Overview</h2>
+            <p className="text-sm text-muted-foreground">Monthly compliance, approval status, and team performance.</p>
+          </div>
+          <Badge 
+            variant="outline" 
+            className="flex items-center gap-1.5 h-6"
+            data-testid="badge-view-scope"
+          >
+            <Eye className="h-3 w-3" />
+            {canViewTeam ? "Team View" : "Personal View"}
+          </Badge>
         </div>
-        <DashboardActionBar title="Timesheet Report Dashboard" dashboardType="timesheet" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
+        <DashboardActionBar title="Timesheet Overview Dashboard" dashboardType="timesheet" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
       </div>
 
       <DashboardFilters
