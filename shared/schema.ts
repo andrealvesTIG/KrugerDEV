@@ -1954,3 +1954,129 @@ export const insertHelpTicketSchema = createInsertSchema(helpTickets).omit({
 });
 export type InsertHelpTicket = z.infer<typeof insertHelpTicketSchema>;
 export type HelpTicket = typeof helpTickets.$inferSelect;
+
+// === SIMULATION MODULE ===
+
+// Simulation Runs - Portfolio/project simulation sessions
+export const simulationRuns = pgTable("simulation_runs", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  portfolioId: integer("portfolio_id").references(() => portfolios.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  timeHorizon: text("time_horizon").notNull(), // "1month", "3months", "6months", "1year"
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  scenario: text("scenario").default("baseline"), // "optimistic", "baseline", "pessimistic"
+  status: text("status").default("pending"), // "pending", "running", "completed", "cancelled"
+  currentStep: integer("current_step").default(0),
+  totalSteps: integer("total_steps").default(0),
+  riskTriggerProbabilityMultiplier: numeric("risk_trigger_probability_multiplier").default("1.0"),
+  budgetVarianceRange: numeric("budget_variance_range").default("0.1"),
+  scheduleVarianceRange: numeric("schedule_variance_range").default("0.1"),
+  snapshotData: jsonb("snapshot_data").$type<SimulationSnapshot>(),
+  finalResults: jsonb("final_results").$type<SimulationResults>(),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+// Simulation Events - Individual events triggered during simulation
+export const simulationEvents = pgTable("simulation_events", {
+  id: serial("id").primaryKey(),
+  simulationRunId: integer("simulation_run_id").references(() => simulationRuns.id).notNull(),
+  stepNumber: integer("step_number").notNull(),
+  eventDate: date("event_date").notNull(),
+  eventType: text("event_type").notNull(), // "risk_triggered", "deadline_missed", "budget_exceeded", "resource_overload", "milestone_delayed"
+  severity: text("severity").default("medium"), // "low", "medium", "high", "critical"
+  sourceType: text("source_type"), // "risk", "task", "project", "resource"
+  sourceId: integer("source_id"),
+  sourceName: text("source_name"),
+  projectId: integer("project_id").references(() => projects.id),
+  projectName: text("project_name"),
+  title: text("title").notNull(),
+  description: text("description"),
+  impactBudget: numeric("impact_budget"),
+  impactScheduleDays: integer("impact_schedule_days"),
+  impactHealth: text("impact_health"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Simulation Step Snapshots - State at each time step
+export const simulationSnapshots = pgTable("simulation_snapshots", {
+  id: serial("id").primaryKey(),
+  simulationRunId: integer("simulation_run_id").references(() => simulationRuns.id).notNull(),
+  stepNumber: integer("step_number").notNull(),
+  stepDate: date("step_date").notNull(),
+  portfolioHealth: text("portfolio_health"),
+  totalBudget: numeric("total_budget"),
+  totalSpent: numeric("total_spent"),
+  totalForecast: numeric("total_forecast"),
+  projectsOnTrack: integer("projects_on_track"),
+  projectsAtRisk: integer("projects_at_risk"),
+  projectsOffTrack: integer("projects_off_track"),
+  openRisks: integer("open_risks"),
+  triggeredRisks: integer("triggered_risks"),
+  openIssues: integer("open_issues"),
+  completedTasks: integer("completed_tasks"),
+  totalTasks: integer("total_tasks"),
+  resourceUtilization: numeric("resource_utilization"),
+  projectStates: jsonb("project_states").$type<ProjectSimState[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Types for simulation JSON data
+export interface ProjectSimState {
+  projectId: number;
+  projectName: string;
+  health: string;
+  budget: number;
+  spent: number;
+  forecast: number;
+  completionPercentage: number;
+  scheduleVarianceDays: number;
+  costVariance: number;
+}
+
+export interface SimulationSnapshot {
+  portfolioHealth: string;
+  totalBudget: number;
+  totalSpent: number;
+  totalForecast: number;
+  projectStates: ProjectSimState[];
+}
+
+export interface SimulationResults {
+  scenario: string;
+  finalHealth: string;
+  budgetVariance: number;
+  scheduleVarianceDays: number;
+  riskTriggeredCount: number;
+  issuesCreatedCount: number;
+  projectsCompleted: number;
+  projectsDelayed: number;
+  projectsOverBudget: number;
+  recommendations: string[];
+}
+
+export const insertSimulationRunSchema = createInsertSchema(simulationRuns).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+export type InsertSimulationRun = z.infer<typeof insertSimulationRunSchema>;
+export type SimulationRun = typeof simulationRuns.$inferSelect;
+
+export const insertSimulationEventSchema = createInsertSchema(simulationEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSimulationEvent = z.infer<typeof insertSimulationEventSchema>;
+export type SimulationEvent = typeof simulationEvents.$inferSelect;
+
+export const insertSimulationSnapshotSchema = createInsertSchema(simulationSnapshots).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSimulationSnapshot = z.infer<typeof insertSimulationSnapshotSchema>;
+export type SimulationSnapshot2 = typeof simulationSnapshots.$inferSelect;
