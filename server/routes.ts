@@ -5434,12 +5434,19 @@ export async function registerRoutes(
         let timesheetEntriesLost = 0;
         
         // Build map of new task names -> new task IDs
+        // Warn if duplicate task names exist (relationships may be misassociated)
         const newTaskNameToId = new Map<string, number>();
+        const duplicateNames = new Set<string>();
         for (const task of createdTasks) {
           const taskName = task.name.toLowerCase().trim();
-          if (!newTaskNameToId.has(taskName)) {
+          if (newTaskNameToId.has(taskName)) {
+            duplicateNames.add(taskName);
+          } else {
             newTaskNameToId.set(taskName, task.id);
           }
+        }
+        if (duplicateNames.size > 0) {
+          console.log(`Planner Premium sync WARNING: ${duplicateNames.size} duplicate task names found. Relationships may be assigned to first matching task: ${Array.from(duplicateNames).slice(0, 5).join(', ')}${duplicateNames.size > 5 ? '...' : ''}`);
         }
         
         // Recreate timesheet entries with new task IDs
@@ -5605,7 +5612,13 @@ export async function registerRoutes(
           resourcesSynced,
           timesheetEntriesPreserved,
           timesheetEntriesLost,
-          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''} from Planner Premium`
+          changeLogsPreserved,
+          changeLogsLost,
+          dependenciesPreserved,
+          dependenciesLost,
+          issueLinksPreserved,
+          issueLinksLost,
+          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''}${changeLogsPreserved > 0 ? ` (preserved ${changeLogsPreserved} change logs)` : ''}${dependenciesPreserved > 0 ? ` (preserved ${dependenciesPreserved} dependencies)` : ''}${issueLinksPreserved > 0 ? ` (preserved ${issueLinksPreserved} issue links)` : ''} from Planner Premium`
         });
       }
 
@@ -5827,6 +5840,22 @@ export async function registerRoutes(
         if (!newTasksByName.has(taskNameKey)) {
           newTasksByName.set(taskNameKey, task.id);
         }
+      }
+
+      // Warn if duplicate task names exist (relationships may be misassociated)
+      const taskNameCounts = new Map<string, number>();
+      for (const plannerTask of plannerTasks) {
+        const taskName = plannerTask.title.toLowerCase().trim();
+        taskNameCounts.set(taskName, (taskNameCounts.get(taskName) || 0) + 1);
+      }
+      const duplicateNames: string[] = [];
+      for (const [name, count] of Array.from(taskNameCounts.entries())) {
+        if (count > 1) {
+          duplicateNames.push(name);
+        }
+      }
+      if (duplicateNames.length > 0) {
+        console.log(`Planner sync WARNING: ${duplicateNames.length} duplicate task names found. Relationships may be assigned to first matching task: ${duplicateNames.slice(0, 5).join(', ')}${duplicateNames.length > 5 ? '...' : ''}`);
       }
 
       // Reassign preserved timesheet entries to matching new tasks
@@ -6083,7 +6112,15 @@ export async function registerRoutes(
         success: true,
         tasksCount: createdTasks.length,
         resourcesSynced,
-        message: `Synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''} from Planner`
+        timesheetEntriesPreserved,
+        timesheetEntriesLost,
+        changeLogsPreserved,
+        changeLogsLost,
+        dependenciesPreserved,
+        dependenciesLost,
+        issueLinksPreserved,
+        issueLinksLost,
+        message: `Synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''}${changeLogsPreserved > 0 ? ` (preserved ${changeLogsPreserved} change logs)` : ''}${dependenciesPreserved > 0 ? ` (preserved ${dependenciesPreserved} dependencies)` : ''}${issueLinksPreserved > 0 ? ` (preserved ${issueLinksPreserved} issue links)` : ''} from Planner`
       });
     } catch (err: any) {
       console.error("Planner sync error:", err);
