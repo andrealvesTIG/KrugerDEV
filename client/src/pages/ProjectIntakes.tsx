@@ -41,7 +41,7 @@ function getStatusBadge(status: string) {
     case "approved":
       return <Badge variant="default" className="bg-green-500/20 text-green-700 dark:text-green-300">Approved</Badge>;
     case "rejected":
-      return <Badge variant="default" className="bg-red-500/20 text-red-700 dark:text-red-300">Rejected</Badge>;
+      return <Badge variant="default" className="bg-destructive/20 text-destructive">Rejected</Badge>;
     case "deferred":
       return <Badge variant="default" className="bg-amber-500/20 text-amber-700 dark:text-amber-300">Deferred</Badge>;
     case "in_progress":
@@ -412,8 +412,8 @@ export default function ProjectIntakes() {
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-500/10">
-                <XCircle className="h-5 w-5 text-red-500" />
+              <div className="p-2 rounded-lg bg-destructive/10">
+                <XCircle className="h-5 w-5 text-destructive" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.rejected}</p>

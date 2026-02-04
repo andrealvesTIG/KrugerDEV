@@ -19,7 +19,7 @@ interface ProjectCardCompactProps {
 const healthColors: Record<string, string> = {
   Green: "bg-emerald-500",
   Yellow: "bg-amber-500",
-  Red: "bg-red-500",
+  Red: "bg-destructive",
 };
 
 const healthBadgeVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {

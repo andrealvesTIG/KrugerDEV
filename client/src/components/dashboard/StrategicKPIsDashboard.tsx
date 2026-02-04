@@ -112,7 +112,7 @@ export function StrategicKPIsDashboard() {
 
   const getTrendIcon = (value: number, threshold: number = 0) => {
     if (value > threshold + 5) return <ArrowUpRight className="h-4 w-4 text-emerald-500" />;
-    if (value < threshold - 5) return <ArrowDownRight className="h-4 w-4 text-red-500" />;
+    if (value < threshold - 5) return <ArrowDownRight className="h-4 w-4 text-destructive" />;
     return <Minus className="h-4 w-4 text-amber-500" />;
   };
 
@@ -201,7 +201,7 @@ export function StrategicKPIsDashboard() {
             <span className="text-xs text-muted-foreground">Budget Variance</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`text-2xl font-bold ${kpis.budgetVariance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            <span className={`text-2xl font-bold ${kpis.budgetVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
               {kpis.budgetVariance >= 0 ? '+' : ''}{kpis.budgetVariance}%
             </span>
           </div>
@@ -335,8 +335,8 @@ export function StrategicKPIsDashboard() {
                 <div className="text-lg font-semibold text-amber-600">{kpis.atRiskProjects}</div>
                 <div className="text-[10px] text-muted-foreground">At Risk</div>
               </div>
-              <div className="text-center p-2 rounded-md bg-red-500/10">
-                <div className="text-lg font-semibold text-red-600">{kpis.criticalProjects}</div>
+              <div className="text-center p-2 rounded-md bg-destructive/10">
+                <div className="text-lg font-semibold text-destructive">{kpis.criticalProjects}</div>
                 <div className="text-[10px] text-muted-foreground">Critical</div>
               </div>
             </div>

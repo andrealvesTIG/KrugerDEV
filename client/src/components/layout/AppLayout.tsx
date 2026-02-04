@@ -177,13 +177,13 @@ function getNotificationIcon(type: string, severity?: string | null) {
     case 'comment_reply':
       return { icon: <MessageSquare className={`${iconClass} text-primary`} />, bg: 'bg-primary/10' };
     case 'task_overdue':
-      return { icon: <AlertTriangle className={`${iconClass} text-red-600 dark:text-red-400`} />, bg: 'bg-red-100 dark:bg-red-900/30' };
+      return { icon: <AlertTriangle className={`${iconClass} text-destructive`} />, bg: 'bg-destructive/10' };
     case 'task_deadline_warning':
       return { icon: <Clock className={`${iconClass} text-amber-600 dark:text-amber-400`} />, bg: 'bg-amber-100 dark:bg-amber-900/30' };
     case 'project_health_alert':
-      return { icon: <AlertCircle className={`${iconClass} text-red-600 dark:text-red-400`} />, bg: 'bg-red-100 dark:bg-red-900/30' };
+      return { icon: <AlertCircle className={`${iconClass} text-destructive`} />, bg: 'bg-destructive/10' };
     case 'portfolio_health_alert':
-      return { icon: <AlertCircle className={`${iconClass} text-red-600 dark:text-red-400`} />, bg: 'bg-red-100 dark:bg-red-900/30' };
+      return { icon: <AlertCircle className={`${iconClass} text-destructive`} />, bg: 'bg-destructive/10' };
     case 'task_assignment':
       return { icon: <UserPlus className={`${iconClass} text-green-600 dark:text-green-400`} />, bg: 'bg-green-100 dark:bg-green-900/30' };
     case 'risk_assignment':
@@ -195,7 +195,7 @@ function getNotificationIcon(type: string, severity?: string | null) {
     case 'milestone_approaching':
       return { icon: <Target className={`${iconClass} text-amber-600 dark:text-amber-400`} />, bg: 'bg-amber-100 dark:bg-amber-900/30' };
     case 'milestone_overdue':
-      return { icon: <Target className={`${iconClass} text-red-600 dark:text-red-400`} />, bg: 'bg-red-100 dark:bg-red-900/30' };
+      return { icon: <Target className={`${iconClass} text-destructive`} />, bg: 'bg-destructive/10' };
     case 'status_change':
       return { icon: <CheckCircle2 className={`${iconClass} text-primary`} />, bg: 'bg-primary/10' };
     default:
@@ -279,7 +279,7 @@ function NotificationBell() {
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium">{notification.title}</p>
                           {severity === 'critical' && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 font-medium">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-medium">
                               Critical
                             </span>
                           )}

@@ -228,12 +228,12 @@ export function PortfoliosDashboard() {
 
         <Card className="p-3 hover-elevate" data-testid="kpi-critical">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-red-500/10">
-              <BarChart3 className="h-3.5 w-3.5 text-red-500" />
+            <div className="p-1.5 rounded-md bg-destructive/10">
+              <BarChart3 className="h-3.5 w-3.5 text-destructive" />
             </div>
             <span className="text-xs text-muted-foreground">Critical</span>
           </div>
-          <div className="text-2xl font-bold text-red-500">{criticalProjects}</div>
+          <div className="text-2xl font-bold text-destructive">{criticalProjects}</div>
           <div className="text-xs text-muted-foreground">need attention</div>
         </Card>
       </div>

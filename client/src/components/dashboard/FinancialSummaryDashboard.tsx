@@ -198,14 +198,14 @@ export function FinancialSummaryDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Budget Variance</span>
           </div>
-          <div className={`text-2xl font-bold ${financials.budgetVariance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+          <div className={`text-2xl font-bold ${financials.budgetVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
             {financials.budgetVariance >= 0 ? '+' : ''}{formatCurrency(financials.budgetVariance)}
           </div>
           <div className="flex items-center gap-1 mt-1">
             {financials.budgetVariance >= 0 ? (
               <ArrowUpRight className="h-3 w-3 text-emerald-500" />
             ) : (
-              <ArrowDownRight className="h-3 w-3 text-red-500" />
+              <ArrowDownRight className="h-3 w-3 text-destructive" />
             )}
             <span className="text-[10px] text-muted-foreground">
               {Math.abs(financials.budgetVariancePercent).toFixed(1)}% {financials.budgetVariance >= 0 ? 'under' : 'over'}
@@ -220,7 +220,7 @@ export function FinancialSummaryDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">CPI</span>
           </div>
-          <div className={`text-2xl font-bold ${financials.costPerformanceIndex >= 1 ? 'text-emerald-600' : 'text-red-600'}`}>
+          <div className={`text-2xl font-bold ${financials.costPerformanceIndex >= 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
             {financials.costPerformanceIndex.toFixed(2)}
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
@@ -241,12 +241,12 @@ export function FinancialSummaryDashboard() {
 
         <Card className="p-4" data-testid="kpi-over-budget-count">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 rounded-lg bg-red-500/10">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
+            <div className="p-2 rounded-lg bg-destructive/10">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
             </div>
             <span className="text-xs text-muted-foreground">Over Budget</span>
           </div>
-          <div className="text-2xl font-bold text-red-600">{financials.overBudgetProjects}</div>
+          <div className="text-2xl font-bold text-destructive">{financials.overBudgetProjects}</div>
           <p className="text-[10px] text-muted-foreground mt-1">Projects exceeding budget</p>
         </Card>
       </div>
@@ -293,8 +293,8 @@ export function FinancialSummaryDashboard() {
                 <div className="text-lg font-semibold text-blue-600">{financials.underBudgetProjects}</div>
                 <div className="text-[10px] text-muted-foreground">Under</div>
               </div>
-              <div className="text-center p-2 rounded-md bg-red-500/10">
-                <div className="text-lg font-semibold text-red-600">{financials.overBudgetProjects}</div>
+              <div className="text-center p-2 rounded-md bg-destructive/10">
+                <div className="text-lg font-semibold text-destructive">{financials.overBudgetProjects}</div>
                 <div className="text-[10px] text-muted-foreground">Over</div>
               </div>
             </div>
@@ -479,10 +479,10 @@ export function FinancialSummaryDashboard() {
                 {financials.budgetVariance >= 0 ? (
                   <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                 ) : (
-                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
                 )}
               </div>
-              <div className={`text-xl font-bold ${financials.budgetVariance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <div className={`text-xl font-bold ${financials.budgetVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
                 {formatCurrency(financials.budgetVariance)}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">BAC - EAC</p>

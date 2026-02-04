@@ -96,7 +96,7 @@ export function DashboardActionBar({ title, dashboardType, organizationId, onExp
               disabled={isExporting || !isOrgReady}
               data-testid="menu-export-pdf"
             >
-              <FileText className="h-4 w-4 mr-2 text-red-500" />
+              <FileText className="h-4 w-4 mr-2 text-destructive" />
               Export as PDF
             </DropdownMenuItem>
             <DropdownMenuItem 

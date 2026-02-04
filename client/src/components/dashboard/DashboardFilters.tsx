@@ -275,7 +275,7 @@ export function DashboardFilters({
             </SelectItem>
             <SelectItem value="Red">
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-red-500" />
+                <div className="h-2 w-2 rounded-full bg-destructive" />
                 Red
               </div>
             </SelectItem>

@@ -25,7 +25,7 @@ function getStatusBadge(status: string) {
     case "approved":
       return <Badge variant="default" className="bg-green-500/20 text-green-700 dark:text-green-300">Approved</Badge>;
     case "rejected":
-      return <Badge variant="default" className="bg-red-500/20 text-red-700 dark:text-red-300">Rejected</Badge>;
+      return <Badge variant="default" className="bg-destructive/20 text-destructive">Rejected</Badge>;
     case "deferred":
       return <Badge variant="default" className="bg-amber-500/20 text-amber-700 dark:text-amber-300">Deferred</Badge>;
     case "in_progress":
@@ -758,10 +758,10 @@ export default function IntakeDetails() {
       )}
 
       {isRejected && (
-        <Card className="border-red-500/50 bg-red-500/5">
+        <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="py-4">
             <div className="flex items-center gap-3">
-              <XCircle className="h-5 w-5 text-red-500" />
+              <XCircle className="h-5 w-5 text-destructive" />
               <div>
                 <span className="font-medium">This intake has been rejected.</span>
                 {intake.rejectionReason && (

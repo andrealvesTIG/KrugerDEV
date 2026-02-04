@@ -300,12 +300,12 @@ function RisksAdminTab() {
                 <TableCell>{getProjectName(risk.projectId)}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className={cn(
-                    risk.probability === 'High' ? "bg-red-50 text-red-700" : "bg-slate-50"
+                    risk.probability === 'High' ? "bg-destructive/10 text-destructive" : "bg-slate-50 dark:bg-slate-800"
                   )}>{risk.probability}</Badge>
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline" className={cn(
-                    risk.impact === 'High' ? "bg-red-50 text-red-700" : "bg-slate-50"
+                    risk.impact === 'High' ? "bg-destructive/10 text-destructive" : "bg-slate-50 dark:bg-slate-800"
                   )}>{risk.impact}</Badge>
                 </TableCell>
                 <TableCell>
@@ -355,10 +355,10 @@ function IssuesAdminTab() {
   };
 
   const statusColors: Record<string, string> = {
-    Open: "bg-red-100 text-red-700",
-    "In Progress": "bg-blue-100 text-blue-700",
-    Resolved: "bg-emerald-100 text-emerald-700",
-    Closed: "bg-slate-100 text-slate-700",
+    Open: "bg-destructive/10 text-destructive",
+    "In Progress": "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    Resolved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    Closed: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   };
 
   return (

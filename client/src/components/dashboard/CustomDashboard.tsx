@@ -390,11 +390,11 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
     // Stat Card with color scheme and trend
     if (widget.type === 'stat-card') {
       const colorSchemes: Record<string, { bg: string; text: string; icon: string }> = {
-        green: { bg: 'bg-green-50 dark:bg-green-950', text: 'text-green-700 dark:text-green-300', icon: 'text-green-600' },
-        blue: { bg: 'bg-blue-50 dark:bg-blue-950', text: 'text-blue-700 dark:text-blue-300', icon: 'text-blue-600' },
-        amber: { bg: 'bg-amber-50 dark:bg-amber-950', text: 'text-amber-700 dark:text-amber-300', icon: 'text-amber-600' },
-        red: { bg: 'bg-red-50 dark:bg-red-950', text: 'text-red-700 dark:text-red-300', icon: 'text-red-600' },
-        purple: { bg: 'bg-purple-50 dark:bg-purple-950', text: 'text-purple-700 dark:text-purple-300', icon: 'text-purple-600' },
+        green: { bg: 'bg-green-50 dark:bg-green-950', text: 'text-green-700 dark:text-green-300', icon: 'text-green-600 dark:text-green-400' },
+        blue: { bg: 'bg-blue-50 dark:bg-blue-950', text: 'text-blue-700 dark:text-blue-300', icon: 'text-blue-600 dark:text-blue-400' },
+        amber: { bg: 'bg-amber-50 dark:bg-amber-950', text: 'text-amber-700 dark:text-amber-300', icon: 'text-amber-600 dark:text-amber-400' },
+        red: { bg: 'bg-destructive/10', text: 'text-destructive', icon: 'text-destructive' },
+        purple: { bg: 'bg-purple-50 dark:bg-purple-950', text: 'text-purple-700 dark:text-purple-300', icon: 'text-purple-600 dark:text-purple-400' },
       };
       const scheme = colorSchemes[widget.colorScheme || 'blue'];
       const value = typeof data === 'number' ? data : Array.isArray(data) ? data.length : 0;
@@ -444,7 +444,7 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
                 <p className="text-2xl font-bold mt-1">{value.toLocaleString()}</p>
               </div>
               <div className={cn("flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
-                trend === 'up' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                trend === 'up' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-destructive/10 text-destructive'
               )}>
                 {trend === 'up' ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {trendValue}%
@@ -486,7 +486,7 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
               )}
               {issueCount > 0 && (
                 <p className="flex items-start gap-2">
-                  <Flag className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <Flag className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
                   <span>Currently tracking <strong className="text-foreground">{issueCount} open issues</strong> across all projects.</span>
                 </p>
               )}
@@ -622,7 +622,7 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
                     <div className="relative flex flex-col items-center">
                       <div className={cn(
                         "w-3 h-3 rounded-full border-2",
-                        isOverdue ? "bg-red-500 border-red-500" : "bg-primary border-primary"
+                        isOverdue ? "bg-destructive border-destructive" : "bg-primary border-primary"
                       )} />
                       {index < upcomingMilestones.length - 1 && (
                         <div className="w-0.5 h-full bg-muted absolute top-3" />
@@ -632,7 +632,7 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
                       <p className="text-sm font-medium">{milestone.title || milestone.name}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <span className={cn("text-xs", isOverdue ? "text-red-500" : "text-muted-foreground")}>
+                        <span className={cn("text-xs", isOverdue ? "text-destructive" : "text-muted-foreground")}>
                           {dueDate.toLocaleDateString()}
                           {isOverdue && " (Overdue)"}
                         </span>
@@ -666,7 +666,7 @@ export function CustomDashboard({ dashboardId, onDelete }: CustomDashboardProps)
       
       const getColor = (severity: number, probability: number) => {
         const score = (3 - severity) + (3 - probability);
-        if (score >= 5) return 'bg-red-500';
+        if (score >= 5) return 'bg-destructive';
         if (score >= 3) return 'bg-amber-500';
         return 'bg-green-500';
       };

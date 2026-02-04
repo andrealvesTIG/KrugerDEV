@@ -196,12 +196,12 @@ export function RiskMatrixDashboard() {
 
         <Card className="p-4" data-testid="kpi-critical-risks">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 rounded-lg bg-red-500/10">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
+            <div className="p-2 rounded-lg bg-destructive/10">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
             </div>
             <span className="text-xs text-muted-foreground">High/Critical</span>
           </div>
-          <div className="text-2xl font-bold text-red-600">{riskMetrics.critical}</div>
+          <div className="text-2xl font-bold text-destructive">{riskMetrics.critical}</div>
           <p className="text-[10px] text-muted-foreground mt-1">Urgent attention</p>
         </Card>
 
@@ -299,7 +299,7 @@ export function RiskMatrixDashboard() {
               <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-emerald-500" /> Low</span>
               <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-yellow-500" /> Medium</span>
               <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-amber-500" /> High</span>
-              <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-600" /> Critical</span>
+              <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-destructive" /> Critical</span>
             </div>
           </CardContent>
         </Card>

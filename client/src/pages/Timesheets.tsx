@@ -172,7 +172,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         
         return (
           <td key={dateKey} className={`p-2 ${
-            isPeriodClosed ? "bg-red-50/30 dark:bg-red-900/10" :
+            isPeriodClosed ? "bg-destructive/5" :
             isTodayDate ? "bg-blue-500/5" : 
             isWeekendDay ? "bg-muted/40" : ""
           }`}>
@@ -192,7 +192,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 disabled={!isEditable}
                 className={`w-16 text-center h-9 rounded-lg border-2 ${
                   isPeriodClosed
-                    ? "border-red-300 bg-red-50/50 dark:border-red-700 dark:bg-red-900/30"
+                    ? "border-destructive/30 bg-destructive/5"
                     : isCellOvertime
                     ? "border-amber-400 bg-amber-50/50 dark:border-amber-600 dark:bg-amber-900/20"
                     : isTodayDate 
@@ -201,8 +201,8 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                     ? "border-muted bg-muted/30"
                     : "border-border bg-background"
                 } ${!isEditable ? "opacity-60 cursor-not-allowed" : ""} 
-                ${status === "Approved" ? "border-green-300" : ""} 
-                ${status === "Rejected" ? "border-red-300" : ""}
+                ${status === "Approved" ? "border-green-300 dark:border-green-700" : ""} 
+                ${status === "Rejected" ? "border-destructive/30" : ""}
                 focus:ring-2 focus:ring-primary/20`}
                 data-testid={`input-hours-${task.id}-${dateKey}`}
               />
@@ -210,7 +210,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="absolute -top-1 -left-1">
-                      <Lock className="h-3 w-3 text-red-500" />
+                      <Lock className="h-3 w-3 text-destructive" />
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="top">
@@ -232,7 +232,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 <div className="absolute -top-1 -right-1">
                   {status === "Approved" && <Check className="h-3 w-3 text-green-500" />}
                   {status === "Submitted" && <Clock className="h-3 w-3 text-amber-500" />}
-                  {status === "Rejected" && <X className="h-3 w-3 text-red-500" />}
+                  {status === "Rejected" && <X className="h-3 w-3 text-destructive" />}
                 </div>
               )}
               <Tooltip>
@@ -616,12 +616,12 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 const closedPeriodName = isPeriodClosed ? getClosedPeriodName(date) : null;
                 return (
                   <th key={formatDateKey(date)} className={`p-3 text-center min-w-[80px] ${
-                    isPeriodClosed ? "bg-red-50/50 dark:bg-red-900/20" :
+                    isPeriodClosed ? "bg-destructive/5" :
                     isTodayDate ? "bg-blue-500/10" : isWeekendDay ? "bg-muted/40" : ""
                   }`}>
                     <div className={`text-xs font-medium flex items-center justify-center gap-1 ${
-                      isPeriodClosed ? "text-red-600 dark:text-red-400" :
-                      isTodayDate ? "text-blue-600" : isWeekendDay ? "text-muted-foreground/70" : "text-muted-foreground"
+                      isPeriodClosed ? "text-destructive" :
+                      isTodayDate ? "text-blue-600 dark:text-blue-400" : isWeekendDay ? "text-muted-foreground/70" : "text-muted-foreground"
                     }`}>
                       {isPeriodClosed && (
                         <Tooltip>
@@ -636,8 +636,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       {format(date, "EEE")}
                     </div>
                     <div className={`text-lg font-semibold ${
-                      isPeriodClosed ? "text-red-600 dark:text-red-400" :
-                      isTodayDate ? "text-blue-600" : isWeekendDay ? "text-muted-foreground" : "text-foreground"
+                      isPeriodClosed ? "text-destructive" :
+                      isTodayDate ? "text-blue-600 dark:text-blue-400" : isWeekendDay ? "text-muted-foreground" : "text-foreground"
                     }`}>
                       {format(date, "d")}
                     </div>
@@ -1171,7 +1171,7 @@ function PeriodManagementTab() {
                   key={period.id}
                   className={`flex items-center justify-between p-4 rounded-lg border ${
                     period.status === "closed" 
-                      ? "bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800" 
+                      ? "bg-destructive/5 border-destructive/20" 
                       : "bg-card border-border"
                   }`}
                   data-testid={`period-${period.id}`}
@@ -1179,11 +1179,11 @@ function PeriodManagementTab() {
                   <div className="flex items-center gap-4">
                     <div className={`p-2 rounded-lg ${
                       period.status === "closed" 
-                        ? "bg-red-100 dark:bg-red-900/30" 
+                        ? "bg-destructive/10" 
                         : "bg-muted"
                     }`}>
                       {period.status === "closed" ? (
-                        <Lock className="h-5 w-5 text-red-600 dark:text-red-400" />
+                        <Lock className="h-5 w-5 text-destructive" />
                       ) : (
                         <LockOpen className="h-5 w-5 text-muted-foreground" />
                       )}

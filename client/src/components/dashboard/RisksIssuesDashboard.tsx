@@ -199,12 +199,12 @@ export function RisksIssuesDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-3 hover-elevate" data-testid="kpi-open-risks">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-red-500/10">
-              <ShieldAlert className="h-3.5 w-3.5 text-red-500" />
+            <div className="p-1.5 rounded-md bg-destructive/10">
+              <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
             </div>
             <span className="text-xs text-muted-foreground">Open Risks</span>
           </div>
-          <div className="text-2xl font-bold text-red-500">{openRisks}</div>
+          <div className="text-2xl font-bold text-destructive">{openRisks}</div>
           <div className="text-xs text-muted-foreground">{highRisks} high severity</div>
         </Card>
 
@@ -340,7 +340,7 @@ export function RisksIssuesDashboard() {
         <Card data-testid="card-top-blockers">
           <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
+              <AlertTriangle className="h-4 w-4 text-destructive" />
               Top Blockers
             </CardTitle>
           </CardHeader>
@@ -355,7 +355,7 @@ export function RisksIssuesDashboard() {
                 <div className="space-y-2">
                   {topBlockers.map((item) => (
                     <div key={`${item.type}-${item.id}`} className="flex items-start gap-2 p-2 rounded-lg border hover-elevate text-xs" data-testid={`blocker-${item.type.toLowerCase()}-${item.id}`}>
-                      {item.type === "Risk" ? <ShieldAlert className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" /> : <Bug className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />}
+                      {item.type === "Risk" ? <ShieldAlert className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" /> : <Bug className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <div className="font-medium truncate">{item.title}</div>
                         <div className="text-muted-foreground truncate">{getProjectName(item.projectId)}</div>
@@ -386,7 +386,7 @@ export function RisksIssuesDashboard() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-medium truncate max-w-[180px]" title={project.fullName}>{project.name}</span>
                       <div className="flex gap-1">
-                        <Badge variant="secondary" className="text-[10px] h-5 bg-red-500/10 text-red-600">{project.risks} risks</Badge>
+                        <Badge variant="secondary" className="text-[10px] h-5 bg-destructive/10 text-destructive">{project.risks} risks</Badge>
                         <Badge variant="secondary" className="text-[10px] h-5 bg-orange-500/10 text-orange-600">{project.issues} issues</Badge>
                       </div>
                     </div>

@@ -141,16 +141,16 @@ export function PortfolioHealthDashboard() {
   }, [projects, allRisks]);
 
   const getHealthColor = (score: number) => {
-    if (score >= 75) return 'text-emerald-600';
-    if (score >= 50) return 'text-amber-600';
-    return 'text-red-600';
+    if (score >= 75) return 'text-emerald-600 dark:text-emerald-400';
+    if (score >= 50) return 'text-amber-600 dark:text-amber-400';
+    return 'text-destructive';
   };
 
   const getHealthBadge = (health: string) => {
     switch (health) {
       case 'Green': return <Badge className="bg-emerald-500">Healthy</Badge>;
       case 'Yellow': return <Badge className="bg-amber-500">At Risk</Badge>;
-      case 'Red': return <Badge className="bg-red-500">Critical</Badge>;
+      case 'Red': return <Badge className="bg-destructive">Critical</Badge>;
       default: return <Badge variant="secondary">Unknown</Badge>;
     }
   };
@@ -230,12 +230,12 @@ export function PortfolioHealthDashboard() {
 
         <Card className="p-4" data-testid="kpi-red-projects">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 rounded-lg bg-red-500/10">
-              <Shield className="h-4 w-4 text-red-500" />
+            <div className="p-2 rounded-lg bg-destructive/10">
+              <Shield className="h-4 w-4 text-destructive" />
             </div>
             <span className="text-xs text-muted-foreground">Critical</span>
           </div>
-          <div className="text-2xl font-bold text-red-600">{healthMetrics.redProjects}</div>
+          <div className="text-2xl font-bold text-destructive">{healthMetrics.redProjects}</div>
           <p className="text-[10px] text-muted-foreground mt-1">Requires intervention</p>
         </Card>
 
@@ -419,7 +419,7 @@ export function PortfolioHealthDashboard() {
                         new Date(project.endDate) >= new Date() ? (
                           <span className="text-emerald-600">On Track</span>
                         ) : (
-                          <span className="text-red-600">Overdue</span>
+                          <span className="text-destructive">Overdue</span>
                         )
                       ) : 'N/A'}
                     </div>
@@ -430,7 +430,7 @@ export function PortfolioHealthDashboard() {
                       {Number(project.actualCost || 0) <= Number(project.budget || 0) ? (
                         <span className="text-emerald-600">On Budget</span>
                       ) : (
-                        <span className="text-red-600">Over</span>
+                        <span className="text-destructive">Over</span>
                       )}
                     </div>
                   </div>

@@ -211,12 +211,12 @@ export function ExecutiveDashboard() {
 
         <Card className="p-3 hover-elevate cursor-pointer" onClick={() => setLocation("/projects?health=Red")} data-testid="kpi-critical">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-red-500/10">
-              <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+            <div className="p-1.5 rounded-md bg-destructive/10">
+              <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
             </div>
             <span className="text-xs text-muted-foreground">Critical</span>
           </div>
-          <div className="text-2xl font-bold text-red-500">{criticalProjects}</div>
+          <div className="text-2xl font-bold text-destructive">{criticalProjects}</div>
           <div className="text-xs text-muted-foreground">{atRiskProjects} at risk</div>
         </Card>
 
@@ -294,8 +294,8 @@ export function ExecutiveDashboard() {
                 <div className="text-lg font-semibold text-amber-600">{atRiskProjects}</div>
                 <div className="text-[10px] text-muted-foreground">At Risk</div>
               </div>
-              <div className="text-center p-2 rounded-md bg-red-500/10">
-                <div className="text-lg font-semibold text-red-600">{criticalProjects}</div>
+              <div className="text-center p-2 rounded-md bg-destructive/10">
+                <div className="text-lg font-semibold text-destructive">{criticalProjects}</div>
                 <div className="text-[10px] text-muted-foreground">Critical</div>
               </div>
             </div>
@@ -357,10 +357,10 @@ export function ExecutiveDashboard() {
                   <span>{allRisks.length} total</span>
                 </div>
               </div>
-              <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+              <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium">Open Issues</span>
-                  <Badge variant="secondary" className="text-[10px] h-5 bg-red-500/10 text-red-700">{openIssues}</Badge>
+                  <Badge variant="secondary" className="text-[10px] h-5 bg-destructive/10 text-destructive">{openIssues}</Badge>
                 </div>
                 <Progress value={openIssues > 0 ? Math.min((criticalIssues / openIssues) * 100, 100) : 0} className="h-1.5" />
                 <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
@@ -387,7 +387,7 @@ export function ExecutiveDashboard() {
         <Card data-testid="card-priority-attention">
           <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
+              <AlertTriangle className="h-4 w-4 text-destructive" />
               Priority Attention
             </CardTitle>
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setLocation("/projects?health=Red,Yellow")} data-testid="button-view-priority">

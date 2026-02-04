@@ -209,12 +209,12 @@ export function MitigationStatusDashboard() {
 
         <Card className="p-4" data-testid="kpi-pending">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 rounded-lg bg-red-500/10">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
+            <div className="p-2 rounded-lg bg-destructive/10">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
             </div>
             <span className="text-xs text-muted-foreground">Pending</span>
           </div>
-          <div className="text-2xl font-bold text-red-600">{mitigationMetrics.totalPending}</div>
+          <div className="text-2xl font-bold text-destructive">{mitigationMetrics.totalPending}</div>
           <p className="text-[10px] text-muted-foreground mt-1">Awaiting action</p>
         </Card>
 

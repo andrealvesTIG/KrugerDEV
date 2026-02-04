@@ -228,12 +228,12 @@ export function ResourceManagementDashboard() {
 
         <Card className="p-3 hover-elevate" data-testid="kpi-overallocated">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-red-500/10">
-              <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+            <div className="p-1.5 rounded-md bg-destructive/10">
+              <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
             </div>
             <span className="text-xs text-muted-foreground">Overallocated</span>
           </div>
-          <div className="text-2xl font-bold text-red-500">{overallocatedResources}</div>
+          <div className="text-2xl font-bold text-destructive">{overallocatedResources}</div>
           <div className="text-xs text-muted-foreground">resources</div>
         </Card>
 
@@ -261,12 +261,12 @@ export function ResourceManagementDashboard() {
 
         <Card className="p-3 hover-elevate" data-testid="kpi-overdue">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-red-500/10">
-              <Clock className="h-3.5 w-3.5 text-red-500" />
+            <div className="p-1.5 rounded-md bg-destructive/10">
+              <Clock className="h-3.5 w-3.5 text-destructive" />
             </div>
             <span className="text-xs text-muted-foreground">Overdue</span>
           </div>
-          <div className="text-2xl font-bold text-red-500">{overdueTasksCount}</div>
+          <div className="text-2xl font-bold text-destructive">{overdueTasksCount}</div>
           <div className="text-xs text-muted-foreground">past deadline</div>
         </Card>
       </div>

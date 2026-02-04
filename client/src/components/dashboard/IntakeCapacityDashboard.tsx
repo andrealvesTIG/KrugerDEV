@@ -127,9 +127,9 @@ export function IntakeCapacityDashboard() {
   ];
 
   const getCapacityStatus = (utilization: number) => {
-    if (utilization < 70) return { color: 'text-emerald-600', status: 'Healthy' };
-    if (utilization < 90) return { color: 'text-amber-600', status: 'Moderate' };
-    return { color: 'text-red-600', status: 'Critical' };
+    if (utilization < 70) return { color: 'text-emerald-600 dark:text-emerald-400', status: 'Healthy' };
+    if (utilization < 90) return { color: 'text-amber-600 dark:text-amber-400', status: 'Moderate' };
+    return { color: 'text-destructive', status: 'Critical' };
   };
 
   const capacityStatus = getCapacityStatus(capacityMetrics.utilization);

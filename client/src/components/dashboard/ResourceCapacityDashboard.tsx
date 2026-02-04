@@ -517,7 +517,7 @@ export function ResourceCapacityDashboard() {
                       </Badge>
                       <div className="flex items-center gap-1 min-w-[50px]">
                         {resource.demandPercent > 100 ? (
-                          <ArrowUp className="h-3 w-3 text-red-500" />
+                          <ArrowUp className="h-3 w-3 text-destructive" />
                         ) : resource.demandPercent < 40 ? (
                           <ArrowDown className="h-3 w-3 text-blue-500" />
                         ) : null}

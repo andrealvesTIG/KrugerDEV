@@ -147,7 +147,7 @@ export function TrendAnalysisDashboard() {
       </span>
     );
     if (direction === 'down') return (
-      <span className="flex items-center gap-1 text-red-600 text-xs">
+      <span className="flex items-center gap-1 text-destructive text-xs">
         <ArrowDownRight className="h-3 w-3" /> -{change}%
       </span>
     );
