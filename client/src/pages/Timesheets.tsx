@@ -1756,17 +1756,22 @@ export default function Timesheets() {
     }
   };
 
-  // Calculate total hours from local gridData for real-time updates
+  // Calculate total hours from local gridData for real-time updates (only current week's dates)
   const totalHoursThisWeek = useMemo(() => {
+    // Create a set of valid date keys for the current view
+    const validDateKeys = new Set(dates.map(d => formatDateKey(d)));
     let total = 0;
     for (const taskId in gridData) {
       for (const dateKey in gridData[taskId]) {
-        const hours = parseFloat(gridData[taskId][dateKey]?.hours || "0");
-        if (!isNaN(hours)) total += hours;
+        // Only count hours for dates in the current week view
+        if (validDateKeys.has(dateKey)) {
+          const hours = parseFloat(gridData[taskId][dateKey]?.hours || "0");
+          if (!isNaN(hours)) total += hours;
+        }
       }
     }
     return total;
-  }, [gridData]);
+  }, [gridData, dates]);
   
   const weeklyTarget = 40;
   const progressPercent = Math.min((totalHoursThisWeek / weeklyTarget) * 100, 100);
