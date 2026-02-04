@@ -23,7 +23,8 @@ import {
   TrendingUp,
   ExternalLink
 } from "lucide-react";
-import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
+import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
 
 function FooterLink({ href, name, icon: Icon, testId }: { href: string; name: string; icon: React.ElementType; testId: string }) {
   const [, setLocation] = useLocation();
@@ -143,8 +144,7 @@ export function LandingFooter() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
           <div className="col-span-2 md:col-span-4 lg:col-span-1 mb-4 lg:mb-0">
             <div className="flex items-center gap-2 mb-4">
-              <img src={logoIcon} alt="FridayReport.AI" className="h-8 w-8" />
-              <span className="text-xl font-bold text-white">FridayReport.AI</span>
+              <img src={logoWhite} alt="FridayReport.AI" className="h-7" />
             </div>
             <p className="text-sm text-slate-400 mb-4 max-w-xs">
               Enterprise PPM platform to manage portfolios, track progress, and deliver projects on time.

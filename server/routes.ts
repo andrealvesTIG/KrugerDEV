@@ -13,8 +13,9 @@ import { setupDataverseRoutes, mapDataversePriorityToProjectPriority, mapDataver
 import { setupDynamics365Routes } from "./services/dynamics365Sales";
 import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNotification, sendOrganizationInviteEmail } from "./services/email";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
+import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, initializeSubscriptionSchedule, calculateNextScheduledTime } from "./services/scheduledReports";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -4855,6 +4856,12 @@ export async function registerRoutes(
         // Get existing tasks for this project
         const existingTasks = await storage.getTasksByProject(projectId);
         
+        // Build old task ID to name mapping for relationship preservation
+        const oldTaskIdToName = new Map<number, string>();
+        for (const task of existingTasks) {
+          oldTaskIdToName.set(task.id, task.name.toLowerCase().trim());
+        }
+        
         // Preserve hours (estimatedHours, actualHours) by task name
         // We'll restore them to matching new tasks after sync
         const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
@@ -4885,11 +4892,75 @@ export async function registerRoutes(
           }
         }
         console.log(`Planner Premium sync: Found ${timesheetEntriesByTaskName.size} tasks with timesheet entries to preserve`);
+        
+        // Preserve task change logs by task name
+        const changeLogsByTaskName = new Map<string, any[]>();
+        for (const task of existingTasks) {
+          const logs = await db.select().from(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+          if (logs.length > 0) {
+            const taskName = task.name.toLowerCase().trim();
+            if (!changeLogsByTaskName.has(taskName)) {
+              changeLogsByTaskName.set(taskName, []);
+            }
+            changeLogsByTaskName.get(taskName)!.push(...logs);
+          }
+        }
+        console.log(`Planner Premium sync: Found ${changeLogsByTaskName.size} tasks with change logs to preserve`);
+        
+        // Preserve task dependencies by task names (source -> target)
+        const dependenciesByTaskNames = new Map<string, { dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
+        for (const task of existingTasks) {
+          const deps = await db.select().from(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+          if (deps.length > 0) {
+            const taskName = task.name.toLowerCase().trim();
+            if (!dependenciesByTaskNames.has(taskName)) {
+              dependenciesByTaskNames.set(taskName, []);
+            }
+            for (const dep of deps) {
+              const dependsOnName = oldTaskIdToName.get(dep.dependsOnTaskId);
+              if (dependsOnName) {
+                dependenciesByTaskNames.get(taskName)!.push({
+                  dependsOnTaskName: dependsOnName,
+                  dependencyType: dep.dependencyType || 'finish-to-start',
+                  lagDays: dep.lagDays || 0,
+                });
+              }
+            }
+          }
+        }
+        console.log(`Planner Premium sync: Found ${dependenciesByTaskNames.size} tasks with dependencies to preserve`);
+        
+        // Collect issues with relatedTaskId for this project's tasks to update later
+        const issuesWithRelatedTasks = new Map<number, string>(); // issueId -> taskName
+        for (const task of existingTasks) {
+          const relatedIssues = await db.select().from(issues).where(eq(issues.relatedTaskId, task.id));
+          for (const issue of relatedIssues) {
+            issuesWithRelatedTasks.set(issue.id, task.name.toLowerCase().trim());
+          }
+        }
+        console.log(`Planner Premium sync: Found ${issuesWithRelatedTasks.size} issues with related tasks to preserve`);
 
         // Delete all existing tasks for this project (full sync)
         // First delete timesheet entries temporarily (we'll recreate them with new task IDs)
         for (const task of existingTasks) {
           await db.delete(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
+        }
+        // Delete task change logs temporarily
+        for (const task of existingTasks) {
+          await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+        }
+        // Delete task dependencies
+        for (const task of existingTasks) {
+          await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+          await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
+        }
+        // Clear relatedTaskId on issues (will be restored later)
+        for (const task of existingTasks) {
+          await db.update(issues).set({ relatedTaskId: null }).where(eq(issues.relatedTaskId, task.id));
+        }
+        // Clean up orphaned notifications referencing these tasks
+        for (const task of existingTasks) {
+          await db.delete(notifications).where(eq(notifications.taskId, task.id));
         }
         // Then delete task resource assignments to avoid FK constraint violations
         for (const task of existingTasks) {
@@ -5364,12 +5435,19 @@ export async function registerRoutes(
         let timesheetEntriesLost = 0;
         
         // Build map of new task names -> new task IDs
+        // Warn if duplicate task names exist (relationships may be misassociated)
         const newTaskNameToId = new Map<string, number>();
+        const duplicateNames = new Set<string>();
         for (const task of createdTasks) {
           const taskName = task.name.toLowerCase().trim();
-          if (!newTaskNameToId.has(taskName)) {
+          if (newTaskNameToId.has(taskName)) {
+            duplicateNames.add(taskName);
+          } else {
             newTaskNameToId.set(taskName, task.id);
           }
+        }
+        if (duplicateNames.size > 0) {
+          console.log(`Planner Premium sync WARNING: ${duplicateNames.size} duplicate task names found. Relationships may be assigned to first matching task: ${Array.from(duplicateNames).slice(0, 5).join(', ')}${duplicateNames.size > 5 ? '...' : ''}`);
         }
         
         // Recreate timesheet entries with new task IDs
@@ -5435,6 +5513,92 @@ export async function registerRoutes(
         if (hoursPreserved > 0) {
           console.log(`Planner Premium sync: Restored hours for ${hoursPreserved} tasks`);
         }
+        
+        // Restore task change logs to matching new tasks
+        let changeLogsPreserved = 0;
+        let changeLogsLost = 0;
+        for (const [taskName, logs] of changeLogsByTaskName) {
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId) {
+            for (const log of logs) {
+              try {
+                await db.insert(taskChangeLogs).values({
+                  taskId: newTaskId,
+                  changedBy: log.changedBy,
+                  changedByName: log.changedByName,
+                  changedAt: log.changedAt,
+                  changeType: log.changeType,
+                  changeSummary: log.changeSummary,
+                  previousValues: log.previousValues,
+                  newValues: log.newValues,
+                });
+                changeLogsPreserved++;
+              } catch (err) {
+                console.log(`Planner Premium sync: Failed to preserve change log:`, err);
+                changeLogsLost++;
+              }
+            }
+          } else {
+            changeLogsLost += logs.length;
+          }
+        }
+        if (changeLogsPreserved > 0 || changeLogsLost > 0) {
+          console.log(`Planner Premium sync: Preserved ${changeLogsPreserved} change logs, lost ${changeLogsLost}`);
+        }
+        
+        // Restore task dependencies to matching new tasks
+        let dependenciesPreserved = 0;
+        let dependenciesLost = 0;
+        for (const [taskName, deps] of dependenciesByTaskNames) {
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId) {
+            for (const dep of deps) {
+              const dependsOnTaskId = newTaskNameToId.get(dep.dependsOnTaskName);
+              if (dependsOnTaskId) {
+                try {
+                  await db.insert(taskDependencies).values({
+                    taskId: newTaskId,
+                    dependsOnTaskId: dependsOnTaskId,
+                    dependencyType: dep.dependencyType,
+                    lagDays: dep.lagDays,
+                  });
+                  dependenciesPreserved++;
+                } catch (err) {
+                  console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
+                  dependenciesLost++;
+                }
+              } else {
+                dependenciesLost++;
+              }
+            }
+          } else {
+            dependenciesLost += deps.length;
+          }
+        }
+        if (dependenciesPreserved > 0 || dependenciesLost > 0) {
+          console.log(`Planner Premium sync: Preserved ${dependenciesPreserved} dependencies, lost ${dependenciesLost}`);
+        }
+        
+        // Restore issue/risk relatedTaskId links to matching new tasks
+        let issueLinksPreserved = 0;
+        let issueLinksLost = 0;
+        for (const [issueId, taskName] of issuesWithRelatedTasks) {
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId) {
+            try {
+              await db.update(issues).set({ relatedTaskId: newTaskId }).where(eq(issues.id, issueId));
+              issueLinksPreserved++;
+            } catch (err) {
+              console.log(`Planner Premium sync: Failed to restore issue task link:`, err);
+              issueLinksLost++;
+            }
+          } else {
+            issueLinksLost++;
+          }
+        }
+        if (issueLinksPreserved > 0 || issueLinksLost > 0) {
+          console.log(`Planner Premium sync: Preserved ${issueLinksPreserved} issue task links, lost ${issueLinksLost}`);
+        }
 
         // Update project dates
         if (projectStartDate || projectEndDate) {
@@ -5449,7 +5613,13 @@ export async function registerRoutes(
           resourcesSynced,
           timesheetEntriesPreserved,
           timesheetEntriesLost,
-          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''} from Planner Premium`
+          changeLogsPreserved,
+          changeLogsLost,
+          dependenciesPreserved,
+          dependenciesLost,
+          issueLinksPreserved,
+          issueLinksLost,
+          message: `Successfully synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''}${changeLogsPreserved > 0 ? ` (preserved ${changeLogsPreserved} change logs)` : ''}${dependenciesPreserved > 0 ? ` (preserved ${dependenciesPreserved} dependencies)` : ''}${issueLinksPreserved > 0 ? ` (preserved ${issueLinksPreserved} issue links)` : ''} from Planner Premium`
         });
       }
 
@@ -5496,6 +5666,12 @@ export async function registerRoutes(
       // Get existing tasks for this project
       const existingTasks = await storage.getTasksByProject(projectId);
       
+      // Build old task ID to name mapping for relationship preservation
+      const oldTaskIdToName = new Map<number, string>();
+      for (const task of existingTasks) {
+        oldTaskIdToName.set(task.id, task.name.toLowerCase().trim());
+      }
+      
       // Preserve hours (estimatedHours, actualHours) by task name
       // We'll restore them to matching new tasks after sync
       const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
@@ -5526,11 +5702,75 @@ export async function registerRoutes(
         }
       }
       console.log(`Planner sync: Found ${timesheetEntriesByTaskName.size} tasks with timesheet entries to preserve`);
+      
+      // Preserve task change logs by task name
+      const changeLogsByTaskName = new Map<string, any[]>();
+      for (const task of existingTasks) {
+        const logs = await db.select().from(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+        if (logs.length > 0) {
+          const taskName = task.name.toLowerCase().trim();
+          if (!changeLogsByTaskName.has(taskName)) {
+            changeLogsByTaskName.set(taskName, []);
+          }
+          changeLogsByTaskName.get(taskName)!.push(...logs);
+        }
+      }
+      console.log(`Planner sync: Found ${changeLogsByTaskName.size} tasks with change logs to preserve`);
+      
+      // Preserve task dependencies by task names (source -> target)
+      const dependenciesByTaskNames = new Map<string, { dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
+      for (const task of existingTasks) {
+        const deps = await db.select().from(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+        if (deps.length > 0) {
+          const taskName = task.name.toLowerCase().trim();
+          if (!dependenciesByTaskNames.has(taskName)) {
+            dependenciesByTaskNames.set(taskName, []);
+          }
+          for (const dep of deps) {
+            const dependsOnName = oldTaskIdToName.get(dep.dependsOnTaskId);
+            if (dependsOnName) {
+              dependenciesByTaskNames.get(taskName)!.push({
+                dependsOnTaskName: dependsOnName,
+                dependencyType: dep.dependencyType || 'finish-to-start',
+                lagDays: dep.lagDays || 0,
+              });
+            }
+          }
+        }
+      }
+      console.log(`Planner sync: Found ${dependenciesByTaskNames.size} tasks with dependencies to preserve`);
+      
+      // Collect issues with relatedTaskId for this project's tasks to update later
+      const issuesWithRelatedTasks = new Map<number, string>(); // issueId -> taskName
+      for (const task of existingTasks) {
+        const relatedIssues = await db.select().from(issues).where(eq(issues.relatedTaskId, task.id));
+        for (const issue of relatedIssues) {
+          issuesWithRelatedTasks.set(issue.id, task.name.toLowerCase().trim());
+        }
+      }
+      console.log(`Planner sync: Found ${issuesWithRelatedTasks.size} issues with related tasks to preserve`);
 
       // Delete all existing tasks for this project (full sync)
       // First delete timesheet entries temporarily (we'll recreate them with new task IDs)
       for (const task of existingTasks) {
         await db.delete(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
+      }
+      // Delete task change logs temporarily
+      for (const task of existingTasks) {
+        await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
+      }
+      // Delete task dependencies
+      for (const task of existingTasks) {
+        await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
+        await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
+      }
+      // Clear relatedTaskId on issues (will be restored later)
+      for (const task of existingTasks) {
+        await db.update(issues).set({ relatedTaskId: null }).where(eq(issues.relatedTaskId, task.id));
+      }
+      // Clean up orphaned notifications referencing these tasks
+      for (const task of existingTasks) {
+        await db.delete(notifications).where(eq(notifications.taskId, task.id));
       }
       // Then delete task resource assignments to avoid FK constraint violations
       for (const task of existingTasks) {
@@ -5603,6 +5843,22 @@ export async function registerRoutes(
         }
       }
 
+      // Warn if duplicate task names exist (relationships may be misassociated)
+      const taskNameCounts = new Map<string, number>();
+      for (const plannerTask of plannerTasks) {
+        const taskName = plannerTask.title.toLowerCase().trim();
+        taskNameCounts.set(taskName, (taskNameCounts.get(taskName) || 0) + 1);
+      }
+      const duplicateNames: string[] = [];
+      for (const [name, count] of Array.from(taskNameCounts.entries())) {
+        if (count > 1) {
+          duplicateNames.push(name);
+        }
+      }
+      if (duplicateNames.length > 0) {
+        console.log(`Planner sync WARNING: ${duplicateNames.length} duplicate task names found. Relationships may be assigned to first matching task: ${duplicateNames.slice(0, 5).join(', ')}${duplicateNames.length > 5 ? '...' : ''}`);
+      }
+
       // Reassign preserved timesheet entries to matching new tasks
       let timesheetEntriesPreserved = 0;
       let timesheetEntriesLost = 0;
@@ -5664,6 +5920,86 @@ export async function registerRoutes(
         }
       }
       console.log(`Planner sync: Restored hours for ${hoursPreserved} tasks`);
+      
+      // Restore task change logs to matching new tasks
+      let changeLogsPreserved = 0;
+      let changeLogsLost = 0;
+      for (const [taskName, logs] of changeLogsByTaskName) {
+        const newTaskId = newTasksByName.get(taskName);
+        if (newTaskId) {
+          for (const log of logs) {
+            try {
+              await db.insert(taskChangeLogs).values({
+                taskId: newTaskId,
+                changedBy: log.changedBy,
+                changedByName: log.changedByName,
+                changedAt: log.changedAt,
+                changeType: log.changeType,
+                changeSummary: log.changeSummary,
+                previousValues: log.previousValues,
+                newValues: log.newValues,
+              });
+              changeLogsPreserved++;
+            } catch (err) {
+              console.log(`Planner sync: Failed to preserve change log:`, err);
+              changeLogsLost++;
+            }
+          }
+        } else {
+          changeLogsLost += logs.length;
+        }
+      }
+      console.log(`Planner sync: Preserved ${changeLogsPreserved} change logs, lost ${changeLogsLost}`);
+      
+      // Restore task dependencies to matching new tasks
+      let dependenciesPreserved = 0;
+      let dependenciesLost = 0;
+      for (const [taskName, deps] of dependenciesByTaskNames) {
+        const newTaskId = newTasksByName.get(taskName);
+        if (newTaskId) {
+          for (const dep of deps) {
+            const dependsOnTaskId = newTasksByName.get(dep.dependsOnTaskName);
+            if (dependsOnTaskId) {
+              try {
+                await db.insert(taskDependencies).values({
+                  taskId: newTaskId,
+                  dependsOnTaskId: dependsOnTaskId,
+                  dependencyType: dep.dependencyType,
+                  lagDays: dep.lagDays,
+                });
+                dependenciesPreserved++;
+              } catch (err) {
+                console.log(`Planner sync: Failed to preserve dependency:`, err);
+                dependenciesLost++;
+              }
+            } else {
+              dependenciesLost++;
+            }
+          }
+        } else {
+          dependenciesLost += deps.length;
+        }
+      }
+      console.log(`Planner sync: Preserved ${dependenciesPreserved} dependencies, lost ${dependenciesLost}`);
+      
+      // Restore issue/risk relatedTaskId links to matching new tasks
+      let issueLinksPreserved = 0;
+      let issueLinksLost = 0;
+      for (const [issueId, taskName] of issuesWithRelatedTasks) {
+        const newTaskId = newTasksByName.get(taskName);
+        if (newTaskId) {
+          try {
+            await db.update(issues).set({ relatedTaskId: newTaskId }).where(eq(issues.id, issueId));
+            issueLinksPreserved++;
+          } catch (err) {
+            console.log(`Planner sync: Failed to restore issue task link:`, err);
+            issueLinksLost++;
+          }
+        } else {
+          issueLinksLost++;
+        }
+      }
+      console.log(`Planner sync: Preserved ${issueLinksPreserved} issue task links, lost ${issueLinksLost}`);
 
       // Import resources and assignments from Planner (same logic as initial import)
       let resourcesSynced = 0;
@@ -5777,7 +6113,15 @@ export async function registerRoutes(
         success: true,
         tasksCount: createdTasks.length,
         resourcesSynced,
-        message: `Synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''} from Planner`
+        timesheetEntriesPreserved,
+        timesheetEntriesLost,
+        changeLogsPreserved,
+        changeLogsLost,
+        dependenciesPreserved,
+        dependenciesLost,
+        issueLinksPreserved,
+        issueLinksLost,
+        message: `Synced ${createdTasks.length} tasks${resourcesSynced > 0 ? ` and ${resourcesSynced} new resources` : ''}${timesheetEntriesPreserved > 0 ? ` (preserved ${timesheetEntriesPreserved} timesheet entries)` : ''}${changeLogsPreserved > 0 ? ` (preserved ${changeLogsPreserved} change logs)` : ''}${dependenciesPreserved > 0 ? ` (preserved ${dependenciesPreserved} dependencies)` : ''}${issueLinksPreserved > 0 ? ` (preserved ${issueLinksPreserved} issue links)` : ''} from Planner`
       });
     } catch (err: any) {
       console.error("Planner sync error:", err);
@@ -14549,19 +14893,25 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
       }
 
-      // Check if user is an org admin or super admin
+      // Check if user is an org admin, super admin, or timesheet approver
       const user = await storage.getUser(userId);
       const memberships = await storage.getUserOrganizations(userId);
       const isSuperAdmin = user?.role === 'super_admin';
       const isOrgAdmin = memberships.some(m => m.organizationId === organizationId && (m.role === 'org_admin' || m.role === 'owner'));
-      const isAdmin = isSuperAdmin || isOrgAdmin;
+      
+      // Check if user is a timesheet approver
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      const isApprover = userResource?.isApprover === true;
+      
+      const canViewAll = isSuperAdmin || isOrgAdmin || isApprover;
 
       let entriesWithDetails;
-      if (isAdmin) {
-        // Admins get all entries for the organization
+      if (canViewAll) {
+        // Admins and approvers get all entries for the organization
         entriesWithDetails = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
       } else {
-        // Non-admins only get their own entries
+        // Non-admins/non-approvers only get their own entries
         entriesWithDetails = await storage.getTimesheetEntriesWithDetails(userId, organizationId, startDate, endDate);
       }
       
@@ -17582,6 +17932,240 @@ Return ONLY valid JSON.`;
     } catch (error) {
       console.error('Error deleting help ticket:', error);
       res.status(500).json({ message: 'Failed to delete help ticket' });
+    }
+  });
+
+  // ===== REPORT SUBSCRIPTIONS (Scheduled Email Reports) =====
+  
+  // Get available dashboards for report subscriptions
+  app.get('/api/report-subscriptions/dashboards', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    res.json(AVAILABLE_DASHBOARDS);
+  });
+  
+  // Get all report subscriptions for current user and organization
+  app.get('/api/organizations/:orgId/report-subscriptions', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const userSubscriptions = await db.select()
+        .from(reportSubscriptions)
+        .where(
+          and(
+            eq(reportSubscriptions.userId, userId),
+            eq(reportSubscriptions.organizationId, orgId)
+          )
+        )
+        .orderBy(desc(reportSubscriptions.createdAt));
+      
+      res.json(userSubscriptions);
+    } catch (error) {
+      console.error('Error fetching report subscriptions:', error);
+      res.status(500).json({ message: 'Failed to fetch report subscriptions' });
+    }
+  });
+  
+  // Create a new report subscription
+  app.post('/api/organizations/:orgId/report-subscriptions', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const { name, dashboards, frequency, dayOfWeek, dayOfMonth, timeOfDay, timezone, recipients, isActive } = req.body;
+      
+      if (!name || !dashboards || dashboards.length === 0 || !frequency) {
+        return res.status(400).json({ message: 'Name, dashboards, and frequency are required' });
+      }
+      
+      const nextScheduled = calculateNextScheduledTime(
+        frequency,
+        timeOfDay || '09:00',
+        timezone || 'America/New_York',
+        dayOfWeek,
+        dayOfMonth
+      );
+      
+      const [subscription] = await db.insert(reportSubscriptions)
+        .values({
+          userId,
+          organizationId: orgId,
+          name,
+          dashboards,
+          frequency,
+          dayOfWeek: dayOfWeek ?? null,
+          dayOfMonth: dayOfMonth ?? null,
+          timeOfDay: timeOfDay || '09:00',
+          timezone: timezone || 'America/New_York',
+          recipients: recipients || [],
+          isActive: isActive ?? true,
+          nextScheduledAt: nextScheduled,
+        })
+        .returning();
+      
+      res.status(201).json(subscription);
+    } catch (error) {
+      console.error('Error creating report subscription:', error);
+      res.status(500).json({ message: 'Failed to create report subscription' });
+    }
+  });
+  
+  // Update a report subscription
+  app.put('/api/organizations/:orgId/report-subscriptions/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const subscriptionId = parseInt(req.params.id);
+      const { name, dashboards, frequency, dayOfWeek, dayOfMonth, timeOfDay, timezone, recipients, isActive } = req.body;
+      
+      // Verify ownership
+      const [existing] = await db.select()
+        .from(reportSubscriptions)
+        .where(
+          and(
+            eq(reportSubscriptions.id, subscriptionId),
+            eq(reportSubscriptions.userId, userId),
+            eq(reportSubscriptions.organizationId, orgId)
+          )
+        );
+      
+      if (!existing) {
+        return res.status(404).json({ message: 'Subscription not found' });
+      }
+      
+      const nextScheduled = calculateNextScheduledTime(
+        frequency || existing.frequency,
+        timeOfDay || existing.timeOfDay,
+        timezone || existing.timezone,
+        dayOfWeek ?? existing.dayOfWeek,
+        dayOfMonth ?? existing.dayOfMonth
+      );
+      
+      const [updated] = await db.update(reportSubscriptions)
+        .set({
+          name: name || existing.name,
+          dashboards: dashboards || existing.dashboards,
+          frequency: frequency || existing.frequency,
+          dayOfWeek: dayOfWeek ?? existing.dayOfWeek,
+          dayOfMonth: dayOfMonth ?? existing.dayOfMonth,
+          timeOfDay: timeOfDay || existing.timeOfDay,
+          timezone: timezone || existing.timezone,
+          recipients: recipients ?? existing.recipients,
+          isActive: isActive ?? existing.isActive,
+          nextScheduledAt: nextScheduled,
+          updatedAt: new Date(),
+        })
+        .where(eq(reportSubscriptions.id, subscriptionId))
+        .returning();
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating report subscription:', error);
+      res.status(500).json({ message: 'Failed to update report subscription' });
+    }
+  });
+  
+  // Delete a report subscription
+  app.delete('/api/organizations/:orgId/report-subscriptions/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const subscriptionId = parseInt(req.params.id);
+      
+      // Verify ownership
+      const [existing] = await db.select()
+        .from(reportSubscriptions)
+        .where(
+          and(
+            eq(reportSubscriptions.id, subscriptionId),
+            eq(reportSubscriptions.userId, userId),
+            eq(reportSubscriptions.organizationId, orgId)
+          )
+        );
+      
+      if (!existing) {
+        return res.status(404).json({ message: 'Subscription not found' });
+      }
+      
+      await db.delete(reportSubscriptions)
+        .where(eq(reportSubscriptions.id, subscriptionId));
+      
+      res.json({ message: 'Subscription deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting report subscription:', error);
+      res.status(500).json({ message: 'Failed to delete report subscription' });
+    }
+  });
+  
+  // Send a test report immediately
+  app.post('/api/organizations/:orgId/report-subscriptions/:id/send-now', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orgId = parseInt(req.params.orgId);
+      const subscriptionId = parseInt(req.params.id);
+      
+      // Verify ownership
+      const [existing] = await db.select()
+        .from(reportSubscriptions)
+        .where(
+          and(
+            eq(reportSubscriptions.id, subscriptionId),
+            eq(reportSubscriptions.userId, userId),
+            eq(reportSubscriptions.organizationId, orgId)
+          )
+        );
+      
+      if (!existing) {
+        return res.status(404).json({ message: 'Subscription not found' });
+      }
+      
+      const success = await sendScheduledReport(subscriptionId);
+      
+      if (success) {
+        res.json({ message: 'Report sent successfully' });
+      } else {
+        res.status(500).json({ message: 'Failed to send report' });
+      }
+    } catch (error) {
+      console.error('Error sending report:', error);
+      res.status(500).json({ message: 'Failed to send report' });
+    }
+  });
+  
+  // Admin endpoint to manually trigger scheduled report check (for testing/cron)
+  app.post('/api/admin/report-subscriptions/check', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+    
+    try {
+      const sentCount = await checkAndSendDueReports();
+      res.json({ message: `Sent ${sentCount} scheduled reports` });
+    } catch (error) {
+      console.error('Error checking scheduled reports:', error);
+      res.status(500).json({ message: 'Failed to check scheduled reports' });
     }
   });
 

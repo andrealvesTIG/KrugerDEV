@@ -2,7 +2,9 @@ import { useState, createContext, useContext, ReactNode, useEffect, useMemo } fr
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
+import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -76,7 +78,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export { logoIcon };
+export { logoIcon, logoBlack, logoWhite };
 
 const moduleDefinitions: Record<string, { name: string; href: string; icon: React.ComponentType<{ className?: string }> }> = {
   dashboard: { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -244,6 +246,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
 
 const userMenuItems = [
   { name: "Profile", href: "/profile", icon: User },
+  { name: "Scheduled Reports", href: "/scheduled-reports", icon: Mail },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Org Settings", href: "/org-settings", icon: Building2 },
   { name: "Super Admin", href: "/super-admin", icon: Crown, superAdminOnly: true },
@@ -345,17 +348,33 @@ export function Sidebar() {
             isMicrosoftConnected={!!currentOrganization}
             onNavigate={() => setIsMobileOpen(false)}
           />
-          {!isCollapsed && (
+          {isCollapsed ? (
+            <img 
+              src={logoIcon} 
+              alt="FridayReport.AI" 
+              className="h-8 w-8 flex-shrink-0 object-contain"
+            />
+          ) : (
             <>
-              <img 
-                src={logoLoadFailed || !currentOrganization?.logoUrl ? logoIcon : currentOrganization.logoUrl} 
-                alt={currentOrganization?.name || "FridayReport.AI"} 
-                className="h-8 w-8 flex-shrink-0 object-contain"
-                onError={() => setLogoLoadFailed(true)}
-              />
-              <span className="text-lg font-display font-bold tracking-tight">
-                {currentOrganization?.logoUrl && !logoLoadFailed ? currentOrganization.name : "FridayReport.AI"}
-              </span>
+              {currentOrganization?.logoUrl && !logoLoadFailed ? (
+                <>
+                  <img 
+                    src={currentOrganization.logoUrl} 
+                    alt={currentOrganization?.name || "FridayReport.AI"} 
+                    className="h-8 w-8 flex-shrink-0 object-contain"
+                    onError={() => setLogoLoadFailed(true)}
+                  />
+                  <span className="text-lg font-display font-bold tracking-tight">
+                    {currentOrganization.name}
+                  </span>
+                </>
+              ) : (
+                <img 
+                  src={logoWhite} 
+                  alt="FridayReport.AI" 
+                  className="h-6 flex-shrink-0 object-contain"
+                />
+              )}
             </>
           )}
         </div>

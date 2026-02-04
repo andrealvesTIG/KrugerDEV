@@ -10,6 +10,8 @@ import { OnboardingDialog } from "@/components/OnboardingDialog";
 import { TermsConsentModal } from "@/components/TermsConsentModal";
 import NotFound from "@/pages/not-found";
 import { ReactNode, useEffect } from "react";
+import { initGA } from "@/lib/analytics";
+import { useAnalytics } from "@/hooks/use-analytics";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -51,6 +53,7 @@ import PrivacyStatement from "@/pages/PrivacyStatement";
 import PublicUserGuide from "@/pages/PublicUserGuide";
 import FridayPage from "@/pages/FridayPage";
 import Simulation from "@/pages/Simulation";
+import ReportSubscriptions from "@/pages/ReportSubscriptions"
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -143,6 +146,9 @@ function HomePage() {
 }
 
 function Router() {
+  // Track page views when routes change
+  useAnalytics();
+  
   return (
     <AppLayout>
       <TermsConsentModal />
@@ -179,6 +185,7 @@ function Router() {
         <Route path="/org-settings" component={OrgSettings} />
         <Route path="/profile" component={Profile} />
         <Route path="/user-guide" component={UserGuide} />
+        <Route path="/scheduled-reports" component={ReportSubscriptions} />
         <Route path="/embed" component={Embed} />
         <Route component={NotFound} />
       </Switch>
@@ -187,6 +194,15 @@ function Router() {
 }
 
 function App() {
+  // Initialize Google Analytics when app loads
+  useEffect(() => {
+    if (!import.meta.env.VITE_GA_MEASUREMENT_ID) {
+      console.warn('Missing required Google Analytics key: VITE_GA_MEASUREMENT_ID');
+    } else {
+      initGA();
+    }
+  }, []);
+
   return (
     <ThemeProvider defaultTheme="light" storageKey="ppm-ui-theme">
       <QueryClientProvider client={queryClient}>
