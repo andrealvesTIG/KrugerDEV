@@ -9,7 +9,7 @@ import { Loader2, CheckCircle2, XCircle, Sparkles, ArrowRight } from "lucide-rea
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 import { Footer } from "@/components/layout/Footer";
 
 type VerifyState = "loading" | "success" | "show_demo_dialog" | "error" | "user-exists";

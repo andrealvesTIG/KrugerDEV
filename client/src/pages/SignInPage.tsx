@@ -52,7 +52,9 @@ import { useQuery } from "@tanstack/react-query";
 import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
 import { HoneypotField } from "@/components/HoneypotField";
 import { LandingFooter } from "@/components/layout/LandingFooter";
-import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
+import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 // Video served from public folder for production compatibility
 const demoVideo = "/videos/demo.mp4";
 
@@ -341,8 +343,7 @@ export default function SignInPage() {
           <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <img src={logoIcon} alt="FridayReport.AI" className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0" />
-                <span className="text-base sm:text-xl font-bold text-white truncate">FridayReport.AI</span>
+                <img src={logoWhite} alt="FridayReport.AI" className="h-6 sm:h-7 flex-shrink-0" />
               </div>
               <div className="hidden md:flex items-center gap-6">
                 <button onClick={() => scrollToSection('features-section')} className="text-slate-200 hover:text-orange-400 text-sm font-medium transition-colors" data-testid="link-nav-features">

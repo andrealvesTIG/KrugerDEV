@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, XCircle } from "lucide-react";
-import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 import { Footer } from "@/components/layout/Footer";
 import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
 

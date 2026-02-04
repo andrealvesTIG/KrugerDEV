@@ -67,7 +67,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { LandingFooter } from "@/components/layout/LandingFooter";
-import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 
 const sections = [
   { id: "overview", name: "Overview", icon: BookOpen },

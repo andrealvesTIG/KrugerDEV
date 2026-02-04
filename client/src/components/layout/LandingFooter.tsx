@@ -23,7 +23,7 @@ import {
   TrendingUp,
   ExternalLink
 } from "lucide-react";
-import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 
 function FooterLink({ href, name, icon: Icon, testId }: { href: string; name: string; icon: React.ElementType; testId: string }) {
   const [, setLocation] = useLocation();

@@ -2,7 +2,9 @@ import { useState, createContext, useContext, ReactNode, useEffect, useMemo } fr
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
-import logoIcon from "@assets/icon_orange_bright@16x_1767637282986.png";
+import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
+import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
