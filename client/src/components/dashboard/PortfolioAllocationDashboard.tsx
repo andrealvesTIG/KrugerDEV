@@ -14,6 +14,8 @@ import {
   Tooltip, Legend, Treemap, CartesianGrid
 } from "recharts";
 
+import { formatCurrency } from "@/lib/format";
+
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
 
 export function PortfolioAllocationDashboard() {
@@ -126,11 +128,7 @@ export function PortfolioAllocationDashboard() {
     }));
   }, [budgetByPortfolio]);
 
-  const formatCurrency = (value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-    return `$${value.toFixed(0)}`;
-  };
+  const formatCompact = (value: number) => formatCurrency(value, { compact: true });
 
   const CustomTreemapContent = (props: any) => {
     const { x, y, width, height, name, color } = props;
@@ -190,7 +188,7 @@ export function PortfolioAllocationDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Total Budget</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(allocationMetrics.totalBudget)}</div>
+          <div className="text-2xl font-bold">{formatCompact(allocationMetrics.totalBudget)}</div>
           <p className="text-[10px] text-muted-foreground mt-1">Across all projects</p>
         </Card>
 
@@ -283,7 +281,7 @@ export function PortfolioAllocationDashboard() {
                   </Pie>
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', fontSize: '11px' }}
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value: number) => formatCompact(value)}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -311,7 +309,7 @@ export function PortfolioAllocationDashboard() {
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', fontSize: '11px' }}
                     formatter={(value: number, name: string) => 
-                      name === 'budget' ? formatCurrency(value) : value
+                      name === 'budget' ? formatCompact(value) : value
                     }
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} />
@@ -370,7 +368,7 @@ export function PortfolioAllocationDashboard() {
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', fontSize: '11px' }}
                     formatter={(value: number, name: string) => 
-                      name === 'Budget' ? formatCurrency(value) : value
+                      name === 'Budget' ? formatCompact(value) : value
                     }
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} />

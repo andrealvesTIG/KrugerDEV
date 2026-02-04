@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, CartesianGrid } from "recharts";
 import type { Risk, Issue, Task } from "@shared/schema";
+import { formatCurrency } from "@/lib/format";
 
 export function StrategicKPIsDashboard() {
   const { currentOrganization } = useOrganization();
@@ -116,11 +117,7 @@ export function StrategicKPIsDashboard() {
     return <Minus className="h-4 w-4 text-amber-500" />;
   };
 
-  const formatCurrency = (value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-    return `$${value}`;
-  };
+  const formatCompact = (value: number) => formatCurrency(value, { compact: true });
 
   return (
     <div className="space-y-6">

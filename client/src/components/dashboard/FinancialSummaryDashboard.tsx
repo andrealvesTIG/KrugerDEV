@@ -15,6 +15,7 @@ import {
   Tooltip, Legend, LineChart, Line, CartesianGrid, AreaChart, Area, ComposedChart
 } from "recharts";
 import { format, subMonths, eachMonthOfInterval } from "date-fns";
+import { formatCurrency } from "@/lib/format";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
@@ -124,11 +125,7 @@ export function FinancialSummaryDashboard() {
     }).filter(p => p.budget > 0);
   }, [portfolios, projects]);
 
-  const formatCurrency = (value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-    return `$${value.toFixed(0)}`;
-  };
+  const formatCompact = (value: number) => formatCurrency(value, { compact: true });
 
   const budgetHealthData = [
     { name: 'On Budget', value: financials.onBudgetProjects, color: '#10b981' },
@@ -176,7 +173,7 @@ export function FinancialSummaryDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Total Budget</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(financials.totalBudget)}</div>
+          <div className="text-2xl font-bold">{formatCompact(financials.totalBudget)}</div>
           <p className="text-[10px] text-muted-foreground mt-1">Allocated across {projects.length} projects</p>
         </Card>
 
@@ -187,7 +184,7 @@ export function FinancialSummaryDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">Actual Cost</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(financials.totalActualCost)}</div>
+          <div className="text-2xl font-bold">{formatCompact(financials.totalActualCost)}</div>
           <p className="text-[10px] text-muted-foreground mt-1">{financials.budgetUtilization.toFixed(1)}% utilized</p>
         </Card>
 
@@ -199,7 +196,7 @@ export function FinancialSummaryDashboard() {
             <span className="text-xs text-muted-foreground">Budget Variance</span>
           </div>
           <div className={`text-2xl font-bold ${financials.budgetVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
-            {financials.budgetVariance >= 0 ? '+' : ''}{formatCurrency(financials.budgetVariance)}
+            {financials.budgetVariance >= 0 ? '+' : ''}{formatCompact(financials.budgetVariance)}
           </div>
           <div className="flex items-center gap-1 mt-1">
             {financials.budgetVariance >= 0 ? (
@@ -235,7 +232,7 @@ export function FinancialSummaryDashboard() {
             </div>
             <span className="text-xs text-muted-foreground">EAC Forecast</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(financials.totalForecastCost)}</div>
+          <div className="text-2xl font-bold">{formatCompact(financials.totalForecastCost)}</div>
           <p className="text-[10px] text-muted-foreground mt-1">Estimate at Completion</p>
         </Card>
 
@@ -316,11 +313,11 @@ export function FinancialSummaryDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={topProjectsByBudget} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" fontSize={10} tickFormatter={(v) => formatCurrency(v)} />
+                  <XAxis type="number" fontSize={10} tickFormatter={(v) => formatCompact(v)} />
                   <YAxis type="category" dataKey="name" width={100} fontSize={9} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', fontSize: '11px' }}
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value: number) => formatCompact(value)}
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} />
                   <Bar dataKey="budget" fill="#3b82f6" name="Budget" radius={[0, 4, 4, 0]} />
@@ -349,10 +346,10 @@ export function FinancialSummaryDashboard() {
                 <ComposedChart data={monthlySpendTrend}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" fontSize={10} />
-                  <YAxis fontSize={10} tickFormatter={(v) => formatCurrency(v)} />
+                  <YAxis fontSize={10} tickFormatter={(v) => formatCompact(v)} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', fontSize: '11px' }}
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value: number) => formatCompact(value)}
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} />
                   <Bar dataKey="actual" fill="#10b981" name="Actual Spend" />
@@ -387,10 +384,10 @@ export function FinancialSummaryDashboard() {
                 <AreaChart data={monthlySpendTrend}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" fontSize={10} />
-                  <YAxis fontSize={10} tickFormatter={(v) => formatCurrency(v)} />
+                  <YAxis fontSize={10} tickFormatter={(v) => formatCompact(v)} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', fontSize: '11px' }}
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value: number) => formatCompact(value)}
                   />
                   <Area type="monotone" dataKey="cumulative" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} name="Cumulative Spend" />
                 </AreaChart>
@@ -417,10 +414,10 @@ export function FinancialSummaryDashboard() {
                 <BarChart data={portfolioBudgets}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" fontSize={10} />
-                  <YAxis fontSize={10} tickFormatter={(v) => formatCurrency(v)} />
+                  <YAxis fontSize={10} tickFormatter={(v) => formatCompact(v)} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', fontSize: '11px' }}
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value: number) => formatCompact(value)}
                   />
                   <Legend wrapperStyle={{ fontSize: '10px' }} />
                   <Bar dataKey="budget" fill="#3b82f6" name="Budget" radius={[4, 4, 0, 0]} />
@@ -454,7 +451,7 @@ export function FinancialSummaryDashboard() {
                 <span className="text-xs text-muted-foreground">Budget at Completion (BAC)</span>
                 <Banknote className="h-4 w-4 text-blue-500" />
               </div>
-              <div className="text-xl font-bold">{formatCurrency(financials.totalBudget)}</div>
+              <div className="text-xl font-bold">{formatCompact(financials.totalBudget)}</div>
               <Progress value={100} className="h-1 mt-2" />
             </div>
             <div className="p-4 rounded-lg border">
@@ -462,7 +459,7 @@ export function FinancialSummaryDashboard() {
                 <span className="text-xs text-muted-foreground">Actual Cost (AC)</span>
                 <CreditCard className="h-4 w-4 text-emerald-500" />
               </div>
-              <div className="text-xl font-bold">{formatCurrency(financials.totalActualCost)}</div>
+              <div className="text-xl font-bold">{formatCompact(financials.totalActualCost)}</div>
               <Progress value={financials.budgetUtilization} className="h-1 mt-2" />
             </div>
             <div className="p-4 rounded-lg border">
@@ -470,7 +467,7 @@ export function FinancialSummaryDashboard() {
                 <span className="text-xs text-muted-foreground">Estimate at Completion (EAC)</span>
                 <Target className="h-4 w-4 text-purple-500" />
               </div>
-              <div className="text-xl font-bold">{formatCurrency(financials.totalForecastCost)}</div>
+              <div className="text-xl font-bold">{formatCompact(financials.totalForecastCost)}</div>
               <p className="text-[10px] text-muted-foreground mt-1">Based on CPI</p>
             </div>
             <div className="p-4 rounded-lg border">
@@ -483,7 +480,7 @@ export function FinancialSummaryDashboard() {
                 )}
               </div>
               <div className={`text-xl font-bold ${financials.budgetVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}`}>
-                {formatCurrency(financials.budgetVariance)}
+                {formatCompact(financials.budgetVariance)}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">BAC - EAC</p>
             </div>

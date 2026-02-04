@@ -35,6 +35,7 @@ import {
   LineChart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCurrency, formatPercent } from "@/lib/format";
 import type { Portfolio, Project, SimulationRun, SimulationEvent, SimulationSnapshot, ProjectSimState } from "@shared/schema";
 
 interface SimulationState {
@@ -210,6 +211,7 @@ function KPICard({
   value, 
   prefix = "", 
   suffix = "",
+  formatValue,
   icon: Icon, 
   trend,
   trendValue,
@@ -221,6 +223,7 @@ function KPICard({
   value: number;
   prefix?: string;
   suffix?: string;
+  formatValue?: (value: number) => string;
   icon: React.ElementType;
   trend?: "up" | "down" | "neutral";
   trendValue?: string;
@@ -249,13 +252,17 @@ function KPICard({
           )}
         </div>
         <div className="mt-2" data-testid={testId ? `${testId}-value` : undefined}>
-          <AnimatedNumber 
-            value={value} 
-            prefix={prefix} 
-            suffix={suffix}
-            decimals={suffix === "%" ? 1 : 0}
-            className="text-2xl font-bold"
-          />
+          {formatValue ? (
+            <span className="text-2xl font-bold">{formatValue(value)}</span>
+          ) : (
+            <AnimatedNumber 
+              value={value} 
+              prefix={prefix} 
+              suffix={suffix}
+              decimals={suffix === "%" ? 1 : 0}
+              className="text-2xl font-bold"
+            />
+          )}
         </div>
       </CardContent>
     </Card>
@@ -289,7 +296,7 @@ function EventNotification({ event, onDismiss }: { event: SimulationEventDisplay
           {event.impactBudget && (
             <span className="flex items-center gap-1" data-testid={`text-impact-budget-${event.id}`}>
               <DollarSign className="h-3 w-3" />
-              +${(event.impactBudget / 1000).toFixed(0)}k
+              +{formatCurrency(event.impactBudget, { compact: true })}
             </span>
           )}
           {event.impactScheduleDays && (
@@ -854,17 +861,15 @@ export default function Simulation() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           <KPICard
             title="Total Budget"
-            value={simState.totalBudget / 1000}
-            prefix="$"
-            suffix="k"
+            value={simState.totalBudget}
+            formatValue={(v) => formatCurrency(v, { compact: true })}
             icon={DollarSign}
             testId="card-kpi-budget"
           />
           <KPICard
             title="Spent to Date"
-            value={simState.totalSpent / 1000}
-            prefix="$"
-            suffix="k"
+            value={simState.totalSpent}
+            formatValue={(v) => formatCurrency(v, { compact: true })}
             icon={TrendingUp}
             trend={simState.totalSpent > simState.totalBudget * (simState.currentStep / simState.totalSteps) ? "down" : "up"}
             pulse={simState.totalSpent > simState.totalBudget * 0.9}
@@ -872,12 +877,11 @@ export default function Simulation() {
           />
           <KPICard
             title="Forecast"
-            value={simState.totalForecast / 1000}
-            prefix="$"
-            suffix="k"
+            value={simState.totalForecast}
+            formatValue={(v) => formatCurrency(v, { compact: true })}
             icon={Target}
             trend={simState.budgetVariance > 5 ? "down" : simState.budgetVariance < -5 ? "up" : "neutral"}
-            trendValue={`${simState.budgetVariance > 0 ? "+" : ""}${simState.budgetVariance.toFixed(1)}%`}
+            trendValue={formatPercent(simState.budgetVariance, { showSign: true })}
             testId="card-kpi-forecast"
           />
           <KPICard
@@ -936,13 +940,13 @@ export default function Simulation() {
                             {ps.health}
                           </Badge>
                         </td>
-                        <td className="py-2 text-right">${(ps.budget / 1000).toFixed(0)}k</td>
-                        <td className="py-2 text-right">${(ps.spent / 1000).toFixed(0)}k</td>
+                        <td className="py-2 text-right">{formatCurrency(ps.budget, { compact: true })}</td>
+                        <td className="py-2 text-right">{formatCurrency(ps.spent, { compact: true })}</td>
                         <td className={cn(
                           "py-2 text-right",
                           ps.costVariance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                         )}>
-                          {ps.costVariance > 0 ? "+" : ""}{((ps.costVariance / ps.budget) * 100).toFixed(1)}%
+                          {formatPercent((ps.costVariance / ps.budget) * 100, { showSign: true })}
                         </td>
                         <td className={cn(
                           "py-2 text-right",
@@ -1002,7 +1006,7 @@ export default function Simulation() {
                           {event.impactBudget && (
                             <span className="flex items-center gap-1">
                               <DollarSign className="h-3 w-3" />
-                              +${(event.impactBudget / 1000).toFixed(0)}k
+                              +{formatCurrency(event.impactBudget, { compact: true })}
                             </span>
                           )}
                           {event.impactScheduleDays && (
