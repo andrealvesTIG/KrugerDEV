@@ -1,0 +1,46 @@
+# Robots.txt for FridayReport.AI
+# https://fridayreport.ai
+
+User-agent: *
+
+# Allow indexable public pages
+Allow: /
+Allow: /signin
+Allow: /auth
+Allow: /guide
+Allow: /friday
+Allow: /onboarding
+Allow: /resource-invite
+Allow: /reset-password
+Allow: /terms
+Allow: /privacy
+
+# Disallow transient auth flow pages (not useful for indexing)
+Disallow: /signin/waiting
+Disallow: /signin/verify
+Disallow: /auth/verify
+Disallow: /verify-email
+
+# Disallow authenticated app routes
+Disallow: /dashboard
+Disallow: /portfolios
+Disallow: /projects
+Disallow: /tasks
+Disallow: /resources
+Disallow: /admin
+Disallow: /super-admin
+Disallow: /profile
+Disallow: /org-settings
+Disallow: /billing
+Disallow: /integrations
+Disallow: /timesheets
+Disallow: /intakes
+Disallow: /issues
+Disallow: /lessons-learned
+Disallow: /invoices
+Disallow: /calendar
+Disallow: /embed
+Disallow: /user-guide
+
+# Sitemap location
+Sitemap: https://fridayreport.ai/sitemap.xml

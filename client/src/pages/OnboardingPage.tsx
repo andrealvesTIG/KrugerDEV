@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,11 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 p-4">
+      <Helmet>
+        <title>Get Started - FridayReport.AI | Set Up Your Organization</title>
+        <meta name="description" content="Set up your organization on FridayReport.AI. Choose your industry and get started with project portfolio management in minutes." />
+        <link rel="canonical" href="https://fridayreport.ai/onboarding" />
+      </Helmet>
       <div className="flex-1 flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">

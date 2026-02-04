@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation, Link } from "wouter";
+import { Helmet } from "react-helmet-async";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -316,6 +317,13 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-800 via-slate-700 to-slate-800">
+      <Helmet>
+        <title>FridayReport.AI - Project Portfolio Management Software | PMO Tools</title>
+        <meta name="description" content="FridayReport.AI is enterprise project portfolio management software. Track projects, manage resources, monitor risks, and create executive dashboards. Free forever - no credit card required." />
+        <meta property="og:title" content="FridayReport.AI - Project Portfolio Management Software" />
+        <meta property="og:description" content="Enterprise project portfolio management for modern teams. Track projects, manage resources, and generate AI-powered insights." />
+        <link rel="canonical" href="https://fridayreport.ai/" />
+      </Helmet>
       {/* Sticky Header Container - Banner + Navigation */}
       <div className="sticky top-0 left-0 right-0 z-50">
         {/* Pricing Banner */}

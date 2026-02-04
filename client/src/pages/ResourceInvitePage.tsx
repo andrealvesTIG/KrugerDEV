@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,11 @@ export default function ResourceInvitePage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Helmet>
+        <title>Team Invitation - FridayReport.AI</title>
+        <meta name="description" content="You've been invited to join a team on FridayReport.AI. Accept your invitation to start collaborating on project portfolios." />
+        <link rel="canonical" href="https://fridayreport.ai/resource-invite" />
+      </Helmet>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4">

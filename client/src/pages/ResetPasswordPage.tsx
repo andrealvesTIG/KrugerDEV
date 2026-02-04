@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -153,6 +154,11 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 p-4">
+      <Helmet>
+        <title>Reset Password - FridayReport.AI</title>
+        <meta name="description" content="Reset your FridayReport.AI password. Secure password recovery for your project portfolio management account." />
+        <link rel="canonical" href="https://fridayreport.ai/reset-password" />
+      </Helmet>
       <div className="flex-1 flex items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">

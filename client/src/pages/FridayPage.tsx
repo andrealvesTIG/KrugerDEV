@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
 import { PartyPopper, Sparkles, Share2, Copy, Check, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -66,6 +67,13 @@ export default function FridayPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-pink-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex flex-col">
+      <Helmet>
+        <title>It's Friday! - FridayReport.AI | Celebrate Your Week</title>
+        <meta name="description" content="Celebrate another productive week with FridayReport.AI! Share the Friday feeling with your team and manage your project portfolio with our enterprise PMO solution." />
+        <meta property="og:title" content="It's Friday! - FridayReport.AI" />
+        <meta property="og:description" content="Celebrate another productive week! Manage your project portfolio with FridayReport.AI - the enterprise PMO solution for modern teams." />
+        <link rel="canonical" href="https://fridayreport.ai/friday" />
+      </Helmet>
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-lg">
           <Card className="overflow-hidden border-none shadow-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl">

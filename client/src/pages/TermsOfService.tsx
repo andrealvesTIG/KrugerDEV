@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { Helmet } from "react-helmet-async";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Footer } from "@/components/layout/Footer";
@@ -6,6 +7,11 @@ import { Footer } from "@/components/layout/Footer";
 export default function TermsOfService() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
+      <Helmet>
+        <title>Terms of Service - FridayReport.AI</title>
+        <meta name="description" content="Terms of Service for FridayReport.AI project portfolio management software. Read our terms and conditions for using the service." />
+        <link rel="canonical" href="https://fridayreport.ai/terms" />
+      </Helmet>
       <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
       <div className="mb-6">
         <Link href="/">
