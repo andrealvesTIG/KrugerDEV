@@ -664,7 +664,7 @@
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="flex items-start justify-between rounded-lg border p-4 hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="flex items-start justify-between rounded-lg border p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                     onClick={() => openEditDialog(issue)}
                     data-testid={`card-issue-${issue.id}`}
                   >
