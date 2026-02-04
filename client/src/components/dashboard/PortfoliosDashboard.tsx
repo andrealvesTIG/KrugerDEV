@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, FolderKanban, Target, TrendingUp, DollarSign, ArrowRight, Activity, BarChart3 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { isWithinInterval } from "date-fns";
+import { formatCurrency } from "@/lib/format";
 
 const COLORS = {
   Green: "#10b981",
@@ -80,11 +81,7 @@ export function PortfoliosDashboard() {
     );
   }
 
-  const formatBudget = (amount: number) => {
-    if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
-    if (amount >= 1000) return `$${(amount / 1000).toFixed(0)}K`;
-    return `$${amount.toLocaleString()}`;
-  };
+  const formatBudget = (amount: number) => formatCurrency(amount, { compact: true });
 
   const handleExportCsv = () => {
     const headers = ["Portfolio", "Projects", "Active", "Completed", "Budget", "Avg Completion", "Health Score"];

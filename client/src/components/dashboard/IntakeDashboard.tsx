@@ -14,6 +14,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { format, isWithinInterval, differenceInDays } from "date-fns";
 import type { ProjectIntake } from "@shared/schema";
+import { formatCurrency } from "@/lib/format";
 
 const COLORS = {
   Green: "#10b981",
@@ -170,11 +171,7 @@ export function IntakeDashboard() {
     .sort((a, b) => Number(b.estimatedBudget || 0) - Number(a.estimatedBudget || 0))
     .slice(0, 8);
 
-  const formatBudget = (amount: number) => {
-    if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
-    if (amount >= 1000) return `$${(amount / 1000).toFixed(0)}K`;
-    return `$${amount.toLocaleString()}`;
-  };
+  const formatBudget = (amount: number) => formatCurrency(amount, { compact: true });
 
   return (
     <div className="space-y-4">

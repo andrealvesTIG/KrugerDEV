@@ -18,6 +18,7 @@ import {
   FileInput, Clock, Upload, PenTool, DollarSign,
   FolderKanban, ArrowRight, Activity, Target, BarChart3
 } from "lucide-react";
+import { formatCurrency } from "@/lib/format";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, Area, AreaChart } from "recharts";
 import { isWithinInterval, parseISO } from "date-fns";
 import type { ProjectIntake, Risk, Issue } from "@shared/schema";
@@ -121,11 +122,7 @@ export function ExecutiveDashboard() {
     );
   }
 
-  const formatBudget = (amount: number) => {
-    if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
-    if (amount >= 1000) return `$${(amount / 1000).toFixed(0)}K`;
-    return `$${amount.toLocaleString()}`;
-  };
+  const formatBudget = (amount: number) => formatCurrency(amount, { compact: true });
 
   const totalProjects = projects?.length || 0;
   const totalPortfolios = portfolios?.length || 0;

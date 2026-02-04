@@ -27,6 +27,7 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
+import { formatCurrency } from "@/lib/format";
 
 export default function Portfolios() {
   const { currentOrganization } = useOrganization();
@@ -240,11 +241,7 @@ export default function Portfolios() {
                             {(() => {
                               const budget = getPortfolioBudget(portfolio.id);
                               if (budget.allocated > 0) {
-                                const formatBudget = (val: number) => {
-                                  if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
-                                  if (val >= 1000) return `${(val / 1000).toFixed(0)}k`;
-                                  return `${val.toFixed(0)}`;
-                                };
+                                const formatBudget = (val: number) => formatCurrency(val, { compact: true });
                                 return `${formatBudget(budget.spent)} / ${formatBudget(budget.allocated)}`;
                               }
                               return 'No budget';

@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { FileText, TrendingUp, Calendar, DollarSign } from "lucide-react";
 import type { Project, Risk, Issue, Milestone, ProjectFinancial, Task, ChangeRequest, ProjectDocument } from "@shared/schema";
+import { formatCurrency } from "@/lib/format";
 
 interface ProjectCardCompactProps {
   project: Project;
@@ -101,11 +102,7 @@ export function ProjectCardCompact({ project, showBudget = true, showProgress = 
     enabled: dialogOpen,
   });
 
-  const formatBudget = (amount: number) => {
-    if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
-    if (amount >= 1000) return `$${(amount / 1000).toFixed(0)}K`;
-    return `$${amount.toLocaleString()}`;
-  };
+  const formatBudget = (amount: number) => formatCurrency(amount, { compact: true });
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return "TBD";
