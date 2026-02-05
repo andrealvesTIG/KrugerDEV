@@ -95,6 +95,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { TimerWidget } from "@/components/TimerWidget";
+import { TimesheetReminder } from "@/components/TimesheetReminder";
+import { exportTimesheetToExcel } from "@/lib/excelExport";
+import { FileSpreadsheet } from "lucide-react";
 import type { Task, Project, InsertTimesheetEntry, TimesheetPeriod } from "@shared/schema";
 
 type ViewMode = "workweek" | "week" | "day";
@@ -978,8 +982,10 @@ function ApprovalTab() {
   const { data: entries, isLoading } = useTimesheetEntriesForApproval(currentOrganization?.id || null, "Submitted");
   const approveEntry = useApproveTimesheetEntry();
   const rejectEntry = useRejectTimesheetEntry();
-  const [rejectDialog, setRejectDialog] = useState<{ id: number; open: boolean }>({ id: 0, open: false });
+  const [rejectDialog, setRejectDialog] = useState<{ id: number; open: boolean; isBulk?: boolean }>({ id: 0, open: false });
   const [rejectionReason, setRejectionReason] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
   const handleApprove = async (id: number) => {
@@ -991,7 +997,59 @@ function ApprovalTab() {
     }
   };
 
+  const handleBulkApprove = async () => {
+    if (selectedIds.size === 0) return;
+    setIsProcessing(true);
+    try {
+      let successCount = 0;
+      for (const id of selectedIds) {
+        try {
+          await approveEntry.mutateAsync(id);
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to approve entry ${id}`, err);
+        }
+      }
+      toast({ 
+        title: "Bulk Approval Complete", 
+        description: `${successCount} of ${selectedIds.size} entries approved` 
+      });
+      setSelectedIds(new Set());
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleBulkReject = async () => {
+    if (selectedIds.size === 0) return;
+    setIsProcessing(true);
+    try {
+      let successCount = 0;
+      for (const id of selectedIds) {
+        try {
+          await rejectEntry.mutateAsync({ id, rejectionReason });
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to reject entry ${id}`, err);
+        }
+      }
+      toast({ 
+        title: "Bulk Rejection Complete", 
+        description: `${successCount} of ${selectedIds.size} entries rejected` 
+      });
+      setSelectedIds(new Set());
+      setRejectDialog({ id: 0, open: false });
+      setRejectionReason("");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleReject = async () => {
+    if (rejectDialog.isBulk) {
+      await handleBulkReject();
+      return;
+    }
     try {
       await rejectEntry.mutateAsync({ id: rejectDialog.id, rejectionReason });
       setRejectDialog({ id: 0, open: false });
@@ -1000,6 +1058,46 @@ function ApprovalTab() {
     } catch (err) {
       toast({ title: "Error", description: "Failed to reject entry", variant: "destructive" });
     }
+  };
+
+  const toggleSelection = (id: number) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+    if (!entries) return;
+    if (selectedIds.size === entries.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(entries.map(e => e.id)));
+    }
+  };
+
+  const handleExportToExcel = () => {
+    if (!entries || entries.length === 0) return;
+    
+    const exportData = entries.map(entry => ({
+      resource: (entry as any).resource?.displayName || "Unknown",
+      project: (entry as any).project?.name || "Unknown",
+      task: (entry as any).task?.name || "Unknown",
+      date: entry.entryDate,
+      hours: Number(entry.hours),
+      status: entry.status,
+      notes: entry.notes || ""
+    }));
+    
+    exportTimesheetToExcel(exportData, {
+      filename: `pending-approvals-${format(new Date(), 'yyyy-MM-dd')}`,
+      sheetName: 'Pending Approvals'
+    });
+    
+    toast({ title: "Export Complete", description: "Excel file downloaded successfully" });
   };
 
   if (isLoading) {
@@ -1028,16 +1126,83 @@ function ApprovalTab() {
   }, {} as Record<string, TimesheetEntryWithDetails[]>);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap p-3 bg-muted/30 rounded-lg">
+        <div className="flex items-center gap-3">
+          <Checkbox
+            checked={selectedIds.size === entries.length && entries.length > 0}
+            onCheckedChange={toggleSelectAll}
+            data-testid="checkbox-select-all"
+          />
+          <span className="text-sm text-muted-foreground">
+            {selectedIds.size > 0 ? `${selectedIds.size} selected` : "Select all"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <>
+              <Button 
+                size="sm" 
+                onClick={handleBulkApprove}
+                disabled={isProcessing}
+                className="bg-emerald-600 hover:bg-emerald-700"
+                data-testid="button-bulk-approve"
+              >
+                {isProcessing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
+                Approve Selected ({selectedIds.size})
+              </Button>
+              <Button 
+                size="sm" 
+                variant="destructive"
+                onClick={() => setRejectDialog({ id: 0, open: true, isBulk: true })}
+                disabled={isProcessing}
+                data-testid="button-bulk-reject"
+              >
+                <X className="mr-1 h-4 w-4" />
+                Reject Selected
+              </Button>
+            </>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={handleExportToExcel}
+                data-testid="button-export-excel"
+              >
+                <FileSpreadsheet className="mr-1 h-4 w-4" />
+                Export Excel
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Download as Excel file</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+
       {Object.entries(groupedByUser).map(([userId, userEntries]) => {
         const resource = (userEntries[0] as any).resource;
         const totalHours = userEntries.reduce((sum, e) => sum + Number(e.hours), 0);
+        const userSelectedCount = userEntries.filter(e => selectedIds.has(e.id)).length;
         
         return (
           <Card key={userId}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={userSelectedCount === userEntries.length}
+                    onCheckedChange={() => {
+                      const newSet = new Set(selectedIds);
+                      if (userSelectedCount === userEntries.length) {
+                        userEntries.forEach(e => newSet.delete(e.id));
+                      } else {
+                        userEntries.forEach(e => newSet.add(e.id));
+                      }
+                      setSelectedIds(newSet);
+                    }}
+                    data-testid={`checkbox-select-user-${userId}`}
+                  />
                   <MicrosoftContactCard
                     displayName={resource?.displayName || "Unknown"}
                     email={resource?.email}
@@ -1074,19 +1239,28 @@ function ApprovalTab() {
                 {userEntries.map(entry => (
                   <div 
                     key={entry.id} 
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 gap-4 flex-wrap"
+                    className={`flex items-center justify-between p-3 rounded-lg gap-4 flex-wrap transition-colors ${
+                      selectedIds.has(entry.id) ? 'bg-primary/10 border border-primary/30' : 'bg-muted/50'
+                    }`}
                   >
-                    <div className="flex-1 min-w-[200px] max-w-[300px] overflow-hidden">
-                      <div className="font-medium truncate" title={(entry as any).task?.name || "Unknown Task"}>{(entry as any).task?.name || "Unknown Task"}</div>
-                      <div className="text-sm text-muted-foreground truncate" title={`${(entry as any).project?.name || "Unknown Project"} • ${entry.entryDate}`}>
-                        {(entry as any).project?.name || "Unknown Project"} • {entry.entryDate}
-                      </div>
-                      {entry.notes && (
-                        <div className="text-sm text-muted-foreground mt-1 flex items-start gap-1">
-                          <MessageSquare className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                          <span className="line-clamp-1">{entry.notes}</span>
+                    <div className="flex items-center gap-3 flex-1 min-w-[200px] max-w-[350px]">
+                      <Checkbox
+                        checked={selectedIds.has(entry.id)}
+                        onCheckedChange={() => toggleSelection(entry.id)}
+                        data-testid={`checkbox-entry-${entry.id}`}
+                      />
+                      <div className="overflow-hidden">
+                        <div className="font-medium truncate" title={(entry as any).task?.name || "Unknown Task"}>{(entry as any).task?.name || "Unknown Task"}</div>
+                        <div className="text-sm text-muted-foreground truncate" title={`${(entry as any).project?.name || "Unknown Project"} • ${entry.entryDate}`}>
+                          {(entry as any).project?.name || "Unknown Project"} • {entry.entryDate}
                         </div>
-                      )}
+                        {entry.notes && (
+                          <div className="text-sm text-muted-foreground mt-1 flex items-start gap-1">
+                            <MessageSquare className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                            <span className="line-clamp-1">{entry.notes}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-mono font-medium text-lg">{Number(entry.hours).toFixed(1)}h</span>
@@ -1122,9 +1296,14 @@ function ApprovalTab() {
       <Dialog open={rejectDialog.open} onOpenChange={(open) => setRejectDialog({ ...rejectDialog, open })}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject Timesheet Entry</DialogTitle>
+            <DialogTitle>
+              {rejectDialog.isBulk 
+                ? `Reject ${selectedIds.size} Timesheet Entries` 
+                : "Reject Timesheet Entry"
+              }
+            </DialogTitle>
             <DialogDescription>
-              Provide a reason for rejecting this timesheet entry. The user will be notified and can resubmit.
+              Provide a reason for rejecting {rejectDialog.isBulk ? "these entries" : "this timesheet entry"}. The user{rejectDialog.isBulk ? "s" : ""} will be notified and can resubmit.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -1142,8 +1321,14 @@ function ApprovalTab() {
             <Button variant="outline" onClick={() => setRejectDialog({ id: 0, open: false })}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleReject} data-testid="button-confirm-reject">
-              Reject Entry
+            <Button 
+              variant="destructive" 
+              onClick={handleReject} 
+              disabled={isProcessing}
+              data-testid="button-confirm-reject"
+            >
+              {isProcessing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              {rejectDialog.isBulk ? `Reject ${selectedIds.size} Entries` : "Reject Entry"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1532,8 +1717,33 @@ export default function Timesheets() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [showReminder, setShowReminder] = useState(true);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+
+  const handleExportMyTimesheet = () => {
+    if (!entries || entries.length === 0) {
+      toast({ title: "No Data", description: "No timesheet entries to export", variant: "destructive" });
+      return;
+    }
+    
+    const exportData = entries.map(entry => ({
+      resource: currentResource?.displayName || "Me",
+      project: assignedTasks.find(t => t.task.id === entry.taskId)?.project?.name || "Unknown",
+      task: assignedTasks.find(t => t.task.id === entry.taskId)?.task?.name || "Unknown",
+      date: entry.entryDate,
+      hours: Number(entry.hours),
+      status: entry.status,
+      notes: entry.notes || ""
+    }));
+    
+    exportTimesheetToExcel(exportData, {
+      filename: `my-timesheet-${format(dates[0], 'yyyy-MM-dd')}-to-${format(dates[dates.length - 1], 'yyyy-MM-dd')}`,
+      sheetName: 'My Timesheet'
+    });
+    
+    toast({ title: "Export Complete", description: "Excel file downloaded successfully" });
+  };
   
   // Lift grid data state to parent to persist across view changes
   const [gridData, setGridData] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>>({});
@@ -1746,6 +1956,29 @@ export default function Timesheets() {
   };
 
   const goToToday = () => setCurrentDate(new Date());
+
+  const handleTimerStop = (taskId: number, hours: number, notes: string) => {
+    const dateKey = format(new Date(), "yyyy-MM-dd");
+    const newGridData = JSON.parse(JSON.stringify(gridData));
+    
+    if (!newGridData[taskId]) {
+      newGridData[taskId] = {};
+    }
+    
+    const existingHours = parseFloat(newGridData[taskId][dateKey]?.hours || "0");
+    newGridData[taskId][dateKey] = {
+      hours: String(existingHours + hours),
+      notes: notes || newGridData[taskId][dateKey]?.notes || "",
+      id: newGridData[taskId][dateKey]?.id
+    };
+    
+    setGridData(newGridData);
+    setHasChanges(true);
+    toast({ 
+      title: "Time Logged", 
+      description: `${hours}h added to today. Remember to save!`
+    });
+  };
 
   const handleSave = async (data: Record<string, Record<string, { hours: number; notes: string; id?: number }>>) => {
     if (!currentOrganization || !currentResource) return;
@@ -2447,6 +2680,11 @@ export default function Timesheets() {
                       Today
                     </Button>
 
+                    <TimerWidget 
+                      tasks={assignedTasks}
+                      onTimerStop={handleTimerStop}
+                    />
+
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button 
@@ -2633,6 +2871,20 @@ export default function Timesheets() {
                       </Button>
                     )}
 
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={handleExportMyTimesheet}
+                          data-testid="button-export-my-excel"
+                        >
+                          <FileSpreadsheet className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Export to Excel</TooltipContent>
+                    </Tooltip>
+
                     <Button
                       variant="outline"
                       size="icon"
@@ -2645,6 +2897,15 @@ export default function Timesheets() {
                 </div>
               </CardContent>
             </Card>
+
+            <TimesheetReminder
+              weeklyTotal={totalHoursThisWeek}
+              targetHours={weeklyTarget}
+              weekStart={dates[0]}
+              weekEnd={dates[dates.length - 1]}
+              onDismiss={() => setShowReminder(false)}
+              visible={showReminder}
+            />
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Card className="border-0 shadow-sm">
