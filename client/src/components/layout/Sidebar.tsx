@@ -196,6 +196,24 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     }
   }
   
+  // Ensure home module is in the menu group (at the beginning)
+  const hasHome = updatedStructure.some(g => 
+    g.items.some(item => item.type === "module" && item.key === "home")
+  );
+  
+  if (!hasHome) {
+    const menuGroup = updatedStructure.find(g => g.id === "menu");
+    if (menuGroup) {
+      updatedStructure = updatedStructure.map(g => {
+        if (g.id === "menu") {
+          const newItems = [{ type: "module" as const, key: "home", hidden: false }, ...g.items];
+          return { ...g, items: newItems };
+        }
+        return g;
+      });
+    }
+  }
+  
   // Ensure invoices module is in the menu group
   const hasInvoices = updatedStructure.some(g => 
     g.items.some(item => item.type === "module" && item.key === "invoices")
