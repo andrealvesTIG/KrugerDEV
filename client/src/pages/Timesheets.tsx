@@ -262,15 +262,17 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       <td className="p-3 bg-emerald-500/5">
         <div className="flex items-center justify-center gap-1">
           <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
-          {isRowOvertime && (
+          {isRowOvertime ? (
             <Tooltip>
               <TooltipTrigger>
                 <AlertTriangle className="h-3 w-3 text-amber-500" />
               </TooltipTrigger>
               <TooltipContent side="top">Over 40 hours this week</TooltipContent>
             </Tooltip>
+          ) : (
+            <span className="w-3 h-3" />
           )}
-          {rowTotal > 0 && (
+          {rowTotal > 0 ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -284,6 +286,8 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
               </TooltipTrigger>
               <TooltipContent side="top">Clear row</TooltipContent>
             </Tooltip>
+          ) : (
+            <span className="w-4 h-4" />
           )}
         </div>
       </td>
