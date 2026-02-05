@@ -172,7 +172,7 @@ export default function Home() {
           <h1 className="text-2xl font-bold text-foreground">
             {greeting}, {user?.firstName || user?.username || "there"}
           </h1>
-          <p className="text-muted-foreground">Here's what's on your plate today</p>
+          <p className="text-muted-foreground">Your personal workspace at a glance</p>
         </div>
         <div className="text-sm text-muted-foreground">
           {format(today, "EEEE, MMMM d, yyyy")}

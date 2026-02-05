@@ -243,7 +243,7 @@ export interface IStorage {
   // Task Resource Assignments
   getTaskResourceAssignments(taskId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
   getAllTaskResourceAssignments(organizationId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
-  getAssignedTasksForResource(resourceId: number, organizationId: number): Promise<{ task: Task; project: Project }[]>;
+  getAssignedTasksForResource(resourceId: number, organizationId: number, userId?: string): Promise<{ task: Task; project: Project }[]>;
   addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment>;
   removeTaskResourceAssignment(taskId: number, resourceId: number): Promise<void>;
   updateTaskResourceAssignments(taskId: number, resourceIds: number[], allocations?: { resourceId: number; allocationPercentage: number }[]): Promise<void>;
@@ -2162,9 +2162,9 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getAssignedTasksForResource(resourceId: number, organizationId: number): Promise<{ task: Task; project: Project }[]> {
-    // Single optimized query with JOINs - no N+1 problem
-    const results = await db.select({
+  async getAssignedTasksForResource(resourceId: number, organizationId: number, userId?: string): Promise<{ task: Task; project: Project }[]> {
+    // Query 1: Tasks assigned via task_resource_assignments table
+    const assignedByResource = await db.select({
       task: tasks,
       project: projects
     })
@@ -2178,7 +2178,33 @@ export class DatabaseStorage implements IStorage {
         isNull(projects.deletedAt)
       ));
     
-    return results;
+    // Query 2: Tasks where user is the ownerId (if userId is provided)
+    let assignedByOwner: { task: Task; project: Project }[] = [];
+    if (userId) {
+      assignedByOwner = await db.select({
+        task: tasks,
+        project: projects
+      })
+        .from(tasks)
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .where(and(
+          eq(tasks.ownerId, userId),
+          eq(projects.organizationId, organizationId),
+          isNull(tasks.deletedAt),
+          isNull(projects.deletedAt)
+        ));
+    }
+    
+    // Combine results and deduplicate by task ID
+    const taskMap = new Map<number, { task: Task; project: Project }>();
+    for (const item of assignedByResource) {
+      taskMap.set(item.task.id, item);
+    }
+    for (const item of assignedByOwner) {
+      taskMap.set(item.task.id, item);
+    }
+    
+    return Array.from(taskMap.values());
   }
 
   async addTaskResourceAssignment(assignment: InsertTaskResourceAssignment): Promise<TaskResourceAssignment> {

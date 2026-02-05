@@ -15009,7 +15009,8 @@ Return ONLY valid JSON.`;
 
       // Single optimized query with JOINs - replaces N+1 queries
       // Returns { task, project }[] so project is already included
-      const assignedTasks = await storage.getAssignedTasksForResource(userResource.id, organizationId);
+      // Pass userId to also include tasks where user is the ownerId
+      const assignedTasks = await storage.getAssignedTasksForResource(userResource.id, organizationId, userId);
 
       // Filter out tasks where the task or project is blocked for timesheets
       const filteredTasks = assignedTasks.filter(item => {
