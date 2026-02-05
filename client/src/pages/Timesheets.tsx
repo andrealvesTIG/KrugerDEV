@@ -148,13 +148,21 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       transition={{ duration: 0.2, delay: index * 0.02 }}
       className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
     >
-      <td className={`p-3 ${indented ? 'pl-10' : ''}`}>
-        <div className="flex items-start gap-2 min-w-[200px] max-w-[300px]">
+      <td className={`p-3 ${indented ? 'pl-10' : ''} w-[280px] min-w-[280px] max-w-[280px]`}>
+        <div className="flex items-start gap-2">
           <ListTodo className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-foreground break-words leading-tight">{task.name}</span>
+          <div className="flex flex-col gap-0.5 overflow-hidden">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-foreground text-sm leading-snug line-clamp-2 cursor-default">{task.name}</span>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-[300px]">
+                <p className="font-medium">{task.name}</p>
+                {!indented && <p className="text-xs text-muted-foreground mt-1">{project.name}</p>}
+              </TooltipContent>
+            </Tooltip>
             {!indented && (
-              <span className="text-xs text-muted-foreground" title={project.name}>{project.name}</span>
+              <span className="text-xs text-muted-foreground truncate">{project.name}</span>
             )}
           </div>
         </div>
@@ -602,11 +610,11 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
   return (
     <div className="space-y-4">
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <table className="w-full">
+      <div className="bg-card rounded-xl border border-border overflow-x-auto">
+        <table className="w-full table-fixed">
           <thead>
             <tr className="bg-muted/30">
-              <th className="text-left p-4 font-medium text-muted-foreground min-w-[250px]">
+              <th className="text-left p-4 font-medium text-muted-foreground w-[280px] min-w-[280px]">
                 <span>Tasks</span>
               </th>
               {dates.map(date => {
@@ -617,7 +625,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 const isPeriodClosed = isDateInClosedPeriod(date);
                 const closedPeriodName = isPeriodClosed ? getClosedPeriodName(date) : null;
                 return (
-                  <th key={formatDateKey(date)} className={`p-3 text-center min-w-[80px] ${
+                  <th key={formatDateKey(date)} className={`p-3 text-center w-[90px] ${
                     isPeriodClosed ? "bg-destructive/5" :
                     isTodayDate ? "bg-blue-500/10" : isWeekendDay ? "bg-muted/40" : ""
                   }`}>
@@ -652,7 +660,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   </th>
                 );
               })}
-              <th className="p-3 text-center min-w-[70px] bg-emerald-500/5">
+              <th className="p-3 text-center w-[80px] bg-emerald-500/5">
                 <div className="text-xs font-medium text-emerald-600">Total</div>
                 <div className={`text-lg font-bold flex items-center justify-center gap-1 ${
                   getGrandTotal() > 40 ? "text-amber-600" : "text-emerald-600"
