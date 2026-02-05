@@ -332,35 +332,30 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   
   // Undo history
   const [undoHistory, setUndoHistory] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>[]>([]);
-  const lastSavedStateRef = useRef<string>("");
+  const isUndoingRef = useRef(false);
   
-  // Save state to history before making changes
+  // Save current state to history before making changes
   const saveToHistory = useCallback(() => {
-    const currentState = JSON.stringify(gridData);
-    if (currentState !== lastSavedStateRef.current) {
-      setUndoHistory(prev => {
-        const newHistory = [...prev, JSON.parse(lastSavedStateRef.current || currentState)];
-        return newHistory.slice(-MAX_UNDO_HISTORY);
-      });
-      lastSavedStateRef.current = currentState;
-    }
-  }, [gridData]);
-  
-  // Initialize lastSavedStateRef when gridData first loads
-  useEffect(() => {
-    if (!lastSavedStateRef.current && Object.keys(gridData).length > 0) {
-      lastSavedStateRef.current = JSON.stringify(gridData);
-    }
+    if (isUndoingRef.current) return;
+    const snapshot = JSON.parse(JSON.stringify(gridData));
+    setUndoHistory(prev => {
+      const newHistory = [...prev, snapshot];
+      return newHistory.slice(-MAX_UNDO_HISTORY);
+    });
   }, [gridData]);
   
   const undo = useCallback(() => {
     if (undoHistory.length === 0) return;
     
+    isUndoingRef.current = true;
     const previousState = undoHistory[undoHistory.length - 1];
     setUndoHistory(prev => prev.slice(0, -1));
     setGridData(previousState);
-    lastSavedStateRef.current = JSON.stringify(previousState);
     setHasChanges(true);
+    
+    setTimeout(() => {
+      isUndoingRef.current = false;
+    }, 100);
   }, [undoHistory, setGridData, setHasChanges]);
 
   // Auto-save after 3 seconds of inactivity
