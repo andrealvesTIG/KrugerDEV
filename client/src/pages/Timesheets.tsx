@@ -76,11 +76,19 @@ import {
   Lock,
   LockOpen,
   CalendarRange,
-  Undo2
+  Undo2,
+  MoreVertical
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isToday, parseISO, isSameDay, startOfDay, endOfDay, isWeekend, getDay, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import {
@@ -2685,32 +2693,49 @@ export default function Timesheets() {
                       onTimerStop={handleTimerStop}
                     />
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" data-testid="button-more-actions">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
                           onClick={handleCopyPreviousWeek}
                           disabled={viewMode === "day"}
-                          data-testid="button-copy-previous-week"
+                          data-testid="menu-copy-previous-week"
                         >
                           <Copy className="h-4 w-4 mr-2" />
                           Copy Last Week
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Copy hours from previous week (only empty cells)</TooltipContent>
-                    </Tooltip>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setTimeOffPopoverOpen(true)}
+                          data-testid="menu-add-time-off"
+                        >
+                          <Palmtree className="h-4 w-4 mr-2" />
+                          Add Time Off
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleExportMyTimesheet}
+                          data-testid="menu-export-excel"
+                        >
+                          <FileSpreadsheet className="h-4 w-4 mr-2" />
+                          Export to Excel
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setIsFullscreen(true)}
+                          data-testid="menu-fullscreen"
+                        >
+                          <Maximize2 className="h-4 w-4 mr-2" />
+                          Fullscreen Mode
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
 
                     <Popover open={timeOffPopoverOpen} onOpenChange={setTimeOffPopoverOpen}>
                       <PopoverTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          data-testid="button-add-time-off"
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Time Off
-                        </Button>
+                        <span className="hidden" />
                       </PopoverTrigger>
                       <PopoverContent className="w-80" align="end">
                         <div className="space-y-4">
@@ -2871,29 +2896,7 @@ export default function Timesheets() {
                       </Button>
                     )}
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={handleExportMyTimesheet}
-                          data-testid="button-export-my-excel"
-                        >
-                          <FileSpreadsheet className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Export to Excel</TooltipContent>
-                    </Tooltip>
-
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setIsFullscreen(true)}
-                      data-testid="button-fullscreen"
-                    >
-                      <Maximize2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                    </div>
                 </div>
               </CardContent>
             </Card>
