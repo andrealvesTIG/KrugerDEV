@@ -104,6 +104,12 @@ export default function Home() {
     });
   }, [allIssues, currentResource]);
 
+  // Get the set of project IDs where user has assigned tasks
+  const myProjectIds = useMemo(() => {
+    if (!assignedTasksData) return new Set<number>();
+    return new Set(assignedTasksData.map((item) => item.task.projectId).filter(Boolean) as number[]);
+  }, [assignedTasksData]);
+
   const upcomingMilestones = useMemo(() => {
     if (!allMilestones) return [];
     const now = new Date();
@@ -123,11 +129,13 @@ export default function Home() {
       .map((m: Milestone) => ({ ...m, parsedDueDate: parseDueDate(m.dueDate) }))
       .filter((m) => {
         if (!m.parsedDueDate) return false;
+        // Only show milestones from projects where the user has assigned tasks
+        if (!m.projectId || !myProjectIds.has(m.projectId)) return false;
         return isAfter(m.parsedDueDate, now) && isBefore(m.parsedDueDate, thirtyDaysFromNow) && m.status !== "Done" && m.status !== "Completed";
       })
       .sort((a, b) => a.parsedDueDate!.getTime() - b.parsedDueDate!.getTime())
       .slice(0, 5);
-  }, [allMilestones]);
+  }, [allMilestones, myProjectIds]);
 
   const totalHoursThisWeek = useMemo(() => {
     if (!timesheetEntries) return 0;
