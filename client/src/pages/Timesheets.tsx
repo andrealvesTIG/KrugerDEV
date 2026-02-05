@@ -128,6 +128,7 @@ interface TaskRowProps {
   getRowTotal: (taskId: number) => number;
   getDayTotal: (dateKey: string) => number;
   openNoteEditor: (taskId: number, dateKey: string) => void;
+  clearRow: (taskId: number) => void;
   index: number;
   indented?: boolean;
   inputRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
@@ -135,7 +136,7 @@ interface TaskRowProps {
   getClosedPeriodName: (date: Date) => string | null;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
   const isRowOvertime = rowTotal > 40;
   
@@ -259,7 +260,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         );
       })}
       <td className="p-3 bg-emerald-500/5">
-        <div className="flex items-center justify-center gap-1">
+        <div className="flex items-center justify-center gap-1 group/total">
           <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
           {isRowOvertime && (
             <Tooltip>
@@ -267,6 +268,21 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 <AlertTriangle className="h-3 w-3 text-amber-500" />
               </TooltipTrigger>
               <TooltipContent side="top">Over 40 hours this week</TooltipContent>
+            </Tooltip>
+          )}
+          {rowTotal > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => clearRow(task.id)}
+                  className="opacity-0 group-hover/total:opacity-100 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-opacity"
+                  data-testid={`button-clear-row-${task.id}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Clear row</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -518,6 +534,42 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     setEditingNote({ taskId, dateKey });
   };
 
+  const clearRow = (taskId: number) => {
+    setGridData(prev => {
+      const updated = { ...prev };
+      if (updated[taskId]) {
+        const taskData = { ...updated[taskId] };
+        for (const dateKey of Object.keys(taskData)) {
+          const date = parseISO(dateKey);
+          if (!isDateInClosedPeriod(date)) {
+            taskData[dateKey] = { ...taskData[dateKey], hours: "" };
+          }
+        }
+        updated[taskId] = taskData;
+      }
+      return updated;
+    });
+    setHasChanges(true);
+  };
+
+  const clearAllRows = () => {
+    setGridData(prev => {
+      const updated = { ...prev };
+      for (const taskId of Object.keys(updated)) {
+        const taskData = { ...updated[taskId] };
+        for (const dateKey of Object.keys(taskData)) {
+          const date = parseISO(dateKey);
+          if (!isDateInClosedPeriod(date)) {
+            taskData[dateKey] = { ...taskData[dateKey], hours: "" };
+          }
+        }
+        updated[taskId] = taskData;
+      }
+      return updated;
+    });
+    setHasChanges(true);
+  };
+
   const groupedTasks = useMemo(() => {
     const groups: Record<number, { project: Project; tasks: { task: Task; project: Project }[] }> = {};
     for (const item of assignedTasks) {
@@ -653,7 +705,24 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 );
               })}
               <th className="p-3 text-center w-[80px] bg-emerald-500/5">
-                <div className="text-xs font-medium text-emerald-600">Total</div>
+                <div className="text-xs font-medium text-emerald-600 flex items-center justify-center gap-1">
+                  Total
+                  {getGrandTotal() > 0 && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={clearAllRows}
+                          className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          data-testid="button-clear-all"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Clear all hours</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
                 <div className={`text-lg font-bold flex items-center justify-center gap-1 ${
                   getGrandTotal() > 40 ? "text-amber-600" : "text-emerald-600"
                 }`}>
@@ -731,6 +800,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             getRowTotal={getRowTotal}
                             getDayTotal={getColumnTotal}
                             openNoteEditor={openNoteEditor}
+                            clearRow={clearRow}
                             index={flatIndex}
                             indented
                             inputRefs={inputRefs}
@@ -758,6 +828,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   getRowTotal={getRowTotal}
                   getDayTotal={getColumnTotal}
                   openNoteEditor={openNoteEditor}
+                  clearRow={clearRow}
                   index={index}
                   inputRefs={inputRefs}
                   isDateInClosedPeriod={isDateInClosedPeriod}
