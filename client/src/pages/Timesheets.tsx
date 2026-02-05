@@ -149,12 +149,14 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
     >
       <td className={`p-3 ${indented ? 'pl-10' : ''}`}>
-        <div className="flex items-center gap-2 min-w-0 max-w-[250px]">
-          <ListTodo className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="text-foreground truncate" title={task.name}>{task.name}</span>
-          {!indented && (
-            <span className="text-xs text-muted-foreground truncate shrink-0 max-w-[100px]" title={project.name}>({project.name})</span>
-          )}
+        <div className="flex items-start gap-2 min-w-[200px] max-w-[300px]">
+          <ListTodo className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-foreground break-words leading-tight">{task.name}</span>
+            {!indented && (
+              <span className="text-xs text-muted-foreground" title={project.name}>{project.name}</span>
+            )}
+          </div>
         </div>
       </td>
       {dates.map((date, dateIndex) => {
