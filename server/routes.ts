@@ -17761,6 +17761,311 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ========== ANALYTICS DASHBOARD API ==========
+
+  // Comprehensive analytics dashboard for Super Admin
+  app.get('/api/admin/analytics/dashboard', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const now = new Date();
+
+      // ===== USER METRICS =====
+      // Total users
+      const totalUsersResult = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
+      const totalUsers = Number(totalUsersResult.rows[0]?.count || 0);
+
+      // New users today
+      const newUsersTodayResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM users 
+        WHERE DATE(created_at) = CURRENT_DATE
+      `);
+      const newUsersToday = Number(newUsersTodayResult.rows[0]?.count || 0);
+
+      // New users this week
+      const newUsersWeekResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM users 
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+      `);
+      const newUsersThisWeek = Number(newUsersWeekResult.rows[0]?.count || 0);
+
+      // New users this month
+      const newUsersMonthResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM users 
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+      `);
+      const newUsersThisMonth = Number(newUsersMonthResult.rows[0]?.count || 0);
+
+      // Active users (last 24h, 7d, 30d)
+      const activeUsers24hResult = await db.execute(sql`
+        SELECT COUNT(DISTINCT user_id) as count FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '24 hours' AND user_id IS NOT NULL
+      `);
+      const activeUsers24h = Number(activeUsers24hResult.rows[0]?.count || 0);
+
+      const activeUsers7dResult = await db.execute(sql`
+        SELECT COUNT(DISTINCT user_id) as count FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '7 days' AND user_id IS NOT NULL
+      `);
+      const activeUsers7d = Number(activeUsers7dResult.rows[0]?.count || 0);
+
+      const activeUsers30dResult = await db.execute(sql`
+        SELECT COUNT(DISTINCT user_id) as count FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '30 days' AND user_id IS NOT NULL
+      `);
+      const activeUsers30d = Number(activeUsers30dResult.rows[0]?.count || 0);
+
+      // Daily new user signups (last 30 days)
+      const dailySignupsResult = await db.execute(sql`
+        SELECT DATE(created_at) as date, COUNT(*) as count 
+        FROM users 
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(created_at) 
+        ORDER BY date ASC
+      `);
+
+      // Weekly new users (last 12 weeks)
+      const weeklySignupsResult = await db.execute(sql`
+        SELECT 
+          DATE_TRUNC('week', created_at) as week_start,
+          COUNT(*) as count 
+        FROM users 
+        WHERE created_at >= NOW() - INTERVAL '12 weeks'
+        GROUP BY DATE_TRUNC('week', created_at)
+        ORDER BY week_start ASC
+      `);
+
+      // Monthly new users (last 12 months)
+      const monthlySignupsResult = await db.execute(sql`
+        SELECT 
+          DATE_TRUNC('month', created_at) as month_start,
+          COUNT(*) as count 
+        FROM users 
+        WHERE created_at >= NOW() - INTERVAL '12 months'
+        GROUP BY DATE_TRUNC('month', created_at)
+        ORDER BY month_start ASC
+      `);
+
+      // ===== ORGANIZATION METRICS =====
+      const totalOrgsResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM organizations WHERE deactivated_at IS NULL
+      `);
+      const totalOrganizations = Number(totalOrgsResult.rows[0]?.count || 0);
+
+      const newOrgsThisMonthResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM organizations 
+        WHERE created_at >= NOW() - INTERVAL '30 days' AND deactivated_at IS NULL
+      `);
+      const newOrgsThisMonth = Number(newOrgsThisMonthResult.rows[0]?.count || 0);
+
+      // ===== PUBLIC PAGE STATS =====
+      // Track public page views (landing, sign-in, pricing, terms, privacy)
+      const publicPagesResult = await db.execute(sql`
+        SELECT 
+          CASE 
+            WHEN path = '/' OR path = '' THEN 'Landing Page'
+            WHEN path LIKE '/sign-in%' THEN 'Sign In'
+            WHEN path LIKE '/sign-up%' THEN 'Sign Up'
+            WHEN path LIKE '/pricing%' THEN 'Pricing'
+            WHEN path LIKE '/terms%' THEN 'Terms of Service'
+            WHEN path LIKE '/privacy%' THEN 'Privacy Policy'
+            WHEN path LIKE '/features%' THEN 'Features'
+            WHEN path LIKE '/about%' THEN 'About'
+            WHEN path LIKE '/contact%' THEN 'Contact'
+            ELSE 'Other Public'
+          END as page_name,
+          COUNT(*) as views,
+          COUNT(DISTINCT COALESCE(user_id, ip_address)) as unique_visitors
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+          AND method = 'GET'
+          AND (
+            path = '/' OR path = '' 
+            OR path LIKE '/sign-in%' 
+            OR path LIKE '/sign-up%'
+            OR path LIKE '/pricing%'
+            OR path LIKE '/terms%'
+            OR path LIKE '/privacy%'
+            OR path LIKE '/features%'
+            OR path LIKE '/about%'
+            OR path LIKE '/contact%'
+          )
+        GROUP BY 
+          CASE 
+            WHEN path = '/' OR path = '' THEN 'Landing Page'
+            WHEN path LIKE '/sign-in%' THEN 'Sign In'
+            WHEN path LIKE '/sign-up%' THEN 'Sign Up'
+            WHEN path LIKE '/pricing%' THEN 'Pricing'
+            WHEN path LIKE '/terms%' THEN 'Terms of Service'
+            WHEN path LIKE '/privacy%' THEN 'Privacy Policy'
+            WHEN path LIKE '/features%' THEN 'Features'
+            WHEN path LIKE '/about%' THEN 'About'
+            WHEN path LIKE '/contact%' THEN 'Contact'
+            ELSE 'Other Public'
+          END
+        ORDER BY views DESC
+      `);
+
+      // Daily page views (last 30 days)
+      const dailyPageViewsResult = await db.execute(sql`
+        SELECT DATE(created_at) as date, COUNT(*) as views
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+          AND method = 'GET'
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `);
+
+      // ===== SESSION & ENGAGEMENT METRICS =====
+      // Average sessions per user (last 7 days)
+      const sessionsPerUserResult = await db.execute(sql`
+        SELECT 
+          user_id,
+          COUNT(DISTINCT DATE(created_at)) as active_days,
+          COUNT(*) as total_requests
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '7 days' AND user_id IS NOT NULL
+        GROUP BY user_id
+      `);
+      const avgSessionsPerUser = sessionsPerUserResult.rows.length > 0 
+        ? (sessionsPerUserResult.rows.reduce((sum: number, r: any) => sum + Number(r.active_days || 0), 0) / sessionsPerUserResult.rows.length).toFixed(1)
+        : '0';
+
+      // Top users by activity
+      const topUsersResult = await db.execute(sql`
+        SELECT 
+          l.user_id,
+          u.email,
+          u.first_name,
+          u.last_name,
+          COUNT(*) as request_count,
+          MAX(l.created_at) as last_activity
+        FROM api_request_logs l
+        JOIN users u ON l.user_id = u.id
+        WHERE l.created_at >= NOW() - INTERVAL '7 days' AND l.user_id IS NOT NULL
+        GROUP BY l.user_id, u.email, u.first_name, u.last_name
+        ORDER BY request_count DESC
+        LIMIT 10
+      `);
+
+      // ===== FEATURE USAGE =====
+      const featureUsageResult = await db.execute(sql`
+        SELECT 
+          CASE 
+            WHEN path LIKE '/api/projects%' THEN 'Projects'
+            WHEN path LIKE '/api/tasks%' THEN 'Tasks'
+            WHEN path LIKE '/api/portfolios%' THEN 'Portfolios'
+            WHEN path LIKE '/api/timesheets%' THEN 'Timesheets'
+            WHEN path LIKE '/api/issues%' THEN 'Issues'
+            WHEN path LIKE '/api/milestones%' THEN 'Milestones'
+            WHEN path LIKE '/api/resources%' THEN 'Resources'
+            WHEN path LIKE '/api/dashboard%' THEN 'Dashboards'
+            WHEN path LIKE '/api/reports%' THEN 'Reports'
+            WHEN path LIKE '/api/ai%' THEN 'AI Features'
+            ELSE 'Other'
+          END as feature,
+          COUNT(*) as usage_count
+        FROM api_request_logs 
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY 
+          CASE 
+            WHEN path LIKE '/api/projects%' THEN 'Projects'
+            WHEN path LIKE '/api/tasks%' THEN 'Tasks'
+            WHEN path LIKE '/api/portfolios%' THEN 'Portfolios'
+            WHEN path LIKE '/api/timesheets%' THEN 'Timesheets'
+            WHEN path LIKE '/api/issues%' THEN 'Issues'
+            WHEN path LIKE '/api/milestones%' THEN 'Milestones'
+            WHEN path LIKE '/api/resources%' THEN 'Resources'
+            WHEN path LIKE '/api/dashboard%' THEN 'Dashboards'
+            WHEN path LIKE '/api/reports%' THEN 'Reports'
+            WHEN path LIKE '/api/ai%' THEN 'AI Features'
+            ELSE 'Other'
+          END
+        ORDER BY usage_count DESC
+      `);
+
+      // ===== SUBSCRIPTION METRICS =====
+      const subscriptionStatsResult = await db.execute(sql`
+        SELECT 
+          p.name as plan_name,
+          p.code as plan_code,
+          COUNT(s.id) as subscription_count
+        FROM subscriptions s
+        JOIN plans p ON s.plan_id = p.id
+        WHERE s.status = 'active'
+        GROUP BY p.name, p.code
+        ORDER BY subscription_count DESC
+      `);
+
+      // Churned subscriptions this month
+      const churnedResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM subscriptions 
+        WHERE status = 'cancelled' AND updated_at >= NOW() - INTERVAL '30 days'
+      `);
+      const churnedThisMonth = Number(churnedResult.rows[0]?.count || 0);
+
+      // ===== USER RETENTION =====
+      // Users who returned after signup (within 7 days)
+      const retentionResult = await db.execute(sql`
+        WITH new_users AS (
+          SELECT id, created_at FROM users 
+          WHERE created_at >= NOW() - INTERVAL '37 days' 
+            AND created_at < NOW() - INTERVAL '7 days'
+        ),
+        returning_users AS (
+          SELECT DISTINCT nu.id
+          FROM new_users nu
+          JOIN api_request_logs l ON l.user_id = nu.id
+          WHERE l.created_at > nu.created_at + INTERVAL '1 day'
+            AND l.created_at <= nu.created_at + INTERVAL '7 days'
+        )
+        SELECT 
+          (SELECT COUNT(*) FROM new_users) as total_new,
+          (SELECT COUNT(*) FROM returning_users) as returned
+      `);
+      const totalNew = Number(retentionResult.rows[0]?.total_new || 0);
+      const returned = Number(retentionResult.rows[0]?.returned || 0);
+      const retentionRate = totalNew > 0 ? ((returned / totalNew) * 100).toFixed(1) : '0';
+
+      res.json({
+        userMetrics: {
+          totalUsers,
+          newUsersToday,
+          newUsersThisWeek,
+          newUsersThisMonth,
+          activeUsers24h,
+          activeUsers7d,
+          activeUsers30d,
+          avgSessionsPerUser,
+          retentionRate: `${retentionRate}%`,
+        },
+        organizationMetrics: {
+          totalOrganizations,
+          newOrgsThisMonth,
+        },
+        subscriptionMetrics: {
+          byPlan: subscriptionStatsResult.rows,
+          churnedThisMonth,
+        },
+        charts: {
+          dailySignups: dailySignupsResult.rows,
+          weeklySignups: weeklySignupsResult.rows,
+          monthlySignups: monthlySignupsResult.rows,
+          dailyPageViews: dailyPageViewsResult.rows,
+        },
+        publicPageStats: publicPagesResult.rows,
+        featureUsage: featureUsageResult.rows,
+        topUsers: topUsersResult.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching analytics dashboard:', error);
+      res.status(500).json({ message: 'Failed to fetch analytics data' });
+    }
+  });
+
   // ========== HELP TICKETS API ==========
   
   // Create a new help ticket
