@@ -14893,27 +14893,10 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
       }
 
-      // Check if user is an org admin, super admin, or timesheet approver
-      const user = await storage.getUser(userId);
-      const memberships = await storage.getUserOrganizations(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
-      const isOrgAdmin = memberships.some(m => m.organizationId === organizationId && (m.role === 'org_admin' || m.role === 'owner'));
-      
-      // Check if user is a timesheet approver
-      const resources = await storage.getResources(organizationId);
-      const userResource = resources.find(r => r.userId === userId);
-      const isApprover = userResource?.isApprover === true;
-      
-      const canViewAll = isSuperAdmin || isOrgAdmin || isApprover;
-
-      let entriesWithDetails;
-      if (canViewAll) {
-        // Admins and approvers get all entries for the organization
-        entriesWithDetails = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
-      } else {
-        // Non-admins/non-approvers only get their own entries
-        entriesWithDetails = await storage.getTimesheetEntriesWithDetails(userId, organizationId, startDate, endDate);
-      }
+      // Main timesheet view should ALWAYS return only the current user's own entries
+      // The approval tab uses a separate endpoint (/api/timesheets/approval) for viewing other users' entries
+      // This prevents entries from other users appearing in an admin's personal timesheet grid
+      const entriesWithDetails = await storage.getTimesheetEntriesWithDetails(userId, organizationId, startDate, endDate);
       
       // Transform to expected format
       const enrichedEntries = entriesWithDetails.map(({ entry, task, project }) => ({
