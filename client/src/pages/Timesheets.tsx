@@ -148,21 +148,13 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       transition={{ duration: 0.2, delay: index * 0.02 }}
       className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
     >
-      <td className={`p-3 ${indented ? 'pl-10' : ''} w-[280px] min-w-[280px] max-w-[280px]`}>
+      <td className={`p-3 ${indented ? 'pl-10' : ''} w-[280px] min-w-[280px] max-w-[280px] align-top`}>
         <div className="flex items-start gap-2">
           <ListTodo className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-          <div className="flex flex-col gap-0.5 overflow-hidden">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-foreground text-sm leading-snug line-clamp-2 cursor-default">{task.name}</span>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-[300px]">
-                <p className="font-medium">{task.name}</p>
-                {!indented && <p className="text-xs text-muted-foreground mt-1">{project.name}</p>}
-              </TooltipContent>
-            </Tooltip>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-foreground text-sm leading-snug break-words whitespace-normal">{task.name}</span>
             {!indented && (
-              <span className="text-xs text-muted-foreground truncate">{project.name}</span>
+              <span className="text-xs text-muted-foreground break-words">{project.name}</span>
             )}
           </div>
         </div>
