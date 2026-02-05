@@ -17686,9 +17686,9 @@ Return ONLY valid JSON.`;
         UNION ALL
         SELECT 'tasks', COUNT(*) FROM tasks
         UNION ALL
-        SELECT 'issues', COUNT(*) FROM issues
+        SELECT 'issues', COUNT(*) FROM issues WHERE item_type = 'issue' OR item_type IS NULL
         UNION ALL
-        SELECT 'risks', COUNT(*) FROM risks
+        SELECT 'risks', COUNT(*) FROM issues WHERE item_type = 'risk'
         UNION ALL
         SELECT 'milestones', COUNT(*) FROM milestones
         UNION ALL
@@ -17696,7 +17696,7 @@ Return ONLY valid JSON.`;
         UNION ALL
         SELECT 'portfolios', COUNT(*) FROM portfolios
         UNION ALL
-        SELECT 'timesheets', COUNT(*) FROM timesheets
+        SELECT 'timesheet_entries', COUNT(*) FROM timesheet_entries
         UNION ALL
         SELECT 'api_request_logs', COUNT(*) FROM api_request_logs
         ORDER BY row_count DESC
