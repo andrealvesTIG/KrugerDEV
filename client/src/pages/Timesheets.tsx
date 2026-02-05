@@ -260,7 +260,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         );
       })}
       <td className="p-3 bg-emerald-500/5">
-        <div className="flex items-center justify-center gap-1 group/total">
+        <div className="flex items-center justify-center gap-1">
           <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
           {isRowOvertime && (
             <Tooltip>
@@ -276,10 +276,10 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
                 <button
                   type="button"
                   onClick={() => clearRow(task.id)}
-                  className="opacity-0 group-hover/total:opacity-100 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-opacity"
+                  className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                   data-testid={`button-clear-row-${task.id}`}
                 >
-                  <X className="h-3 w-3" />
+                  <Trash2 className="h-3 w-3" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">Clear row</TooltipContent>
