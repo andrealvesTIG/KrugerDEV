@@ -274,35 +274,61 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-3">
-                {assignedTasks.slice(0, 5).map((item) => (
-                  <div
-                    key={item.task.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover-elevate cursor-pointer"
-                    data-testid={`task-item-${item.task.id}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground truncate">{item.task.name}</span>
-                        <Badge variant="outline" className={getStatusColor(item.task.status)}>
-                          {item.task.status || "Not Started"}
-                        </Badge>
+                {/* Sort tasks: overdue first, then by end date */}
+                {[...assignedTasks]
+                  .sort((a, b) => {
+                    const aEndDate = a.task.endDate ? (typeof a.task.endDate === "string" ? parseISO(a.task.endDate) : a.task.endDate) : null;
+                    const bEndDate = b.task.endDate ? (typeof b.task.endDate === "string" ? parseISO(b.task.endDate) : b.task.endDate) : null;
+                    const aOverdue = aEndDate && isBefore(aEndDate, today);
+                    const bOverdue = bEndDate && isBefore(bEndDate, today);
+                    if (aOverdue && !bOverdue) return -1;
+                    if (!aOverdue && bOverdue) return 1;
+                    if (aEndDate && bEndDate) return aEndDate.getTime() - bEndDate.getTime();
+                    return 0;
+                  })
+                  .slice(0, 5)
+                  .map((item) => {
+                    const endDate = item.task.endDate ? (typeof item.task.endDate === "string" ? parseISO(item.task.endDate) : item.task.endDate) : null;
+                    const isOverdue = endDate && isBefore(endDate, today);
+                    return (
+                      <div
+                        key={item.task.id}
+                        className={`flex items-center justify-between p-3 rounded-lg hover-elevate cursor-pointer ${
+                          isOverdue 
+                            ? "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" 
+                            : "bg-muted/50"
+                        }`}
+                        data-testid={`task-item-${item.task.id}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-foreground truncate">{item.task.name}</span>
+                            <Badge variant="outline" className={getStatusColor(item.task.status)}>
+                              {item.task.status || "Not Started"}
+                            </Badge>
+                            {isOverdue && (
+                              <Badge variant="destructive" className="text-xs">
+                                Overdue
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                            <FolderOpen className="h-3 w-3" />
+                            <span className="truncate">{item.project.name}</span>
+                            {endDate && (
+                              <>
+                                <span>•</span>
+                                <Calendar className={`h-3 w-3 ${isOverdue ? "text-red-500" : ""}`} />
+                                <span className={isOverdue ? "text-red-600 dark:text-red-400 font-medium" : ""}>
+                                  {isOverdue ? "Was due" : "Due"} {format(endDate, "MMM d")}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                        <FolderOpen className="h-3 w-3" />
-                        <span className="truncate">{item.project.name}</span>
-                        {item.task.endDate && (
-                          <>
-                            <span>•</span>
-                            <Calendar className="h-3 w-3" />
-                            <span>
-                              Due {format(typeof item.task.endDate === "string" ? parseISO(item.task.endDate) : item.task.endDate, "MMM d")}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
                 {assignedTasks.length > 5 && (
                   <div className="text-center pt-2">
                     <span className="text-sm text-muted-foreground">
