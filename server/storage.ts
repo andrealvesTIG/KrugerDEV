@@ -3345,8 +3345,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry> {
-    const [created] = await db.insert(timesheetEntries).values(entry).returning();
-    return created;
+    // Use upsert pattern with retry for race condition handling
+    // First attempt a simple insert
+    try {
+      const [created] = await db.insert(timesheetEntries).values(entry).returning();
+      return created;
+    } catch (error: any) {
+      // If unique constraint violation, update the existing entry instead
+      if (error?.code === '23505' || error?.message?.includes('unique constraint')) {
+        const [existing] = await db.select()
+          .from(timesheetEntries)
+          .where(and(
+            eq(timesheetEntries.userId, entry.userId),
+            eq(timesheetEntries.taskId, entry.taskId),
+            eq(timesheetEntries.entryDate, entry.entryDate)
+          ))
+          .limit(1);
+        
+        if (existing) {
+          // Update existing entry with new hours (add to existing hours)
+          const newHours = String(Number(existing.hours) + Number(entry.hours));
+          const [updated] = await db.update(timesheetEntries)
+            .set({ hours: newHours, notes: entry.notes || existing.notes, updatedAt: new Date() })
+            .where(eq(timesheetEntries.id, existing.id))
+            .returning();
+          return updated;
+        }
+      }
+      throw error;
+    }
   }
 
   async updateTimesheetEntry(id: number, updates: UpdateTimesheetEntryRequest): Promise<TimesheetEntry> {

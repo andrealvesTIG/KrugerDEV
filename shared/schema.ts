@@ -499,7 +499,9 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  uniqueUserTaskDate: uniqueIndex("unique_user_task_date").on(table.userId, table.taskId, table.entryDate),
+}));
 
 // Time Categories (for non-project time like vacation, PTO, etc.)
 export const timeCategories = pgTable("time_categories", {
