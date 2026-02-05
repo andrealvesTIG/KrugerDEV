@@ -15268,6 +15268,26 @@ Return ONLY valid JSON.`;
             continue; // Skip entries in closed periods
           }
           
+          // DUPLICATE PREVENTION: Check if entry already exists for this resource/task/date
+          const existingEntry = await storage.findTimesheetEntry(
+            userResource.id, 
+            entry.taskId, 
+            entry.entryDate
+          );
+          
+          if (existingEntry) {
+            // Update existing entry instead of creating duplicate
+            if (existingEntry.status === 'Draft' || existingEntry.status === 'Rejected') {
+              const updated = await storage.updateTimesheetEntry(existingEntry.id, {
+                hours: String(hoursNum),
+                notes: entry.notes,
+              });
+              results.push(updated);
+            }
+            // Skip if entry is submitted/approved (can't modify)
+            continue;
+          }
+          
           const created = await storage.createTimesheetEntry({
             organizationId: entry.organizationId,
             userId,

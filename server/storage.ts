@@ -373,6 +373,7 @@ export interface IStorage {
   getAllTimesheetEntriesWithDetails(organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]>;
   getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]>;
   getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined>;
+  findTimesheetEntry(resourceId: number, taskId: number, entryDate: string): Promise<TimesheetEntry | undefined>;
   createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry>;
   updateTimesheetEntry(id: number, updates: UpdateTimesheetEntryRequest): Promise<TimesheetEntry>;
   deleteTimesheetEntry(id: number): Promise<void>;
@@ -3331,6 +3332,15 @@ export class DatabaseStorage implements IStorage {
 
   async getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined> {
     const [entry] = await db.select().from(timesheetEntries).where(eq(timesheetEntries.id, id));
+    return entry;
+  }
+
+  async findTimesheetEntry(resourceId: number, taskId: number, entryDate: string): Promise<TimesheetEntry | undefined> {
+    const [entry] = await db.select().from(timesheetEntries).where(and(
+      eq(timesheetEntries.resourceId, resourceId),
+      eq(timesheetEntries.taskId, taskId),
+      eq(timesheetEntries.entryDate, entryDate)
+    ));
     return entry;
   }
 
