@@ -67,3 +67,18 @@ export function useDeleteMilestone() {
     },
   });
 }
+
+export function useAllMilestones(organizationId?: number) {
+  return useQuery({
+    queryKey: [api.milestones.listAll.path, organizationId],
+    queryFn: async () => {
+      const url = organizationId 
+        ? `${api.milestones.listAll.path}?organizationId=${organizationId}` 
+        : api.milestones.listAll.path;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch milestones");
+      return api.milestones.listAll.responses[200].parse(await res.json());
+    },
+    enabled: !!organizationId,
+  });
+}

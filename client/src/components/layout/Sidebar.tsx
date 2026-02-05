@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -81,7 +81,8 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 export { logoIcon, logoBlack, logoWhite };
 
 const moduleDefinitions: Record<string, { name: string; href: string; icon: React.ComponentType<{ className?: string }> }> = {
-  dashboard: { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  home: { name: "Home", href: "/", icon: Home },
+  dashboard: { name: "Dashboard", href: "/dashboards", icon: LayoutDashboard },
   portfolios: { name: "Portfolios", href: "/portfolios", icon: Briefcase },
   projects: { name: "Projects", href: "/projects", icon: FolderKanban },
   intakes: { name: "Intakes", href: "/intakes", icon: FileInput },
@@ -97,7 +98,8 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
 };
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, key: "dashboard" },
+  { name: "Home", href: "/", icon: Home, key: "home" },
+  { name: "Dashboard", href: "/dashboards", icon: LayoutDashboard, key: "dashboard" },
   { name: "Portfolios", href: "/portfolios", icon: Briefcase, key: "portfolios" },
   { name: "Projects", href: "/projects", icon: FolderKanban, key: "projects" },
   { name: "Intakes", href: "/intakes", icon: FileInput, key: "intakes" },
@@ -116,7 +118,7 @@ const helpNavigation = [
 ];
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
-  const mainModules = ["dashboard", "portfolios", "projects", "intakes", "tasks", "issues", "simulation", "lessons-learned", "invoices", "timesheets", "resources", "calendar"];
+  const mainModules = ["home", "dashboard", "portfolios", "projects", "intakes", "tasks", "issues", "simulation", "lessons-learned", "invoices", "timesheets", "resources", "calendar"];
   const defaultOrder = mainModules;
   const order = moduleOrder && moduleOrder.length > 0 ? moduleOrder.filter(k => mainModules.includes(k)) : defaultOrder;
   const hidden = hiddenModules || [];

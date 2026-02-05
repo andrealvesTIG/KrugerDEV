@@ -54,6 +54,7 @@ import PublicUserGuide from "@/pages/PublicUserGuide";
 import FridayPage from "@/pages/FridayPage";
 import Simulation from "@/pages/Simulation";
 import ReportSubscriptions from "@/pages/ReportSubscriptions"
+import Home from "@/pages/Home"
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
   const { currentOrganization, isLoading } = useOrganization();
@@ -109,16 +110,16 @@ function GuardedRoute({ path, component: Component, moduleKey }: { path: string;
   );
 }
 
-// Redirect from /dashboard to / using proper Wouter navigation
+// Redirect from /dashboard to /dashboards for backward compatibility
 function DashboardRedirect() {
   const [, setLocation] = useLocation();
   useEffect(() => {
-    setLocation("/");
+    setLocation("/dashboards");
   }, [setLocation]);
   return null;
 }
 
-// Home page that shows SignIn for unauthenticated users, Dashboard for authenticated
+// Home page that shows SignIn for unauthenticated users, Home (My Work) for authenticated
 function HomePage() {
   const { user, isLoading } = useAuth();
   
@@ -138,9 +139,7 @@ function HomePage() {
     <AppLayout>
       <TermsConsentModal />
       <OnboardingDialog />
-      <ModuleGuard moduleKey="dashboard">
-        <Dashboard />
-      </ModuleGuard>
+      <Home />
     </AppLayout>
   );
 }
@@ -155,6 +154,7 @@ function Router() {
       <OnboardingDialog />
       <Switch>
         <Route path="/dashboard"><DashboardRedirect /></Route>
+        <GuardedRoute path="/dashboards" component={Dashboard} moduleKey="dashboard" />
         <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
         <Route path="/portfolios/:id">
           <ModuleGuard moduleKey="portfolios"><PortfolioDetails /></ModuleGuard>
