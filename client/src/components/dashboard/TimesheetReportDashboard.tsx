@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Clock, Target, CheckCircle2, AlertCircle, FileCheck, TrendingUp, Calendar, Users, Eye } from "lucide-react";
+import { Loader2, Clock, Target, CheckCircle2, AlertCircle, FileCheck, TrendingUp, Calendar, Users, Eye, Zap, ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import type { TimesheetEntry } from "@shared/schema";
 
@@ -124,6 +124,42 @@ export function TimesheetReportDashboard() {
   const complianceRate = totalExpectedHours > 0 ? Math.round((totalLoggedHours / totalExpectedHours) * 100) : 0;
   const approvalRate = submittedEntries.length > 0 ? Math.round((approvedEntries.length / submittedEntries.length) * 100) : 0;
   const avgHoursPerEntry = entries.length > 0 ? Math.round(totalLoggedHours / entries.length * 10) / 10 : 0;
+  
+  // Team speed/velocity metrics
+  const avgHoursPerResource = activeResources.length > 0 
+    ? Math.round((totalLoggedHours / activeResources.length) * 10) / 10 
+    : 0;
+  const targetHoursPerResource = 40; // weekly target
+  const velocityScore = targetHoursPerResource > 0 
+    ? Math.round((avgHoursPerResource / targetHoursPerResource) * 100) 
+    : 0;
+  
+  // Calculate week-over-week trend
+  const currentWeekStart = new Date(today);
+  currentWeekStart.setDate(today.getDate() - today.getDay());
+  const lastWeekStart = new Date(currentWeekStart);
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const lastWeekEnd = new Date(currentWeekStart);
+  lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+  
+  const currentWeekEntries = entries.filter(e => {
+    const entryDate = new Date(e.entryDate);
+    return entryDate >= currentWeekStart && entryDate <= today;
+  });
+  const lastWeekEntries = entries.filter(e => {
+    const entryDate = new Date(e.entryDate);
+    return entryDate >= lastWeekStart && entryDate <= lastWeekEnd;
+  });
+  
+  const currentWeekHours = currentWeekEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
+  const lastWeekHours = lastWeekEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
+  const weekOverWeekChange = lastWeekHours > 0 
+    ? Math.round(((currentWeekHours - lastWeekHours) / lastWeekHours) * 100) 
+    : 0;
+  
+  // Calculate daily average for the team
+  const daysInMonth = Math.ceil((today.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60 * 24)) || 1;
+  const avgDailyHours = Math.round((totalLoggedHours / daysInMonth) * 10) / 10;
 
   const statusDistribution = [
     { name: "Draft", value: entries.filter(e => e.status === "Draft").length, color: COLORS.Yellow },
@@ -236,15 +272,45 @@ export function TimesheetReportDashboard() {
           <div className="text-xs text-muted-foreground">of {Math.round(totalExpectedHours)}</div>
         </Card>
 
-        <Card className="p-3 hover-elevate" data-testid="kpi-compliance">
+        <Card className="p-3 hover-elevate" data-testid="kpi-team-velocity">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md" style={{ backgroundColor: `${complianceRate >= 80 ? COLORS.Green : complianceRate >= 60 ? COLORS.Yellow : COLORS.Red}15` }}>
-              <Target className="h-3.5 w-3.5" style={{ color: complianceRate >= 80 ? COLORS.Green : complianceRate >= 60 ? COLORS.Yellow : COLORS.Red }} />
+            <div className="p-1.5 rounded-md" style={{ backgroundColor: `${velocityScore >= 80 ? COLORS.Green : velocityScore >= 50 ? COLORS.Yellow : COLORS.Red}15` }}>
+              <Zap className="h-3.5 w-3.5" style={{ color: velocityScore >= 80 ? COLORS.Green : velocityScore >= 50 ? COLORS.Yellow : COLORS.Red }} />
             </div>
-            <span className="text-xs text-muted-foreground">Compliance</span>
+            <span className="text-xs text-muted-foreground">Team Speed</span>
           </div>
-          <div className="text-2xl font-bold" style={{ color: complianceRate >= 80 ? COLORS.Green : complianceRate >= 60 ? COLORS.Yellow : COLORS.Red }}>{complianceRate}%</div>
-          <Progress value={complianceRate} className="h-1.5 mt-1" />
+          <div className="text-2xl font-bold" style={{ color: velocityScore >= 80 ? COLORS.Green : velocityScore >= 50 ? COLORS.Yellow : COLORS.Red }}>{velocityScore}%</div>
+          <div className="text-xs text-muted-foreground">{avgHoursPerResource}h avg/member</div>
+        </Card>
+
+        <Card className="p-3 hover-elevate" data-testid="kpi-week-trend">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-1.5 rounded-md" style={{ backgroundColor: `${weekOverWeekChange >= 0 ? COLORS.Green : COLORS.Red}15` }}>
+              {weekOverWeekChange > 0 ? (
+                <ArrowUp className="h-3.5 w-3.5" style={{ color: COLORS.Green }} />
+              ) : weekOverWeekChange < 0 ? (
+                <ArrowDown className="h-3.5 w-3.5" style={{ color: COLORS.Red }} />
+              ) : (
+                <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </div>
+            <span className="text-xs text-muted-foreground">Week Trend</span>
+          </div>
+          <div className="text-2xl font-bold flex items-center gap-1" style={{ color: weekOverWeekChange >= 0 ? COLORS.Green : COLORS.Red }}>
+            {weekOverWeekChange > 0 ? "+" : ""}{weekOverWeekChange}%
+          </div>
+          <div className="text-xs text-muted-foreground">{Math.round(currentWeekHours)}h this week</div>
+        </Card>
+
+        <Card className="p-3 hover-elevate" data-testid="kpi-daily-avg">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-1.5 rounded-md bg-cyan-500/10">
+              <TrendingUp className="h-3.5 w-3.5 text-cyan-500" />
+            </div>
+            <span className="text-xs text-muted-foreground">Daily Avg</span>
+          </div>
+          <div className="text-2xl font-bold">{avgDailyHours}h</div>
+          <div className="text-xs text-muted-foreground">team total/day</div>
         </Card>
 
         <Card className="p-3 hover-elevate" data-testid="kpi-approval">
@@ -256,28 +322,6 @@ export function TimesheetReportDashboard() {
           </div>
           <div className="text-2xl font-bold text-emerald-600">{approvalRate}%</div>
           <div className="text-xs text-muted-foreground">{approvedEntries.length} approved</div>
-        </Card>
-
-        <Card className="p-3 hover-elevate" data-testid="kpi-pending">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-purple-500/10">
-              <FileCheck className="h-3.5 w-3.5 text-purple-500" />
-            </div>
-            <span className="text-xs text-muted-foreground">Pending</span>
-          </div>
-          <div className="text-2xl font-bold">{pendingEntries.length}</div>
-          <div className="text-xs text-muted-foreground">entries to review</div>
-        </Card>
-
-        <Card className="p-3 hover-elevate" data-testid="kpi-avg-hours">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-cyan-500/10">
-              <TrendingUp className="h-3.5 w-3.5 text-cyan-500" />
-            </div>
-            <span className="text-xs text-muted-foreground">Avg/Entry</span>
-          </div>
-          <div className="text-2xl font-bold">{avgHoursPerEntry}h</div>
-          <div className="text-xs text-muted-foreground">{entries.length} entries</div>
         </Card>
 
         <Card className="p-3 hover-elevate" data-testid="kpi-missing">
