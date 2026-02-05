@@ -18000,10 +18000,10 @@ Return ONLY valid JSON.`;
         ORDER BY subscription_count DESC
       `);
 
-      // Churned subscriptions this month
+      // Churned subscriptions this month (using created_at as proxy for cancelled date)
       const churnedResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM subscriptions 
-        WHERE status = 'cancelled' AND updated_at >= NOW() - INTERVAL '30 days'
+        WHERE status = 'cancelled' AND created_at >= NOW() - INTERVAL '30 days'
       `);
       const churnedThisMonth = Number(churnedResult.rows[0]?.count || 0);
 
