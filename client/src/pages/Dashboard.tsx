@@ -560,7 +560,7 @@ export default function Dashboard() {
   const handleSubmenuChange = (submenuId: string) => {
     setActiveSubmenu(submenuId);
     localStorage.setItem(STORAGE_KEY, submenuId);
-    setLocation(`/?view=${submenuId}`, { replace: true });
+    setLocation(`/dashboards?view=${submenuId}`, { replace: true });
     
     if (submenuId.startsWith('custom-')) {
       const dashboardId = Number(submenuId.replace('custom-', ''));
@@ -575,7 +575,7 @@ export default function Dashboard() {
     setActiveSubmenu(tabId);
     setSelectedCustomDashboard(dashboardId);
     localStorage.setItem(STORAGE_KEY, tabId);
-    setLocation(`/?view=${tabId}`, { replace: true });
+    setLocation(`/dashboards?view=${tabId}`, { replace: true });
   };
 
   const handleSelectCustomDashboard = (dashboardId: number) => {
@@ -583,7 +583,7 @@ export default function Dashboard() {
     setActiveSubmenu(tabId);
     setSelectedCustomDashboard(dashboardId);
     localStorage.setItem(STORAGE_KEY, tabId);
-    setLocation(`/?view=${tabId}`, { replace: true });
+    setLocation(`/dashboards?view=${tabId}`, { replace: true });
   };
 
   const isCustomTab = activeSubmenu.startsWith('custom-');
@@ -798,7 +798,7 @@ export default function Dashboard() {
             onDelete={() => {
               setActiveSubmenu("executive-overview");
               setSelectedCustomDashboard(null);
-              setLocation('/?view=executive-overview', { replace: true });
+              setLocation('/dashboards?view=executive-overview', { replace: true });
             }}
           />
         )}
