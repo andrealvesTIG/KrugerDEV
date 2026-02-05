@@ -75,7 +75,8 @@ import {
   Trash2,
   Lock,
   LockOpen,
-  CalendarRange
+  CalendarRange,
+  Undo2
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -319,6 +320,8 @@ const QUICK_TIME_PRESETS = [
   { label: "1h", value: "1" },
 ];
 
+const MAX_UNDO_HISTORY = 20;
+
 function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName }: TimesheetGridProps) {
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
@@ -326,6 +329,39 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   const [selectedCell, setSelectedCell] = useState<{ taskId: number; dateKey: string } | null>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Undo history
+  const [undoHistory, setUndoHistory] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>[]>([]);
+  const lastSavedStateRef = useRef<string>("");
+  
+  // Save state to history before making changes
+  const saveToHistory = useCallback(() => {
+    const currentState = JSON.stringify(gridData);
+    if (currentState !== lastSavedStateRef.current) {
+      setUndoHistory(prev => {
+        const newHistory = [...prev, JSON.parse(lastSavedStateRef.current || currentState)];
+        return newHistory.slice(-MAX_UNDO_HISTORY);
+      });
+      lastSavedStateRef.current = currentState;
+    }
+  }, [gridData]);
+  
+  // Initialize lastSavedStateRef when gridData first loads
+  useEffect(() => {
+    if (!lastSavedStateRef.current && Object.keys(gridData).length > 0) {
+      lastSavedStateRef.current = JSON.stringify(gridData);
+    }
+  }, [gridData]);
+  
+  const undo = useCallback(() => {
+    if (undoHistory.length === 0) return;
+    
+    const previousState = undoHistory[undoHistory.length - 1];
+    setUndoHistory(prev => prev.slice(0, -1));
+    setGridData(previousState);
+    lastSavedStateRef.current = JSON.stringify(previousState);
+    setHasChanges(true);
+  }, [undoHistory, setGridData, setHasChanges]);
 
   // Auto-save after 3 seconds of inactivity
   useEffect(() => {
@@ -539,6 +575,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   };
 
   const clearRow = (taskId: number) => {
+    saveToHistory();
     setGridData(prev => {
       const updated = { ...prev };
       if (updated[taskId]) {
@@ -557,6 +594,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   };
 
   const clearAllRows = () => {
+    saveToHistory();
     setGridData(prev => {
       const updated = { ...prev };
       for (const taskId of Object.keys(updated)) {
@@ -860,6 +898,26 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
             </Button>
           ))}
           {!selectedCell && <span className="text-xs text-muted-foreground">(select a cell first)</span>}
+          <div className="h-4 w-px bg-border mx-1" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={undo}
+                disabled={undoHistory.length === 0}
+                data-testid="button-undo"
+              >
+                <Undo2 className="h-4 w-4 mr-1" />
+                Undo
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {undoHistory.length > 0 
+                ? `Undo last change (${undoHistory.length} available)` 
+                : "No changes to undo"}
+            </TooltipContent>
+          </Tooltip>
         </div>
         <div className="flex items-center gap-3">
           {hasChanges && (
