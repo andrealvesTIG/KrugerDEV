@@ -128,6 +128,25 @@ app.use((req, res, next) => {
   setupSwagger(app);
   await registerRoutes(httpServer, app);
 
+  // One-time task: Add danielpepo@gmail.com to Kruger Inc. (org 22) if not already a member
+  try {
+    const targetUserId = '60f3b4f7-3c2a-4071-ac15-182e14a28488';
+    const targetOrgId = 22;
+    const result = await db.execute(sql`
+      SELECT 1 FROM organization_members WHERE organization_id = ${targetOrgId} AND user_id = ${targetUserId}
+    `);
+    if (result.rows.length === 0) {
+      await db.execute(sql`
+        INSERT INTO organization_members (organization_id, user_id, role) VALUES (${targetOrgId}, ${targetUserId}, 'member')
+      `);
+      log(`Added user ${targetUserId} to organization ${targetOrgId}`, "startup-task");
+    } else {
+      log(`User ${targetUserId} already in organization ${targetOrgId}, skipping`, "startup-task");
+    }
+  } catch (err) {
+    console.error("Startup task error (add member to org 22):", err);
+  }
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
