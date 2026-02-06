@@ -1209,41 +1209,83 @@ export async function setupAuth(app: Express) {
       // DIRECT MEMBERSHIP MODEL:
       // Add the user directly to the inviting organization as a team_member
       
-      let organizationName = "the organization";
+      if (!metadata.organizationId) {
+        return res.status(400).json({
+          message: "Invalid invitation: missing organization information."
+        });
+      }
       
-      if (metadata.organizationId) {
-        const sourceOrg = await storage.getOrganization(metadata.organizationId);
-        if (sourceOrg) {
-          organizationName = sourceOrg.name;
-        }
-        
-        // Check if user is already a member of this organization
-        const existingMembers = await storage.getOrganizationMembers(metadata.organizationId);
-        const alreadyMember = existingMembers.some(m => m.userId === currentUser.id);
-        
-        if (!alreadyMember) {
-          // Add user as a team_member to the inviting organization
-          await storage.addOrganizationMember({
-            organizationId: metadata.organizationId,
-            userId: currentUser.id,
-            role: 'team_member'
-          });
-          console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId} as team_member`);
-        } else {
-          console.log(`User ${currentUser.id} is already a member of organization ${metadata.organizationId}`);
-        }
-        
-        // Update any pending invites to mark as accepted
-        await db.update(organizationInvites)
-          .set({ status: "accepted", acceptedAt: new Date() })
+      const sourceOrg = await storage.getOrganization(metadata.organizationId);
+      if (!sourceOrg) {
+        return res.status(400).json({
+          message: "The organization this invitation belongs to no longer exists."
+        });
+      }
+      
+      const organizationName = sourceOrg.name;
+      
+      // Check if user is already a member of this organization
+      const existingMembers = await storage.getOrganizationMembers(metadata.organizationId);
+      const alreadyMember = existingMembers.some(m => m.userId === currentUser.id);
+      
+      if (!alreadyMember) {
+        // Verify a pending invite exists for this org + email before granting membership
+        const [pendingInvite] = await db.select().from(organizationInvites)
           .where(
             and(
               eq(organizationInvites.organizationId, metadata.organizationId),
               eq(organizationInvites.email, currentUser.email?.toLowerCase() || ""),
               eq(organizationInvites.status, "pending")
             )
-          );
+          )
+          .limit(1);
+        
+        if (!pendingInvite) {
+          // Also check if the resource already has this user linked (re-invite scenario)
+          const hasLinkedResource = metadata.resourceId
+            ? await storage.getResource(metadata.resourceId).then(r => r?.userId === currentUser.id)
+            : false;
+          
+          if (!hasLinkedResource) {
+            console.log(`No pending invite found for ${currentUser.email} in org ${metadata.organizationId}`);
+            return res.status(400).json({
+              message: "No pending invitation found for your email in this organization. The invitation may have already been used or expired."
+            });
+          }
+        }
+        
+        // Enforce seat limits before adding
+        const { checkSeatLimit } = await import("./services/billing");
+        const seatCheck = await checkSeatLimit(metadata.organizationId, 1);
+        if (!seatCheck.allowed) {
+          console.log(`Seat limit reached for org ${metadata.organizationId}: ${seatCheck.currentSeats}/${seatCheck.maxSeats}`);
+          return res.status(400).json({
+            message: `${organizationName} has reached its seat limit. Please ask an administrator to upgrade the plan or add more seats.`,
+            seatLimitReached: true
+          });
+        }
+        
+        // Add user as a team_member to the inviting organization
+        await storage.addOrganizationMember({
+          organizationId: metadata.organizationId,
+          userId: currentUser.id,
+          role: 'team_member'
+        });
+        console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId} as team_member`);
+      } else {
+        console.log(`User ${currentUser.id} is already a member of organization ${metadata.organizationId}`);
       }
+      
+      // Update any pending invites to mark as accepted
+      await db.update(organizationInvites)
+        .set({ status: "accepted", acceptedAt: new Date() })
+        .where(
+          and(
+            eq(organizationInvites.organizationId, metadata.organizationId),
+            eq(organizationInvites.email, currentUser.email?.toLowerCase() || ""),
+            eq(organizationInvites.status, "pending")
+          )
+        );
 
       // Link the resource to the user
       if (metadata.resourceId) {
