@@ -1206,88 +1206,34 @@ export async function setupAuth(app: Express) {
       // Log the user in by setting their session
       req.session.userId = currentUser.id;
       
-      // FEDERATED SHARING MODEL:
-      // Instead of joining the inviting organization, create the user's own organization
-      // and record external shares for the shared objects
+      // DIRECT MEMBERSHIP MODEL:
+      // Add the user directly to the inviting organization as a team_member
       
-      let sourceOrgName = "another organization";
-      let userOrgName = "your workspace";
+      let organizationName = "the organization";
       
-      // Ensure user has their own organization (create if needed)
-      const userOrgResult = await ensureUserOrganization(currentUser.id, currentUser.email || magicToken.email);
-      if (userOrgResult.organization) {
-        userOrgName = userOrgResult.organization.name;
-        console.log(`User ${currentUser.id} has organization: ${userOrgName} (created: ${userOrgResult.created})`);
-      }
-      
-      // Get source organization info for display
       if (metadata.organizationId) {
         const sourceOrg = await storage.getOrganization(metadata.organizationId);
         if (sourceOrg) {
-          sourceOrgName = sourceOrg.name;
-        }
-      }
-      
-      // Create external shares for the shared objects
-      // This allows the user to see the project/task/etc as an "external" item in their own org
-      if (metadata.organizationId) {
-        // Share the project if provided
-        if (metadata.projectId) {
-          await storage.createExternalShare({
-            objectType: 'project',
-            objectId: metadata.projectId,
-            sourceOrganizationId: metadata.organizationId,
-            sharedWithUserId: currentUser.id,
-            sharedWithResourceId: metadata.resourceId || null,
-            accessRole: 'assignee',
-            sharedBy: null // Could track who shared if we have that info
-          });
-          console.log(`Created external share for project ${metadata.projectId} with user ${currentUser.id}`);
+          organizationName = sourceOrg.name;
         }
         
-        // Share the task if provided
-        if (metadata.taskId) {
-          await storage.createExternalShare({
-            objectType: 'task',
-            objectId: metadata.taskId,
-            sourceOrganizationId: metadata.organizationId,
-            sharedWithUserId: currentUser.id,
-            sharedWithResourceId: metadata.resourceId || null,
-            accessRole: 'assignee',
-            sharedBy: null
+        // Check if user is already a member of this organization
+        const existingMembers = await storage.getOrganizationMembers(metadata.organizationId);
+        const alreadyMember = existingMembers.some(m => m.userId === currentUser.id);
+        
+        if (!alreadyMember) {
+          // Add user as a team_member to the inviting organization
+          await storage.addOrganizationMember({
+            organizationId: metadata.organizationId,
+            userId: currentUser.id,
+            role: 'team_member'
           });
-          console.log(`Created external share for task ${metadata.taskId} with user ${currentUser.id}`);
+          console.log(`Added user ${currentUser.id} to organization ${metadata.organizationId} as team_member`);
+        } else {
+          console.log(`User ${currentUser.id} is already a member of organization ${metadata.organizationId}`);
         }
         
-        // Share the risk if provided
-        if (metadata.riskId) {
-          await storage.createExternalShare({
-            objectType: 'risk',
-            objectId: metadata.riskId,
-            sourceOrganizationId: metadata.organizationId,
-            sharedWithUserId: currentUser.id,
-            sharedWithResourceId: metadata.resourceId || null,
-            accessRole: 'assignee',
-            sharedBy: null
-          });
-          console.log(`Created external share for risk ${metadata.riskId} with user ${currentUser.id}`);
-        }
-        
-        // Share the issue if provided
-        if (metadata.issueId) {
-          await storage.createExternalShare({
-            objectType: 'issue',
-            objectId: metadata.issueId,
-            sourceOrganizationId: metadata.organizationId,
-            sharedWithUserId: currentUser.id,
-            sharedWithResourceId: metadata.resourceId || null,
-            accessRole: 'assignee',
-            sharedBy: null
-          });
-          console.log(`Created external share for issue ${metadata.issueId} with user ${currentUser.id}`);
-        }
-        
-        // Update any pending invites to mark as accepted (but user doesn't join the org)
+        // Update any pending invites to mark as accepted
         await db.update(organizationInvites)
           .set({ status: "accepted", acceptedAt: new Date() })
           .where(
@@ -1299,7 +1245,7 @@ export async function setupAuth(app: Express) {
           );
       }
 
-      // Link the resource to the user (this resource exists in the source org)
+      // Link the resource to the user
       if (metadata.resourceId) {
         const resource = await storage.getResource(metadata.resourceId);
         if (resource) {
@@ -1332,20 +1278,17 @@ export async function setupAuth(app: Express) {
         .set({ usedAt: new Date() })
         .where(eq(magicLinkTokens.id, magicToken.id));
 
-      console.log(`Resource invite accepted for user: ${currentUser.id} (new user: ${isNewUser})`);
+      console.log(`Resource invite accepted for user: ${currentUser.id} (new user: ${isNewUser}), joined org: ${metadata.organizationId}`);
 
       res.json({ 
         success: true,
         message: isNewUser 
-          ? `Welcome! Your account has been created. You now have access to shared items from ${sourceOrgName} in ${userOrgName}.`
-          : `You now have access to shared items from ${sourceOrgName} in ${userOrgName}.`,
-        organizationName: userOrgName,
-        sourceOrganizationName: sourceOrgName,
+          ? `Welcome! Your account has been created and you've been added to ${organizationName}.`
+          : `You've been added to ${organizationName}.`,
+        organizationName,
         isNewUser,
-        isExternalShare: true,
-        // Include organization details so frontend can show demo dialog for new users
-        organizationCreated: userOrgResult.created,
-        organizationId: userOrgResult.organization?.id,
+        isExternalShare: false,
+        organizationId: metadata.organizationId,
         organizationSetupComplete: true
       });
     } catch (error) {
