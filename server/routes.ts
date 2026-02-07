@@ -16333,7 +16333,34 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
 
-      const categories = await storage.getTimeCategories(organizationId);
+      let categories = await storage.getTimeCategories(organizationId);
+      
+      if (categories.length === 0) {
+        const defaults = [
+          { name: "Vacation", code: "VAC", color: "#10b981", isPaidTime: true, requiresApproval: true, displayOrder: 1 },
+          { name: "PTO", code: "PTO", color: "#3b82f6", isPaidTime: true, requiresApproval: true, displayOrder: 2 },
+          { name: "Sick Leave", code: "SICK", color: "#ef4444", isPaidTime: true, requiresApproval: false, displayOrder: 3 },
+          { name: "Holiday", code: "HOL", color: "#8b5cf6", isPaidTime: true, requiresApproval: false, displayOrder: 4 },
+          { name: "Training", code: "TRN", color: "#f59e0b", isPaidTime: true, requiresApproval: true, displayOrder: 5 },
+          { name: "Admin Time", code: "ADM", color: "#6b7280", isPaidTime: true, requiresApproval: false, displayOrder: 6 },
+          { name: "Unpaid Leave", code: "UNP", color: "#d97706", isPaidTime: false, requiresApproval: true, displayOrder: 7 },
+        ];
+        for (const cat of defaults) {
+          await storage.createTimeCategory({
+            organizationId,
+            name: cat.name,
+            code: cat.code,
+            color: cat.color,
+            isPaidTime: cat.isPaidTime,
+            requiresApproval: cat.requiresApproval,
+            displayOrder: cat.displayOrder,
+            isBillable: false,
+            isActive: true,
+          });
+        }
+        categories = await storage.getTimeCategories(organizationId);
+      }
+      
       res.json(categories);
     } catch (error) {
       console.error('Error getting time categories:', error);
