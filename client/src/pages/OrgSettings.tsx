@@ -3800,10 +3800,10 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
               Enter any industry or business type and AI will generate relevant demo data
             </p>
             {customIndustry.trim() && aiCosts && (
-              <div className={`flex items-center gap-2 p-3 rounded-lg border mt-2 ${aiCosts.aiDemoDataGeneration.canAfford ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'}`}>
-                <Zap className={`h-4 w-4 ${aiCosts.aiDemoDataGeneration.canAfford ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`} />
+              <div className="flex items-center gap-2 p-3 rounded-lg border mt-2 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+                <Zap className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 <div className="flex-1 text-sm">
-                  <span className={aiCosts.aiDemoDataGeneration.canAfford ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'}>
+                  <span className="text-blue-700 dark:text-blue-300">
                     Custom industry uses AI and will consume <strong>{aiCosts.aiDemoDataGeneration.creditCost}</strong> credit{aiCosts.aiDemoDataGeneration.creditCost !== 1 ? 's' : ''}.
                   </span>
                   <span className="text-muted-foreground ml-1">
@@ -3857,7 +3857,7 @@ function DemoDataSection({ organizationId, orgName }: { organizationId: number; 
 
         <Button 
           onClick={handleGenerate}
-          disabled={generateMutation.isPending || (!customIndustry.trim() && !selectedIndustry) || (!!customIndustry.trim() && aiCosts && !aiCosts.aiDemoDataGeneration.canAfford)}
+          disabled={generateMutation.isPending || (!customIndustry.trim() && !selectedIndustry)}
           className="w-full"
           data-testid="button-generate-demo"
         >

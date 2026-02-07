@@ -9458,17 +9458,6 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       let template = industry ? industryTemplates[industry as IndustryType] : null;
       
       if (customIndustry && !template) {
-        // Check AI credits limit before making the API call
-        const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
-        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS);
-        if (!limitCheck.allowed) {
-          return res.status(403).json({ 
-            message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-            limitExceeded: true,
-            resourceType: "ai_runs"
-          });
-        }
-        
         const OpenAI = (await import('openai')).default;
         const openai = new OpenAI({
           apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -9526,9 +9515,9 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
             max_completion_tokens: 4000,
           });
           
-          // Track AI usage and deduct credits after successful API call
+          // Always track AI credit usage after successful API call, even for free accounts
           const { recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
-          await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_demo_${Date.now()}`);
+          await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_demo_${Date.now()}`, organizationId);
           
           const content = response.choices[0]?.message?.content || '{}';
           template = JSON.parse(content);
