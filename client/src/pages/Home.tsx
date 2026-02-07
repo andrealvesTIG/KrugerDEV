@@ -40,6 +40,9 @@ import {
   CircleDot,
   ArrowUpRight,
   BarChart3,
+  FolderPlus,
+  Users,
+  Upload,
 } from "lucide-react";
 import { Link } from "wouter";
 import { format, startOfWeek, endOfWeek, addDays, isAfter, isBefore, parseISO, differenceInDays, formatDistanceToNow } from "date-fns";
@@ -240,6 +243,7 @@ export default function Home() {
   const upcomingDeadlines = useMemo(() => {
     const deadlines: Array<{
       id: string;
+      rawId: number;
       type: "task" | "milestone";
       name: string;
       projectName: string;
@@ -258,6 +262,7 @@ export default function Home() {
       if (isAfter(endDate, now) && isBefore(endDate, fourteenDaysFromNow)) {
         deadlines.push({
           id: `task-${item.task.id}`,
+          rawId: item.task.id,
           type: "task",
           name: item.task.name,
           projectName: item.project.name,
@@ -275,6 +280,7 @@ export default function Home() {
         const project = allProjects?.find((p: Project) => p.id === m.projectId);
         deadlines.push({
           id: `milestone-${m.id}`,
+          rawId: m.id,
           type: "milestone",
           name: m.title,
           projectName: project?.name || "Unknown Project",
@@ -304,6 +310,39 @@ export default function Home() {
       return isBefore(endDate, today);
     });
   }, [assignedTasks]);
+
+  const taskStatusDistribution = useMemo(() => {
+    if (!assignedTasksData || assignedTasksData.length === 0) return [];
+    const counts: Record<string, number> = {};
+    assignedTasksData.forEach((item) => {
+      const status = item.task.status || "Not Started";
+      counts[status] = (counts[status] || 0) + 1;
+    });
+    return Object.entries(counts).map(([status, count]) => ({ status, count }));
+  }, [assignedTasksData]);
+
+  const recentlyCompletedTasks = useMemo(() => {
+    if (!assignedTasksData) return [];
+    return assignedTasksData
+      .filter((item) => {
+        const status = item.task.status?.toLowerCase();
+        return status === "completed" || status === "done" || status === "closed";
+      })
+      .slice(0, 5);
+  }, [assignedTasksData]);
+
+  const projectHealthBreakdown = useMemo(() => {
+    const breakdown = { green: 0, yellow: 0, red: 0 };
+    myProjects.forEach((p: Project) => {
+      const h = p.health?.toLowerCase();
+      if (h === "green") breakdown.green++;
+      else if (h === "yellow") breakdown.yellow++;
+      else if (h === "red") breakdown.red++;
+    });
+    return breakdown;
+  }, [myProjects]);
+
+  const isEmptyState = myProjects.length === 0 && totalTasksCount === 0 && myIssues.length === 0;
 
   const isLoading = resourceLoading || tasksLoading || timesheetsLoading || issuesLoading || milestonesLoading || projectsLoading;
 
@@ -344,6 +383,89 @@ export default function Home() {
           </Button>
         </div>
       </div>
+
+      {isEmptyState && (
+        <div className="space-y-4" data-testid="onboarding-section">
+          <div className="text-center py-4">
+            <h2 className="text-lg font-bold text-foreground" data-testid="text-welcome-heading">Welcome to FridayReport.AI</h2>
+            <p className="text-sm text-muted-foreground mt-1">Let's get you started with project management. Here are a few things you can do:</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-blue-500/10 flex-shrink-0">
+                    <FolderPlus className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground">Create a Project</div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Start by creating your first project to organize your work.</p>
+                    <Link href="/projects">
+                      <Button variant="outline" size="sm" className="mt-2" data-testid="button-onboarding-projects">
+                        Go to Projects
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-green-500/10 flex-shrink-0">
+                    <Users className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground">Add Team Members</div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Add your team so you can assign tasks and track work.</p>
+                    <Link href="/resources">
+                      <Button variant="outline" size="sm" className="mt-2" data-testid="button-onboarding-resources">
+                        Manage Resources
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-purple-500/10 flex-shrink-0">
+                    <Upload className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground">Import from MS Project</div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Already have project data? Import it directly.</p>
+                    <Link href="/projects">
+                      <Button variant="outline" size="sm" className="mt-2" data-testid="button-onboarding-import">
+                        Import Project
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-amber-500/10 flex-shrink-0">
+                    <Clock className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground">Log Time</div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Track your hours with timesheets.</p>
+                    <Link href="/timesheets">
+                      <Button variant="outline" size="sm" className="mt-2" data-testid="button-onboarding-timesheets">
+                        Open Timesheets
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
       {(overdueTasks.length > 0 || overdueIssues.length > 0) && (
         <div className="flex flex-wrap gap-2">
@@ -479,11 +601,59 @@ export default function Home() {
         )}
       </div>
 
-      {myProjects.length > 0 && (
+      {!isEmptyState && totalTasksCount > 0 && taskStatusDistribution.length > 0 && (
+        <Card className="border-0 shadow-sm" data-testid="card-task-status-breakdown">
+          <CardContent className="p-3">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Task Status Breakdown</div>
+            <div className="flex h-2 rounded-full overflow-hidden gap-0.5">
+              {taskStatusDistribution.map(({ status, count }) => {
+                const pct = (count / totalTasksCount) * 100;
+                const s = status.toLowerCase();
+                let barColor = "bg-gray-400";
+                if (s === "completed" || s === "done" || s === "closed") barColor = "bg-green-500";
+                else if (s === "in_progress" || s === "in progress" || s === "active" || s === "execution" || s === "monitoring") barColor = "bg-blue-500";
+                else if (s === "on_hold" || s === "on hold" || s === "blocked") barColor = "bg-amber-500";
+                else if (s === "not_started" || s === "not started" || s === "pending" || s === "open" || s === "initiation" || s === "planning") barColor = "bg-gray-400";
+                return (
+                  <div key={status} className={`${barColor} rounded-sm`} style={{ width: `${pct}%` }} title={`${status}: ${count}`} />
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2 flex-wrap">
+              {taskStatusDistribution.map(({ status, count }, idx) => (
+                <span key={status} className="flex items-center gap-1 flex-wrap">
+                  {idx > 0 && <span>·</span>}
+                  <span className={getStatusColor(status).split(" ").filter(c => c.startsWith("text-")).join(" ")}>{count}</span>
+                  <span>{status}</span>
+                </span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isEmptyState && myProjects.length > 0 && (
         <Card className="border-0 shadow-sm">
           <CardHeader className="px-4 py-2">
             <div className="flex items-center justify-between gap-1">
-              <CardTitle className="text-sm font-semibold">My Projects</CardTitle>
+              <div className="flex flex-col gap-1">
+                <CardTitle className="text-sm font-semibold">My Projects</CardTitle>
+                {(projectHealthBreakdown.green > 0 || projectHealthBreakdown.yellow > 0 || projectHealthBreakdown.red > 0) && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap" data-testid="project-health-summary">
+                    {projectHealthBreakdown.green > 0 && (
+                      <span className="text-green-600 dark:text-green-400">{projectHealthBreakdown.green} Green</span>
+                    )}
+                    {projectHealthBreakdown.green > 0 && (projectHealthBreakdown.yellow > 0 || projectHealthBreakdown.red > 0) && <span>·</span>}
+                    {projectHealthBreakdown.yellow > 0 && (
+                      <span className="text-yellow-600 dark:text-yellow-400">{projectHealthBreakdown.yellow} Yellow</span>
+                    )}
+                    {projectHealthBreakdown.yellow > 0 && projectHealthBreakdown.red > 0 && <span>·</span>}
+                    {projectHealthBreakdown.red > 0 && (
+                      <span className="text-red-600 dark:text-red-400">{projectHealthBreakdown.red} Red</span>
+                    )}
+                  </div>
+                )}
+              </div>
               <Link href="/projects">
                 <Button variant="ghost" size="sm" data-testid="link-view-all-projects">
                   View All <ChevronRight className="ml-1 h-4 w-4" />
@@ -512,6 +682,8 @@ export default function Home() {
         </Card>
       )}
 
+      {!isEmptyState && (
+      <>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Card className="border-0 shadow-sm">
           <CardHeader className="px-4 py-2">
@@ -528,7 +700,7 @@ export default function Home() {
             {assignedTasks.length === 0 ? (
               <div className="flex items-center justify-center py-4 text-center">
                 <CheckCircle2 className="h-5 w-5 text-green-500 mr-2" />
-                <p className="text-sm text-muted-foreground">No active tasks</p>
+                <p className="text-sm text-muted-foreground">No active tasks — create one from your project page</p>
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -608,7 +780,7 @@ export default function Home() {
             {myIssues.length === 0 ? (
               <div className="flex items-center justify-center py-4 text-center">
                 <CheckCircle2 className="h-5 w-5 text-green-500 mr-2" />
-                <p className="text-sm text-muted-foreground">No open issues</p>
+                <p className="text-sm text-muted-foreground">No open issues — report one from your project page</p>
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -626,7 +798,7 @@ export default function Home() {
                     today
                   );
                   return (
-                    <Link key={issue.id} href={`/projects/${issue.projectId}`}>
+                    <Link key={issue.id} href={`/projects/${issue.projectId}?tab=issues&issueId=${issue.id}`}>
                       <div
                         className={`flex items-center gap-2 p-2 rounded-md hover-elevate cursor-pointer ${
                           isOverdueIssue
@@ -670,8 +842,38 @@ export default function Home() {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      {!isEmptyState && recentlyCompletedTasks.length > 0 && (
+        <Card className="border-0 shadow-sm" data-testid="card-recently-completed">
+          <CardHeader className="px-4 py-2">
+            <CardTitle className="text-sm font-semibold">Recently Completed</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3 pt-0">
+            <div className="space-y-1.5">
+              {recentlyCompletedTasks.map((item) => (
+                <Link key={item.task.id} href={`/projects/${item.task.projectId}?tab=tasks&taskId=${item.task.id}`}>
+                  <div
+                    className="flex items-center gap-2 p-2 rounded-md bg-muted/50 hover-elevate cursor-pointer"
+                    data-testid={`completed-task-${item.task.id}`}
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">{item.task.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{item.project.name}</div>
+                    </div>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isEmptyState && (
+      <div className={`grid grid-cols-1 gap-3 ${upcomingMilestones.length > 0 && recentActivity && recentActivity.length > 0 ? "lg:grid-cols-2" : "lg:grid-cols-3"}`}>
         <Card className="border-0 shadow-sm">
           <CardHeader className="px-4 py-2">
             <div className="flex items-center justify-between gap-1">
@@ -690,7 +892,7 @@ export default function Home() {
                   const daysUntil = differenceInDays(deadline.dueDate, today);
                   const isUrgent = daysUntil <= 3;
                   return (
-                    <Link key={deadline.id} href={`/projects/${deadline.projectId}`}>
+                    <Link key={deadline.id} href={deadline.type === "task" ? `/projects/${deadline.projectId}?tab=tasks&taskId=${deadline.rawId}` : `/projects/${deadline.projectId}?tab=milestones`}>
                       <div
                         className="flex items-center gap-2 p-2 rounded-md bg-muted/50 hover-elevate cursor-pointer"
                         data-testid={`deadline-item-${deadline.id}`}
@@ -767,6 +969,54 @@ export default function Home() {
           </CardContent>
         </Card>
 
+        {upcomingMilestones.length > 0 && (
+          <Card className="border-0 shadow-sm" data-testid="card-upcoming-milestones">
+            <CardHeader className="px-4 py-2">
+              <CardTitle className="text-sm font-semibold">Upcoming Milestones</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3 pt-0">
+              <div className="space-y-1.5">
+                {upcomingMilestones.map((m) => {
+                  const project = allProjects?.find((p: Project) => p.id === m.projectId);
+                  const daysUntil = m.parsedDueDate ? differenceInDays(m.parsedDueDate, today) : null;
+                  return (
+                    <Link key={m.id} href={`/projects/${m.projectId}?tab=milestones`}>
+                      <div
+                        className="flex items-center gap-2 p-2 rounded-md bg-muted/50 hover-elevate cursor-pointer"
+                        data-testid={`milestone-item-${m.id}`}
+                      >
+                        <div className="flex h-6 w-6 items-center justify-center rounded flex-shrink-0 bg-purple-500/10">
+                          <Target className="h-3.5 w-3.5 text-purple-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-foreground truncate">{m.title}</div>
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+                            <span className="truncate">{project?.name || "Unknown"}</span>
+                            {m.parsedDueDate && (
+                              <>
+                                <span>·</span>
+                                <span>{format(m.parsedDueDate, "MMM d")}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {daysUntil !== null && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1 py-0 flex-shrink-0 ${daysUntil <= 3 ? "bg-red-500/10 text-red-700 dark:text-red-400" : daysUntil <= 7 ? "bg-amber-500/10 text-amber-700 dark:text-amber-400" : "bg-purple-500/10 text-purple-700 dark:text-purple-400"}`}
+                          >
+                            {daysUntil === 0 ? "Today" : daysUntil === 1 ? "1d" : `${daysUntil}d`}
+                          </Badge>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {recentActivity && recentActivity.length > 0 && (
           <Card className="border-0 shadow-sm">
             <CardHeader className="px-4 py-2">
@@ -799,6 +1049,7 @@ export default function Home() {
           </Card>
         )}
       </div>
+      )}
 
       <HomeQuickAddTaskDialog
         open={showCreateTask}
