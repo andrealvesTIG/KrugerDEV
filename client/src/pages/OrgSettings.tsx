@@ -116,11 +116,19 @@ const settingsTabs = [
 ];
 
 function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organization }) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("general");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   
-  const activeTabInfo = settingsTabs.find(t => t.value === activeTab) || settingsTabs[0];
+  const filteredTabs = settingsTabs.filter(tab => {
+    if (tab.value === 'billing' && currentOrganization.billingHidden && user?.role !== 'super_admin') {
+      return false;
+    }
+    return true;
+  });
+  
+  const activeTabInfo = filteredTabs.find(t => t.value === activeTab) || filteredTabs[0];
   const ActiveIcon = activeTabInfo.icon;
 
   return (
@@ -145,7 +153,7 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         {/* Mobile: Collapsible menu with actual TabsTriggers */}
         <div className={`overflow-hidden transition-all duration-200 ${isMobileMenuOpen ? 'max-h-96 mt-2' : 'max-h-0'}`}>
           <TabsList className="flex flex-col h-fit w-full bg-card border rounded-lg p-1">
-            {settingsTabs.map((tab) => {
+            {filteredTabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <TabsTrigger 
@@ -178,7 +186,7 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </Button>
         
         <TabsList className={`flex flex-col h-fit bg-card border rounded-lg p-1 ${isDesktopSidebarCollapsed ? 'w-12' : 'w-56'}`}>
-          {settingsTabs.map((tab) => {
+          {filteredTabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <TabsTrigger 
