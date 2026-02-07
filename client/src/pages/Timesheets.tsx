@@ -950,7 +950,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
       </div>
 
       <Dialog open={!!editingNote} onOpenChange={(open) => !open && setEditingNote(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <StickyNote className="h-5 w-5 text-primary" />
@@ -1393,7 +1393,7 @@ function ApprovalTab() {
       })}
 
       <Dialog open={rejectDialog.open} onOpenChange={(open) => setRejectDialog({ ...rejectDialog, open })}>
-        <DialogContent>
+        <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>
               {rejectDialog.isBulk 
@@ -1677,7 +1677,7 @@ function PeriodManagementTab() {
 
       {/* Create Period Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px]" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Create New Period</DialogTitle>
             <DialogDescription>
