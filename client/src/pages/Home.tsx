@@ -348,29 +348,59 @@ export default function Home() {
       {(overdueTasks.length > 0 || overdueIssues.length > 0) && (
         <div className="flex flex-wrap gap-2">
           {overdueTasks.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span className="font-medium" data-testid="text-overdue-tasks-alert">
-                {overdueTasks.length} overdue task{overdueTasks.length > 1 ? "s" : ""}
-              </span>
-              <Link href="/tasks">
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-red-700 dark:text-red-400" data-testid="link-overdue-tasks">
-                  View <ChevronRight className="ml-0.5 h-3 w-3" />
-                </Button>
-              </Link>
+            <div className="flex flex-col gap-1 w-full">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span className="font-medium" data-testid="text-overdue-tasks-alert">
+                  {overdueTasks.length} overdue task{overdueTasks.length > 1 ? "s" : ""}
+                </span>
+              </div>
+              {overdueTasks.map((item) => {
+                const endDate = item.task.endDate ? (typeof item.task.endDate === "string" ? parseISO(item.task.endDate) : item.task.endDate) : null;
+                return (
+                  <Link key={item.task.id} href={`/projects/${item.task.projectId}?tab=tasks&taskId=${item.task.id}`}>
+                    <div
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 hover-elevate cursor-pointer text-sm"
+                      data-testid={`link-overdue-task-${item.task.id}`}
+                    >
+                      <span className="text-red-700 dark:text-red-400 font-medium truncate flex-1">{item.task.name}</span>
+                      {endDate && (
+                        <span className="text-red-600 dark:text-red-400 text-xs flex-shrink-0">Due {format(endDate, "MMM d")}</span>
+                      )}
+                      <ChevronRight className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           )}
           {overdueIssues.length > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 text-sm">
-              <Bug className="h-4 w-4 flex-shrink-0" />
-              <span className="font-medium" data-testid="text-overdue-issues-alert">
-                {overdueIssues.length} overdue issue{overdueIssues.length > 1 ? "s" : ""}
-              </span>
-              <Link href="/issues">
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-orange-700 dark:text-orange-400" data-testid="link-overdue-issues">
-                  View <ChevronRight className="ml-0.5 h-3 w-3" />
-                </Button>
-              </Link>
+            <div className="flex flex-col gap-1 w-full">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 text-sm">
+                <Bug className="h-4 w-4 flex-shrink-0" />
+                <span className="font-medium" data-testid="text-overdue-issues-alert">
+                  {overdueIssues.length} overdue issue{overdueIssues.length > 1 ? "s" : ""}
+                </span>
+              </div>
+              {overdueIssues.map((issue: Issue) => {
+                const resDate = issue.targetResolutionDate
+                  ? (typeof issue.targetResolutionDate === "string" ? parseISO(issue.targetResolutionDate) : issue.targetResolutionDate)
+                  : null;
+                return (
+                  <Link key={issue.id} href={`/projects/${issue.projectId}?tab=issues&issueId=${issue.id}`}>
+                    <div
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 hover-elevate cursor-pointer text-sm"
+                      data-testid={`link-overdue-issue-${issue.id}`}
+                    >
+                      <span className="text-orange-700 dark:text-orange-400 font-medium truncate flex-1">{issue.title}</span>
+                      {resDate && (
+                        <span className="text-orange-600 dark:text-orange-400 text-xs flex-shrink-0">Due {format(resDate, "MMM d")}</span>
+                      )}
+                      <ChevronRight className="h-3.5 w-3.5 text-orange-400 flex-shrink-0" />
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
