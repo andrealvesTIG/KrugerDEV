@@ -15,7 +15,7 @@ import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNoti
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, initializeSubscriptionSchedule, calculateNextScheduledTime } from "./services/scheduledReports";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, type Task } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -8197,9 +8197,23 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   }
   
+  async function enrichTasksWithTimesheetHours(taskList: Task[]): Promise<Task[]> {
+    if (taskList.length === 0) return taskList;
+    const taskIds = taskList.map(t => t.id);
+    const hoursMap = await storage.getTimesheetHoursByTaskIds(taskIds);
+    return taskList.map(t => {
+      const tsHours = hoursMap.get(t.id);
+      if (tsHours !== undefined && tsHours > 0) {
+        return { ...t, actualHours: String(tsHours) };
+      }
+      return t;
+    });
+  }
+
   app.get(api.tasks.list.path, async (req, res) => {
     const tasks = await storage.getTasks(Number(req.params.projectId));
-    res.json(tasks);
+    const enriched = await enrichTasksWithTimesheetHours(tasks);
+    res.json(enriched);
   });
 
   // Get single task by ID
@@ -8210,7 +8224,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
-      res.json(task);
+      const [enriched] = await enrichTasksWithTimesheetHours([task]);
+      res.json(enriched);
     } catch (err) {
       console.error("Error fetching task:", err);
       res.status(500).json({ message: "Error fetching task" });
@@ -8281,7 +8296,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const paginatedTasks = filteredTasks.slice(offset, offset + limit);
     const hasMore = offset + limit < total;
     
-    res.json({ tasks: paginatedTasks, total, hasMore });
+    const enrichedTasks = await enrichTasksWithTimesheetHours(paginatedTasks);
+    res.json({ tasks: enrichedTasks, total, hasMore });
   });
 
   app.post(api.tasks.create.path, async (req, res) => {

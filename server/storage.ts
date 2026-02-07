@@ -371,6 +371,7 @@ export interface IStorage {
   getTimesheetEntries(userId: string, organizationId: number, startDate: string, endDate: string): Promise<TimesheetEntry[]>;
   getTimesheetEntriesWithDetails(userId: string, organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]>;
   getAllTimesheetEntriesWithDetails(organizationId: number, startDate: string, endDate: string): Promise<{ entry: TimesheetEntry; task: Task; project: Project }[]>;
+  getTimesheetHoursByTaskIds(taskIds: number[]): Promise<Map<number, number>>;
   getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]>;
   getTimesheetEntry(id: number): Promise<TimesheetEntry | undefined>;
   findTimesheetEntry(resourceId: number, taskId: number, entryDate: string): Promise<TimesheetEntry | undefined>;
@@ -3318,6 +3319,22 @@ export class DatabaseStorage implements IStorage {
       .orderBy(timesheetEntries.entryDate, timesheetEntries.taskId);
     
     return results;
+  }
+
+  async getTimesheetHoursByTaskIds(taskIds: number[]): Promise<Map<number, number>> {
+    if (taskIds.length === 0) return new Map();
+    const results = await db.select({
+      taskId: timesheetEntries.taskId,
+      totalHours: sql<string>`COALESCE(SUM(CAST(${timesheetEntries.hours} AS NUMERIC)), 0)`,
+    })
+      .from(timesheetEntries)
+      .where(inArray(timesheetEntries.taskId, taskIds))
+      .groupBy(timesheetEntries.taskId);
+    const map = new Map<number, number>();
+    for (const row of results) {
+      map.set(row.taskId, Number(row.totalHours));
+    }
+    return map;
   }
 
   async getTimesheetEntriesForApproval(organizationId: number, status?: string): Promise<TimesheetEntry[]> {
