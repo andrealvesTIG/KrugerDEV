@@ -1205,6 +1205,17 @@ export async function setupAuth(app: Express) {
 
       // Log the user in by setting their session
       req.session.userId = currentUser.id;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error during resource invite:", err);
+            reject(err);
+          } else {
+            console.log("Session saved for user:", currentUser.id, "sessionId:", req.sessionID);
+            resolve();
+          }
+        });
+      });
       
       // DIRECT MEMBERSHIP MODEL:
       // Add the user directly to the inviting organization as a team_member
