@@ -4190,23 +4190,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     }
   }, [taskAssignments, editingTask]);
 
-  // Auto-open task dialog from URL parameter
   const taskAutoOpenRef = useRef(false);
-  useEffect(() => {
-    if (urlTaskId && tasks && tasks.length > 0 && !taskAutoOpenRef.current) {
-      const taskId = parseInt(urlTaskId);
-      const task = tasks.find(t => t.id === taskId);
-      if (task) {
-        setEditingTask(task);
-        setIsDialogOpen(true);
-        taskAutoOpenRef.current = true;
-        // Clear the URL param to prevent reopening on re-render
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('taskId');
-        window.history.replaceState({}, '', newUrl.toString());
-      }
-    }
-  }, [urlTaskId, tasks]);
 
   const taskFormSchema = insertTaskSchema.extend({
     name: z.string().min(1, "Task name is required")
@@ -4316,6 +4300,21 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     });
     setIsDialogOpen(true);
   };
+
+  // Auto-open task dialog from URL parameter
+  useEffect(() => {
+    if (urlTaskId && tasks && tasks.length > 0 && !taskAutoOpenRef.current) {
+      const taskId = parseInt(urlTaskId);
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        openEditDialog(task);
+        taskAutoOpenRef.current = true;
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('taskId');
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+    }
+  }, [urlTaskId, tasks]);
 
   const openCreateDialog = () => {
     setEditingTask(null);
@@ -10097,22 +10096,7 @@ function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, readOnly =
     }
   }, [issueAssignments, editingIssue]);
 
-  // Auto-open issue dialog from URL parameter
   const issueAutoOpenRef = useRef(false);
-  useEffect(() => {
-    if (urlIssueId && issues && issues.length > 0 && !issueAutoOpenRef.current) {
-      const issueId = parseInt(urlIssueId);
-      const issue = issues.find(i => i.id === issueId);
-      if (issue) {
-        setEditingIssue(issue);
-        setIsDialogOpen(true);
-        issueAutoOpenRef.current = true;
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('issueId');
-        window.history.replaceState({}, '', newUrl.toString());
-      }
-    }
-  }, [urlIssueId, issues]);
 
   const form = useForm({
     resolver: zodResolver(insertIssueSchema),
@@ -10141,6 +10125,21 @@ function IssuesTab({ projectId, projectName, portfolioId, urlIssueId, readOnly =
     });
     setIsDialogOpen(true);
   };
+
+  // Auto-open issue dialog from URL parameter
+  useEffect(() => {
+    if (urlIssueId && issues && issues.length > 0 && !issueAutoOpenRef.current) {
+      const issueId = parseInt(urlIssueId);
+      const issue = issues.find(i => i.id === issueId);
+      if (issue) {
+        openEditDialog(issue);
+        issueAutoOpenRef.current = true;
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('issueId');
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+    }
+  }, [urlIssueId, issues]);
 
   const openCreateDialog = () => {
     setEditingIssue(null);
