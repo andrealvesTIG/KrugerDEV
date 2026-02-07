@@ -518,7 +518,7 @@ export default function Home() {
                     const endDate = item.task.endDate ? (typeof item.task.endDate === "string" ? parseISO(item.task.endDate) : item.task.endDate) : null;
                     const isOverdue = endDate && isBefore(endDate, today);
                     return (
-                      <Link key={item.task.id} href={`/projects/${item.task.projectId}`}>
+                      <Link key={item.task.id} href={`/projects/${item.task.projectId}?tab=tasks&taskId=${item.task.id}`}>
                         <div
                           className={`flex items-center gap-2 p-2 rounded-md hover-elevate cursor-pointer ${
                             isOverdue 
