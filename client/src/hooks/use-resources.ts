@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Resource, InsertResource, TaskResourceAssignment, IssueResourceAssignment, RiskResourceAssignment } from "@shared/schema";
+import type { Resource, InsertResource, TaskResourceAssignment, IssueResourceAssignment, RiskResourceAssignment, ResourceSkill, InsertResourceSkill, ResourceAvailability, InsertResourceAvailability } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
 type ResourceWithAssignment = TaskResourceAssignment & { resource: Resource };
@@ -171,6 +171,161 @@ export function useUpdateRiskResourceAssignments() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/risks", variables.riskId, "resources"] });
+    },
+  });
+}
+
+// Resource Skills hooks
+export function useResourceSkills(orgId: number | null, resourceId: number | null) {
+  return useQuery<ResourceSkill[]>({
+    queryKey: ["/api/organizations", orgId, "resources", resourceId, "skills"],
+    enabled: !!orgId && !!resourceId,
+    queryFn: async () => {
+      const response = await fetch(`/api/organizations/${orgId}/resources/${resourceId}/skills`);
+      if (!response.ok) throw new Error("Failed to fetch resource skills");
+      return response.json();
+    },
+  });
+}
+
+export function useOrgResourceSkills(orgId: number | null) {
+  return useQuery<ResourceSkill[]>({
+    queryKey: ["/api/organizations", orgId, "resource-skills"],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const response = await fetch(`/api/organizations/${orgId}/resource-skills`);
+      if (!response.ok) throw new Error("Failed to fetch org resource skills");
+      return response.json();
+    },
+  });
+}
+
+export function useAddResourceSkill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ orgId, resourceId, data }: { orgId: number; resourceId: number; data: Partial<InsertResourceSkill> }) => {
+      const response = await apiRequest("POST", `/api/organizations/${orgId}/resources/${resourceId}/skills`, data);
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", variables.orgId, "resources", variables.resourceId, "skills"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", variables.orgId, "resource-skills"] });
+    },
+  });
+}
+
+export function useRemoveResourceSkill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ orgId, id }: { orgId: number; id: number }) => {
+      await apiRequest("DELETE", `/api/organizations/${orgId}/resource-skills/${id}`);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", variables.orgId, "resource-skills"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", variables.orgId, "resources"] });
+    },
+  });
+}
+
+// Resource Availability hooks
+export function useResourceAvailabilityEntries(orgId: number | null, resourceId: number | null) {
+  return useQuery<ResourceAvailability[]>({
+    queryKey: ["/api/organizations", orgId, "resources", resourceId, "availability"],
+    enabled: !!orgId && !!resourceId,
+    queryFn: async () => {
+      const response = await fetch(`/api/organizations/${orgId}/resources/${resourceId}/availability`);
+      if (!response.ok) throw new Error("Failed to fetch resource availability");
+      return response.json();
+    },
+  });
+}
+
+export function useOrgResourceAvailability(orgId: number | null, startDate?: string, endDate?: string) {
+  return useQuery<ResourceAvailability[]>({
+    queryKey: ["/api/organizations", orgId, "resource-availability", startDate, endDate],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const response = await fetch(`/api/organizations/${orgId}/resource-availability?${params}`);
+      if (!response.ok) throw new Error("Failed to fetch org resource availability");
+      return response.json();
+    },
+  });
+}
+
+export function useAddResourceAvailability() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ orgId, resourceId, data }: { orgId: number; resourceId: number; data: Partial<InsertResourceAvailability> }) => {
+      const response = await apiRequest("POST", `/api/organizations/${orgId}/resources/${resourceId}/availability`, data);
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", variables.orgId, "resource-availability"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", variables.orgId, "resources", variables.resourceId, "availability"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", variables.orgId, "resource-utilization"] });
+    },
+  });
+}
+
+export function useRemoveResourceAvailability() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ orgId, id }: { orgId: number; id: number }) => {
+      await apiRequest("DELETE", `/api/organizations/${orgId}/resource-availability/${id}`);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", variables.orgId, "resource-availability"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", variables.orgId, "resource-utilization"] });
+    },
+  });
+}
+
+// Resource Utilization hook
+export interface ResourceUtilizationData {
+  resourceId: number;
+  displayName: string;
+  department: string | null;
+  title: string | null;
+  weeklyCapacity: number;
+  availabilityPct: number;
+  effectiveWeeklyHours: number;
+  totalAllocationPct: number;
+  allocatedHoursPerWeek: number;
+  actualHours: number;
+  utilizationPct: number;
+  isOverAllocated: boolean;
+  assignmentCount: number;
+  timeOffDays: number;
+  assignments: { taskId: number; allocationPercentage: number }[];
+}
+
+export interface UtilizationSummary {
+  totalResources: number;
+  overAllocated: number;
+  underAllocated: number;
+  optimallyAllocated: number;
+  avgUtilization: number;
+}
+
+export interface UtilizationResponse {
+  resources: ResourceUtilizationData[];
+  summary: UtilizationSummary;
+}
+
+export function useResourceUtilization(orgId: number | null, startDate?: string, endDate?: string) {
+  return useQuery<UtilizationResponse>({
+    queryKey: ["/api/organizations", orgId, "resource-utilization", startDate, endDate],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const response = await fetch(`/api/organizations/${orgId}/resource-utilization?${params}`);
+      if (!response.ok) throw new Error("Failed to fetch resource utilization");
+      return response.json();
     },
   });
 }

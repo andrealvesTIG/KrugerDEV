@@ -9704,6 +9704,214 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  // ==================== RESOURCE SKILLS ====================
+
+  app.get('/api/organizations/:orgId/resources/:resourceId/skills', async (req, res) => {
+    try {
+      const skills = await storage.getResourceSkills(Number(req.params.resourceId));
+      res.json(skills);
+    } catch (err) {
+      console.error("Error fetching resource skills:", err);
+      res.status(500).json({ message: "Error fetching resource skills" });
+    }
+  });
+
+  app.get('/api/organizations/:orgId/resource-skills', async (req, res) => {
+    try {
+      const skills = await storage.getResourceSkillsByOrg(Number(req.params.orgId));
+      res.json(skills);
+    } catch (err) {
+      console.error("Error fetching org resource skills:", err);
+      res.status(500).json({ message: "Error fetching resource skills" });
+    }
+  });
+
+  app.post('/api/organizations/:orgId/resources/:resourceId/skills', async (req, res) => {
+    try {
+      const skill = await storage.addResourceSkill({
+        organizationId: Number(req.params.orgId),
+        resourceId: Number(req.params.resourceId),
+        ...req.body
+      });
+      res.json(skill);
+    } catch (err) {
+      console.error("Error adding resource skill:", err);
+      res.status(500).json({ message: "Error adding resource skill" });
+    }
+  });
+
+  app.patch('/api/organizations/:orgId/resource-skills/:id', async (req, res) => {
+    try {
+      const skill = await storage.updateResourceSkill(Number(req.params.id), req.body);
+      res.json(skill);
+    } catch (err) {
+      console.error("Error updating resource skill:", err);
+      res.status(500).json({ message: "Error updating resource skill" });
+    }
+  });
+
+  app.delete('/api/organizations/:orgId/resource-skills/:id', async (req, res) => {
+    try {
+      await storage.removeResourceSkill(Number(req.params.id));
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error removing resource skill:", err);
+      res.status(500).json({ message: "Error removing resource skill" });
+    }
+  });
+
+  // ==================== RESOURCE AVAILABILITY ====================
+
+  app.get('/api/organizations/:orgId/resources/:resourceId/availability', async (req, res) => {
+    try {
+      const entries = await storage.getResourceAvailability(Number(req.params.resourceId));
+      res.json(entries);
+    } catch (err) {
+      console.error("Error fetching resource availability:", err);
+      res.status(500).json({ message: "Error fetching resource availability" });
+    }
+  });
+
+  app.get('/api/organizations/:orgId/resource-availability', async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      const entries = await storage.getResourceAvailabilityByOrg(
+        Number(req.params.orgId),
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+      res.json(entries);
+    } catch (err) {
+      console.error("Error fetching org resource availability:", err);
+      res.status(500).json({ message: "Error fetching resource availability" });
+    }
+  });
+
+  app.post('/api/organizations/:orgId/resources/:resourceId/availability', async (req, res) => {
+    try {
+      const entry = await storage.addResourceAvailability({
+        organizationId: Number(req.params.orgId),
+        resourceId: Number(req.params.resourceId),
+        ...req.body
+      });
+      res.json(entry);
+    } catch (err) {
+      console.error("Error adding resource availability:", err);
+      res.status(500).json({ message: "Error adding resource availability" });
+    }
+  });
+
+  app.patch('/api/organizations/:orgId/resource-availability/:id', async (req, res) => {
+    try {
+      const entry = await storage.updateResourceAvailability(Number(req.params.id), req.body);
+      res.json(entry);
+    } catch (err) {
+      console.error("Error updating resource availability:", err);
+      res.status(500).json({ message: "Error updating resource availability" });
+    }
+  });
+
+  app.delete('/api/organizations/:orgId/resource-availability/:id', async (req, res) => {
+    try {
+      await storage.removeResourceAvailability(Number(req.params.id));
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error removing resource availability:", err);
+      res.status(500).json({ message: "Error removing resource availability" });
+    }
+  });
+
+  // ==================== RESOURCE UTILIZATION & CAPACITY ====================
+
+  app.get('/api/organizations/:orgId/resource-utilization', async (req, res) => {
+    try {
+      const orgId = Number(req.params.orgId);
+      const { startDate, endDate } = req.query;
+      
+      const allResources = await storage.getResources(orgId);
+      const activeResources = allResources.filter(r => r.isActive && !r.deletedAt);
+      
+      const assignments = await storage.getAllTaskResourceAssignments(orgId);
+      
+      const availability = await storage.getResourceAvailabilityByOrg(
+        orgId,
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      const timesheetData = startDate && endDate 
+        ? await storage.getAllTimesheetEntriesWithDetails(orgId, startDate as string, endDate as string)
+        : [];
+      
+      const utilization = activeResources.map(resource => {
+        const resourceAssignments = assignments.filter(a => a.resourceId === resource.id);
+        const resourceAvailabilityEntries = availability.filter(a => a.resourceId === resource.id);
+        const resourceTimesheets = timesheetData.filter(t => t.entry.resourceId === resource.id);
+        
+        const weeklyCapacity = Number(resource.weeklyCapacity) || 40;
+        const availabilityPct = resource.availability || 100;
+        const effectiveWeeklyHours = (weeklyCapacity * availabilityPct) / 100;
+        
+        const totalAllocationPct = resourceAssignments.reduce((sum, a) => sum + (a.allocationPercentage || 100), 0);
+        const allocatedHoursPerWeek = (totalAllocationPct / 100) * weeklyCapacity;
+        
+        const actualHours = resourceTimesheets.reduce((sum, t) => sum + Number(t.entry.hours), 0);
+        
+        const timeOffDays = resourceAvailabilityEntries.reduce((sum, entry) => {
+          const start = new Date(entry.startDate);
+          const end = new Date(entry.endDate);
+          const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          return sum + days;
+        }, 0);
+        
+        const utilizationPct = effectiveWeeklyHours > 0 ? Math.round((allocatedHoursPerWeek / effectiveWeeklyHours) * 100) : 0;
+        const isOverAllocated = totalAllocationPct > 100;
+        
+        return {
+          resourceId: resource.id,
+          displayName: resource.displayName,
+          department: resource.department,
+          title: resource.title,
+          weeklyCapacity,
+          availabilityPct,
+          effectiveWeeklyHours,
+          totalAllocationPct,
+          allocatedHoursPerWeek,
+          actualHours,
+          utilizationPct,
+          isOverAllocated,
+          assignmentCount: resourceAssignments.length,
+          timeOffDays,
+          assignments: resourceAssignments.map(a => ({
+            taskId: a.taskId,
+            allocationPercentage: a.allocationPercentage || 100,
+          })),
+        };
+      });
+      
+      const totalResources = utilization.length;
+      const overAllocated = utilization.filter(u => u.isOverAllocated).length;
+      const underAllocated = utilization.filter(u => u.utilizationPct < 50).length;
+      const avgUtilization = totalResources > 0 
+        ? Math.round(utilization.reduce((sum, u) => sum + u.utilizationPct, 0) / totalResources) 
+        : 0;
+      
+      res.json({
+        resources: utilization,
+        summary: {
+          totalResources,
+          overAllocated,
+          underAllocated,
+          optimallyAllocated: totalResources - overAllocated - underAllocated,
+          avgUtilization,
+        }
+      });
+    } catch (err) {
+      console.error("Error fetching resource utilization:", err);
+      res.status(500).json({ message: "Error fetching resource utilization" });
+    }
+  });
+
   // ==================== DASHBOARD AGGREGATION ENDPOINTS ====================
 
   // Get all risks for an organization (dashboard)

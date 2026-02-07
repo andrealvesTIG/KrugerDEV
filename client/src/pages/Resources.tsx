@@ -14,7 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2, BarChart3, TrendingUp, CalendarDays } from "lucide-react";
+import CapacityPlanningView from "@/components/resources/CapacityPlanningView";
+import WorkloadDashboard from "@/components/resources/WorkloadDashboard";
+import AvailabilityCalendar from "@/components/resources/AvailabilityCalendar";
+import DemandForecast from "@/components/resources/DemandForecast";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -67,7 +71,7 @@ export default function Resources() {
   const [search, setSearch] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"resources" | "assignments">("resources");
+  const [activeTab, setActiveTab] = useState<"resources" | "assignments" | "capacity" | "workload" | "availability" | "forecast">("resources");
   const [groupBy1, setGroupBy1] = useState<string>("resource");
   const [groupBy2, setGroupBy2] = useState<string>("none");
   const [groupBy3, setGroupBy3] = useState<string>("none");
@@ -414,16 +418,32 @@ export default function Resources() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "resources" | "assignments")} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="resources" className="gap-2" data-testid="tab-resources">
               <Users className="h-4 w-4" />
-              Team Resources
+              <span className="hidden sm:inline">Team</span> Resources
             </TabsTrigger>
             <TabsTrigger value="assignments" className="gap-2" data-testid="tab-assignments">
               <ClipboardList className="h-4 w-4" />
-              Assignments View
+              <span className="hidden sm:inline">Assignments</span>
+            </TabsTrigger>
+            <TabsTrigger value="capacity" className="gap-2" data-testid="tab-capacity">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Capacity</span>
+            </TabsTrigger>
+            <TabsTrigger value="workload" className="gap-2" data-testid="tab-workload">
+              <TrendingUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Workload</span>
+            </TabsTrigger>
+            <TabsTrigger value="availability" className="gap-2" data-testid="tab-availability">
+              <CalendarDays className="h-4 w-4" />
+              <span className="hidden sm:inline">Availability</span>
+            </TabsTrigger>
+            <TabsTrigger value="forecast" className="gap-2" data-testid="tab-forecast">
+              <Target className="h-4 w-4" />
+              <span className="hidden sm:inline">Forecast</span>
             </TabsTrigger>
           </TabsList>
           
@@ -724,6 +744,30 @@ export default function Resources() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="capacity" className="space-y-4">
+          {currentOrganization?.id && (
+            <CapacityPlanningView organizationId={currentOrganization.id} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="workload" className="space-y-4">
+          {currentOrganization?.id && (
+            <WorkloadDashboard organizationId={currentOrganization.id} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="availability" className="space-y-4">
+          {currentOrganization?.id && (
+            <AvailabilityCalendar organizationId={currentOrganization.id} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="forecast" className="space-y-4">
+          {currentOrganization?.id && (
+            <DemandForecast organizationId={currentOrganization.id} />
+          )}
         </TabsContent>
       </Tabs>
 

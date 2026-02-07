@@ -145,6 +145,17 @@ The application manages comprehensive data entities including:
   - `error_logs`: Error tracking and debugging logs
 - **Column Added**: Added missing `is_intake_approver` column to `resources` table (boolean, default false)
 
+### Resource Management Module (February 2026)
+- **Resource Skills** (`resource_skills` table): Normalized skill tracking per resource with proficiency levels (Beginner/Intermediate/Advanced/Expert). CRUD via `/api/organizations/:orgId/resources/:resourceId/skills`.
+- **Resource Availability** (`resource_availability` table): Planned time-off/leave tracking with types (leave, pto, sick, holiday, training). CRUD via `/api/organizations/:orgId/resource-availability`.
+- **Resource Utilization API**: Aggregate endpoint (`/api/organizations/:orgId/resource-utilization`) computes per-resource allocated hours vs capacity, over-allocation detection, and summary stats.
+- **Capacity Planning View**: Tab on Resources page showing per-resource capacity bars with date range filtering.
+- **Workload Dashboard**: Tab on Resources page with summary cards (total resources, avg utilization, over/under-allocated counts) and sortable resource list.
+- **Availability Calendar**: Month-view calendar showing resource time-off with color-coded type indicators and "Add Time Off" dialog.
+- **Demand vs Supply Forecast**: Recharts bar chart comparing weekly team capacity vs projected demand over configurable periods.
+- **Skills Management**: Skills & Competencies card on Resource Details page for adding/removing skills with proficiency levels.
+- **Components**: `client/src/components/resources/` contains CapacityPlanningView, WorkloadDashboard, AvailabilityCalendar, DemandForecast.
+
 ### Deprecated Tables (Pending Cleanup)
 The following tables are deprecated and scheduled for future removal. Data migration should be verified before cleanup:
 - **`risks`**: DEPRECATED - Risk tracking is now handled by the `issues` table with `itemType='risk'` filter. The unified issues table provides better consistency and reduces schema complexity.

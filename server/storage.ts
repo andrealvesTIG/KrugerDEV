@@ -63,7 +63,9 @@ import {
   projectScores, type ProjectScore, type InsertProjectScore,
   projectBenefits, type ProjectBenefit, type InsertProjectBenefit,
   projectDecisions, type ProjectDecision, type InsertProjectDecision,
-  lessonsLearned, type LessonLearned, type InsertLessonLearned
+  lessonsLearned, type LessonLearned, type InsertLessonLearned,
+  resourceSkills, type ResourceSkill, type InsertResourceSkill,
+  resourceAvailability, type ResourceAvailability, type InsertResourceAvailability
 } from "@shared/schema";
 import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { 
@@ -239,6 +241,20 @@ export interface IStorage {
   updateResource(id: number, updates: UpdateResourceRequest): Promise<Resource>;
   deleteResource(id: number): Promise<void>;
   mergeResources(primaryId: number, secondaryId: number): Promise<Resource>;
+
+  // Resource Skills
+  getResourceSkills(resourceId: number): Promise<ResourceSkill[]>;
+  getResourceSkillsByOrg(organizationId: number): Promise<ResourceSkill[]>;
+  addResourceSkill(skill: InsertResourceSkill): Promise<ResourceSkill>;
+  removeResourceSkill(id: number): Promise<void>;
+  updateResourceSkill(id: number, updates: Partial<InsertResourceSkill>): Promise<ResourceSkill>;
+
+  // Resource Availability (time-off, leave)
+  getResourceAvailability(resourceId: number): Promise<ResourceAvailability[]>;
+  getResourceAvailabilityByOrg(organizationId: number, startDate?: string, endDate?: string): Promise<ResourceAvailability[]>;
+  addResourceAvailability(entry: InsertResourceAvailability): Promise<ResourceAvailability>;
+  updateResourceAvailability(id: number, updates: Partial<InsertResourceAvailability>): Promise<ResourceAvailability>;
+  removeResourceAvailability(id: number): Promise<void>;
 
   // Task Resource Assignments
   getTaskResourceAssignments(taskId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
@@ -2137,6 +2153,59 @@ export class DatabaseStorage implements IStorage {
     // Return the updated primary
     const [updated] = await db.select().from(resources).where(eq(resources.id, primaryId));
     return updated;
+  }
+
+  // Resource Skills
+  async getResourceSkills(resourceId: number): Promise<ResourceSkill[]> {
+    return await db.select().from(resourceSkills).where(eq(resourceSkills.resourceId, resourceId)).orderBy(resourceSkills.skillName);
+  }
+
+  async getResourceSkillsByOrg(organizationId: number): Promise<ResourceSkill[]> {
+    return await db.select().from(resourceSkills).where(eq(resourceSkills.organizationId, organizationId)).orderBy(resourceSkills.skillName);
+  }
+
+  async addResourceSkill(skill: InsertResourceSkill): Promise<ResourceSkill> {
+    const [created] = await db.insert(resourceSkills).values(skill).returning();
+    return created;
+  }
+
+  async removeResourceSkill(id: number): Promise<void> {
+    await db.delete(resourceSkills).where(eq(resourceSkills.id, id));
+  }
+
+  async updateResourceSkill(id: number, updates: Partial<InsertResourceSkill>): Promise<ResourceSkill> {
+    const [updated] = await db.update(resourceSkills).set(updates).where(eq(resourceSkills.id, id)).returning();
+    return updated;
+  }
+
+  // Resource Availability
+  async getResourceAvailability(resourceId: number): Promise<ResourceAvailability[]> {
+    return await db.select().from(resourceAvailability).where(eq(resourceAvailability.resourceId, resourceId)).orderBy(desc(resourceAvailability.startDate));
+  }
+
+  async getResourceAvailabilityByOrg(organizationId: number, startDate?: string, endDate?: string): Promise<ResourceAvailability[]> {
+    const conditions = [eq(resourceAvailability.organizationId, organizationId)];
+    if (startDate) {
+      conditions.push(sql`${resourceAvailability.endDate} >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`${resourceAvailability.startDate} <= ${endDate}`);
+    }
+    return await db.select().from(resourceAvailability).where(and(...conditions)).orderBy(resourceAvailability.startDate);
+  }
+
+  async addResourceAvailability(entry: InsertResourceAvailability): Promise<ResourceAvailability> {
+    const [created] = await db.insert(resourceAvailability).values(entry).returning();
+    return created;
+  }
+
+  async updateResourceAvailability(id: number, updates: Partial<InsertResourceAvailability>): Promise<ResourceAvailability> {
+    const [updated] = await db.update(resourceAvailability).set(updates).where(eq(resourceAvailability.id, id)).returning();
+    return updated;
+  }
+
+  async removeResourceAvailability(id: number): Promise<void> {
+    await db.delete(resourceAvailability).where(eq(resourceAvailability.id, id));
   }
 
   // Task Resource Assignments

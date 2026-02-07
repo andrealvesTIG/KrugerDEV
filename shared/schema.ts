@@ -2111,3 +2111,43 @@ export const insertReportSubscriptionSchema = createInsertSchema(reportSubscript
 });
 export type InsertReportSubscription = z.infer<typeof insertReportSubscriptionSchema>;
 export type ReportSubscription = typeof reportSubscriptions.$inferSelect;
+
+// Resource Availability (planned time-off, leave, holidays, training)
+export const resourceAvailability = pgTable("resource_availability", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  resourceId: integer("resource_id").references(() => resources.id).notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  type: text("type").notNull(), // leave, pto, sick, holiday, training, other
+  hoursPerDay: numeric("hours_per_day"), // Override hours unavailable per day (null = full day)
+  notes: text("notes"),
+  status: text("status").default("approved"), // pending, approved, rejected
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertResourceAvailabilitySchema = createInsertSchema(resourceAvailability).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertResourceAvailability = z.infer<typeof insertResourceAvailabilitySchema>;
+export type ResourceAvailability = typeof resourceAvailability.$inferSelect;
+
+// Resource Skills (normalized skill tracking)
+export const resourceSkills = pgTable("resource_skills", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  resourceId: integer("resource_id").references(() => resources.id).notNull(),
+  skillName: text("skill_name").notNull(),
+  proficiencyLevel: text("proficiency_level"), // Beginner, Intermediate, Advanced, Expert
+  yearsOfExperience: numeric("years_of_experience"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertResourceSkillSchema = createInsertSchema(resourceSkills).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertResourceSkill = z.infer<typeof insertResourceSkillSchema>;
+export type ResourceSkill = typeof resourceSkills.$inferSelect;

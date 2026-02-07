@@ -1,5 +1,5 @@
 import { useParams, Link, useLocation } from "wouter";
-import { useResource, useUpdateResource } from "@/hooks/use-resources";
+import { useResource, useUpdateResource, useResourceSkills, useAddResourceSkill, useRemoveResourceSkill } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -32,8 +32,12 @@ import {
   ClipboardList,
   PieChart,
   FolderKanban,
-  Save
+  Save,
+  Plus,
+  X,
+  Wrench
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { Resource, Task, Issue, Project } from "@shared/schema";
@@ -85,6 +89,12 @@ export default function ResourceDetails() {
   
   const { data: resource, isLoading: resourceLoading } = useResource(resourceId);
   const updateResource = useUpdateResource();
+  
+  const { data: resourceSkills } = useResourceSkills(currentOrganization?.id ?? null, resource?.id ?? null);
+  const addSkill = useAddResourceSkill();
+  const removeSkill = useRemoveResourceSkill();
+  const [newSkillName, setNewSkillName] = useState("");
+  const [newSkillLevel, setNewSkillLevel] = useState("Intermediate");
   
   const [activeTab, setActiveTab] = useState("details");
   const [isEditing, setIsEditing] = useState(false);
@@ -519,6 +529,99 @@ export default function ResourceDetails() {
                     )}
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="mt-6">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-base">Skills & Competencies</CardTitle>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {resourceSkills?.map((skill) => (
+                  <Badge key={skill.id} variant="secondary" className="gap-1 pr-1" data-testid={`badge-skill-${skill.id}`}>
+                    {skill.skillName}
+                    {skill.proficiencyLevel && (
+                      <span className="text-xs text-muted-foreground ml-1">({skill.proficiencyLevel})</span>
+                    )}
+                    <span
+                      role="button"
+                      className="ml-1 cursor-pointer opacity-60 hover:opacity-100"
+                      onClick={() => {
+                        if (currentOrganization?.id) {
+                          removeSkill.mutate(
+                            { orgId: currentOrganization.id, id: skill.id },
+                            {
+                              onError: () => {
+                                toast({ title: "Failed to remove skill", variant: "destructive" });
+                              }
+                            }
+                          );
+                        }
+                      }}
+                      data-testid={`button-remove-skill-${skill.id}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </span>
+                  </Badge>
+                ))}
+                {(!resourceSkills || resourceSkills.length === 0) && (
+                  <p className="text-sm text-muted-foreground">No skills added yet</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  placeholder="Skill name..."
+                  value={newSkillName}
+                  onChange={(e) => setNewSkillName(e.target.value)}
+                  className="w-[180px]"
+                  data-testid="input-new-skill-name"
+                />
+                <Select value={newSkillLevel} onValueChange={setNewSkillLevel}>
+                  <SelectTrigger className="w-[140px]" data-testid="select-skill-level">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Beginner">Beginner</SelectItem>
+                    <SelectItem value="Intermediate">Intermediate</SelectItem>
+                    <SelectItem value="Advanced">Advanced</SelectItem>
+                    <SelectItem value="Expert">Expert</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (newSkillName.trim() && currentOrganization?.id && resource?.id) {
+                      addSkill.mutate(
+                        {
+                          orgId: currentOrganization.id,
+                          resourceId: resource.id,
+                          data: { skillName: newSkillName.trim(), proficiencyLevel: newSkillLevel }
+                        },
+                        {
+                          onSuccess: () => {
+                            toast({ title: "Skill added" });
+                          },
+                          onError: () => {
+                            toast({ title: "Failed to add skill", variant: "destructive" });
+                          }
+                        }
+                      );
+                      setNewSkillName("");
+                    }
+                  }}
+                  disabled={!newSkillName.trim() || addSkill.isPending}
+                  data-testid="button-add-skill"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
               </div>
             </CardContent>
           </Card>
