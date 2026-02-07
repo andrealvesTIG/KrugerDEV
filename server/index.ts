@@ -100,7 +100,7 @@ app.use((req, res, next) => {
       log(logLine);
 
       // Log to database for monitoring (async, non-blocking)
-      const userId = (req as any).userId || (req as any).user?.id || null;
+      const userId = (req as any).session?.userId || (req as any).user?.claims?.sub || (req as any).userId || (req as any).user?.id || null;
       const organizationId = (req as any).organizationId || null;
       const userAgent = req.get('user-agent');
       const ipAddress = req.ip || req.socket?.remoteAddress;

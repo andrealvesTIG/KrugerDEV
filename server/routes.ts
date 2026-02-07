@@ -18003,7 +18003,7 @@ Return ONLY valid JSON.`;
           COUNT(s.id) as subscription_count
         FROM subscriptions s
         JOIN plans p ON s.plan_id = p.id
-        WHERE s.status = 'active'
+        WHERE UPPER(s.status) = 'ACTIVE'
         GROUP BY p.name, p.code
         ORDER BY subscription_count DESC
       `);
@@ -18011,7 +18011,7 @@ Return ONLY valid JSON.`;
       // Churned subscriptions this month (using created_at as proxy for cancelled date)
       const churnedResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM subscriptions 
-        WHERE status = 'cancelled' AND created_at >= NOW() - INTERVAL '30 days'
+        WHERE UPPER(status) = 'CANCELLED' AND created_at >= NOW() - INTERVAL '30 days'
       `);
       const churnedThisMonth = Number(churnedResult.rows[0]?.count || 0);
 
