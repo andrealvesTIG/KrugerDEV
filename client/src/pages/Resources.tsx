@@ -370,52 +370,51 @@ export default function Resources() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Resources</h1>
-          <p className="mt-1 text-muted-foreground">Manage your team members and assign them to tasks, issues, and risks.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImportFromExcel}
-            accept=".xlsx,.xls"
-            className="hidden"
-            data-testid="input-import-file"
-          />
-          <Button 
-            variant="outline" 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting}
-            data-testid="button-import-resources"
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            {isImporting ? "Importing..." : "Import"}
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={handleExportToExcel}
-            disabled={!resources || resources.length === 0}
-            data-testid="button-export-resources"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => setIsMergeDialogOpen(true)}
-            disabled={!resources || resources.length < 2}
-            data-testid="button-merge-resources"
-          >
-            <GitMerge className="mr-2 h-4 w-4" />
-            Match & Merge
-          </Button>
-          <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-resource">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Resource
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-display font-bold text-foreground">Resources</h1>
+        <p className="mt-1 text-muted-foreground">Manage your team members and assign them to tasks, issues, and risks.</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImportFromExcel}
+          accept=".xlsx,.xls"
+          className="hidden"
+          data-testid="input-import-file"
+        />
+        <Button 
+          variant="outline" 
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isImporting}
+          data-testid="button-import-resources"
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          {isImporting ? "Importing..." : "Import"}
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={handleExportToExcel}
+          disabled={!resources || resources.length === 0}
+          data-testid="button-export-resources"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Export
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={() => setIsMergeDialogOpen(true)}
+          disabled={!resources || resources.length < 2}
+          data-testid="button-merge-resources"
+        >
+          <GitMerge className="mr-2 h-4 w-4" />
+          Match & Merge
+        </Button>
+        <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-resource">
+          <Plus className="mr-2 h-4 w-4" />
+          Add Resource
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-4">
