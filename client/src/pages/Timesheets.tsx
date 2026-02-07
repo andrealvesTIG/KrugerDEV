@@ -2824,23 +2824,18 @@ export default function Timesheets() {
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    <Popover open={timeOffPopoverOpen} onOpenChange={setTimeOffPopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <span className="hidden" />
-                      </PopoverTrigger>
-                      <PopoverContent className="w-80" align="end">
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <h4 className="font-medium text-sm flex items-center gap-2">
-                              <Palmtree className="h-4 w-4 text-emerald-600" />
-                              Add Time Off
-                            </h4>
-                            <p className="text-xs text-muted-foreground">
-                              Log vacation, PTO, sick leave, or other non-project time
-                            </p>
-                          </div>
-
-                          <div className="space-y-3">
+                    <Dialog open={timeOffPopoverOpen} onOpenChange={setTimeOffPopoverOpen}>
+                      <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Palmtree className="h-4 w-4 text-emerald-600" />
+                            Add Time Off
+                          </DialogTitle>
+                          <DialogDescription>
+                            Log vacation, PTO, sick leave, or other non-project time
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-3">
                             <div className="space-y-1.5">
                               <Label className="text-xs">Category</Label>
                               <Select
@@ -2892,12 +2887,12 @@ export default function Timesheets() {
 
                             <div className="flex items-center gap-2">
                               <Checkbox
-                                id="include-weekends-fullscreen"
+                                id="include-weekends-regular"
                                 checked={timeOffForm.includeWeekends}
                                 onCheckedChange={(checked) => setTimeOffForm(f => ({ ...f, includeWeekends: !!checked }))}
                                 data-testid="checkbox-include-weekends"
                               />
-                              <Label htmlFor="include-weekends-fullscreen" className="text-xs cursor-pointer">
+                              <Label htmlFor="include-weekends-regular" className="text-xs cursor-pointer">
                                 Include weekends
                               </Label>
                             </div>
@@ -2943,8 +2938,7 @@ export default function Timesheets() {
                               />
                             </div>
                           </div>
-
-                          <div className="flex justify-end gap-2">
+                        <DialogFooter>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -2965,10 +2959,9 @@ export default function Timesheets() {
                                 "Add"
                               )}
                             </Button>
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
 
                     {hasDraftEntries && viewMode !== "day" && (
                       <Button 
