@@ -19201,5 +19201,112 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ============ DELEGATE / ACT-AS MODE ============
+
+  app.post("/api/organizations/:orgId/act-as", async (req, res) => {
+    try {
+      const realUserId = req.session.userId;
+      if (!realUserId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      if (req.session.actingAsUserId) {
+        return res.status(400).json({ message: "Already acting as another user. Exit delegate mode first." });
+      }
+
+      const orgId = parseInt(req.params.orgId);
+      const { targetUserId } = req.body;
+
+      if (!targetUserId) {
+        return res.status(400).json({ message: "targetUserId is required" });
+      }
+
+      if (targetUserId === realUserId) {
+        return res.status(400).json({ message: "Cannot act as yourself" });
+      }
+
+      const [realUser] = await db.select().from(users).where(eq(users.id, realUserId)).limit(1);
+      if (!realUser) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const isSuperAdmin = realUser.role === 'super_admin';
+      if (!isSuperAdmin) {
+        const realUserMemberships = await storage.getUserOrganizations(realUserId);
+        const realUserMembership = realUserMemberships.find(m => m.organizationId === orgId);
+        if (!realUserMembership || !['org_admin', 'owner'].includes(realUserMembership.role)) {
+          return res.status(403).json({ message: "Only organization admins and owners can use delegate mode" });
+        }
+      }
+
+      const targetMemberships = await storage.getUserOrganizations(targetUserId);
+      const targetMembership = targetMemberships.find(m => m.organizationId === orgId);
+      if (!targetMembership) {
+        return res.status(400).json({ message: "Target user is not a member of this organization" });
+      }
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+      if (!targetUser) {
+        return res.status(400).json({ message: "Target user not found" });
+      }
+
+      req.session.actingAsUserId = targetUserId;
+      req.session.actingAsOrgId = orgId;
+
+      req.session.save((err) => {
+        if (err) {
+          console.error("Failed to save session for act-as:", err);
+          return res.status(500).json({ message: "Failed to start delegate mode" });
+        }
+
+        console.log(`[delegate] User ${realUserId} (${realUser.email}) started acting as ${targetUserId} (${targetUser.email}) in org ${orgId}`);
+
+        res.json({
+          success: true,
+          actingAs: {
+            id: targetUser.id,
+            firstName: targetUser.firstName,
+            lastName: targetUser.lastName,
+            username: targetUser.username,
+            email: targetUser.email,
+          },
+        });
+      });
+    } catch (error) {
+      console.error("Act-as start error:", error);
+      res.status(500).json({ message: "Failed to start delegate mode" });
+    }
+  });
+
+  app.delete("/api/organizations/:orgId/act-as", async (req, res) => {
+    try {
+      const realUserId = req.session.userId;
+      if (!realUserId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const wasActingAs = req.session.actingAsUserId;
+
+      delete req.session.actingAsUserId;
+      delete req.session.actingAsOrgId;
+
+      req.session.save((err) => {
+        if (err) {
+          console.error("Failed to save session for act-as stop:", err);
+          return res.status(500).json({ message: "Failed to stop delegate mode" });
+        }
+
+        if (wasActingAs) {
+          console.log(`[delegate] User ${realUserId} stopped acting as ${wasActingAs}`);
+        }
+
+        res.json({ success: true });
+      });
+    } catch (error) {
+      console.error("Act-as stop error:", error);
+      res.status(500).json({ message: "Failed to stop delegate mode" });
+    }
+  });
+
   return httpServer;
 }

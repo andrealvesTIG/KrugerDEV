@@ -15,6 +15,8 @@ const PgSession = connectPgSimple(session);
 declare module "express-session" {
   interface SessionData {
     userId: string;
+    actingAsUserId?: string;
+    actingAsOrgId?: number;
   }
 }
 
@@ -415,13 +417,34 @@ export async function setupAuth(app: Express) {
     }
 
     try {
-      const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
-      if (!user) {
+      const [realUser] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+      if (!realUser) {
         req.session.destroy(() => {});
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const { passwordHash: _, ...userWithoutPassword } = user;
+      if (req.session.actingAsUserId) {
+        const [delegateUser] = await db.select().from(users).where(eq(users.id, req.session.actingAsUserId)).limit(1);
+        if (delegateUser) {
+          const { passwordHash: _, ...delegateWithoutPassword } = delegateUser;
+          return res.json({
+            ...delegateWithoutPassword,
+            isActingAs: true,
+            actingAsOrgId: req.session.actingAsOrgId,
+            realUser: {
+              id: realUser.id,
+              firstName: realUser.firstName,
+              lastName: realUser.lastName,
+              username: realUser.username,
+              email: realUser.email,
+            },
+          });
+        }
+        delete req.session.actingAsUserId;
+        delete req.session.actingAsOrgId;
+      }
+
+      const { passwordHash: _, ...userWithoutPassword } = realUser;
       res.json(userWithoutPassword);
     } catch (error) {
       console.error("Get user error:", error);
@@ -1394,13 +1417,23 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   }
 
   try {
-    const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
-    if (!user) {
+    const [realUser] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+    if (!realUser) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Attach user to request for downstream use
-    (req as any).user = { id: user.id, claims: { sub: user.id } };
+    if (req.session.actingAsUserId) {
+      const [delegateUser] = await db.select().from(users).where(eq(users.id, req.session.actingAsUserId)).limit(1);
+      if (delegateUser) {
+        (req as any).user = { id: delegateUser.id, claims: { sub: delegateUser.id } };
+        (req as any).realUser = { id: realUser.id, claims: { sub: realUser.id } };
+        return next();
+      }
+      delete req.session.actingAsUserId;
+      delete req.session.actingAsOrgId;
+    }
+
+    (req as any).user = { id: realUser.id, claims: { sub: realUser.id } };
     next();
   } catch (error) {
     res.status(401).json({ message: "Unauthorized" });

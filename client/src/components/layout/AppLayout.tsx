@@ -4,7 +4,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -14,6 +14,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 import { HelpDialog } from "@/components/HelpDialog";
 import { AICreateButton } from "./AICreateButton";
@@ -48,10 +51,26 @@ export function AppLayout({ children }: { children: ReactNode }) {
 function AppLayoutContent({ children }: { children: ReactNode }) {
   const { isCollapsed, setIsMobileOpen } = useSidebarState();
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
+  const { isActingAs, realUser, actingAsOrgId, user } = useAuth();
   const [location] = useLocation();
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
   const { theme } = useTheme();
+  const { toast } = useToast();
   
+  const stopActingAsMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/organizations/${actingAsOrgId}/act-as`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({ title: "Delegate mode ended", description: "You are now back to your own account." });
+      window.location.reload();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to exit delegate mode.", variant: "destructive" });
+    },
+  });
+
   // Determine the correct logo based on theme
   const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const fullLogo = isDark ? logoWhite : logoBlack;
@@ -63,6 +82,29 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <EmailVerificationBanner />
+        {isActingAs && realUser && (
+          <div className="flex items-center justify-between gap-2 px-4 py-1.5 bg-amber-500 text-white text-sm flex-wrap" data-testid="banner-delegate-mode">
+            <div className="flex items-center gap-2 flex-wrap">
+              <UserCheck className="h-4 w-4 flex-shrink-0" />
+              <span>
+                Viewing as <strong>{user?.firstName || user?.username || user?.email}</strong>
+                {" "}&mdash;{" "}
+                <span className="opacity-90">Logged in as {realUser.firstName || realUser.username || realUser.email}</span>
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-white/20 border-white/40 text-white"
+              onClick={() => stopActingAsMutation.mutate()}
+              disabled={stopActingAsMutation.isPending}
+              data-testid="button-exit-delegate"
+            >
+              <X className="h-3 w-3 mr-1" />
+              {stopActingAsMutation.isPending ? "Exiting..." : "Exit Delegate Mode"}
+            </Button>
+          </div>
+        )}
         <header className="flex h-14 items-center gap-4 border-b border-slate-200 bg-white px-3 md:px-6 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center gap-3 flex-shrink-0">
             {/* Mobile hamburger menu */}
