@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer, RefreshCw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -51,7 +51,8 @@ type GroupBy = "project" | "portfolio" | "resource";
 export default function Tasks() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
-  const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total } = usePaginatedTasks(100, currentOrganization?.id);
+  const { tasks: allTasks, isLoading, hasMore, isLoadingMore, loadMore, total, refetch } = usePaginatedTasks(100, currentOrganization?.id);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { data: externalTasks } = useExternalTasks();
   const { data: projects } = useProjects(currentOrganization?.id);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
@@ -530,7 +531,22 @@ export default function Tasks() {
       })()}
 
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-display font-bold text-foreground">Tasks</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-display font-bold text-foreground">Tasks</h1>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={async () => {
+              setIsRefreshing(true);
+              await refetch();
+              setIsRefreshing(false);
+            }}
+            disabled={isRefreshing}
+            data-testid="button-refresh-tasks"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
