@@ -342,7 +342,7 @@ export default function Home() {
     return breakdown;
   }, [myProjects]);
 
-  const isEmptyState = myProjects.length === 0 && totalTasksCount === 0 && myIssues.length === 0;
+  const isEmptyState = (allProjects?.length || 0) === 0 && totalTasksCount === 0 && (allIssues?.length || 0) === 0;
 
   const isLoading = resourceLoading || tasksLoading || timesheetsLoading || issuesLoading || milestonesLoading || projectsLoading;
 
