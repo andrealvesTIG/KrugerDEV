@@ -3980,6 +3980,7 @@ export async function registerRoutes(
           isMilestone: false,
           isSummary: false,
           isCritical: false,
+          externalId: plannerTask.id,
         });
 
         createdTasks.push({ task, plannerTaskId: plannerTask.id, assignments: plannerTask.assignments });
@@ -4407,6 +4408,7 @@ export async function registerRoutes(
           isSummary: false,
           isCritical: false,
           wbs: wbsId || null,
+          externalId: dvTask.msdyn_projecttaskid,
         });
 
         taskIdMap.set(dvTask.msdyn_projecttaskid, task.id);
@@ -4864,34 +4866,47 @@ export async function registerRoutes(
         // Get existing tasks for this project
         const existingTasks = await storage.getTasksByProject(projectId);
         
-        // Build old task ID to name mapping for relationship preservation
+        // Build old task ID to name and externalId mappings for relationship preservation
         const oldTaskIdToName = new Map<number, string>();
+        const oldTaskIdToExternalId = new Map<number, string>();
         for (const task of existingTasks) {
           oldTaskIdToName.set(task.id, task.name.toLowerCase().trim());
+          if (task.externalId) {
+            oldTaskIdToExternalId.set(task.id, task.externalId);
+          }
         }
         
-        // Preserve hours (estimatedHours, actualHours) by task name
-        // We'll restore them to matching new tasks after sync
+        // Preserve hours (estimatedHours, actualHours) by externalId and task name
+        // externalId is the primary key for matching (survives renames), task name is fallback
+        const hoursByExternalId = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
         const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
         for (const task of existingTasks) {
           if (task.estimatedHours || task.actualHours) {
+            const hoursData = { estimatedHours: task.estimatedHours, actualHours: task.actualHours };
+            if (task.externalId) {
+              hoursByExternalId.set(task.externalId, hoursData);
+            }
             const taskName = task.name.toLowerCase().trim();
             if (!hoursByTaskName.has(taskName)) {
-              hoursByTaskName.set(taskName, {
-                estimatedHours: task.estimatedHours,
-                actualHours: task.actualHours,
-              });
+              hoursByTaskName.set(taskName, hoursData);
             }
           }
         }
-        console.log(`Planner Premium sync: Found ${hoursByTaskName.size} tasks with hours to preserve`);
+        console.log(`Planner Premium sync: Found ${hoursByExternalId.size} tasks with hours to preserve (by externalId), ${hoursByTaskName.size} (by name)`);
         
-        // Preserve timesheet entries by collecting them with their task names
-        // We'll reassign them to matching new tasks after sync
+        // Preserve timesheet entries by externalId and task name
+        // externalId is the primary key for matching, task name is fallback
+        const timesheetEntriesByExternalId = new Map<string, { entries: any[]; oldTaskId: number }[]>();
         const timesheetEntriesByTaskName = new Map<string, { entries: any[]; oldTaskId: number }[]>();
         for (const task of existingTasks) {
           const entries = await db.select().from(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
           if (entries.length > 0) {
+            if (task.externalId) {
+              if (!timesheetEntriesByExternalId.has(task.externalId)) {
+                timesheetEntriesByExternalId.set(task.externalId, []);
+              }
+              timesheetEntriesByExternalId.get(task.externalId)!.push({ entries, oldTaskId: task.id });
+            }
             const taskName = task.name.toLowerCase().trim();
             if (!timesheetEntriesByTaskName.has(taskName)) {
               timesheetEntriesByTaskName.set(taskName, []);
@@ -4899,13 +4914,20 @@ export async function registerRoutes(
             timesheetEntriesByTaskName.get(taskName)!.push({ entries, oldTaskId: task.id });
           }
         }
-        console.log(`Planner Premium sync: Found ${timesheetEntriesByTaskName.size} tasks with timesheet entries to preserve`);
+        console.log(`Planner Premium sync: Found ${timesheetEntriesByExternalId.size} tasks with timesheet entries to preserve (by externalId), ${timesheetEntriesByTaskName.size} (by name)`);
         
-        // Preserve task change logs by task name
+        // Preserve task change logs by externalId and task name
+        const changeLogsByExternalId = new Map<string, any[]>();
         const changeLogsByTaskName = new Map<string, any[]>();
         for (const task of existingTasks) {
           const logs = await db.select().from(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
           if (logs.length > 0) {
+            if (task.externalId) {
+              if (!changeLogsByExternalId.has(task.externalId)) {
+                changeLogsByExternalId.set(task.externalId, []);
+              }
+              changeLogsByExternalId.get(task.externalId)!.push(...logs);
+            }
             const taskName = task.name.toLowerCase().trim();
             if (!changeLogsByTaskName.has(taskName)) {
               changeLogsByTaskName.set(taskName, []);
@@ -4913,37 +4935,50 @@ export async function registerRoutes(
             changeLogsByTaskName.get(taskName)!.push(...logs);
           }
         }
-        console.log(`Planner Premium sync: Found ${changeLogsByTaskName.size} tasks with change logs to preserve`);
+        console.log(`Planner Premium sync: Found ${changeLogsByExternalId.size} tasks with change logs to preserve (by externalId), ${changeLogsByTaskName.size} (by name)`);
         
-        // Preserve task dependencies by task names (source -> target)
-        const dependenciesByTaskNames = new Map<string, { dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
+        // Preserve task dependencies by externalId and task names (source -> target)
+        const dependenciesByExternalId = new Map<string, { dependsOnExternalId: string | null; dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
+        const dependenciesByTaskNames = new Map<string, { dependsOnExternalId: string | null; dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
         for (const task of existingTasks) {
           const deps = await db.select().from(taskDependencies).where(eq(taskDependencies.taskId, task.id));
           if (deps.length > 0) {
             const taskName = task.name.toLowerCase().trim();
-            if (!dependenciesByTaskNames.has(taskName)) {
-              dependenciesByTaskNames.set(taskName, []);
-            }
+            const taskExtId = task.externalId || null;
             for (const dep of deps) {
-              const dependsOnName = oldTaskIdToName.get(dep.dependsOnTaskId);
-              if (dependsOnName) {
-                dependenciesByTaskNames.get(taskName)!.push({
-                  dependsOnTaskName: dependsOnName,
-                  dependencyType: dep.dependencyType || 'finish-to-start',
-                  lagDays: dep.lagDays || 0,
-                });
+              const dependsOnName = oldTaskIdToName.get(dep.dependsOnTaskId) || '';
+              const dependsOnExtId = oldTaskIdToExternalId.get(dep.dependsOnTaskId) || null;
+              const depData = {
+                dependsOnExternalId: dependsOnExtId,
+                dependsOnTaskName: dependsOnName,
+                dependencyType: dep.dependencyType || 'finish-to-start',
+                lagDays: dep.lagDays || 0,
+              };
+              if (taskExtId) {
+                if (!dependenciesByExternalId.has(taskExtId)) {
+                  dependenciesByExternalId.set(taskExtId, []);
+                }
+                dependenciesByExternalId.get(taskExtId)!.push(depData);
               }
+              if (!dependenciesByTaskNames.has(taskName)) {
+                dependenciesByTaskNames.set(taskName, []);
+              }
+              dependenciesByTaskNames.get(taskName)!.push(depData);
             }
           }
         }
-        console.log(`Planner Premium sync: Found ${dependenciesByTaskNames.size} tasks with dependencies to preserve`);
+        console.log(`Planner Premium sync: Found ${dependenciesByExternalId.size} tasks with dependencies to preserve (by externalId), ${dependenciesByTaskNames.size} (by name)`);
         
         // Collect issues with relatedTaskId for this project's tasks to update later
-        const issuesWithRelatedTasks = new Map<number, string>(); // issueId -> taskName
+        // Store both externalId and taskName for matching
+        const issuesWithRelatedTasks = new Map<number, { externalId: string | null; taskName: string }>(); // issueId -> { externalId, taskName }
         for (const task of existingTasks) {
           const relatedIssues = await db.select().from(issues).where(eq(issues.relatedTaskId, task.id));
           for (const issue of relatedIssues) {
-            issuesWithRelatedTasks.set(issue.id, task.name.toLowerCase().trim());
+            issuesWithRelatedTasks.set(issue.id, {
+              externalId: task.externalId || null,
+              taskName: task.name.toLowerCase().trim(),
+            });
           }
         }
         console.log(`Planner Premium sync: Found ${issuesWithRelatedTasks.size} issues with related tasks to preserve`);
@@ -5076,6 +5111,7 @@ export async function registerRoutes(
             isSummary: false,
             isCritical: false,
             wbs: wbsId || null,
+            externalId: dvTask.msdyn_projecttaskid,
           });
 
           taskIdMap.set(dvTask.msdyn_projecttaskid, task.id);
@@ -5438,15 +5474,18 @@ export async function registerRoutes(
           // Continue without failing the sync - resources are optional
         }
 
-        // Reassign preserved timesheet entries to new tasks based on name matching
+        // Reassign preserved data to new tasks using externalId (primary) and task name (fallback)
         let timesheetEntriesPreserved = 0;
         let timesheetEntriesLost = 0;
         
-        // Build map of new task names -> new task IDs
-        // Warn if duplicate task names exist (relationships may be misassociated)
+        // Build maps: new task externalId -> new task ID, and new task name -> new task ID
+        const newExternalIdToTaskId = new Map<string, number>();
         const newTaskNameToId = new Map<string, number>();
         const duplicateNames = new Set<string>();
         for (const task of createdTasks) {
+          if (task.externalId) {
+            newExternalIdToTaskId.set(task.externalId, task.id);
+          }
           const taskName = task.name.toLowerCase().trim();
           if (newTaskNameToId.has(taskName)) {
             duplicateNames.add(taskName);
@@ -5455,14 +5494,73 @@ export async function registerRoutes(
           }
         }
         if (duplicateNames.size > 0) {
-          console.log(`Planner Premium sync WARNING: ${duplicateNames.size} duplicate task names found. Relationships may be assigned to first matching task: ${Array.from(duplicateNames).slice(0, 5).join(', ')}${duplicateNames.size > 5 ? '...' : ''}`);
+          console.log(`Planner Premium sync WARNING: ${duplicateNames.size} duplicate task names found. Using externalId for reliable matching. Name fallback may be assigned to first matching task: ${Array.from(duplicateNames).slice(0, 5).join(', ')}${duplicateNames.size > 5 ? '...' : ''}`);
         }
         
-        // Recreate timesheet entries with new task IDs
-        for (const [taskName, entriesData] of timesheetEntriesByTaskName) {
-          const newTaskId = newTaskNameToId.get(taskName);
+        // Helper: resolve new task ID from externalId (primary) or task name (fallback)
+        const resolveNewTaskId = (extId: string | null, taskName: string): number | undefined => {
+          if (extId) {
+            const byExtId = newExternalIdToTaskId.get(extId);
+            if (byExtId) return byExtId;
+          }
+          return newTaskNameToId.get(taskName);
+        };
+        
+        // Recreate timesheet entries with new task IDs (externalId-first matching)
+        // First try by externalId, then by task name for tasks without externalId
+        const processedTimesheetExternalIds = new Set<string>();
+        for (const [extId, entriesData] of timesheetEntriesByExternalId) {
+          const newTaskId = newExternalIdToTaskId.get(extId);
+          processedTimesheetExternalIds.add(extId);
           if (newTaskId) {
             for (const { entries } of entriesData) {
+              for (const entry of entries) {
+                try {
+                  await db.insert(timesheetEntries).values({
+                    organizationId: entry.organizationId,
+                    userId: entry.userId,
+                    resourceId: entry.resourceId,
+                    taskId: newTaskId,
+                    projectId: entry.projectId,
+                    entryDate: entry.entryDate,
+                    hours: entry.hours,
+                    notes: entry.notes,
+                    status: entry.status,
+                    submittedAt: entry.submittedAt,
+                    approvedBy: entry.approvedBy,
+                    approvedAt: entry.approvedAt,
+                    rejectionReason: entry.rejectionReason,
+                    createdAt: entry.createdAt,
+                    updatedAt: new Date(),
+                  });
+                  timesheetEntriesPreserved++;
+                } catch (err) {
+                  console.log(`Failed to recreate timesheet entry for externalId ${extId}:`, err);
+                  timesheetEntriesLost++;
+                }
+              }
+            }
+          } else {
+            for (const { entries } of entriesData) {
+              timesheetEntriesLost += entries.length;
+            }
+          }
+        }
+        // Fallback: process timesheet entries that were stored by task name (for tasks without externalId)
+        for (const [taskName, entriesData] of timesheetEntriesByTaskName) {
+          // Skip if already processed via externalId
+          const alreadyProcessed = entriesData.every(({ oldTaskId }) => {
+            const extId = oldTaskIdToExternalId.get(oldTaskId);
+            return extId && processedTimesheetExternalIds.has(extId);
+          });
+          if (alreadyProcessed) continue;
+          
+          const newTaskId = newTaskNameToId.get(taskName);
+          if (newTaskId) {
+            for (const { entries, oldTaskId } of entriesData) {
+              // Skip entries already processed by externalId
+              const extId = oldTaskIdToExternalId.get(oldTaskId);
+              if (extId && processedTimesheetExternalIds.has(extId)) continue;
               for (const entry of entries) {
                 try {
                   await db.insert(timesheetEntries).values({
@@ -5490,8 +5588,9 @@ export async function registerRoutes(
               }
             }
           } else {
-            // Task name doesn't match any new task (task was renamed/deleted in Planner)
-            for (const { entries } of entriesData) {
+            for (const { entries, oldTaskId } of entriesData) {
+              const extId = oldTaskIdToExternalId.get(oldTaskId);
+              if (extId && processedTimesheetExternalIds.has(extId)) continue;
               timesheetEntriesLost += entries.length;
             }
           }
@@ -5501,9 +5600,30 @@ export async function registerRoutes(
           console.log(`Planner Premium sync: Timesheet entries preserved: ${timesheetEntriesPreserved}, lost: ${timesheetEntriesLost}`);
         }
 
-        // Restore preserved hours (estimatedHours, actualHours) to matching new tasks
+        // Restore preserved hours - externalId first, task name fallback
         let hoursPreserved = 0;
+        const processedHoursExtIds = new Set<string>();
+        for (const [extId, hours] of hoursByExternalId) {
+          const newTaskId = newExternalIdToTaskId.get(extId);
+          processedHoursExtIds.add(extId);
+          if (newTaskId && (hours.estimatedHours || hours.actualHours)) {
+            try {
+              await storage.updateTask(newTaskId, {
+                estimatedHours: hours.estimatedHours,
+                actualHours: hours.actualHours,
+              });
+              hoursPreserved++;
+            } catch (err) {
+              console.log(`Planner Premium sync: Failed to restore hours for externalId "${extId}":`, err);
+            }
+          }
+        }
         for (const [taskName, hours] of hoursByTaskName) {
+          if (processedHoursExtIds.size > 0) {
+            // Check if this was already processed by externalId
+            const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedHoursExtIds.has(t.externalId));
+            if (matchingTask) continue;
+          }
           const newTaskId = newTaskNameToId.get(taskName);
           if (newTaskId && (hours.estimatedHours || hours.actualHours)) {
             try {
@@ -5512,7 +5632,6 @@ export async function registerRoutes(
                 actualHours: hours.actualHours,
               });
               hoursPreserved++;
-              console.log(`Planner Premium sync: Restored hours for task "${taskName}" (estimated: ${hours.estimatedHours}, actual: ${hours.actualHours})`);
             } catch (err) {
               console.log(`Planner Premium sync: Failed to restore hours for task "${taskName}":`, err);
             }
@@ -5522,10 +5641,39 @@ export async function registerRoutes(
           console.log(`Planner Premium sync: Restored hours for ${hoursPreserved} tasks`);
         }
         
-        // Restore task change logs to matching new tasks
+        // Restore task change logs - externalId first, task name fallback
         let changeLogsPreserved = 0;
         let changeLogsLost = 0;
+        const processedChangeLogExtIds = new Set<string>();
+        for (const [extId, logs] of changeLogsByExternalId) {
+          const newTaskId = newExternalIdToTaskId.get(extId);
+          processedChangeLogExtIds.add(extId);
+          if (newTaskId) {
+            for (const log of logs) {
+              try {
+                await db.insert(taskChangeLogs).values({
+                  taskId: newTaskId,
+                  changedBy: log.changedBy,
+                  changedByName: log.changedByName,
+                  changedAt: log.changedAt,
+                  changeType: log.changeType,
+                  changeSummary: log.changeSummary,
+                  previousValues: log.previousValues,
+                  newValues: log.newValues,
+                });
+                changeLogsPreserved++;
+              } catch (err) {
+                console.log(`Planner Premium sync: Failed to preserve change log:`, err);
+                changeLogsLost++;
+              }
+            }
+          } else {
+            changeLogsLost += logs.length;
+          }
+        }
         for (const [taskName, logs] of changeLogsByTaskName) {
+          const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedChangeLogExtIds.has(t.externalId));
+          if (matchingTask) continue;
           const newTaskId = newTaskNameToId.get(taskName);
           if (newTaskId) {
             for (const log of logs) {
@@ -5554,14 +5702,44 @@ export async function registerRoutes(
           console.log(`Planner Premium sync: Preserved ${changeLogsPreserved} change logs, lost ${changeLogsLost}`);
         }
         
-        // Restore task dependencies to matching new tasks
+        // Restore task dependencies - externalId first, task name fallback
         let dependenciesPreserved = 0;
         let dependenciesLost = 0;
+        const processedDepExtIds = new Set<string>();
+        for (const [extId, deps] of dependenciesByExternalId) {
+          const newTaskId = newExternalIdToTaskId.get(extId);
+          processedDepExtIds.add(extId);
+          if (newTaskId) {
+            for (const dep of deps) {
+              const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
+              if (dependsOnTaskId) {
+                try {
+                  await db.insert(taskDependencies).values({
+                    taskId: newTaskId,
+                    dependsOnTaskId: dependsOnTaskId,
+                    dependencyType: dep.dependencyType,
+                    lagDays: dep.lagDays,
+                  });
+                  dependenciesPreserved++;
+                } catch (err) {
+                  console.log(`Planner Premium sync: Failed to preserve dependency:`, err);
+                  dependenciesLost++;
+                }
+              } else {
+                dependenciesLost++;
+              }
+            }
+          } else {
+            dependenciesLost += deps.length;
+          }
+        }
         for (const [taskName, deps] of dependenciesByTaskNames) {
+          const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedDepExtIds.has(t.externalId));
+          if (matchingTask) continue;
           const newTaskId = newTaskNameToId.get(taskName);
           if (newTaskId) {
             for (const dep of deps) {
-              const dependsOnTaskId = newTaskNameToId.get(dep.dependsOnTaskName);
+              const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
               if (dependsOnTaskId) {
                 try {
                   await db.insert(taskDependencies).values({
@@ -5587,11 +5765,11 @@ export async function registerRoutes(
           console.log(`Planner Premium sync: Preserved ${dependenciesPreserved} dependencies, lost ${dependenciesLost}`);
         }
         
-        // Restore issue/risk relatedTaskId links to matching new tasks
+        // Restore issue/risk relatedTaskId links - externalId first, task name fallback
         let issueLinksPreserved = 0;
         let issueLinksLost = 0;
-        for (const [issueId, taskName] of issuesWithRelatedTasks) {
-          const newTaskId = newTaskNameToId.get(taskName);
+        for (const [issueId, { externalId: extId, taskName }] of issuesWithRelatedTasks) {
+          const newTaskId = resolveNewTaskId(extId, taskName);
           if (newTaskId) {
             try {
               await db.update(issues).set({ relatedTaskId: newTaskId }).where(eq(issues.id, issueId));
@@ -5674,34 +5852,45 @@ export async function registerRoutes(
       // Get existing tasks for this project
       const existingTasks = await storage.getTasksByProject(projectId);
       
-      // Build old task ID to name mapping for relationship preservation
+      // Build old task ID to name and externalId mappings for relationship preservation
       const oldTaskIdToName = new Map<number, string>();
+      const oldTaskIdToExternalId = new Map<number, string>();
       for (const task of existingTasks) {
         oldTaskIdToName.set(task.id, task.name.toLowerCase().trim());
+        if (task.externalId) {
+          oldTaskIdToExternalId.set(task.id, task.externalId);
+        }
       }
       
-      // Preserve hours (estimatedHours, actualHours) by task name
-      // We'll restore them to matching new tasks after sync
+      // Preserve hours by externalId (primary) and task name (fallback)
+      const hoursByExternalId = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
       const hoursByTaskName = new Map<string, { estimatedHours: string | null; actualHours: string | null }>();
       for (const task of existingTasks) {
         if (task.estimatedHours || task.actualHours) {
+          const hoursData = { estimatedHours: task.estimatedHours, actualHours: task.actualHours };
+          if (task.externalId) {
+            hoursByExternalId.set(task.externalId, hoursData);
+          }
           const taskName = task.name.toLowerCase().trim();
           if (!hoursByTaskName.has(taskName)) {
-            hoursByTaskName.set(taskName, {
-              estimatedHours: task.estimatedHours,
-              actualHours: task.actualHours,
-            });
+            hoursByTaskName.set(taskName, hoursData);
           }
         }
       }
-      console.log(`Planner sync: Found ${hoursByTaskName.size} tasks with hours to preserve`);
+      console.log(`Planner sync: Found ${hoursByExternalId.size} tasks with hours to preserve (by externalId), ${hoursByTaskName.size} (by name)`);
       
-      // Preserve timesheet entries by collecting them with their task names
-      // We'll reassign them to matching new tasks after sync
+      // Preserve timesheet entries by externalId (primary) and task name (fallback)
+      const timesheetEntriesByExternalId = new Map<string, { entries: any[]; oldTaskId: number }[]>();
       const timesheetEntriesByTaskName = new Map<string, { entries: any[]; oldTaskId: number }[]>();
       for (const task of existingTasks) {
         const entries = await db.select().from(timesheetEntries).where(eq(timesheetEntries.taskId, task.id));
         if (entries.length > 0) {
+          if (task.externalId) {
+            if (!timesheetEntriesByExternalId.has(task.externalId)) {
+              timesheetEntriesByExternalId.set(task.externalId, []);
+            }
+            timesheetEntriesByExternalId.get(task.externalId)!.push({ entries, oldTaskId: task.id });
+          }
           const taskName = task.name.toLowerCase().trim();
           if (!timesheetEntriesByTaskName.has(taskName)) {
             timesheetEntriesByTaskName.set(taskName, []);
@@ -5709,13 +5898,20 @@ export async function registerRoutes(
           timesheetEntriesByTaskName.get(taskName)!.push({ entries, oldTaskId: task.id });
         }
       }
-      console.log(`Planner sync: Found ${timesheetEntriesByTaskName.size} tasks with timesheet entries to preserve`);
+      console.log(`Planner sync: Found ${timesheetEntriesByExternalId.size} tasks with timesheet entries to preserve (by externalId), ${timesheetEntriesByTaskName.size} (by name)`);
       
-      // Preserve task change logs by task name
+      // Preserve task change logs by externalId and task name
+      const changeLogsByExternalId = new Map<string, any[]>();
       const changeLogsByTaskName = new Map<string, any[]>();
       for (const task of existingTasks) {
         const logs = await db.select().from(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
         if (logs.length > 0) {
+          if (task.externalId) {
+            if (!changeLogsByExternalId.has(task.externalId)) {
+              changeLogsByExternalId.set(task.externalId, []);
+            }
+            changeLogsByExternalId.get(task.externalId)!.push(...logs);
+          }
           const taskName = task.name.toLowerCase().trim();
           if (!changeLogsByTaskName.has(taskName)) {
             changeLogsByTaskName.set(taskName, []);
@@ -5723,37 +5919,49 @@ export async function registerRoutes(
           changeLogsByTaskName.get(taskName)!.push(...logs);
         }
       }
-      console.log(`Planner sync: Found ${changeLogsByTaskName.size} tasks with change logs to preserve`);
+      console.log(`Planner sync: Found ${changeLogsByExternalId.size} tasks with change logs to preserve (by externalId), ${changeLogsByTaskName.size} (by name)`);
       
-      // Preserve task dependencies by task names (source -> target)
-      const dependenciesByTaskNames = new Map<string, { dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
+      // Preserve task dependencies by externalId and task names
+      const dependenciesByExternalId = new Map<string, { dependsOnExternalId: string | null; dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
+      const dependenciesByTaskNames = new Map<string, { dependsOnExternalId: string | null; dependsOnTaskName: string; dependencyType: string; lagDays: number }[]>();
       for (const task of existingTasks) {
         const deps = await db.select().from(taskDependencies).where(eq(taskDependencies.taskId, task.id));
         if (deps.length > 0) {
           const taskName = task.name.toLowerCase().trim();
-          if (!dependenciesByTaskNames.has(taskName)) {
-            dependenciesByTaskNames.set(taskName, []);
-          }
+          const taskExtId = task.externalId || null;
           for (const dep of deps) {
-            const dependsOnName = oldTaskIdToName.get(dep.dependsOnTaskId);
-            if (dependsOnName) {
-              dependenciesByTaskNames.get(taskName)!.push({
-                dependsOnTaskName: dependsOnName,
-                dependencyType: dep.dependencyType || 'finish-to-start',
-                lagDays: dep.lagDays || 0,
-              });
+            const dependsOnName = oldTaskIdToName.get(dep.dependsOnTaskId) || '';
+            const dependsOnExtId = oldTaskIdToExternalId.get(dep.dependsOnTaskId) || null;
+            const depData = {
+              dependsOnExternalId: dependsOnExtId,
+              dependsOnTaskName: dependsOnName,
+              dependencyType: dep.dependencyType || 'finish-to-start',
+              lagDays: dep.lagDays || 0,
+            };
+            if (taskExtId) {
+              if (!dependenciesByExternalId.has(taskExtId)) {
+                dependenciesByExternalId.set(taskExtId, []);
+              }
+              dependenciesByExternalId.get(taskExtId)!.push(depData);
             }
+            if (!dependenciesByTaskNames.has(taskName)) {
+              dependenciesByTaskNames.set(taskName, []);
+            }
+            dependenciesByTaskNames.get(taskName)!.push(depData);
           }
         }
       }
-      console.log(`Planner sync: Found ${dependenciesByTaskNames.size} tasks with dependencies to preserve`);
+      console.log(`Planner sync: Found ${dependenciesByExternalId.size} tasks with dependencies to preserve (by externalId), ${dependenciesByTaskNames.size} (by name)`);
       
-      // Collect issues with relatedTaskId for this project's tasks to update later
-      const issuesWithRelatedTasks = new Map<number, string>(); // issueId -> taskName
+      // Collect issues with relatedTaskId - store both externalId and taskName
+      const issuesWithRelatedTasks = new Map<number, { externalId: string | null; taskName: string }>();
       for (const task of existingTasks) {
         const relatedIssues = await db.select().from(issues).where(eq(issues.relatedTaskId, task.id));
         for (const issue of relatedIssues) {
-          issuesWithRelatedTasks.set(issue.id, task.name.toLowerCase().trim());
+          issuesWithRelatedTasks.set(issue.id, {
+            externalId: task.externalId || null,
+            taskName: task.name.toLowerCase().trim(),
+          });
         }
       }
       console.log(`Planner sync: Found ${issuesWithRelatedTasks.size} issues with related tasks to preserve`);
@@ -5840,18 +6048,25 @@ export async function registerRoutes(
           isMilestone: false,
           isSummary: false,
           isCritical: false,
+          externalId: plannerTask.id,
         });
 
         createdTasks.push({ task, plannerTaskId: plannerTask.id, assignments: plannerTask.assignments });
         
-        // Track new tasks by name for timesheet entry reassignment
+        // Track new tasks by name and externalId for timesheet entry reassignment
         const taskNameKey = plannerTask.title.toLowerCase().trim();
         if (!newTasksByName.has(taskNameKey)) {
           newTasksByName.set(taskNameKey, task.id);
         }
       }
 
-      // Warn if duplicate task names exist (relationships may be misassociated)
+      // Build externalId -> new task ID map for reliable matching
+      const newExternalIdToTaskId = new Map<string, number>();
+      for (const { task, plannerTaskId } of createdTasks) {
+        newExternalIdToTaskId.set(plannerTaskId, task.id);
+      }
+      
+      // Warn if duplicate task names exist
       const taskNameCounts = new Map<string, number>();
       for (const plannerTask of plannerTasks) {
         const taskName = plannerTask.title.toLowerCase().trim();
@@ -5864,14 +6079,25 @@ export async function registerRoutes(
         }
       }
       if (duplicateNames.length > 0) {
-        console.log(`Planner sync WARNING: ${duplicateNames.length} duplicate task names found. Relationships may be assigned to first matching task: ${duplicateNames.slice(0, 5).join(', ')}${duplicateNames.length > 5 ? '...' : ''}`);
+        console.log(`Planner sync WARNING: ${duplicateNames.length} duplicate task names found. Using externalId for reliable matching. Name fallback may be assigned to first matching task: ${duplicateNames.slice(0, 5).join(', ')}${duplicateNames.length > 5 ? '...' : ''}`);
       }
 
-      // Reassign preserved timesheet entries to matching new tasks
+      // Helper: resolve new task ID from externalId (primary) or task name (fallback)
+      const resolveNewTaskId = (extId: string | null, taskName: string): number | undefined => {
+        if (extId) {
+          const byExtId = newExternalIdToTaskId.get(extId);
+          if (byExtId) return byExtId;
+        }
+        return newTasksByName.get(taskName);
+      };
+
+      // Reassign preserved timesheet entries - externalId first, task name fallback
       let timesheetEntriesPreserved = 0;
       let timesheetEntriesLost = 0;
-      for (const [taskName, taskGroups] of timesheetEntriesByTaskName) {
-        const newTaskId = newTasksByName.get(taskName);
+      const processedTimesheetExternalIds = new Set<string>();
+      for (const [extId, taskGroups] of timesheetEntriesByExternalId) {
+        const newTaskId = newExternalIdToTaskId.get(extId);
+        processedTimesheetExternalIds.add(extId);
         if (newTaskId) {
           for (const { entries } of taskGroups) {
             for (const entry of entries) {
@@ -5895,24 +6121,87 @@ export async function registerRoutes(
                 });
                 timesheetEntriesPreserved++;
               } catch (err) {
-                console.log(`Planner sync: Failed to preserve timesheet entry:`, err);
+                console.log(`Planner sync: Failed to preserve timesheet entry (externalId ${extId}):`, err);
                 timesheetEntriesLost++;
               }
             }
           }
-          console.log(`Planner sync: Reassigned timesheet entries for task "${taskName}" to new task ID ${newTaskId}`);
         } else {
           for (const { entries } of taskGroups) {
             timesheetEntriesLost += entries.length;
           }
-          console.log(`Planner sync: Could not find matching task for "${taskName}" - ${taskGroups.reduce((sum, g) => sum + g.entries.length, 0)} entries lost`);
         }
       }
-      console.log(`Planner sync: Preserved ${timesheetEntriesPreserved} timesheet entries, lost ${timesheetEntriesLost}`)
+      // Fallback: process timesheet entries by task name for tasks without externalId
+      for (const [taskName, taskGroups] of timesheetEntriesByTaskName) {
+        const alreadyProcessed = taskGroups.every(({ oldTaskId }) => {
+          const extId = oldTaskIdToExternalId.get(oldTaskId);
+          return extId && processedTimesheetExternalIds.has(extId);
+        });
+        if (alreadyProcessed) continue;
+        
+        const newTaskId = newTasksByName.get(taskName);
+        if (newTaskId) {
+          for (const { entries, oldTaskId } of taskGroups) {
+            const extId = oldTaskIdToExternalId.get(oldTaskId);
+            if (extId && processedTimesheetExternalIds.has(extId)) continue;
+            for (const entry of entries) {
+              try {
+                await db.insert(timesheetEntries).values({
+                  organizationId: entry.organizationId,
+                  userId: entry.userId,
+                  resourceId: entry.resourceId,
+                  taskId: newTaskId,
+                  projectId: entry.projectId,
+                  entryDate: entry.entryDate,
+                  hours: entry.hours,
+                  notes: entry.notes,
+                  status: entry.status,
+                  submittedAt: entry.submittedAt,
+                  approvedBy: entry.approvedBy,
+                  approvedAt: entry.approvedAt,
+                  rejectionReason: entry.rejectionReason,
+                  createdAt: entry.createdAt,
+                  updatedAt: new Date(),
+                });
+                timesheetEntriesPreserved++;
+              } catch (err) {
+                console.log(`Planner sync: Failed to preserve timesheet entry (name ${taskName}):`, err);
+                timesheetEntriesLost++;
+              }
+            }
+          }
+        } else {
+          for (const { entries, oldTaskId } of taskGroups) {
+            const extId = oldTaskIdToExternalId.get(oldTaskId);
+            if (extId && processedTimesheetExternalIds.has(extId)) continue;
+            timesheetEntriesLost += entries.length;
+          }
+        }
+      }
+      console.log(`Planner sync: Preserved ${timesheetEntriesPreserved} timesheet entries, lost ${timesheetEntriesLost}`);
 
-      // Restore preserved hours (estimatedHours, actualHours) to matching new tasks
+      // Restore preserved hours - externalId first, task name fallback
       let hoursPreserved = 0;
+      const processedHoursExtIds = new Set<string>();
+      for (const [extId, hours] of hoursByExternalId) {
+        const newTaskId = newExternalIdToTaskId.get(extId);
+        processedHoursExtIds.add(extId);
+        if (newTaskId && (hours.estimatedHours || hours.actualHours)) {
+          try {
+            await storage.updateTask(newTaskId, {
+              estimatedHours: hours.estimatedHours,
+              actualHours: hours.actualHours,
+            });
+            hoursPreserved++;
+          } catch (err) {
+            console.log(`Planner sync: Failed to restore hours for externalId "${extId}":`, err);
+          }
+        }
+      }
       for (const [taskName, hours] of hoursByTaskName) {
+        const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedHoursExtIds.has(t.externalId));
+        if (matchingTask) continue;
         const newTaskId = newTasksByName.get(taskName);
         if (newTaskId && (hours.estimatedHours || hours.actualHours)) {
           try {
@@ -5921,7 +6210,6 @@ export async function registerRoutes(
               actualHours: hours.actualHours,
             });
             hoursPreserved++;
-            console.log(`Planner sync: Restored hours for task "${taskName}" (estimated: ${hours.estimatedHours}, actual: ${hours.actualHours})`);
           } catch (err) {
             console.log(`Planner sync: Failed to restore hours for task "${taskName}":`, err);
           }
@@ -5929,10 +6217,39 @@ export async function registerRoutes(
       }
       console.log(`Planner sync: Restored hours for ${hoursPreserved} tasks`);
       
-      // Restore task change logs to matching new tasks
+      // Restore task change logs - externalId first, task name fallback
       let changeLogsPreserved = 0;
       let changeLogsLost = 0;
+      const processedChangeLogExtIds = new Set<string>();
+      for (const [extId, logs] of changeLogsByExternalId) {
+        const newTaskId = newExternalIdToTaskId.get(extId);
+        processedChangeLogExtIds.add(extId);
+        if (newTaskId) {
+          for (const log of logs) {
+            try {
+              await db.insert(taskChangeLogs).values({
+                taskId: newTaskId,
+                changedBy: log.changedBy,
+                changedByName: log.changedByName,
+                changedAt: log.changedAt,
+                changeType: log.changeType,
+                changeSummary: log.changeSummary,
+                previousValues: log.previousValues,
+                newValues: log.newValues,
+              });
+              changeLogsPreserved++;
+            } catch (err) {
+              console.log(`Planner sync: Failed to preserve change log:`, err);
+              changeLogsLost++;
+            }
+          }
+        } else {
+          changeLogsLost += logs.length;
+        }
+      }
       for (const [taskName, logs] of changeLogsByTaskName) {
+        const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedChangeLogExtIds.has(t.externalId));
+        if (matchingTask) continue;
         const newTaskId = newTasksByName.get(taskName);
         if (newTaskId) {
           for (const log of logs) {
@@ -5959,14 +6276,44 @@ export async function registerRoutes(
       }
       console.log(`Planner sync: Preserved ${changeLogsPreserved} change logs, lost ${changeLogsLost}`);
       
-      // Restore task dependencies to matching new tasks
+      // Restore task dependencies - externalId first, task name fallback
       let dependenciesPreserved = 0;
       let dependenciesLost = 0;
+      const processedDepExtIds = new Set<string>();
+      for (const [extId, deps] of dependenciesByExternalId) {
+        const newTaskId = newExternalIdToTaskId.get(extId);
+        processedDepExtIds.add(extId);
+        if (newTaskId) {
+          for (const dep of deps) {
+            const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
+            if (dependsOnTaskId) {
+              try {
+                await db.insert(taskDependencies).values({
+                  taskId: newTaskId,
+                  dependsOnTaskId: dependsOnTaskId,
+                  dependencyType: dep.dependencyType,
+                  lagDays: dep.lagDays,
+                });
+                dependenciesPreserved++;
+              } catch (err) {
+                console.log(`Planner sync: Failed to preserve dependency:`, err);
+                dependenciesLost++;
+              }
+            } else {
+              dependenciesLost++;
+            }
+          }
+        } else {
+          dependenciesLost += deps.length;
+        }
+      }
       for (const [taskName, deps] of dependenciesByTaskNames) {
+        const matchingTask = existingTasks.find(t => t.name.toLowerCase().trim() === taskName && t.externalId && processedDepExtIds.has(t.externalId));
+        if (matchingTask) continue;
         const newTaskId = newTasksByName.get(taskName);
         if (newTaskId) {
           for (const dep of deps) {
-            const dependsOnTaskId = newTasksByName.get(dep.dependsOnTaskName);
+            const dependsOnTaskId = resolveNewTaskId(dep.dependsOnExternalId, dep.dependsOnTaskName);
             if (dependsOnTaskId) {
               try {
                 await db.insert(taskDependencies).values({
@@ -5990,11 +6337,11 @@ export async function registerRoutes(
       }
       console.log(`Planner sync: Preserved ${dependenciesPreserved} dependencies, lost ${dependenciesLost}`);
       
-      // Restore issue/risk relatedTaskId links to matching new tasks
+      // Restore issue/risk relatedTaskId links - externalId first, task name fallback
       let issueLinksPreserved = 0;
       let issueLinksLost = 0;
-      for (const [issueId, taskName] of issuesWithRelatedTasks) {
-        const newTaskId = newTasksByName.get(taskName);
+      for (const [issueId, { externalId: extId, taskName }] of issuesWithRelatedTasks) {
+        const newTaskId = resolveNewTaskId(extId, taskName);
         if (newTaskId) {
           try {
             await db.update(issues).set({ relatedTaskId: newTaskId }).where(eq(issues.id, issueId));

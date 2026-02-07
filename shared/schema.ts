@@ -361,6 +361,7 @@ export const tasks = pgTable("tasks", {
   labels: text("labels"), // Comma-separated labels
   notes: text("notes"),
   timesheetBlocked: boolean("timesheet_blocked").default(false), // Block timesheet entries against this task
+  externalId: text("external_id"), // External ID from source system (Planner task ID, Dataverse msdyn_projecttaskid)
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
