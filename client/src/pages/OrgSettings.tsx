@@ -208,9 +208,11 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         <TabsContent value="general" className="mt-0">
           <GeneralSection organization={currentOrganization} />
         </TabsContent>
-        <TabsContent value="billing" className="mt-0">
-          <BillingContent />
-        </TabsContent>
+        {(!currentOrganization.billingHidden || user?.role === 'super_admin') && (
+          <TabsContent value="billing" className="mt-0">
+            <BillingContent />
+          </TabsContent>
+        )}
         <TabsContent value="modules" className="mt-0">
           <ModuleVisibilitySection organization={currentOrganization} />
         </TabsContent>
