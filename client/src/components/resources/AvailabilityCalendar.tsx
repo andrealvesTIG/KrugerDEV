@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -200,14 +200,12 @@ export default function AvailabilityCalendar({ organizationId }: AvailabilityCal
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
+            <Button size="sm" onClick={() => setDialogOpen(true)} data-testid="button-add-time-off">
+              <Plus className="h-4 w-4 mr-1" />
+              Add Time Off
+            </Button>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" data-testid="button-add-time-off">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Time Off
-                </Button>
-              </DialogTrigger>
-              <DialogContent data-testid="dialog-add-time-off">
+              <DialogContent data-testid="dialog-add-time-off" onPointerDownOutside={(e) => e.preventDefault()}>
                 <DialogHeader>
                   <DialogTitle>Add Time Off</DialogTitle>
                 </DialogHeader>
