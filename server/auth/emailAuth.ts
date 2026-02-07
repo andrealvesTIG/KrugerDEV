@@ -429,6 +429,43 @@ export async function setupAuth(app: Express) {
     }
   });
 
+  // Set up password for authenticated users who don't have one yet (e.g., invited users)
+  app.post("/api/auth/setup-password", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ message: "You must be logged in to set up a password." });
+      }
+
+      const { password } = req.body;
+
+      if (!password || typeof password !== "string") {
+        return res.status(400).json({ message: "Password is required." });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters." });
+      }
+
+      const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+      if (!user) {
+        return res.status(401).json({ message: "User not found." });
+      }
+
+      if (user.passwordHash) {
+        return res.status(400).json({ message: "You already have a password set. Use the profile page to change it." });
+      }
+
+      const newHash = await hashPassword(password);
+      await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
+
+      console.log(`Password set up for user: ${user.email}`);
+      res.json({ success: true, message: "Password has been set up successfully." });
+    } catch (error) {
+      console.error("Setup password error:", error);
+      res.status(500).json({ message: "Failed to set up password." });
+    }
+  });
+
   // Request password reset
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {

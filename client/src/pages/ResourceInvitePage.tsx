@@ -43,9 +43,13 @@ export default function ResourceInvitePage() {
           queryClient.invalidateQueries({ queryKey: ["/api/user"] });
           queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
           
-          // Redirect to home after a short delay
+          // Redirect after a short delay
           setTimeout(() => {
-            setLocation("/");
+            if (data.isNewUser) {
+              setLocation("/account-setup");
+            } else {
+              setLocation("/");
+            }
           }, 3000);
         } else {
           setStatus("error");
@@ -106,7 +110,9 @@ export default function ResourceInvitePage() {
           
           {status === "success" && (
             <p className="text-sm text-muted-foreground">
-              Redirecting to your projects...
+              {isNewUser
+                ? "Redirecting to set up your sign-in method..."
+                : "Redirecting to your projects..."}
             </p>
           )}
 
