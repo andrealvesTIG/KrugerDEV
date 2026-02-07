@@ -2839,6 +2839,40 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
               />
             </div>
           </div>
+          {(() => {
+            const totalEstimated = tasks.reduce((sum, t) => sum + (t.estimatedHours ? Number(t.estimatedHours) : 0), 0);
+            const totalActual = tasks.reduce((sum, t) => sum + (t.actualHours ? Number(t.actualHours) : 0), 0);
+            if (totalEstimated === 0 && totalActual === 0) return null;
+            const variance = totalActual - totalEstimated;
+            const ratio = totalEstimated > 0 ? Math.round((totalActual / totalEstimated) * 100) : 0;
+            const isOver = variance > 0;
+            return (
+              <div className="rounded-md border p-3 bg-muted/20" data-testid="project-effort-summary">
+                <Label className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2 block">Effort Summary</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground">Estimated</span>
+                    <p className="text-sm font-semibold" data-testid="text-project-estimated-hours">{totalEstimated.toFixed(1)}h</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground">Actual</span>
+                    <p className="text-sm font-semibold" data-testid="text-project-actual-hours">{totalActual.toFixed(1)}h</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground">Variance</span>
+                    <p className={cn("text-sm font-semibold", isOver ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400")} data-testid="text-project-effort-variance">
+                      {isOver ? '+' : ''}{variance.toFixed(1)}h
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground">Utilization</span>
+                    <p className="text-sm font-semibold" data-testid="text-project-utilization">{ratio}%</p>
+                    <Progress value={Math.min(ratio, 100)} className="mt-1 h-1.5" />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           <div className="flex items-center space-x-2">
             <Checkbox
               id="project-timesheet-blocked"

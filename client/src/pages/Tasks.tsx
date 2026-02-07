@@ -24,7 +24,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -467,6 +468,67 @@ export default function Tasks() {
         message={limitError?.message}
       />
     <div className="space-y-4">
+      {(() => {
+        const tasksWithEffort = (allTasks || []).filter(t => t.estimatedHours || t.actualHours);
+        if (tasksWithEffort.length === 0) return null;
+        const totalEstimated = (allTasks || []).reduce((sum, t) => sum + (t.estimatedHours ? Number(t.estimatedHours) : 0), 0);
+        const totalActual = (allTasks || []).reduce((sum, t) => sum + (t.actualHours ? Number(t.actualHours) : 0), 0);
+        const variance = totalActual - totalEstimated;
+        const ratio = totalEstimated > 0 ? Math.round((totalActual / totalEstimated) * 100) : 0;
+        const isOver = variance > 0;
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="effort-summary-section">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Timer className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Estimated Hours</span>
+                </div>
+                <div className="text-xl font-semibold text-foreground" data-testid="text-total-estimated-hours">
+                  {totalEstimated.toFixed(1)}h
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Actual Hours</span>
+                </div>
+                <div className="text-xl font-semibold text-foreground" data-testid="text-total-actual-hours">
+                  {totalActual.toFixed(1)}h
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  {isOver ? <TrendingUp className="h-4 w-4 text-rose-500" /> : <TrendingDown className="h-4 w-4 text-emerald-500" />}
+                  <span className="text-xs text-muted-foreground">Variance</span>
+                </div>
+                <div className={cn("text-xl font-semibold", isOver ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400")} data-testid="text-effort-variance">
+                  {isOver ? '+' : ''}{variance.toFixed(1)}h
+                </div>
+                <Badge variant="outline" className={cn("mt-1 text-xs", isOver ? "text-rose-600 border-rose-200 dark:text-rose-400 dark:border-rose-800" : "text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800")}>
+                  {isOver ? 'Over budget' : 'Under budget'}
+                </Badge>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs text-muted-foreground">Utilization</span>
+                </div>
+                <div className="text-xl font-semibold text-foreground" data-testid="text-effort-ratio">
+                  {ratio}%
+                </div>
+                <Progress value={Math.min(ratio, 100)} className="mt-2 h-2" />
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-display font-bold text-foreground">Tasks</h1>
         <div className="flex items-center gap-2">
@@ -1141,7 +1203,7 @@ const taskZoomLabels: Record<TaskZoomLevel, string> = {
   '5year': '5 Years'
 };
 
-type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'duration' | 'progress' | 'status' | 'priority' | 'assignee' | 'resources' | 'wbs' | 'phase' | 'category';
+type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'duration' | 'progress' | 'status' | 'priority' | 'assignee' | 'resources' | 'wbs' | 'phase' | 'category' | 'estimatedHours' | 'actualHours' | 'remainingHours';
 
 const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[] = [
   { id: 'actions', label: '', width: 'w-10' },
@@ -1158,6 +1220,9 @@ const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[
   { id: 'resources', label: 'Resources', width: 'w-32' },
   { id: 'phase', label: 'Phase', width: 'w-24' },
   { id: 'category', label: 'Category', width: 'w-24' },
+  { id: 'estimatedHours', label: 'Est. Hours', width: 'w-24' },
+  { id: 'actualHours', label: 'Actual Hours', width: 'w-24' },
+  { id: 'remainingHours', label: 'Rem. Hours', width: 'w-24' },
 ];
 
 function GanttTaskRow({ 
@@ -1533,6 +1598,29 @@ function GanttTaskRow({
           {task.category || '—'}
         </div>
       )}
+      {visibleColumns.includes('estimatedHours') && (
+        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate" data-testid={`task-estimated-hours-${task.id}`}>
+          {task.estimatedHours ? `${task.estimatedHours}h` : '—'}
+        </div>
+      )}
+      {visibleColumns.includes('actualHours') && (
+        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center gap-1 truncate" data-testid={`task-actual-hours-${task.id}`}>
+          <span>{task.actualHours ? `${task.actualHours}h` : '—'}</span>
+          {task.estimatedHours && task.actualHours && (() => {
+            const variance = Number(task.actualHours) - Number(task.estimatedHours);
+            return variance > 0 ? (
+              <span className="text-[10px] font-medium text-rose-600 dark:text-rose-400">+{variance}h</span>
+            ) : (
+              <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">{variance}h</span>
+            );
+          })()}
+        </div>
+      )}
+      {visibleColumns.includes('remainingHours') && (
+        <div className="w-24 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center truncate" data-testid={`task-remaining-hours-${task.id}`}>
+          {task.remainingHours ? `${task.remainingHours}h` : '—'}
+        </div>
+      )}
       <div className="flex-1 relative px-1 py-0.5 min-h-[28px]">
         {/* Baseline bar (rendered first, below actual bar) */}
         {hasBaseline && baselineStart && baselineEnd && (
@@ -1610,7 +1698,7 @@ function GanttTaskRow({
 function GanttView({ tasks, projects, onTaskClick, embedded = false, organizationId = null }: { tasks: Task[]; projects: any[]; onTaskClick: (task: Task) => void; embedded?: boolean; organizationId?: number | null }) {
   const today = new Date();
   const [zoomLevel, setZoomLevel] = useState<TaskZoomLevel>('month');
-  const [visibleColumns, setVisibleColumns] = useState<TaskGanttColumn[]>(['actions', 'outlineLevel', 'task', 'startDate', 'endDate', 'progress', 'resources']);
+  const [visibleColumns, setVisibleColumns] = useState<TaskGanttColumn[]>(['actions', 'outlineLevel', 'task', 'startDate', 'endDate', 'progress', 'resources', 'estimatedHours', 'actualHours']);
   const updateTask = useUpdateTask();
   const { toast } = useToast();
   
@@ -1797,6 +1885,9 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
     if (visibleColumns.includes('endDate')) w += 96;
     if (visibleColumns.includes('progress')) w += 56;
     if (visibleColumns.includes('resources')) w += 128;
+    if (visibleColumns.includes('estimatedHours')) w += 96;
+    if (visibleColumns.includes('actualHours')) w += 96;
+    if (visibleColumns.includes('remainingHours')) w += 96;
     return w;
   }, [visibleColumns]);
 
@@ -1927,6 +2018,15 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
           )}
           {visibleColumns.includes('category') && (
             <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Category</div>
+          )}
+          {visibleColumns.includes('estimatedHours') && (
+            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Est. Hours</div>
+          )}
+          {visibleColumns.includes('actualHours') && (
+            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Actual Hours</div>
+          )}
+          {visibleColumns.includes('remainingHours') && (
+            <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Rem. Hours</div>
           )}
           <div className="flex-1 flex">
             {filteredDates.map((date, i) => (
