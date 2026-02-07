@@ -148,6 +148,7 @@ interface OrgBillingInfo {
   } | null;
   currentPlan: Plan | null;
   availablePlans: Plan[];
+  billingHidden: boolean;
 }
 
 type OrgColumnKey = 'name' | 'slug' | 'description' | 'owner' | 'members' | 'created';
@@ -169,6 +170,7 @@ function OrganizationsTab() {
   const [billingOrg, setBillingOrg] = useState<Organization | null>(null);
   const [selectedPlanCode, setSelectedPlanCode] = useState<string | null>(null);
   const [bonusSeats, setBonusSeats] = useState<string | null>(null);
+  const [billingHidden, setBillingHidden] = useState<boolean | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<OrgColumnKey[]>(defaultOrgColumns);
 
@@ -350,12 +352,13 @@ function OrganizationsTab() {
   });
 
   const updateBilling = useMutation({
-    mutationFn: async ({ planCode, bonusSeats }: { planCode?: string; bonusSeats?: number }) => {
-      return apiRequest('PUT', `/api/admin/organizations/${billingOrg?.id}/billing`, { planCode, bonusSeats });
+    mutationFn: async ({ planCode, bonusSeats, billingHidden }: { planCode?: string; bonusSeats?: number; billingHidden?: boolean }) => {
+      return apiRequest('PUT', `/api/admin/organizations/${billingOrg?.id}/billing`, { planCode, bonusSeats, billingHidden });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/organizations', billingOrg?.id, 'billing'] });
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${billingOrg?.id}/seats`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
       toast({ title: "Success", description: "Organization billing updated" });
       setBillingOrg(null);
     },
@@ -469,6 +472,7 @@ function OrganizationsTab() {
                         setBillingOrg(org);
                         setSelectedPlanCode(null);
                         setBonusSeats(null);
+                        setBillingHidden(null);
                       }}
                       data-testid={`button-billing-${org.id}`}
                       title="Manage billing & seats"
@@ -884,6 +888,21 @@ function OrganizationsTab() {
                   Additional seats granted as a bonus. These are added to the plan's seat limit.
                 </p>
               </div>
+
+              <div className="flex items-center gap-3 rounded-lg border p-4">
+                <Checkbox
+                  id="billing-hidden"
+                  checked={billingHidden ?? billingInfo?.billingHidden ?? false}
+                  onCheckedChange={(checked) => setBillingHidden(!!checked)}
+                  data-testid="checkbox-billing-hidden"
+                />
+                <div className="space-y-0.5">
+                  <Label htmlFor="billing-hidden" className="cursor-pointer">Hide Billing Menu</Label>
+                  <p className="text-xs text-muted-foreground">
+                    When enabled, the Billing page will be hidden from this organization's members.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter>
@@ -896,9 +915,11 @@ function OrganizationsTab() {
                 const finalBonusSeats = bonusSeats !== null 
                   ? parseInt(bonusSeats) 
                   : (billingInfo?.subscription?.bonusSeats ?? 0);
+                const finalBillingHidden = billingHidden ?? billingInfo?.billingHidden ?? false;
                 updateBilling.mutate({
                   planCode: finalPlanCode,
-                  bonusSeats: isNaN(finalBonusSeats) ? 0 : finalBonusSeats
+                  bonusSeats: isNaN(finalBonusSeats) ? 0 : finalBonusSeats,
+                  billingHidden: finalBillingHidden
                 });
               }}
               disabled={updateBilling.isPending || billingLoading}

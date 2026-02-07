@@ -14,6 +14,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import { format } from "date-fns";
 import PayPalSubscriptionButton from "@/components/PayPalSubscriptionButton";
 import type { Plan, Subscription, UsageRollup } from "@shared/schema";
@@ -1370,5 +1371,21 @@ export function BillingContent() {
 
 // Default export wraps BillingContent for standalone page use
 export default function Billing() {
+  const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
+  const [, setLocation] = useLocation();
+  
+  const shouldRedirect = currentOrganization?.billingHidden && user?.role !== 'super_admin';
+  
+  useEffect(() => {
+    if (shouldRedirect) {
+      setLocation('/');
+    }
+  }, [shouldRedirect, setLocation]);
+  
+  if (shouldRedirect) {
+    return null;
+  }
+  
   return <BillingContent />;
 }

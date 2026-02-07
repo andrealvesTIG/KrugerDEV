@@ -1829,8 +1829,10 @@ export async function registerRoutes(
       }
       
       const { billingProvider } = await import("./services/billing");
-      const { plans } = await import("@shared/schema");
+      const { plans, organizations } = await import("@shared/schema");
       const subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      
+      const [org] = await db.select({ billingHidden: organizations.billingHidden }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
       
       // Get all available plans
       const allPlans = await db.select().from(plans).where(eq(plans.isActive, true)).orderBy(plans.displayOrder);
@@ -1851,7 +1853,8 @@ export async function registerRoutes(
           currentPeriodEnd: subscription.currentPeriodEnd
         } : null,
         currentPlan,
-        availablePlans: allPlans
+        availablePlans: allPlans,
+        billingHidden: org?.billingHidden ?? false
       });
     } catch (err) {
       console.error("Error fetching org billing:", err);
@@ -1864,7 +1867,7 @@ export async function registerRoutes(
     try {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
-      const { planCode, bonusSeats } = req.body;
+      const { planCode, bonusSeats, billingHidden } = req.body;
       
       if (!userId) {
         return res.status(401).json({ message: 'Unauthorized' });
@@ -1873,6 +1876,11 @@ export async function registerRoutes(
       const user = await storage.getUser(userId);
       if (!user || user.role !== 'super_admin') {
         return res.status(403).json({ message: 'Super admin access required' });
+      }
+
+      if (billingHidden !== undefined) {
+        const { organizations } = await import("@shared/schema");
+        await db.update(organizations).set({ billingHidden: !!billingHidden }).where(eq(organizations.id, orgId));
       }
       
       const { billingProvider } = await import("./services/billing");

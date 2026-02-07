@@ -679,6 +679,9 @@ export function Sidebar() {
                 if ((item as any).superAdminOnly && user?.role !== 'super_admin') {
                   return null;
                 }
+                if (item.href === '/billing' && currentOrganization?.billingHidden && user?.role !== 'super_admin') {
+                  return null;
+                }
                 const isActive = location === item.href;
                 return (
                   <button
