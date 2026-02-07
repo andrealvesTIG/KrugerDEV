@@ -1255,7 +1255,7 @@ export async function setupAuth(app: Express) {
         }
         
         // Enforce seat limits before adding
-        const { checkSeatLimit } = await import("./services/billing");
+        const { checkSeatLimit } = await import("../services/billing");
         const seatCheck = await checkSeatLimit(metadata.organizationId, 1);
         if (!seatCheck.allowed) {
           console.log(`Seat limit reached for org ${metadata.organizationId}: ${seatCheck.currentSeats}/${seatCheck.maxSeats}`);
