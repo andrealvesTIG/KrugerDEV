@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -173,6 +173,9 @@ function OrganizationsTab() {
   const [billingHidden, setBillingHidden] = useState<boolean | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<OrgColumnKey[]>(defaultOrgColumns);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState<string>("newest");
+  const pageSize = 15;
 
   const { data: organizations, isLoading } = useQuery<Organization[]>({
     queryKey: ['/api/organizations']
@@ -213,16 +216,44 @@ function OrganizationsTab() {
     return owner ? `${owner.firstName || ''} ${owner.lastName || ''}`.trim() || owner.email : ownerId;
   };
 
-  const filteredOrganizations = organizations?.filter(org => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      org.name?.toLowerCase().includes(q) ||
-      org.slug?.toLowerCase().includes(q) ||
-      org.description?.toLowerCase().includes(q) ||
-      getOwnerName(org.ownerId)?.toLowerCase().includes(q)
-    );
-  });
+  const filteredOrganizations = useMemo(() => {
+    let result = organizations ?? [];
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(org =>
+        org.name?.toLowerCase().includes(q) ||
+        org.slug?.toLowerCase().includes(q) ||
+        org.description?.toLowerCase().includes(q) ||
+        getOwnerName(org.ownerId)?.toLowerCase().includes(q)
+      );
+    }
+    const sorted = [...result];
+    switch (sortBy) {
+      case "newest":
+        sorted.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+        break;
+      case "oldest":
+        sorted.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+        break;
+      case "name-asc":
+        sorted.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+        break;
+      case "name-desc":
+        sorted.sort((a, b) => (b.name ?? '').localeCompare(a.name ?? ''));
+        break;
+      case "members":
+        sorted.sort((a, b) => getMemberCount(b.id) - getMemberCount(a.id));
+        break;
+    }
+    return sorted;
+  }, [organizations, searchQuery, sortBy, users, allOrgMembers]);
+
+  const totalPages = Math.max(1, Math.ceil((filteredOrganizations?.length ?? 0) / pageSize));
+  const effectiveCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedOrganizations = useMemo(() => {
+    const start = (effectiveCurrentPage - 1) * pageSize;
+    return filteredOrganizations.slice(start, start + pageSize);
+  }, [filteredOrganizations, effectiveCurrentPage, pageSize]);
 
   const toggleColumn = (col: OrgColumnKey) => {
     setVisibleColumns(prev => 
@@ -376,17 +407,32 @@ function OrganizationsTab() {
           <CardTitle>All Organizations</CardTitle>
           <CardDescription>Manage organization tenants in the system</CardDescription>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search organizations..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-8 w-[200px]"
               data-testid="input-org-search"
             />
           </div>
+          <Select value={sortBy} onValueChange={(v) => { setSortBy(v); setCurrentPage(1); }}>
+            <SelectTrigger className="w-[160px]" data-testid="select-sort-by">
+              <SelectValue placeholder="Sort by..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest First</SelectItem>
+              <SelectItem value="oldest">Oldest First</SelectItem>
+              <SelectItem value="name-asc">Name A-Z</SelectItem>
+              <SelectItem value="name-desc">Name Z-A</SelectItem>
+              <SelectItem value="members">Most Members</SelectItem>
+            </SelectContent>
+          </Select>
+          <Badge variant="secondary" className="text-xs">
+            {filteredOrganizations.length} org{filteredOrganizations.length !== 1 ? 's' : ''}
+          </Badge>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" data-testid="button-column-toggle">
@@ -425,7 +471,7 @@ function OrganizationsTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredOrganizations?.map(org => (
+            {paginatedOrganizations?.map(org => (
               <TableRow key={org.id} data-testid={`org-row-${org.id}`}>
                 {visibleColumns.includes('name') && <TableCell className="font-medium">{org.name}</TableCell>}
                 {visibleColumns.includes('slug') && (
@@ -504,6 +550,55 @@ function OrganizationsTab() {
         {filteredOrganizations?.length === 0 && (
           <div className="text-center py-8 text-slate-500">
             {searchQuery ? 'No organizations match your search.' : 'No organizations yet. Create one to get started.'}
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-4 pt-4 border-t mt-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {((effectiveCurrentPage - 1) * pageSize) + 1}–{Math.min(effectiveCurrentPage * pageSize, filteredOrganizations.length)} of {filteredOrganizations.length}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={effectiveCurrentPage <= 1}
+                onClick={() => setCurrentPage(1)}
+                data-testid="button-page-first"
+              >
+                First
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={effectiveCurrentPage <= 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                data-testid="button-page-prev"
+              >
+                Previous
+              </Button>
+              <span className="px-3 text-sm text-muted-foreground">
+                Page {effectiveCurrentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={effectiveCurrentPage >= totalPages}
+                onClick={() => setCurrentPage(p => p + 1)}
+                data-testid="button-page-next"
+              >
+                Next
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={effectiveCurrentPage >= totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                data-testid="button-page-last"
+              >
+                Last
+              </Button>
+            </div>
           </div>
         )}
 

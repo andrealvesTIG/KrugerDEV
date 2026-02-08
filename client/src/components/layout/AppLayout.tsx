@@ -1,10 +1,10 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useMemo, useRef, useEffect } from "react";
 import { Sidebar, SidebarProvider, useSidebarState, logoIcon, logoBlack, logoWhite } from "./Sidebar";
 import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -12,6 +12,7 @@ import { QuickAddMenu } from "./QuickAddMenu";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -54,8 +55,24 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const { isActingAs, realUser, actingAsOrgId, user } = useAuth();
   const [location] = useLocation();
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
+  const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
+  const [orgSearchQuery, setOrgSearchQuery] = useState("");
+  const orgSearchRef = useRef<HTMLInputElement>(null);
   const { theme } = useTheme();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (orgDropdownOpen) {
+      setOrgSearchQuery("");
+      setTimeout(() => orgSearchRef.current?.focus(), 50);
+    }
+  }, [orgDropdownOpen]);
+
+  const filteredOrgs = useMemo(() => {
+    if (!orgSearchQuery.trim()) return organizations;
+    const q = orgSearchQuery.toLowerCase();
+    return organizations.filter(org => org.name?.toLowerCase().includes(q));
+  }, [organizations, orgSearchQuery]);
   
   const stopActingAsMutation = useMutation({
     mutationFn: async () => {
@@ -133,28 +150,67 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                     <span>{currentOrganization?.name}</span>
                   </div>
                 ) : (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger 
-                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
-                      data-testid="dropdown-organization"
-                    >
-                      <Building2 className="h-4 w-4" />
-                      <span>{currentOrganization?.name || 'Select organization'}</span>
-                      <ChevronDown className="h-3 w-3" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      {organizations.map(org => (
-                        <DropdownMenuItem
-                          key={org.id}
-                          onClick={() => setCurrentOrganization(org)}
-                          className={currentOrganization?.id === org.id ? 'bg-accent' : ''}
-                          data-testid={`dropdown-item-org-${org.id}`}
-                        >
-                          {org.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Popover open={orgDropdownOpen} onOpenChange={setOrgDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                        data-testid="dropdown-organization"
+                      >
+                        <Building2 className="h-4 w-4" />
+                        <span>{currentOrganization?.name || 'Select organization'}</span>
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-0" align="start">
+                      {organizations.length >= 5 && (
+                        <div className="p-2 border-b">
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              ref={orgSearchRef}
+                              placeholder="Search organizations..."
+                              value={orgSearchQuery}
+                              onChange={(e) => setOrgSearchQuery(e.target.value)}
+                              className="pl-8 h-8 text-sm"
+                              data-testid="input-org-search"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <ScrollArea className={organizations.length >= 8 ? "h-[280px]" : ""}>
+                        <div className="p-1">
+                          {filteredOrgs.length === 0 ? (
+                            <div className="py-4 text-center text-sm text-muted-foreground">
+                              No organizations found
+                            </div>
+                          ) : (
+                            filteredOrgs.map(org => (
+                              <Button
+                                key={org.id}
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setCurrentOrganization(org);
+                                  setOrgDropdownOpen(false);
+                                }}
+                                className={`w-full justify-start gap-2 ${
+                                  currentOrganization?.id === org.id ? 'bg-accent text-accent-foreground' : ''
+                                }`}
+                                data-testid={`dropdown-item-org-${org.id}`}
+                              >
+                                {currentOrganization?.id === org.id ? (
+                                  <Check className="h-3.5 w-3.5 flex-shrink-0" />
+                                ) : (
+                                  <span className="w-3.5 flex-shrink-0" />
+                                )}
+                                <span className="truncate">{org.name}</span>
+                              </Button>
+                            ))
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
                 )}
               </div>
             )}
