@@ -15480,6 +15480,48 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // Get all team timesheet entries for approvers/admins (used by dashboards)
+  app.get('/api/timesheets/team', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+
+      if (!organizationId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      const resources = await storage.getResources(organizationId);
+      const userResource = resources.find(r => r.userId === userId);
+      const user = await storage.getUser(userId);
+      const membership = (await storage.getOrganizationMembers(organizationId)).find(m => m.userId === userId);
+      const isSuperAdmin = user?.role === 'super_admin';
+      const isOrgAdmin = membership?.role === 'org_admin' || membership?.role === 'owner';
+      const isApprover = userResource?.isApprover === true;
+
+      if (!isSuperAdmin && !isOrgAdmin && !isApprover) {
+        return res.status(403).json({ message: 'Not authorized to view team timesheets' });
+      }
+
+      const entriesWithDetails = await storage.getAllTimesheetEntriesWithDetails(organizationId, startDate, endDate);
+
+      const enrichedEntries = await Promise.all(entriesWithDetails.map(async ({ entry, task, project }) => {
+        const resource = await storage.getResource(entry.resourceId);
+        return { ...entry, task, project, resource };
+      }));
+
+      res.json(enrichedEntries);
+    } catch (error) {
+      console.error('Error getting team timesheet entries:', error);
+      res.status(500).json({ message: 'Failed to get team timesheet entries' });
+    }
+  });
+
   // Get timesheet entries for approval (managers/approvers)
   app.get('/api/timesheets/approval', async (req, res) => {
     const userId = getUserIdFromRequest(req);

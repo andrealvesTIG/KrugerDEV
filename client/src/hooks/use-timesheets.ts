@@ -34,6 +34,18 @@ export function useTimesheetEntriesForApproval(organizationId: number | null, st
   });
 }
 
+export function useTeamTimesheetEntries(organizationId: number | null, startDate: string, endDate: string) {
+  return useQuery<TimesheetEntryWithDetails[]>({
+    queryKey: ["/api/timesheets/team", organizationId, startDate, endDate],
+    enabled: !!organizationId && !!startDate && !!endDate,
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheets/team?organizationId=${organizationId}&startDate=${startDate}&endDate=${endDate}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+  });
+}
+
 export function useAssignedTasks(organizationId: number | null, userId: string | undefined) {
   return useQuery<{ task: Task; project: Project }[]>({
     queryKey: ["/api/timesheets/assigned-tasks", organizationId, userId],

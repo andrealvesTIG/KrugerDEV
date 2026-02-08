@@ -61,6 +61,7 @@ import {
   MessageSquare,
   Loader2,
   AlertCircle,
+  CheckCircle2,
   FolderOpen,
   StickyNote,
   TrendingUp,
@@ -987,7 +988,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
 function ApprovalTab() {
   const { currentOrganization } = useOrganization();
-  const { data: entries, isLoading } = useTimesheetEntriesForApproval(currentOrganization?.id || null, "Submitted");
+  const [statusFilter, setStatusFilter] = useState<"Submitted" | "Approved" | "Rejected">("Submitted");
+  const { data: entries, isLoading } = useTimesheetEntriesForApproval(currentOrganization?.id || null, statusFilter);
   const approveEntry = useApproveTimesheetEntry();
   const rejectEntry = useRejectTimesheetEntry();
   const [rejectDialog, setRejectDialog] = useState<{ id: number; open: boolean; isBulk?: boolean }>({ id: 0, open: false });
@@ -995,6 +997,7 @@ function ApprovalTab() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  const isPending = statusFilter === "Submitted";
 
   const handleApprove = async (id: number) => {
     try {
@@ -1115,20 +1118,52 @@ function ApprovalTab() {
     toast({ title: "Export Complete", description: "Excel file downloaded successfully" });
   };
 
+  const statusFilterTabs = (
+    <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg mb-4">
+      {(["Submitted", "Approved", "Rejected"] as const).map((status) => (
+        <button
+          key={status}
+          onClick={() => { setStatusFilter(status); setSelectedIds(new Set()); }}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            statusFilter === status
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover-elevate"
+          }`}
+          data-testid={`button-filter-${status.toLowerCase()}`}
+        >
+          {status === "Submitted" ? "Pending" : status}
+        </button>
+      ))}
+    </div>
+  );
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div>
+        {statusFilterTabs}
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       </div>
     );
   }
 
   if (!entries || entries.length === 0) {
+    const emptyMessages: Record<string, { icon: typeof Check; title: string; description: string }> = {
+      Submitted: { icon: Check, title: "All Caught Up", description: "No timesheets pending approval" },
+      Approved: { icon: CheckCircle2, title: "No Approved Entries", description: "No approved timesheet entries found" },
+      Rejected: { icon: X, title: "No Rejected Entries", description: "No rejected timesheet entries found" },
+    };
+    const msg = emptyMessages[statusFilter];
+    const EmptyIcon = msg.icon;
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <Check className="h-12 w-12 text-green-500 mb-4" />
-        <h3 className="text-lg font-medium text-foreground mb-2">All Caught Up</h3>
-        <p className="text-muted-foreground">No timesheets pending approval</p>
+      <div>
+        {statusFilterTabs}
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <EmptyIcon className={`h-12 w-12 mb-4 ${statusFilter === "Submitted" ? "text-green-500" : "text-muted-foreground"}`} />
+          <h3 className="text-lg font-medium text-foreground mb-2">{msg.title}</h3>
+          <p className="text-muted-foreground">{msg.description}</p>
+        </div>
       </div>
     );
   }
@@ -1142,49 +1177,72 @@ function ApprovalTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap p-3 bg-muted/30 rounded-lg">
-        <div className="flex items-center gap-3">
-          <Checkbox
-            checked={selectedIds.size === entries.length && entries.length > 0}
-            onCheckedChange={toggleSelectAll}
-            data-testid="checkbox-select-all"
-          />
-          <span className="text-sm text-muted-foreground">
-            {selectedIds.size > 0 ? `${selectedIds.size} selected` : "Select all"}
-          </span>
+      {statusFilterTabs}
+
+      {isPending && (
+        <div className="flex items-center justify-between gap-2 flex-wrap p-3 bg-muted/30 rounded-lg">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={selectedIds.size === entries.length && entries.length > 0}
+              onCheckedChange={toggleSelectAll}
+              data-testid="checkbox-select-all"
+            />
+            <span className="text-sm text-muted-foreground">
+              {selectedIds.size > 0 ? `${selectedIds.size} selected` : "Select all"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <>
+                <Button 
+                  size="sm" 
+                  onClick={handleBulkApprove}
+                  disabled={isProcessing}
+                  className="bg-emerald-600"
+                  data-testid="button-bulk-approve"
+                >
+                  {isProcessing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
+                  Approve Selected ({selectedIds.size})
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="destructive"
+                  onClick={() => setRejectDialog({ id: 0, open: true, isBulk: true })}
+                  disabled={isProcessing}
+                  data-testid="button-bulk-reject"
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Reject Selected
+                </Button>
+              </>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleExportToExcel}
+                  data-testid="button-export-excel"
+                >
+                  <FileSpreadsheet className="mr-1 h-4 w-4" />
+                  Export Excel
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Download as Excel file</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {selectedIds.size > 0 && (
-            <>
-              <Button 
-                size="sm" 
-                onClick={handleBulkApprove}
-                disabled={isProcessing}
-                className="bg-emerald-600 hover:bg-emerald-700"
-                data-testid="button-bulk-approve"
-              >
-                {isProcessing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
-                Approve Selected ({selectedIds.size})
-              </Button>
-              <Button 
-                size="sm" 
-                variant="destructive"
-                onClick={() => setRejectDialog({ id: 0, open: true, isBulk: true })}
-                disabled={isProcessing}
-                data-testid="button-bulk-reject"
-              >
-                <X className="mr-1 h-4 w-4" />
-                Reject Selected
-              </Button>
-            </>
-          )}
+      )}
+
+      {!isPending && (
+        <div className="flex items-center justify-end gap-2 flex-wrap">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
                 size="sm" 
                 variant="outline"
                 onClick={handleExportToExcel}
-                data-testid="button-export-excel"
+                data-testid="button-export-excel-history"
               >
                 <FileSpreadsheet className="mr-1 h-4 w-4" />
                 Export Excel
@@ -1193,7 +1251,7 @@ function ApprovalTab() {
             <TooltipContent>Download as Excel file</TooltipContent>
           </Tooltip>
         </div>
-      </div>
+      )}
 
       {Object.entries(groupedByUser).map(([userId, userEntries]) => {
         const resource = (userEntries[0] as any).resource;
@@ -1205,19 +1263,21 @@ function ApprovalTab() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={userSelectedCount === userEntries.length}
-                    onCheckedChange={() => {
-                      const newSet = new Set(selectedIds);
-                      if (userSelectedCount === userEntries.length) {
-                        userEntries.forEach(e => newSet.delete(e.id));
-                      } else {
-                        userEntries.forEach(e => newSet.add(e.id));
-                      }
-                      setSelectedIds(newSet);
-                    }}
-                    data-testid={`checkbox-select-user-${userId}`}
-                  />
+                  {isPending && (
+                    <Checkbox
+                      checked={userSelectedCount === userEntries.length}
+                      onCheckedChange={() => {
+                        const newSet = new Set(selectedIds);
+                        if (userSelectedCount === userEntries.length) {
+                          userEntries.forEach(e => newSet.delete(e.id));
+                        } else {
+                          userEntries.forEach(e => newSet.add(e.id));
+                        }
+                        setSelectedIds(newSet);
+                      }}
+                      data-testid={`checkbox-select-user-${userId}`}
+                    />
+                  )}
                   <MicrosoftContactCard
                     displayName={resource?.displayName || "Unknown"}
                     email={resource?.email}
@@ -1233,21 +1293,23 @@ function ApprovalTab() {
                   </MicrosoftContactCard>
                   <div>
                     <CardTitle className="text-lg">{resource?.displayName || "Unknown"}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{totalHours.toFixed(1)} hours pending</p>
+                    <p className="text-sm text-muted-foreground">{totalHours.toFixed(1)} hours {isPending ? "pending" : statusFilter.toLowerCase()}</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => handleApproveAll(userEntries.map(e => e.id))}
-                    disabled={isProcessing}
-                    data-testid={`button-approve-all-${userId}`}
-                  >
-                    {isProcessing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
-                    Approve All
-                  </Button>
-                </div>
+                {isPending && (
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => handleApproveAll(userEntries.map(e => e.id))}
+                      disabled={isProcessing}
+                      data-testid={`button-approve-all-${userId}`}
+                    >
+                      {isProcessing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
+                      Approve All
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -1256,15 +1318,17 @@ function ApprovalTab() {
                   <div 
                     key={entry.id} 
                     className={`flex items-center justify-between p-3 rounded-lg gap-4 flex-wrap transition-colors ${
-                      selectedIds.has(entry.id) ? 'bg-primary/10 border border-primary/30' : 'bg-muted/50'
+                      isPending && selectedIds.has(entry.id) ? 'bg-primary/10 border border-primary/30' : 'bg-muted/50'
                     }`}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-[200px] max-w-[350px]">
-                      <Checkbox
-                        checked={selectedIds.has(entry.id)}
-                        onCheckedChange={() => toggleSelection(entry.id)}
-                        data-testid={`checkbox-entry-${entry.id}`}
-                      />
+                      {isPending && (
+                        <Checkbox
+                          checked={selectedIds.has(entry.id)}
+                          onCheckedChange={() => toggleSelection(entry.id)}
+                          data-testid={`checkbox-entry-${entry.id}`}
+                        />
+                      )}
                       <div className="overflow-hidden">
                         <div className="font-medium truncate" title={(entry as any).task?.name || "Unknown Task"}>{(entry as any).task?.name || "Unknown Task"}</div>
                         <div className="text-sm text-muted-foreground truncate" title={`${(entry as any).project?.name || "Unknown Project"} • ${entry.entryDate}`}>
@@ -1276,30 +1340,49 @@ function ApprovalTab() {
                             <span className="line-clamp-1">{entry.notes}</span>
                           </div>
                         )}
+                        {statusFilter === "Rejected" && entry.rejectionReason && (
+                          <div className="text-sm text-destructive mt-1 flex items-start gap-1">
+                            <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                            <span className="line-clamp-1">Reason: {entry.rejectionReason}</span>
+                          </div>
+                        )}
+                        {statusFilter === "Approved" && entry.approvedAt && (
+                          <div className="text-sm text-green-600 dark:text-green-400 mt-1 flex items-start gap-1">
+                            <CheckCircle2 className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                            <span>Approved {format(new Date(entry.approvedAt), 'MMM d, yyyy')}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-mono font-medium text-lg">{Number(entry.hours).toFixed(1)}h</span>
-                      <div className="flex gap-1">
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
-                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                          onClick={() => handleApprove(entry.id)}
-                          data-testid={`button-approve-${entry.id}`}
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
-                          className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => setRejectDialog({ id: entry.id, open: true })}
-                          data-testid={`button-reject-${entry.id}`}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      {isPending && (
+                        <div className="flex gap-1">
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="text-green-600"
+                            onClick={() => handleApprove(entry.id)}
+                            data-testid={`button-approve-${entry.id}`}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="text-red-600"
+                            onClick={() => setRejectDialog({ id: entry.id, open: true })}
+                            data-testid={`button-reject-${entry.id}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                      {!isPending && (
+                        <Badge variant={statusFilter === "Approved" ? "default" : "destructive"} className="text-xs">
+                          {statusFilter}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 ))}

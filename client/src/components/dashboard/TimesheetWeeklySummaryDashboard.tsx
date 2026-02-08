@@ -4,7 +4,7 @@ import { useResources } from "@/hooks/use-resources";
 import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useAuth } from "@/hooks/use-auth";
-import { useCurrentUserResource } from "@/hooks/use-timesheets";
+import { useCurrentUserResource, useTeamTimesheetEntries, useTimesheetEntries } from "@/hooks/use-timesheets";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardActionBar } from "./DashboardActionBar";
 import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
@@ -51,15 +51,19 @@ export function TimesheetWeeklySummaryDashboard() {
   const fetchStartDate = subWeeks(currentWeekStart, 4).toISOString().split('T')[0];
   const fetchEndDate = currentWeekEnd.toISOString().split('T')[0];
 
-  const { data: timesheetEntries = [], isLoading: timesheetsLoading } = useQuery<TimesheetEntry[]>({
-    queryKey: ['/api/timesheets/weekly', currentOrganization?.id, fetchStartDate, fetchEndDate],
-    queryFn: async () => {
-      const res = await fetch(`/api/timesheets?organizationId=${currentOrganization?.id}&startDate=${fetchStartDate}&endDate=${fetchEndDate}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  const { data: teamEntries = [], isLoading: teamLoading } = useTeamTimesheetEntries(
+    canViewTeam ? (currentOrganization?.id ?? null) : null,
+    fetchStartDate,
+    fetchEndDate
+  );
+  const { data: personalEntries = [], isLoading: personalLoading } = useTimesheetEntries(
+    canViewTeam ? undefined : user?.id,
+    canViewTeam ? null : (currentOrganization?.id ?? null),
+    fetchStartDate,
+    fetchEndDate
+  );
+  const timesheetEntries = canViewTeam ? teamEntries : personalEntries;
+  const timesheetsLoading = canViewTeam ? teamLoading : personalLoading;
 
   const filteredResources = useMemo(() => {
     return (resources ?? []).filter(r => {
