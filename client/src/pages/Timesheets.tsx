@@ -1000,17 +1000,17 @@ function ApprovalTab() {
     try {
       await approveEntry.mutateAsync(id);
       toast({ title: "Approved", description: "Timesheet entry has been approved" });
-    } catch (err) {
-      toast({ title: "Error", description: "Failed to approve entry", variant: "destructive" });
+    } catch (err: any) {
+      const message = err?.message || "Failed to approve entry";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 
-  const handleBulkApprove = async () => {
-    if (selectedIds.size === 0) return;
+  const handleApproveAll = async (ids: number[]) => {
     setIsProcessing(true);
     try {
       let successCount = 0;
-      for (const id of selectedIds) {
+      for (const id of ids) {
         try {
           await approveEntry.mutateAsync(id);
           successCount++;
@@ -1019,21 +1019,28 @@ function ApprovalTab() {
         }
       }
       toast({ 
-        title: "Bulk Approval Complete", 
-        description: `${successCount} of ${selectedIds.size} entries approved` 
+        title: "Approval Complete", 
+        description: `${successCount} of ${ids.length} entries approved` 
       });
-      setSelectedIds(new Set());
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const handleBulkApprove = async () => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    await handleApproveAll(ids);
+    setSelectedIds(new Set());
+  };
+
   const handleBulkReject = async () => {
     if (selectedIds.size === 0) return;
     setIsProcessing(true);
+    const ids = Array.from(selectedIds);
     try {
       let successCount = 0;
-      for (const id of selectedIds) {
+      for (const id of ids) {
         try {
           await rejectEntry.mutateAsync({ id, rejectionReason });
           successCount++;
@@ -1043,7 +1050,7 @@ function ApprovalTab() {
       }
       toast({ 
         title: "Bulk Rejection Complete", 
-        description: `${successCount} of ${selectedIds.size} entries rejected` 
+        description: `${successCount} of ${ids.length} entries rejected` 
       });
       setSelectedIds(new Set());
       setRejectDialog({ id: 0, open: false });
@@ -1096,7 +1103,7 @@ function ApprovalTab() {
       task: (entry as any).task?.name || "Unknown",
       date: entry.entryDate,
       hours: Number(entry.hours),
-      status: entry.status,
+      status: entry.status || "Draft",
       notes: entry.notes || ""
     }));
     
@@ -1233,10 +1240,11 @@ function ApprovalTab() {
                   <Button 
                     size="sm" 
                     variant="outline" 
-                    onClick={() => userEntries.forEach(e => handleApprove(e.id))}
+                    onClick={() => handleApproveAll(userEntries.map(e => e.id))}
+                    disabled={isProcessing}
                     data-testid={`button-approve-all-${userId}`}
                   >
-                    <Check className="mr-1 h-4 w-4" />
+                    {isProcessing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}
                     Approve All
                   </Button>
                 </div>
@@ -1741,7 +1749,7 @@ export default function Timesheets() {
       task: assignedTasks.find(t => t.task.id === entry.taskId)?.task?.name || "Unknown",
       date: entry.entryDate,
       hours: Number(entry.hours),
-      status: entry.status,
+      status: entry.status || "Draft",
       notes: entry.notes || ""
     }));
     

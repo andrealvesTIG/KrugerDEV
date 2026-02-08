@@ -111,8 +111,9 @@ export function useSubmitTimesheetWeek() {
       const response = await apiRequest("POST", "/api/timesheets/submit-week", { organizationId, startDate, endDate });
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["/api/timesheets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timesheets/approval"] });
     },
   });
 }
@@ -124,9 +125,9 @@ export function useApproveTimesheetEntry() {
       const response = await apiRequest("POST", `/api/timesheets/${id}/approve`);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["/api/timesheets/approval"] });
       queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/timesheets/approval"] });
     },
   });
 }
@@ -138,9 +139,9 @@ export function useRejectTimesheetEntry() {
       const response = await apiRequest("POST", `/api/timesheets/${id}/reject`, { rejectionReason });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["/api/timesheets/approval"] });
       queryClient.invalidateQueries({ queryKey: ["/api/timesheets"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/timesheets/approval"] });
     },
   });
 }

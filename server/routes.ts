@@ -16014,6 +16014,11 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: 'You are not authorized to approve timesheets' });
       }
 
+      // Only allow approving entries that are in "Submitted" status
+      if (entry.status !== 'Submitted') {
+        return res.status(400).json({ message: `Cannot approve entry with status "${entry.status}". Only submitted entries can be approved.` });
+      }
+
       // Check if entry date is in a closed period
       const closedPeriods = await storage.getClosedPeriodsForDateRange(entry.organizationId, entry.entryDate, entry.entryDate);
       if (closedPeriods.length > 0) {
@@ -16051,6 +16056,11 @@ Return ONLY valid JSON.`;
       
       if (!userResource?.isApprover) {
         return res.status(403).json({ message: 'You are not authorized to reject timesheets' });
+      }
+
+      // Only allow rejecting entries that are in "Submitted" status
+      if (entry.status !== 'Submitted') {
+        return res.status(400).json({ message: `Cannot reject entry with status "${entry.status}". Only submitted entries can be rejected.` });
       }
 
       // Check if entry date is in a closed period
