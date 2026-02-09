@@ -429,7 +429,7 @@ export function Sidebar() {
             const visibleItems = group.items.filter(item => !item.hidden);
             if (visibleItems.length === 0 && group.id !== "help") return null;
             
-            const isGroupCollapsed = collapsedGroups[group.id] ?? false;
+            const isGroupCollapsed = collapsedGroups[group.id] ?? !!group.collapsedByDefault;
             
             return (
               <div key={group.id} className={groupIndex > 0 ? "mt-4" : ""}>
