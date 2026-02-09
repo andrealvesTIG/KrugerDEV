@@ -142,7 +142,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
       { type: "module" as const, key: "dashboard", hidden: false },
     ]},
-    { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: true, items: [
+    { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
       { type: "module" as const, key: "portfolios", hidden: false },
       { type: "module" as const, key: "projects", hidden: false },
       { type: "module" as const, key: "intakes", hidden: false },
