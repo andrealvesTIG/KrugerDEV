@@ -188,7 +188,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         const isCellOvertime = cellHours > 8;
         
         return (
-          <td key={dateKey} className={`p-2 ${
+          <td key={dateKey} className={`p-2 align-top ${
             isPeriodClosed ? "bg-destructive/5" :
             isTodayDate ? "bg-blue-500/5" : 
             isWeekendDay ? "bg-muted/40" : ""
@@ -273,7 +273,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
           </td>
         );
       })}
-      <td className="p-3 bg-emerald-500/5">
+      <td className="p-3 bg-emerald-500/5 align-top">
         <div className="flex items-center justify-center gap-1">
           <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
           {isRowOvertime ? (
