@@ -282,7 +282,18 @@ export function Sidebar() {
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const stored = localStorage.getItem('sidebarCollapsedGroups');
-    return stored ? JSON.parse(stored) : {};
+    if (stored) return JSON.parse(stored);
+    const sidebarStructure = currentOrganization?.sidebarStructure as SidebarStructure | undefined;
+    if (sidebarStructure) {
+      const defaults: Record<string, boolean> = {};
+      sidebarStructure.forEach(group => {
+        if (group.collapsedByDefault) {
+          defaults[group.id] = true;
+        }
+      });
+      return defaults;
+    }
+    return {};
   });
   
   // Reset load failure states when organization/user changes

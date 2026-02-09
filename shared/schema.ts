@@ -33,6 +33,7 @@ export const sidebarGroupSchema = z.object({
   name: z.string(),
   isDefault: z.boolean().optional(),
   hidden: z.boolean().optional(),
+  collapsedByDefault: z.boolean().optional(),
   items: z.array(sidebarItemSchema),
 });
 

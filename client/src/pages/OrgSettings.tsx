@@ -1069,6 +1069,13 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
     saveStructure(newStructure);
   };
 
+  const toggleGroupCollapsedByDefault = (groupId: string) => {
+    const newStructure = structure.map(g => 
+      g.id === groupId ? { ...g, collapsedByDefault: !g.collapsedByDefault } : g
+    );
+    saveStructure(newStructure);
+  };
+
   const toggleItemVisibility = (groupId: string, itemId: string) => {
     const newStructure = structure.map(g => {
       if (g.id !== groupId) return g;
@@ -1299,6 +1306,15 @@ function ModuleVisibilitySection({ organization }: { organization: Organization 
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
+                      <div className="flex items-center gap-2 ml-2">
+                        <span className="text-muted-foreground text-xs whitespace-nowrap">Collapsed</span>
+                        <Switch
+                          checked={!!group.collapsedByDefault}
+                          onCheckedChange={() => toggleGroupCollapsedByDefault(group.id)}
+                          disabled={updateOrgMutation.isPending}
+                          data-testid={`switch-group-collapsed-${group.id}`}
+                        />
+                      </div>
                       <div className="flex items-center gap-2 ml-2">
                         <span className="text-muted-foreground">
                           {group.hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
