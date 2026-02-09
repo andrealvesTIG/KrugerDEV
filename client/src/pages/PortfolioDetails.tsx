@@ -94,8 +94,8 @@ export default function PortfolioDetails() {
           </Button>
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="text-3xl font-display font-bold truncate" title={portfolio.name}>{portfolio.name}</h1>
-          <p className="text-muted-foreground mt-1 truncate" title={portfolio.description}>{portfolio.description}</p>
+          <h1 className="text-3xl font-display font-bold truncate" title={portfolio.name || ""}>{portfolio.name}</h1>
+          <p className="text-muted-foreground mt-1 truncate" title={portfolio.description || ""}>{portfolio.description}</p>
         </div>
       </div>
 
@@ -453,8 +453,8 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
                     <td className="p-3 max-w-[200px]">
                       <Link href={`/projects/${project.id}`}>
                         <div className="hover:text-primary cursor-pointer min-w-0">
-                          <p className="font-medium truncate">{project.name}</p>
-                          <p className="text-sm text-muted-foreground truncate">{project.description}</p>
+                          <p className="font-medium truncate" title={project.name}>{project.name}</p>
+                          <p className="text-sm text-muted-foreground truncate" title={project.description || ""}>{project.description}</p>
                         </div>
                       </Link>
                     </td>

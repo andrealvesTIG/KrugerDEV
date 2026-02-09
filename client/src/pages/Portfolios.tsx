@@ -647,7 +647,7 @@ function EditPortfolioDialog({ portfolio, open, onOpenChange }: { portfolio: Por
             </Popover>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sm:justify-end">
             <Button type="submit" disabled={updateMutation.isPending} data-testid="button-update-portfolio">
               {updateMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
