@@ -163,13 +163,13 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       transition={{ duration: 0.2, delay: index * 0.02 }}
       className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
     >
-      <td className={`p-2 ${indented ? 'pl-10' : ''} w-[280px] min-w-[280px] max-w-[280px] align-middle`}>
-        <div className="flex items-center gap-2 w-full overflow-hidden">
-          <ListTodo className="h-4 w-4 text-muted-foreground shrink-0" />
+      <td className={`p-3 ${indented ? 'pl-10' : ''} w-[280px] min-w-[280px] max-w-[280px] align-top`}>
+        <div className="flex items-start gap-2 w-full overflow-hidden">
+          <ListTodo className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
           <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-            <span className="text-foreground text-sm leading-snug truncate" title={task.name}>{task.name}</span>
+            <span className="text-foreground text-sm leading-snug break-all">{task.name}</span>
             {!indented && (
-              <span className="text-xs text-muted-foreground truncate" title={project.name}>{project.name}</span>
+              <span className="text-xs text-muted-foreground break-all">{project.name}</span>
             )}
           </div>
         </div>
@@ -188,7 +188,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         const isCellOvertime = cellHours > 8;
         
         return (
-          <td key={dateKey} className={`p-2 align-middle ${
+          <td key={dateKey} className={`p-2 ${
             isPeriodClosed ? "bg-destructive/5" :
             isTodayDate ? "bg-blue-500/5" : 
             isWeekendDay ? "bg-muted/40" : ""
@@ -273,7 +273,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
           </td>
         );
       })}
-      <td className="p-2 bg-emerald-500/5 align-middle">
+      <td className="p-3 bg-emerald-500/5">
         <div className="flex items-center justify-center gap-1">
           <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
           {isRowOvertime ? (
@@ -805,7 +805,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       onClick={() => toggleProjectCollapse(group.project.id)}
                       data-testid={`row-project-header-${group.project.id}`}
                     >
-                      <td className="p-3 align-middle">
+                      <td className="p-3">
                         <div className="flex items-center gap-2 min-w-0 max-w-[250px]">
                           <motion.div
                             animate={{ rotate: isCollapsed ? -90 : 0 }}
@@ -822,13 +822,13 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                         </div>
                       </td>
                       {dates.map(date => (
-                        <td key={formatDateKey(date)} className={`p-3 text-center align-middle text-muted-foreground ${
+                        <td key={formatDateKey(date)} className={`p-3 text-center text-muted-foreground ${
                           isToday(date) ? "bg-blue-500/5" : isWeekend(date) ? "bg-muted/40" : ""
                         }`}>
                           -
                         </td>
                       ))}
-                      <td className="p-3 text-center align-middle font-medium text-emerald-600 bg-emerald-500/5">
+                      <td className="p-3 text-center font-medium text-emerald-600 bg-emerald-500/5">
                         {projectTotal}h
                       </td>
                     </motion.tr>

@@ -799,7 +799,7 @@
 
         {/* Edit Issue/Risk Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Edit {editingIssue?.itemType === 'risk' ? 'Risk' : 'Issue'}</DialogTitle>
               <DialogDescription>Update the {editingIssue?.itemType === 'risk' ? 'risk' : 'issue'} details below</DialogDescription>
