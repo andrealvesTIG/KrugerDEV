@@ -768,24 +768,50 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
 };
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
-  const mainModuleKeys = availableModules.filter(m => m.key !== "user-guide").map(m => m.key);
-  const order = moduleOrder && moduleOrder.length > 0 
-    ? moduleOrder.filter(k => mainModuleKeys.includes(k)) 
-    : mainModuleKeys;
-  const hidden = hiddenModules || [];
-  const groupsHidden = hiddenGroups || [];
-  
-  const menuItems: SidebarItem[] = order.map(key => ({
-    type: "module" as const,
-    key,
-    hidden: hidden.includes(key),
-  }));
-  
-  const helpItems: SidebarItem[] = [{ type: "module" as const, key: "user-guide", hidden: false }];
-  
+  if (moduleOrder && moduleOrder.length > 0) {
+    const mainModuleKeys = availableModules.filter(m => m.key !== "user-guide").map(m => m.key);
+    const order = moduleOrder.filter(k => mainModuleKeys.includes(k));
+    const hidden = hiddenModules || [];
+    const groupsHidden = hiddenGroups || [];
+    
+    const menuItems: SidebarItem[] = order.map(key => ({
+      type: "module" as const,
+      key,
+      hidden: hidden.includes(key),
+    }));
+    
+    const helpItems: SidebarItem[] = [{ type: "module" as const, key: "user-guide", hidden: false }];
+    
+    return [
+      { id: "menu", name: "Menu", isDefault: true, hidden: groupsHidden.includes("menu"), items: menuItems },
+      { id: "help", name: "Help", isDefault: true, hidden: groupsHidden.includes("help"), items: helpItems },
+    ];
+  }
+
   return [
-    { id: "menu", name: "Menu", isDefault: true, hidden: groupsHidden.includes("menu"), items: menuItems },
-    { id: "help", name: "Help", isDefault: true, hidden: groupsHidden.includes("help"), items: helpItems },
+    { id: "home", name: "Home", isDefault: true, hidden: false, items: [
+      { type: "module" as const, key: "dashboard", hidden: false },
+    ]},
+    { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "portfolios", hidden: false },
+      { type: "module" as const, key: "projects", hidden: false },
+      { type: "module" as const, key: "intakes", hidden: false },
+      { type: "module" as const, key: "issues", hidden: false },
+      { type: "module" as const, key: "tasks", hidden: false },
+      { type: "module" as const, key: "timesheets", hidden: false },
+    ]},
+    { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "resources", hidden: false },
+    ]},
+    { id: "finance", name: "Finance", hidden: false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "simulation", hidden: false },
+      { type: "module" as const, key: "invoices", hidden: false },
+    ]},
+    { id: "help", name: "Help", isDefault: true, hidden: false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "calendar", hidden: false },
+      { type: "module" as const, key: "lessons-learned", hidden: false },
+      { type: "module" as const, key: "user-guide", hidden: false },
+    ]},
   ];
 }
 
