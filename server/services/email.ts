@@ -27,6 +27,7 @@ export async function sendEmail({
   text,
   html,
   from,
+  cc,
   attachments,
 }: {
   to: string;
@@ -34,12 +35,16 @@ export async function sendEmail({
   text: string;
   html?: string;
   from?: string;
+  cc?: string[];
   attachments?: EmailAttachment[];
 }): Promise<boolean> {
   const client = getResendClient();
   
   if (!client) {
     console.log("Email would be sent to:", to);
+    if (cc && cc.length > 0) {
+      console.log("CC:", cc.join(", "));
+    }
     console.log("Subject:", subject);
     console.log("Body:", text);
     if (attachments) {
@@ -54,6 +59,7 @@ export async function sendEmail({
     const emailPayload: {
       from: string;
       to: string[];
+      cc?: string[];
       subject: string;
       text: string;
       html: string;
@@ -65,6 +71,10 @@ export async function sendEmail({
       text,
       html: html || text,
     };
+
+    if (cc && cc.length > 0) {
+      emailPayload.cc = cc;
+    }
     
     if (attachments && attachments.length > 0) {
       emailPayload.attachments = attachments.map(att => ({
@@ -738,4 +748,117 @@ This link will expire in 7 days.
 `;
 
   return sendEmail({ to: email, subject, text, html });
+}
+
+export async function sendWelcomeEmail(email: string, firstName?: string | null): Promise<boolean> {
+  const subject = "Welcome to FridayReport.AI - Thank You for Signing Up!";
+  const name = firstName || "there";
+  
+  const text = `
+Hi ${name},
+
+Thank you for signing up for FridayReport.AI! We're thrilled to have you on board.
+
+FridayReport.AI is your all-in-one project management platform designed to help teams plan, track, and deliver projects with confidence. Here's what you can do right away:
+
+- Create and manage projects with real-time dashboards
+- Track tasks, issues, and timesheets across your team
+- Build portfolios to oversee multiple projects at a glance
+- Run simulations to forecast project outcomes
+- Generate reports and stay on top of deadlines
+
+Getting Started:
+1. Set up your organization and invite your team
+2. Create your first project
+3. Add tasks and start tracking progress
+
+If you have any questions or need help getting started, don't hesitate to reach out. We're here to help you succeed.
+
+Welcome aboard!
+
+- The FridayReport.AI Team
+https://fridayreport.ai
+`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
+  </div>
+  
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="margin-top: 0; color: #1f2937;">Welcome, ${name}!</h2>
+    
+    <p>Thank you for signing up for FridayReport.AI! We're thrilled to have you on board.</p>
+    
+    <p>FridayReport.AI is your all-in-one project management platform designed to help teams plan, track, and deliver projects with confidence.</p>
+    
+    <h3 style="color: #1f2937; margin-bottom: 12px;">Here's what you can do right away:</h3>
+    
+    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6;">
+          <span style="color: #f97316; font-weight: bold; margin-right: 8px;">&#9654;</span>
+          <strong>Projects & Portfolios</strong> - Create and manage projects with real-time dashboards
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6;">
+          <span style="color: #f97316; font-weight: bold; margin-right: 8px;">&#9654;</span>
+          <strong>Tasks & Issues</strong> - Track work items and issues across your team
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6;">
+          <span style="color: #f97316; font-weight: bold; margin-right: 8px;">&#9654;</span>
+          <strong>Timesheets</strong> - Log time and monitor team utilization
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #f3f4f6;">
+          <span style="color: #f97316; font-weight: bold; margin-right: 8px;">&#9654;</span>
+          <strong>Simulations</strong> - Run what-if scenarios to forecast project outcomes
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 12px;">
+          <span style="color: #f97316; font-weight: bold; margin-right: 8px;">&#9654;</span>
+          <strong>Reports</strong> - Generate insights and stay on top of deadlines
+        </td>
+      </tr>
+    </table>
+    
+    <div style="background: #fff7ed; padding: 20px; border-radius: 6px; margin: 24px 0; border-left: 4px solid #f97316;">
+      <h3 style="margin: 0 0 10px 0; color: #1f2937; font-size: 15px;">Getting Started:</h3>
+      <ol style="margin: 0; padding-left: 20px; color: #4b5563;">
+        <li style="margin-bottom: 6px;">Set up your organization and invite your team</li>
+        <li style="margin-bottom: 6px;">Create your first project</li>
+        <li>Add tasks and start tracking progress</li>
+      </ol>
+    </div>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="https://fridayreport.ai" style="background: #f97316; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">Go to FridayReport.AI</a>
+    </div>
+    
+    <p style="font-size: 14px; color: #6b7280;">If you have any questions or need help getting started, don't hesitate to reach out. We're here to help you succeed.</p>
+    
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    
+    <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0; text-align: center;">
+      FridayReport.AI - Project Management Made Simple<br>
+      <a href="https://fridayreport.ai" style="color: #f97316;">fridayreport.ai</a>
+    </p>
+  </div>
+</body>
+</html>
+`;
+
+  return sendEmail({ to: email, subject, text, html, cc: ["info@fridayreport.ai"] });
 }

@@ -5,7 +5,7 @@ import { db } from "../db";
 import { users, passwordResetTokens, magicLinkTokens } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import crypto from "crypto";
-import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail, sendEmailVerificationEmail } from "../services/email";
+import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail, sendEmailVerificationEmail, sendWelcomeEmail } from "../services/email";
 import { ensureUserOrganization } from "../services/onboarding";
 import { storage } from "../storage";
 import { lookupCompanyByEmail } from "../services/companyLookup";
@@ -306,6 +306,10 @@ export async function setupAuth(app: Express) {
             resolve();
           }
         });
+      });
+
+      sendWelcomeEmail(email, firstName || null).catch(err => {
+        console.error("Failed to send welcome email:", err);
       });
 
       const { passwordHash: _, ...userWithoutPassword } = newUser;
