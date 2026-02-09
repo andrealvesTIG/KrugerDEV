@@ -3,7 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { setupAuth as setupReplitAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { setupAuth as setupReplitAuth } from "./replit_integrations/auth";
 import { setupAuth as setupEmailAuth } from "./auth/emailAuth";
 import { setupMicrosoftAuth } from "./auth/microsoftAuth";
 import { setupGoogleAuth } from "./auth/googleAuth";
@@ -1139,8 +1139,6 @@ export async function registerRoutes(
   await setupPlannerRoutes(app);
   await setupDataverseRoutes(app);
   await setupDynamics365Routes(app);
-  registerAuthRoutes(app);
-
   // Seed DB on startup
   seedDatabase().catch(err => console.error("Error seeding database:", err));
 
