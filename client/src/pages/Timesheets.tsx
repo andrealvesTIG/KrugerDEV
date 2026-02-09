@@ -805,7 +805,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       onClick={() => toggleProjectCollapse(group.project.id)}
                       data-testid={`row-project-header-${group.project.id}`}
                     >
-                      <td className="p-3">
+                      <td className="p-3 align-middle">
                         <div className="flex items-center gap-2 min-w-0 max-w-[250px]">
                           <motion.div
                             animate={{ rotate: isCollapsed ? -90 : 0 }}
@@ -822,13 +822,13 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                         </div>
                       </td>
                       {dates.map(date => (
-                        <td key={formatDateKey(date)} className={`p-3 text-center text-muted-foreground ${
+                        <td key={formatDateKey(date)} className={`p-3 text-center align-middle text-muted-foreground ${
                           isToday(date) ? "bg-blue-500/5" : isWeekend(date) ? "bg-muted/40" : ""
                         }`}>
                           -
                         </td>
                       ))}
-                      <td className="p-3 text-center font-medium text-emerald-600 bg-emerald-500/5">
+                      <td className="p-3 text-center align-middle font-medium text-emerald-600 bg-emerald-500/5">
                         {projectTotal}h
                       </td>
                     </motion.tr>
