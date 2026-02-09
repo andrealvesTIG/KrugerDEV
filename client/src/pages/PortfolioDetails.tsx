@@ -93,9 +93,9 @@ export default function PortfolioDetails() {
             <ChevronLeft className="h-5 w-5" />
           </Button>
         </Link>
-        <div>
-          <h1 className="text-3xl font-display font-bold">{portfolio.name}</h1>
-          <p className="text-muted-foreground mt-1">{portfolio.description}</p>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-3xl font-display font-bold truncate" title={portfolio.name}>{portfolio.name}</h1>
+          <p className="text-muted-foreground mt-1 truncate" title={portfolio.description}>{portfolio.description}</p>
         </div>
       </div>
 
