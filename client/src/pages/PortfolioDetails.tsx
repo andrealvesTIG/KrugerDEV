@@ -450,11 +450,11 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
               <tbody>
                 {projects?.map((project: Project) => (
                   <tr key={project.id} className="border-b hover:bg-muted/30 transition-colors" data-testid={`row-project-${project.id}`}>
-                    <td className="p-3">
+                    <td className="p-3 max-w-[200px]">
                       <Link href={`/projects/${project.id}`}>
-                        <div className="hover:text-primary cursor-pointer">
-                          <p className="font-medium">{project.name}</p>
-                          <p className="text-sm text-muted-foreground line-clamp-1">{project.description}</p>
+                        <div className="hover:text-primary cursor-pointer min-w-0">
+                          <p className="font-medium truncate">{project.name}</p>
+                          <p className="text-sm text-muted-foreground truncate">{project.description}</p>
                         </div>
                       </Link>
                     </td>
