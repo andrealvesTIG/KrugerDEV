@@ -280,21 +280,7 @@ export function Sidebar() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
-    const stored = localStorage.getItem('sidebarCollapsedGroups');
-    if (stored) return JSON.parse(stored);
-    const sidebarStructure = currentOrganization?.sidebarStructure as SidebarStructure | undefined;
-    if (sidebarStructure) {
-      const defaults: Record<string, boolean> = {};
-      sidebarStructure.forEach(group => {
-        if (group.collapsedByDefault) {
-          defaults[group.id] = true;
-        }
-      });
-      return defaults;
-    }
-    return {};
-  });
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   
   // Reset load failure states when organization/user changes
   useEffect(() => {
@@ -307,9 +293,10 @@ export function Sidebar() {
 
   const toggleGroupCollapse = (groupId: string) => {
     setCollapsedGroups(prev => {
-      const updated = { ...prev, [groupId]: !prev[groupId] };
-      localStorage.setItem('sidebarCollapsedGroups', JSON.stringify(updated));
-      return updated;
+      const sidebarStructure = currentOrganization?.sidebarStructure as SidebarStructure | undefined;
+      const group = sidebarStructure?.find(g => g.id === groupId);
+      const currentState = prev[groupId] ?? !!group?.collapsedByDefault;
+      return { ...prev, [groupId]: !currentState };
     });
   };
 
