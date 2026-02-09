@@ -632,12 +632,12 @@ function EditPortfolioDialog({ portfolio, open, onOpenChange }: { portfolio: Por
                             checked={teamMemberResourceIds.includes(resource.id)}
                             className="mr-2"
                           />
-                          <div className="flex flex-col">
-                            <span>{resource.firstName} {resource.lastName}</span>
-                            {resource.email && (
-                              <span className="text-xs text-muted-foreground">{resource.email}</span>
-                            )}
-                          </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate font-medium">{resource.firstName} {resource.lastName}</span>
+                        {resource.email && (
+                          <span className="text-xs text-muted-foreground truncate">{resource.email}</span>
+                        )}
+                      </div>
                         </CommandItem>
                       ))}
                     </CommandGroup>
