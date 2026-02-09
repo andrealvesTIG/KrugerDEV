@@ -118,26 +118,6 @@ const helpNavigation = [
 ];
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
-  if (moduleOrder && moduleOrder.length > 0) {
-    const mainModules = ["home", "dashboard", "portfolios", "projects", "intakes", "tasks", "issues", "simulation", "lessons-learned", "invoices", "timesheets", "resources", "calendar"];
-    const order = moduleOrder.filter(k => mainModules.includes(k));
-    const hidden = hiddenModules || [];
-    const groupsHidden = hiddenGroups || [];
-    
-    const menuItems: SidebarItem[] = order.map(key => ({
-      type: "module" as const,
-      key,
-      hidden: hidden.includes(key),
-    }));
-    
-    const helpItems: SidebarItem[] = [{ type: "module" as const, key: "user-guide", hidden: false }];
-    
-    return [
-      { id: "menu", name: "Menu", isDefault: true, hidden: groupsHidden.includes("menu"), items: menuItems },
-      { id: "help", name: "Help", isDefault: true, hidden: groupsHidden.includes("help"), items: helpItems },
-    ];
-  }
-
   return [
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
       { type: "module" as const, key: "dashboard", hidden: false },

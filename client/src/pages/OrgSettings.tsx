@@ -768,26 +768,6 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
 };
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
-  if (moduleOrder && moduleOrder.length > 0) {
-    const mainModuleKeys = availableModules.filter(m => m.key !== "user-guide").map(m => m.key);
-    const order = moduleOrder.filter(k => mainModuleKeys.includes(k));
-    const hidden = hiddenModules || [];
-    const groupsHidden = hiddenGroups || [];
-    
-    const menuItems: SidebarItem[] = order.map(key => ({
-      type: "module" as const,
-      key,
-      hidden: hidden.includes(key),
-    }));
-    
-    const helpItems: SidebarItem[] = [{ type: "module" as const, key: "user-guide", hidden: false }];
-    
-    return [
-      { id: "menu", name: "Menu", isDefault: true, hidden: groupsHidden.includes("menu"), items: menuItems },
-      { id: "help", name: "Help", isDefault: true, hidden: groupsHidden.includes("help"), items: helpItems },
-    ];
-  }
-
   return [
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
       { type: "module" as const, key: "dashboard", hidden: false },
