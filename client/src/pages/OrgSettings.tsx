@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2, PlayCircle, UserCheck } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Settings, Users, ShieldAlert, RotateCcw, Folder, FileText, Target, Flag, AlertCircle, CheckSquare, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, Plug, EyeOff, Eye, GitBranch, Save, RotateCw, GripVertical, Pencil, X, Plus, Check, ChevronUp, ChevronDown, PanelLeftClose, PanelLeft, BookOpen, ExternalLink, Link as LinkIcon, Sparkles, Building2, Upload, Image, Mail, Clock, RefreshCw, Zap, ArrowUpCircle, LayoutGrid, Columns, Lightbulb, Mic, Receipt, Code2, PlayCircle, UserCheck, Home } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -736,6 +736,7 @@ function GeneralSection({ organization }: { organization: Organization }) {
 }
 
 const availableModules = [
+  { key: "home", name: "Home", icon: Home, description: "My Work overview" },
   { key: "dashboard", name: "Dashboard", icon: LayoutDashboard, description: "Overview and analytics" },
   { key: "portfolios", name: "Portfolios", icon: Briefcase, description: "Group and manage portfolios" },
   { key: "projects", name: "Projects", icon: FolderKanban, description: "Project management" },
@@ -752,6 +753,7 @@ const availableModules = [
 ];
 
 const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  home: Home,
   dashboard: LayoutDashboard,
   portfolios: Briefcase,
   projects: FolderKanban,
@@ -770,6 +772,7 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
   return [
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
+      { type: "module" as const, key: "home", hidden: false },
       { type: "module" as const, key: "dashboard", hidden: false },
     ]},
     { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
@@ -795,7 +798,55 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
   ];
 }
 
+function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure {
+  const menuGroup = structure.find(g => g.id === "menu");
+  if (!menuGroup) return structure;
+  
+  const getItemHidden = (key: string): boolean => {
+    const item = menuGroup.items.find(i => i.type === "module" && i.key === key);
+    return item ? !!item.hidden : false;
+  };
+
+  const customLinks = menuGroup.items.filter(i => i.type === "customLink");
+  const helpGroup = structure.find(g => g.id === "help");
+  const otherGroups = structure.filter(g => g.id !== "menu" && g.id !== "help");
+
+  return [
+    { id: "home", name: "Home", isDefault: true, hidden: false, items: [
+      { type: "module" as const, key: "home", hidden: getItemHidden("home") },
+      { type: "module" as const, key: "dashboard", hidden: getItemHidden("dashboard") },
+    ]},
+    { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
+      { type: "module" as const, key: "portfolios", hidden: getItemHidden("portfolios") },
+      { type: "module" as const, key: "projects", hidden: getItemHidden("projects") },
+      { type: "module" as const, key: "intakes", hidden: getItemHidden("intakes") },
+      { type: "module" as const, key: "issues", hidden: getItemHidden("issues") },
+      { type: "module" as const, key: "tasks", hidden: getItemHidden("tasks") },
+      { type: "module" as const, key: "timesheets", hidden: getItemHidden("timesheets") },
+    ]},
+    { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "resources", hidden: getItemHidden("resources") },
+    ]},
+    { id: "finance", name: "Finance", hidden: false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "simulation", hidden: getItemHidden("simulation") },
+      { type: "module" as const, key: "invoices", hidden: getItemHidden("invoices") },
+    ]},
+    ...otherGroups,
+    { id: "help", name: "Help", isDefault: true, hidden: helpGroup?.hidden ?? false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "calendar", hidden: getItemHidden("calendar") },
+      { type: "module" as const, key: "lessons-learned", hidden: getItemHidden("lessons-learned") },
+      { type: "module" as const, key: "user-guide", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "user-guide")?.hidden ?? false },
+      ...customLinks,
+    ]},
+  ];
+}
+
 function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructure {
+  const hasOldFlatMenu = structure.some(g => g.id === "menu") && !structure.some(g => g.id === "portfolio");
+  if (hasOldFlatMenu) {
+    structure = migrateOldFlatStructure(structure);
+  }
+
   const validModuleKeys = new Set(availableModules.map(m => m.key));
   
   let cleanedStructure = structure.map(group => ({
@@ -807,117 +858,52 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
       return true;
     })
   }));
-  
-  // Ensure simulation module is in the menu group
-  const hasSimulation = cleanedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "simulation")
-  );
-  
-  if (!hasSimulation) {
-    const menuGroup = cleanedStructure.find(g => g.id === "menu");
-    if (menuGroup) {
-      cleanedStructure = cleanedStructure.map(g => {
-        if (g.id === "menu") {
-          const issuesIndex = g.items.findIndex(item => item.type === "module" && item.key === "issues");
-          const insertIndex = issuesIndex >= 0 ? issuesIndex + 1 : g.items.length;
-          const newItems = [...g.items];
-          newItems.splice(insertIndex, 0, { type: "module" as const, key: "simulation", hidden: false });
-          return { ...g, items: newItems };
-        }
-        return g;
-      });
-    }
-  }
 
-  // Ensure timesheets module is in the menu group
-  const hasTimesheets = cleanedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "timesheets")
-  );
-  
-  if (!hasTimesheets) {
-    const menuGroup = cleanedStructure.find(g => g.id === "menu");
-    if (menuGroup) {
-      cleanedStructure = cleanedStructure.map(g => {
-        if (g.id === "menu") {
-          // Add timesheets after simulation if it exists, otherwise after issues, otherwise at the end
-          const simulationIndex = g.items.findIndex(item => item.type === "module" && item.key === "simulation");
-          const issuesIndex = g.items.findIndex(item => item.type === "module" && item.key === "issues");
-          const insertIndex = simulationIndex >= 0 ? simulationIndex + 1 : (issuesIndex >= 0 ? issuesIndex + 1 : g.items.length);
-          const newItems = [...g.items];
-          newItems.splice(insertIndex, 0, { type: "module" as const, key: "timesheets", hidden: false });
-          return { ...g, items: newItems };
-        }
-        return g;
-      });
-    }
-  }
-  
-  // Ensure lessons-learned module is in the menu group
-  const hasLessonsLearned = cleanedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "lessons-learned")
-  );
-  
-  if (!hasLessonsLearned) {
-    const menuGroup = cleanedStructure.find(g => g.id === "menu");
-    if (menuGroup) {
-      cleanedStructure = cleanedStructure.map(g => {
-        if (g.id === "menu") {
-          // Add lessons-learned after timesheets if it exists, otherwise at the end
-          const timesheetsIndex = g.items.findIndex(item => item.type === "module" && item.key === "timesheets");
-          const insertIndex = timesheetsIndex >= 0 ? timesheetsIndex + 1 : g.items.length;
-          const newItems = [...g.items];
-          newItems.splice(insertIndex, 0, { type: "module" as const, key: "lessons-learned", hidden: false });
-          return { ...g, items: newItems };
-        }
-        return g;
-      });
-    }
-  }
-  
-  // Ensure invoices module is in the menu group
-  const hasInvoices = cleanedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "invoices")
-  );
-  
-  if (!hasInvoices) {
-    const menuGroup = cleanedStructure.find(g => g.id === "menu");
-    if (menuGroup) {
-      cleanedStructure = cleanedStructure.map(g => {
-        if (g.id === "menu") {
-          // Add invoices after lessons-learned if it exists, otherwise at the end
-          const lessonsIndex = g.items.findIndex(item => item.type === "module" && item.key === "lessons-learned");
-          const insertIndex = lessonsIndex >= 0 ? lessonsIndex + 1 : g.items.length;
-          const newItems = [...g.items];
-          newItems.splice(insertIndex, 0, { type: "module" as const, key: "invoices", hidden: false });
-          return { ...g, items: newItems };
-        }
-        return g;
-      });
-    }
-  }
-  
-  // Ensure user-guide is in help group
-  const helpGroup = cleanedStructure.find(g => g.id === "help");
-  const hasUserGuide = cleanedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "user-guide")
-  );
-  
-  if (!hasUserGuide && helpGroup) {
-    return cleanedStructure.map(g => {
-      if (g.id === "help") {
-        return { ...g, items: [...g.items, { type: "module" as const, key: "user-guide", hidden: false }] };
+  const ensureModule = (moduleKey: string, targetGroupId: string, afterKey?: string) => {
+    const hasModule = cleanedStructure.some(g => 
+      g.items.some(item => item.type === "module" && item.key === moduleKey)
+    );
+    if (!hasModule) {
+      const targetGroup = cleanedStructure.find(g => g.id === targetGroupId);
+      if (targetGroup) {
+        cleanedStructure = cleanedStructure.map(g => {
+          if (g.id === targetGroupId) {
+            const newItems = [...g.items];
+            if (afterKey) {
+              const afterIndex = newItems.findIndex(item => item.type === "module" && item.key === afterKey);
+              const insertIndex = afterIndex >= 0 ? afterIndex + 1 : newItems.length;
+              newItems.splice(insertIndex, 0, { type: "module" as const, key: moduleKey, hidden: false });
+            } else {
+              newItems.push({ type: "module" as const, key: moduleKey, hidden: false });
+            }
+            return { ...g, items: newItems };
+          }
+          return g;
+        });
       }
-      return g;
-    });
-  }
+    }
+  };
+
+  ensureModule("home", "home");
+  ensureModule("simulation", "finance");
+  ensureModule("timesheets", "portfolio", "tasks");
+  ensureModule("lessons-learned", "help");
+  ensureModule("invoices", "finance", "simulation");
+  ensureModule("user-guide", "help");
   
+  const helpGroup = cleanedStructure.find(g => g.id === "help");
   if (!helpGroup) {
-    return [...cleanedStructure, { 
+    cleanedStructure = [...cleanedStructure, { 
       id: "help", 
       name: "Help", 
       isDefault: true, 
       hidden: false, 
-      items: [{ type: "module" as const, key: "user-guide", hidden: false }] 
+      collapsedByDefault: true,
+      items: [
+        { type: "module" as const, key: "calendar", hidden: false },
+        { type: "module" as const, key: "lessons-learned", hidden: false },
+        { type: "module" as const, key: "user-guide", hidden: false },
+      ] 
     }];
   }
   

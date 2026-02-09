@@ -120,6 +120,7 @@ const helpNavigation = [
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
   return [
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
+      { type: "module" as const, key: "home", hidden: false },
       { type: "module" as const, key: "dashboard", hidden: false },
     ]},
     { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
@@ -145,7 +146,57 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
   ];
 }
 
+function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure {
+  const menuGroup = structure.find(g => g.id === "menu");
+  if (!menuGroup) return structure;
+  
+  const getItemHidden = (key: string): boolean => {
+    const item = menuGroup.items.find(i => i.type === "module" && i.key === key);
+    return item ? !!item.hidden : false;
+  };
+
+  const customLinks = menuGroup.items.filter(i => i.type === "customLink");
+  const helpGroup = structure.find(g => g.id === "help");
+  const otherGroups = structure.filter(g => g.id !== "menu" && g.id !== "help");
+
+  const newStructure: SidebarStructure = [
+    { id: "home", name: "Home", isDefault: true, hidden: false, items: [
+      { type: "module" as const, key: "home", hidden: getItemHidden("home") },
+      { type: "module" as const, key: "dashboard", hidden: getItemHidden("dashboard") },
+    ]},
+    { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
+      { type: "module" as const, key: "portfolios", hidden: getItemHidden("portfolios") },
+      { type: "module" as const, key: "projects", hidden: getItemHidden("projects") },
+      { type: "module" as const, key: "intakes", hidden: getItemHidden("intakes") },
+      { type: "module" as const, key: "issues", hidden: getItemHidden("issues") },
+      { type: "module" as const, key: "tasks", hidden: getItemHidden("tasks") },
+      { type: "module" as const, key: "timesheets", hidden: getItemHidden("timesheets") },
+    ]},
+    { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "resources", hidden: getItemHidden("resources") },
+    ]},
+    { id: "finance", name: "Finance", hidden: false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "simulation", hidden: getItemHidden("simulation") },
+      { type: "module" as const, key: "invoices", hidden: getItemHidden("invoices") },
+    ]},
+    ...otherGroups,
+    { id: "help", name: "Help", isDefault: true, hidden: helpGroup?.hidden ?? false, collapsedByDefault: true, items: [
+      { type: "module" as const, key: "calendar", hidden: getItemHidden("calendar") },
+      { type: "module" as const, key: "lessons-learned", hidden: getItemHidden("lessons-learned") },
+      { type: "module" as const, key: "user-guide", hidden: helpGroup?.items.find(i => i.type === "module" && i.key === "user-guide")?.hidden ?? false },
+      ...customLinks,
+    ]},
+  ];
+
+  return newStructure;
+}
+
 function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructure {
+  const hasOldFlatMenu = structure.some(g => g.id === "menu") && !structure.some(g => g.id === "portfolio");
+  if (hasOldFlatMenu) {
+    structure = migrateOldFlatStructure(structure);
+  }
+
   const validModuleKeys = new Set(Object.keys(moduleDefinitions));
   
   let updatedStructure = structure.map(group => ({
@@ -157,113 +208,47 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
       return true;
     })
   }));
-  
-  // Ensure simulation module is in the menu group
-  const hasSimulation = updatedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "simulation")
-  );
-  
-  if (!hasSimulation) {
-    const menuGroup = updatedStructure.find(g => g.id === "menu");
-    if (menuGroup) {
-      updatedStructure = updatedStructure.map(g => {
-        if (g.id === "menu") {
-          // Add simulation after issues if it exists, otherwise at the end
-          const issuesIndex = g.items.findIndex(item => item.type === "module" && item.key === "issues");
-          const insertIndex = issuesIndex >= 0 ? issuesIndex + 1 : g.items.length;
-          const newItems = [...g.items];
-          newItems.splice(insertIndex, 0, { type: "module" as const, key: "simulation", hidden: false });
-          return { ...g, items: newItems };
-        }
-        return g;
-      });
-    }
-  }
-  
-  // Ensure timesheets module is in the menu group
-  const hasTimesheets = updatedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "timesheets")
-  );
-  
-  if (!hasTimesheets) {
-    const menuGroup = updatedStructure.find(g => g.id === "menu");
-    if (menuGroup) {
-      updatedStructure = updatedStructure.map(g => {
-        if (g.id === "menu") {
-          // Add timesheets after simulation if it exists, otherwise after issues, otherwise at the end
-          const simulationIndex = g.items.findIndex(item => item.type === "module" && item.key === "simulation");
-          const issuesIndex = g.items.findIndex(item => item.type === "module" && item.key === "issues");
-          const insertIndex = simulationIndex >= 0 ? simulationIndex + 1 : (issuesIndex >= 0 ? issuesIndex + 1 : g.items.length);
-          const newItems = [...g.items];
-          newItems.splice(insertIndex, 0, { type: "module" as const, key: "timesheets", hidden: false });
-          return { ...g, items: newItems };
-        }
-        return g;
-      });
-    }
-  }
-  
-  // Ensure home module is in the menu group (at the beginning)
-  const hasHome = updatedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "home")
-  );
-  
-  if (!hasHome) {
-    const menuGroup = updatedStructure.find(g => g.id === "menu");
-    if (menuGroup) {
-      updatedStructure = updatedStructure.map(g => {
-        if (g.id === "menu") {
-          const newItems = [{ type: "module" as const, key: "home", hidden: false }, ...g.items];
-          return { ...g, items: newItems };
-        }
-        return g;
-      });
-    }
-  }
-  
-  // Ensure invoices module is in the menu group
-  const hasInvoices = updatedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "invoices")
-  );
-  
-  if (!hasInvoices) {
-    const menuGroup = updatedStructure.find(g => g.id === "menu");
-    if (menuGroup) {
-      updatedStructure = updatedStructure.map(g => {
-        if (g.id === "menu") {
-          // Add invoices after lessons-learned if it exists, otherwise at the end
-          const lessonsIndex = g.items.findIndex(item => item.type === "module" && item.key === "lessons-learned");
-          const insertIndex = lessonsIndex >= 0 ? lessonsIndex + 1 : g.items.length;
-          const newItems = [...g.items];
-          newItems.splice(insertIndex, 0, { type: "module" as const, key: "invoices", hidden: false });
-          return { ...g, items: newItems };
-        }
-        return g;
-      });
-    }
-  }
-  
-  // Ensure user-guide is in help group
-  const helpGroup = updatedStructure.find(g => g.id === "help");
-  const hasUserGuide = updatedStructure.some(g => 
-    g.items.some(item => item.type === "module" && item.key === "user-guide")
-  );
-  
-  if (!hasUserGuide && helpGroup) {
-    updatedStructure = updatedStructure.map(g => {
-      if (g.id === "help") {
-        return { ...g, items: [...g.items, { type: "module" as const, key: "user-guide", hidden: false }] };
+
+  const ensureModule = (moduleKey: string, targetGroupId: string, afterKey?: string) => {
+    const hasModule = updatedStructure.some(g => 
+      g.items.some(item => item.type === "module" && item.key === moduleKey)
+    );
+    if (!hasModule) {
+      const targetGroup = updatedStructure.find(g => g.id === targetGroupId);
+      if (targetGroup) {
+        updatedStructure = updatedStructure.map(g => {
+          if (g.id === targetGroupId) {
+            const newItems = [...g.items];
+            if (afterKey) {
+              const afterIndex = newItems.findIndex(item => item.type === "module" && item.key === afterKey);
+              const insertIndex = afterIndex >= 0 ? afterIndex + 1 : newItems.length;
+              newItems.splice(insertIndex, 0, { type: "module" as const, key: moduleKey, hidden: false });
+            } else {
+              newItems.unshift({ type: "module" as const, key: moduleKey, hidden: false });
+            }
+            return { ...g, items: newItems };
+          }
+          return g;
+        });
       }
-      return g;
-    });
-  }
+    }
+  };
+
+  ensureModule("home", "home");
+  ensureModule("simulation", "finance");
+  ensureModule("timesheets", "portfolio", "tasks");
+  ensureModule("lessons-learned", "help");
+  ensureModule("invoices", "finance", "simulation");
+  ensureModule("user-guide", "help");
   
+  const helpGroup = updatedStructure.find(g => g.id === "help");
   if (!helpGroup) {
     updatedStructure = [...updatedStructure, { 
       id: "help", 
       name: "Help", 
       isDefault: true, 
       hidden: false, 
+      collapsedByDefault: true,
       items: [{ type: "module" as const, key: "user-guide", hidden: false }] 
     }];
   }
