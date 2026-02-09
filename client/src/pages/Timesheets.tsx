@@ -500,6 +500,32 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     setSelectedCell({ taskId, dateKey });
   };
 
+  const [taskColumnWidth, setTaskColumnWidth] = useState(280);
+  const isResizing = useRef(false);
+
+  const startResizing = (e: React.MouseEvent) => {
+    isResizing.current = true;
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", stopResizing);
+    document.body.style.cursor = "col-resize";
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizing.current) return;
+    setTaskColumnWidth(prev => {
+      const newWidth = Math.max(150, Math.min(800, prev + e.movementX));
+      return newWidth;
+    });
+  };
+
+  const stopResizing = () => {
+    isResizing.current = false;
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", stopResizing);
+    document.body.style.cursor = "";
+  };
+
   // Initialize grid data for any new cells (tasks/dates not yet in gridData)
   useEffect(() => {
     setGridData(prevGridData => {
@@ -708,8 +734,15 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
         <table className="w-full">
           <thead>
             <tr className="bg-muted/30">
-              <th className="text-left p-4 font-medium text-muted-foreground min-w-[280px]">
+              <th 
+                className="text-left p-4 font-medium text-muted-foreground relative group" 
+                style={{ width: taskColumnWidth, minWidth: taskColumnWidth }}
+              >
                 <span>Tasks</span>
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 transition-colors"
+                  onMouseDown={startResizing}
+                />
               </th>
               {dates.map(date => {
                 const isTodayDate = isToday(date);
@@ -805,7 +838,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       onClick={() => toggleProjectCollapse(group.project.id)}
                       data-testid={`row-project-header-${group.project.id}`}
                     >
-                      <td className="p-3">
+                      <td className="p-3" style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
                         <div className="flex items-center gap-2 min-w-0">
                           <motion.div
                             animate={{ rotate: isCollapsed ? -90 : 0 }}
@@ -815,7 +848,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           </motion.div>
                           <FolderOpen className="h-4 w-4 text-primary shrink-0" />
-                          <span className="font-medium text-foreground truncate" title={group.project.name}>{group.project.name}</span>
+                          <span className="font-medium text-foreground line-clamp-2" title={group.project.name}>{group.project.name}</span>
                           <Badge variant="secondary" className="text-xs ml-1 shrink-0">
                             {group.tasks.length} task{group.tasks.length !== 1 ? 's' : ''}
                           </Badge>
