@@ -2209,7 +2209,6 @@ function ResizableSortableColumnHeader({
     transition: isResizing ? 'none' : transition,
     opacity: isDragging ? 0.5 : 1,
     width: width ? `${width}px` : undefined,
-    minWidth: width ? `${width}px` : undefined,
     maxWidth: width ? `${width}px` : undefined,
   };
 
@@ -2222,7 +2221,7 @@ function ResizableSortableColumnHeader({
 
     const handleMouseMove = (e: MouseEvent) => {
       const diff = e.clientX - startXRef.current;
-      const newWidth = Math.max(80, Math.min(500, startWidthRef.current + diff));
+      const newWidth = Math.max(60, Math.min(800, startWidthRef.current + diff));
       onResize?.(newWidth);
     };
 
@@ -3036,7 +3035,7 @@ function ProjectsGridView({
         isFullscreen && "flex-1 overflow-auto border-0 rounded-none [&>div]:overflow-visible"
       )}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleColumnDragEnd}>
-          <Table>
+          <Table className="table-fixed">
             <TableHeader className={cn(isFullscreen && "sticky top-0 z-20 bg-card shadow-sm")}>
               <TableRow className={cn(isFullscreen && "bg-card")}>
                 <TableHead className={cn("w-10", isFullscreen && "bg-card")}>
@@ -3090,10 +3089,9 @@ function ProjectsGridView({
                       return (
                         <TableCell 
                           key={column.id}
-                          className="overflow-hidden"
+                          className="overflow-hidden text-ellipsis"
                           style={{ 
                             width: `${width}px`, 
-                            minWidth: `${width}px`, 
                             maxWidth: `${width}px` 
                           }}
                         >
