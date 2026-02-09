@@ -7217,6 +7217,7 @@ function ProjectGanttView({
   // Bulk selection state
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
   const [bulkDeletePending, setBulkDeletePending] = useState(false);
+  const [bulkTimesheetBlockPending, setBulkTimesheetBlockPending] = useState(false);
   
   const toggleTaskSelection = (taskId: number) => {
     setSelectedTaskIds(prev => {
@@ -7269,6 +7270,38 @@ function ProjectGanttView({
     }
   };
   
+  const handleBulkTimesheetBlock = async () => {
+    if (selectedTaskIds.size === 0) return;
+    
+    setBulkTimesheetBlockPending(true);
+    const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
+    const allAlreadyBlocked = selectedTasks.every(t => t.timesheetBlocked);
+    const newBlockedValue = !allAlreadyBlocked;
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const task of selectedTasks) {
+      try {
+        await updateTask.mutateAsync({
+          id: task.id,
+          projectId: task.projectId,
+          timesheetBlocked: newBlockedValue,
+        });
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+    
+    setBulkTimesheetBlockPending(false);
+    
+    if (errorCount === 0) {
+      toast({ title: newBlockedValue ? "Timesheet entries blocked" : "Timesheet entries unblocked", description: `${successCount} task${successCount !== 1 ? 's' : ''} updated successfully` });
+    } else {
+      toast({ title: "Partial success", description: `${successCount} updated, ${errorCount} failed`, variant: "destructive" });
+    }
+  };
+
   // Undo/redo history for all Gantt chart changes
   type GanttAction = 
     | { type: 'reorder'; taskId: number; fromIndex: number; toIndex: number }
@@ -8797,6 +8830,17 @@ function ProjectGanttView({
                   >
                     <LinkIcon className="h-4 w-4 mr-2 line-through" />
                     Unlink
+                  </Button>
+                  <div className="w-px h-5 bg-border" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkTimesheetBlock}
+                    disabled={bulkTimesheetBlockPending || isReadOnly}
+                    data-testid="button-bulk-timesheet-block"
+                  >
+                    {bulkTimesheetBlockPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <LockIcon className="h-4 w-4 mr-2" />}
+                    Block Timesheet Entries
                   </Button>
                   <div className="w-px h-5 bg-border" />
                   <Button
