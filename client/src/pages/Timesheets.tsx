@@ -705,10 +705,10 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   return (
     <div className="space-y-4">
       <div className="bg-card rounded-xl border border-border overflow-x-auto">
-        <table className="w-full table-fixed">
+        <table className="w-full">
           <thead>
             <tr className="bg-muted/30">
-              <th className="text-left p-4 font-medium text-muted-foreground w-[280px] min-w-[280px]">
+              <th className="text-left p-4 font-medium text-muted-foreground min-w-[280px]">
                 <span>Tasks</span>
               </th>
               {dates.map(date => {
@@ -719,7 +719,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 const isPeriodClosed = isDateInClosedPeriod(date);
                 const closedPeriodName = isPeriodClosed ? getClosedPeriodName(date) : null;
                 return (
-                  <th key={formatDateKey(date)} className={`p-3 text-center w-[90px] ${
+                  <th key={formatDateKey(date)} className={`p-3 text-center min-w-[90px] ${
                     isPeriodClosed ? "bg-destructive/5" :
                     isTodayDate ? "bg-blue-500/10" : isWeekendDay ? "bg-muted/40" : ""
                   }`}>
@@ -754,7 +754,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   </th>
                 );
               })}
-              <th className="p-3 text-center w-[80px] bg-emerald-500/5">
+              <th className="p-3 text-center min-w-[80px] bg-emerald-500/5">
                 <div className="text-xs font-medium text-emerald-600 flex items-center justify-center gap-1">
                   Total
                   {getGrandTotal() > 0 && (
@@ -806,7 +806,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                       data-testid={`row-project-header-${group.project.id}`}
                     >
                       <td className="p-3">
-                        <div className="flex items-center gap-2 min-w-0 max-w-[250px]">
+                        <div className="flex items-center gap-2 min-w-0">
                           <motion.div
                             animate={{ rotate: isCollapsed ? -90 : 0 }}
                             transition={{ duration: 0.2 }}
