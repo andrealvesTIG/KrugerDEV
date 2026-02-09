@@ -273,8 +273,8 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
           </td>
         );
       })}
-      <td className="p-3 bg-emerald-500/5 align-top">
-        <div className="flex items-center justify-center gap-1">
+      <td className="p-2 bg-emerald-500/5 align-top">
+        <div className="flex items-center justify-center gap-1 h-9">
           <span className={`font-medium tabular-nums ${isRowOvertime ? "text-amber-600" : "text-foreground"}`}>{rowTotal}h</span>
           {isRowOvertime ? (
             <Tooltip>
