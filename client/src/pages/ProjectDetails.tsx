@@ -9325,12 +9325,12 @@ function ProjectGanttView({
       <Dialog open={!!dependenciesDialogTask} onOpenChange={(open) => !open && setDependenciesDialogTask(null)}>
         <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 truncate" title="Task Dependencies">
+            <DialogTitle className="flex items-center gap-2 truncate">
               <Link2 className="h-5 w-5 flex-shrink-0" />
               <span className="truncate">Task Dependencies</span>
             </DialogTitle>
-            <DialogDescription className="truncate max-w-full" title={dependenciesDialogTask?.name}>
-              Manage predecessor tasks for "{dependenciesDialogTask?.name}"
+            <DialogDescription className="max-w-full" title={dependenciesDialogTask?.name}>
+              <span className="block truncate">Manage predecessor tasks for "{dependenciesDialogTask?.name}"</span>
             </DialogDescription>
           </DialogHeader>
           {dependenciesDialogTask && (
