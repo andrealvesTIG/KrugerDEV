@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -1097,6 +1097,9 @@ function AllUsersTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       toast({ title: "Success", description: "User role updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to update user role", variant: "destructive" });
     }
   });
 
@@ -1338,20 +1341,23 @@ function AllUsersTab() {
                 </TableCell>
                 <TableCell>{user.email || 'N/A'}</TableCell>
                 <TableCell>
-                  <Select 
-                    value={user.role || 'user'} 
-                    onValueChange={(role) => updateUserRole.mutate({ userId: user.id, role })}
-                    disabled={isMarketing}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="user">User</SelectItem>
-                      <SelectItem value="marketing">Marketing</SelectItem>
-                      <SelectItem value="super_admin">Super Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild disabled={isMarketing}>
+                      <Button variant="outline" className="w-[140px] justify-between" data-testid={`select-role-trigger-${user.id}`}>
+                        {user.role === 'super_admin' ? 'Super Admin' : user.role === 'marketing' ? 'Marketing' : 'User'}
+                        <ChevronDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuRadioGroup value={user.role || 'user'} onValueChange={(role) => {
+                        updateUserRole.mutate({ userId: user.id, role });
+                      }}>
+                        <DropdownMenuRadioItem value="user">User</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="marketing">Marketing</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="super_admin">Super Admin</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
                 <TableCell>
                   {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}
