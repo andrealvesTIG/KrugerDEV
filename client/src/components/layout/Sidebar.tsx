@@ -283,10 +283,23 @@ export function Sidebar() {
     setAvatarLoadFailed(false);
   }, [user?.avatarUrl, user?.profileImageUrl]);
 
+  const getEffectiveSidebarStructure = (): SidebarStructure => {
+    if (currentOrganization?.sidebarStructure 
+        && Array.isArray(currentOrganization.sidebarStructure) 
+        && currentOrganization.sidebarStructure.length > 0) {
+      return ensureStructureHasDefaults(currentOrganization.sidebarStructure as SidebarStructure);
+    }
+    return getDefaultSidebarStructure(
+      currentOrganization?.hiddenModules,
+      currentOrganization?.moduleOrder,
+      currentOrganization?.hiddenGroups
+    );
+  };
+
   const toggleGroupCollapse = (groupId: string) => {
+    const structure = getEffectiveSidebarStructure();
+    const group = structure.find(g => g.id === groupId);
     setCollapsedGroups(prev => {
-      const sidebarStructure = currentOrganization?.sidebarStructure as SidebarStructure | undefined;
-      const group = sidebarStructure?.find(g => g.id === groupId);
       const currentState = prev[groupId] ?? !!group?.collapsedByDefault;
       return { ...prev, [groupId]: !currentState };
     });
@@ -392,15 +405,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className={cn("flex-1 space-y-1 py-6 overflow-y-auto", isCollapsed ? "px-2" : "px-4")}>
         {(() => {
-          const sidebarStructure: SidebarStructure = currentOrganization?.sidebarStructure 
-            && Array.isArray(currentOrganization.sidebarStructure) 
-            && currentOrganization.sidebarStructure.length > 0
-            ? ensureStructureHasDefaults(currentOrganization.sidebarStructure as SidebarStructure)
-            : getDefaultSidebarStructure(
-                currentOrganization?.hiddenModules,
-                currentOrganization?.moduleOrder,
-                currentOrganization?.hiddenGroups
-              );
+          const sidebarStructure = getEffectiveSidebarStructure();
           
           return sidebarStructure.map((group, groupIndex) => {
             if (group.hidden) return null;
