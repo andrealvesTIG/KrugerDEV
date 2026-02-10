@@ -177,8 +177,11 @@ export const projects = pgTable("projects", {
   managerId: varchar("manager_id").references(() => users.id), // Project Manager (user ID)
   managerResourceId: integer("manager_resource_id").references(() => resources.id), // Project Manager (resource ID for display)
   businessSponsorId: varchar("business_sponsor_id").references(() => users.id), // Executive Sponsor
+  sponsorResourceId: integer("sponsor_resource_id").references(() => resources.id),
   businessOwnerId: varchar("business_owner_id").references(() => users.id), // Product/Business Owner
+  ownerResourceId: integer("owner_resource_id").references(() => resources.id),
   technicalLeadId: varchar("technical_lead_id").references(() => users.id), // Technical Lead
+  technicalLeadResourceId: integer("technical_lead_resource_id").references(() => resources.id),
   completionPercentage: integer("completion_percentage").default(0),
   completionOverridden: boolean("completion_overridden").default(false), // True if user manually set completion percentage
   health: text("health").default("Green"), // Green, Yellow, Red
@@ -208,10 +211,12 @@ export const projects = pgTable("projects", {
   createdBy: varchar("created_by").references(() => users.id), // Who created the project
   updatedAt: timestamp("updated_at").defaultNow(), // Last modification date
   updatedBy: varchar("updated_by").references(() => users.id), // Who last modified the project
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by").references(() => users.id),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
-  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
-  timesheetBlocked: boolean("timesheet_blocked").default(false), // Block timesheet entries against this project
+  isDemo: boolean("is_demo").default(false),
+  timesheetBlocked: boolean("timesheet_blocked").default(false),
 });
 
 // Billable Status Comments (Comment log for billable status field)
@@ -316,6 +321,8 @@ export const issues = pgTable("issues", {
   ownerId: varchar("owner_id").references(() => users.id), // Risk owner
   reviewerId: varchar("reviewer_id").references(() => users.id), // Risk reviewer
   identifiedDate: date("identified_date"), // When risk was identified
+  targetResolutionDateRisk: date("target_resolution_date_risk"),
+  actualResolutionDateRisk: date("actual_resolution_date_risk"),
   proximity: text("proximity"), // Imminent, Near-term, Mid-term, Long-term
   // Portfolio escalation fields
   escalatedToPortfolio: boolean("escalated_to_portfolio").default(false), // Whether escalated to portfolio level
@@ -361,12 +368,13 @@ export const tasks = pgTable("tasks", {
   category: text("category"), // Task category
   labels: text("labels"), // Comma-separated labels
   notes: text("notes"),
-  timesheetBlocked: boolean("timesheet_blocked").default(false), // Block timesheet entries against this task
-  externalId: text("external_id"), // External ID from source system (Planner task ID, Dataverse msdyn_projecttaskid)
+  timesheetBlocked: boolean("timesheet_blocked").default(false),
+  externalId: text("external_id"),
+  completionOverridden: boolean("completion_overridden").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
-  isDemo: boolean("is_demo").default(false), // True if created by demo data generator
+  isDemo: boolean("is_demo").default(false),
 });
 
 // Task Change Logs (Audit Trail)
@@ -515,7 +523,9 @@ export const timeCategories = pgTable("time_categories", {
   isActive: boolean("is_active").default(true),
   isPaidTime: boolean("is_paid_time").default(true), // Whether this counts as paid time
   requiresApproval: boolean("requires_approval").default(true),
-  maxHoursPerYear: numeric("max_hours_per_year"), // Optional annual limit
+  maxHoursPerYear: numeric("max_hours_per_year"),
+  isBillable: boolean("is_billable").default(false),
+  displayOrder: integer("display_order").default(0),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
@@ -538,14 +548,18 @@ export const nonProjectTimeEntries = pgTable("non_project_time_entries", {
   categoryId: integer("category_id").references(() => timeCategories.id).notNull(),
   entryDate: date("entry_date").notNull(),
   hours: numeric("hours").notNull(),
+  description: text("description"),
   notes: text("notes"),
-  status: text("status").default("Draft"), // Draft, Submitted, Approved, Rejected
+  isBillable: boolean("is_billable").default(false),
+  status: text("status").default("Draft"),
   submittedAt: timestamp("submitted_at"),
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
 });
 
 export const insertNonProjectTimeEntrySchema = createInsertSchema(nonProjectTimeEntries).omit({
@@ -1633,12 +1647,12 @@ export type CustomTabSection = typeof customTabSections.$inferSelect;
 export const customTabFields = pgTable("custom_tab_fields", {
   id: serial("id").primaryKey(),
   sectionId: integer("section_id").references(() => customTabSections.id).notNull(),
-  fieldKey: text("field_key").notNull(), // e.g., 'name', 'status', 'budget', 'customField:123'
-  fieldType: text("field_type").notNull(), // 'project', 'custom' - source of the field
-  label: text("label"), // Override label, null means use default
+  fieldKey: text("field_key").notNull(),
+  fieldType: text("field_type").notNull(),
+  label: text("label"),
   displayOrder: integer("display_order").default(0),
-  isEditable: boolean("is_editable").default(true),
-  width: text("width"), // 'full', 'half', 'third', 'quarter' - for grid layout
+  span: integer("span").default(1),
+  isRequired: boolean("is_required").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -1755,6 +1769,7 @@ export const projectBenefits = pgTable("project_benefits", {
   status: text("status").default("Planned"), // Planned, In Progress, Partially Realized, Fully Realized, Not Achieved
   owner: varchar("owner").references(() => users.id), // Who is responsible
   notes: text("notes"),
+  isDemo: boolean("is_demo").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: varchar("created_by").references(() => users.id),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1787,7 +1802,9 @@ export const projectDecisions = pgTable("project_decisions", {
   reviewDate: date("review_date"), // When to review the decision
   outcome: text("outcome"), // Actual outcome after implementation
   decisionMaker: varchar("decision_maker").references(() => users.id),
-  priority: text("priority").default("Medium"), // Low, Medium, High, Critical
+  priority: text("priority").default("Medium"),
+  notes: text("notes"),
+  isDemo: boolean("is_demo").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: varchar("created_by").references(() => users.id),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1868,12 +1885,10 @@ export type ApiRequestLog = typeof apiRequestLogs.$inferSelect;
 // Application Metrics - aggregated metrics for dashboards
 export const applicationMetrics = pgTable("application_metrics", {
   id: serial("id").primaryKey(),
-  metricType: text("metric_type").notNull(), // daily_active_users, api_requests, error_rate, etc.
+  metricName: text("metric_name").notNull(),
   metricValue: numeric("metric_value").notNull(),
-  metricDate: date("metric_date").notNull(),
-  organizationId: integer("organization_id").references(() => organizations.id), // null for system-wide
-  metadata: jsonb("metadata"), // Additional context
-  createdAt: timestamp("created_at").defaultNow(),
+  dimensions: jsonb("dimensions"),
+  recordedAt: timestamp("recorded_at").defaultNow(),
 });
 
 export type ApplicationMetric = typeof applicationMetrics.$inferSelect;
@@ -1882,11 +1897,10 @@ export type ApplicationMetric = typeof applicationMetrics.$inferSelect;
 export const userActivityLogs = pgTable("user_activity_logs", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").references(() => users.id).notNull(),
-  activityType: text("activity_type").notNull(), // login, logout, create_project, update_task, etc.
-  entityType: text("entity_type"), // project, task, portfolio, etc.
+  action: text("action").notNull(),
+  entityType: text("entity_type"),
   entityId: integer("entity_id"),
-  organizationId: integer("organization_id").references(() => organizations.id),
-  details: jsonb("details"), // Additional activity details
+  metadata: jsonb("metadata"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1897,11 +1911,11 @@ export type UserActivityLog = typeof userActivityLogs.$inferSelect;
 // Feature Usage - track which features are being used
 export const featureUsageLogs = pgTable("feature_usage_logs", {
   id: serial("id").primaryKey(),
-  featureName: text("feature_name").notNull(), // projects, tasks, risks, timesheets, etc.
-  actionType: text("action_type").notNull(), // view, create, update, delete
   userId: varchar("user_id").references(() => users.id),
+  featureCode: text("feature_code").notNull(),
   organizationId: integer("organization_id").references(() => organizations.id),
-  count: integer("count").default(1),
+  usageCount: integer("usage_count").default(1),
+  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -1910,16 +1924,14 @@ export type FeatureUsageLog = typeof featureUsageLogs.$inferSelect;
 // Error Logs - detailed error tracking
 export const errorLogs = pgTable("error_logs", {
   id: serial("id").primaryKey(),
-  errorType: text("error_type").notNull(), // api_error, database_error, validation_error, etc.
+  errorType: text("error_type").notNull(),
   errorMessage: text("error_message").notNull(),
   stackTrace: text("stack_trace"),
-  path: text("path"), // Where the error occurred
   userId: varchar("user_id").references(() => users.id),
   organizationId: integer("organization_id").references(() => organizations.id),
-  requestData: jsonb("request_data"), // Context about the request
-  resolved: boolean("resolved").default(false),
-  resolvedBy: varchar("resolved_by").references(() => users.id),
-  resolvedAt: timestamp("resolved_at"),
+  requestUrl: text("request_url"),
+  requestMethod: text("request_method"),
+  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
