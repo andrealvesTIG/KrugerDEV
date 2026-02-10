@@ -18012,11 +18012,11 @@ Return ONLY valid JSON.`;
     errorLogs
   } = await import("@shared/schema");
 
-  // Helper to verify super admin
+  // Helper to verify admin access (super_admin or marketing for read-only)
   const requireSuperAdmin = async (userId: string | null): Promise<boolean> => {
     if (!userId) return false;
     const user = await storage.getUser(userId);
-    return user?.role === "super_admin";
+    return hasAdminAccess(user);
   };
 
   // Get monitoring dashboard overview
