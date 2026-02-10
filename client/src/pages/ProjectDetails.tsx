@@ -7139,25 +7139,26 @@ function ProjectGanttView({
   // Scroll sync refs for left/right panes
   const leftPaneRef = useRef<HTMLDivElement>(null);
   const rightPaneRef = useRef<HTMLDivElement>(null);
-  const isScrollingSyncedRef = useRef(false);
   
-  // Sync vertical scroll between left and right panes
-  const handleLeftScroll = useCallback(() => {
-    if (isScrollingSyncedRef.current) return;
+  // Right pane is the sole vertical scroll driver. On scroll, sync left pane.
+  const handleRightScroll = useCallback(() => {
     if (leftPaneRef.current && rightPaneRef.current) {
-      isScrollingSyncedRef.current = true;
-      rightPaneRef.current.scrollTop = leftPaneRef.current.scrollTop;
-      requestAnimationFrame(() => { isScrollingSyncedRef.current = false; });
+      leftPaneRef.current.scrollTop = rightPaneRef.current.scrollTop;
     }
   }, []);
   
-  const handleRightScroll = useCallback(() => {
-    if (isScrollingSyncedRef.current) return;
-    if (leftPaneRef.current && rightPaneRef.current) {
-      isScrollingSyncedRef.current = true;
-      leftPaneRef.current.scrollTop = rightPaneRef.current.scrollTop;
-      requestAnimationFrame(() => { isScrollingSyncedRef.current = false; });
-    }
+  // Forward vertical wheel events on left pane to right pane (left pane has overflow-y: hidden)
+  useEffect(() => {
+    const leftPane = leftPaneRef.current;
+    if (!leftPane) return;
+    const onWheel = (e: WheelEvent) => {
+      if (rightPaneRef.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+        rightPaneRef.current.scrollTop += e.deltaY;
+      }
+    };
+    leftPane.addEventListener('wheel', onWheel, { passive: false });
+    return () => leftPane.removeEventListener('wheel', onWheel);
   }, []);
   
   // Baseline state
@@ -8747,6 +8748,102 @@ function ProjectGanttView({
             )}
           </div>
         </div>
+        {/* Bulk actions bar - outside scroll area to prevent row misalignment */}
+        {selectedTaskIds.size > 0 && (
+          <div className="flex items-center gap-3 px-3 py-2 bg-primary/10 border-b flex-wrap flex-shrink-0 text-[11px]">
+            <span className="text-sm font-medium">{selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? 's' : ''} selected</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={selectAllTasks}
+              data-testid="button-select-all-tasks"
+            >
+              Select All
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearTaskSelection}
+              data-testid="button-clear-selection"
+            >
+              Clear
+            </Button>
+            <div className="w-px h-5 bg-border" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkBaseline}
+              disabled={updateTask.isPending || isReadOnly}
+              data-testid="button-bulk-baseline"
+            >
+              <Flag className="h-4 w-4 mr-2" />
+              Baseline
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkIndent}
+              disabled={updateTask.isPending || isReadOnly}
+              data-testid="button-bulk-indent"
+            >
+              <IndentIncrease className="h-4 w-4 mr-2" />
+              Indent
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkOutdent}
+              disabled={updateTask.isPending || isReadOnly}
+              data-testid="button-bulk-outdent"
+            >
+              <IndentDecrease className="h-4 w-4 mr-2" />
+              Outdent
+            </Button>
+            <div className="w-px h-5 bg-border" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkLink}
+              disabled={selectedTaskIds.size < 2 || addDependency.isPending || isReadOnly}
+              data-testid="button-bulk-link"
+            >
+              <Link2 className="h-4 w-4 mr-2" />
+              Link
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkUnlink}
+              disabled={selectedTaskIds.size < 2 || removeDependency.isPending || isReadOnly}
+              data-testid="button-bulk-unlink"
+            >
+              <LinkIcon className="h-4 w-4 mr-2 line-through" />
+              Unlink
+            </Button>
+            <div className="w-px h-5 bg-border" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkTimesheetBlock}
+              disabled={bulkTimesheetBlockPending || isReadOnly}
+              data-testid="button-bulk-timesheet-block"
+            >
+              {bulkTimesheetBlockPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <LockIcon className="h-4 w-4 mr-2" />}
+              Block Timesheet Entries
+            </Button>
+            <div className="w-px h-5 bg-border" />
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleBulkDelete}
+              disabled={bulkDeletePending || isReadOnly}
+              data-testid="button-bulk-delete"
+            >
+              {bulkDeletePending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete
+            </Button>
+          </div>
+        )}
         {/* Split-pane Gantt layout with resizable panels */}
         {/* Key changes based on hideTimeline to force complete remount and avoid ResizablePanel index errors */}
         <ResizablePanelGroup 
@@ -8757,104 +8854,8 @@ function ProjectGanttView({
         >
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
           <ResizablePanel defaultSize={hideTimeline ? 100 : leftPanelSize} minSize={20} maxSize={hideTimeline ? 100 : 80}>
-            <div ref={leftPaneRef} onScroll={handleLeftScroll} className="h-full overflow-x-auto overflow-y-scroll relative scrollbar-thin scrollbar-hide-y">
+            <div ref={leftPaneRef} className="h-full overflow-x-auto overflow-y-hidden relative scrollbar-thin">
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
-              {/* Bulk actions bar - appears when tasks are selected */}
-              {selectedTaskIds.size > 0 && (
-                <div className="flex items-center gap-3 px-3 py-2 bg-primary/10 border-b flex-wrap">
-                  <span className="text-sm font-medium">{selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? 's' : ''} selected</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={selectAllTasks}
-                    data-testid="button-select-all-tasks"
-                  >
-                    Select All
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearTaskSelection}
-                    data-testid="button-clear-selection"
-                  >
-                    Clear
-                  </Button>
-                  <div className="w-px h-5 bg-border" />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkBaseline}
-                    disabled={updateTask.isPending || isReadOnly}
-                    data-testid="button-bulk-baseline"
-                  >
-                    <Flag className="h-4 w-4 mr-2" />
-                    Baseline
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkIndent}
-                    disabled={updateTask.isPending || isReadOnly}
-                    data-testid="button-bulk-indent"
-                  >
-                    <IndentIncrease className="h-4 w-4 mr-2" />
-                    Indent
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkOutdent}
-                    disabled={updateTask.isPending || isReadOnly}
-                    data-testid="button-bulk-outdent"
-                  >
-                    <IndentDecrease className="h-4 w-4 mr-2" />
-                    Outdent
-                  </Button>
-                  <div className="w-px h-5 bg-border" />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkLink}
-                    disabled={selectedTaskIds.size < 2 || addDependency.isPending || isReadOnly}
-                    data-testid="button-bulk-link"
-                  >
-                    <Link2 className="h-4 w-4 mr-2" />
-                    Link
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkUnlink}
-                    disabled={selectedTaskIds.size < 2 || removeDependency.isPending || isReadOnly}
-                    data-testid="button-bulk-unlink"
-                  >
-                    <LinkIcon className="h-4 w-4 mr-2 line-through" />
-                    Unlink
-                  </Button>
-                  <div className="w-px h-5 bg-border" />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkTimesheetBlock}
-                    disabled={bulkTimesheetBlockPending || isReadOnly}
-                    data-testid="button-bulk-timesheet-block"
-                  >
-                    {bulkTimesheetBlockPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <LockIcon className="h-4 w-4 mr-2" />}
-                    Block Timesheet Entries
-                  </Button>
-                  <div className="w-px h-5 bg-border" />
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleBulkDelete}
-                    disabled={bulkDeletePending || isReadOnly}
-                    data-testid="button-bulk-delete"
-                  >
-                    {bulkDeletePending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                    Delete
-                  </Button>
-                </div>
-              )}
               {/* Header row - height must match timeline header */}
               <div className="flex border-b bg-muted/50 sticky top-0 z-10 h-[28px]">
                 {/* Bulk selection header column */}
@@ -9163,8 +9164,7 @@ function ProjectGanttView({
           {/* Right pane: Timeline (resizable + scrollable) - hidden in table view */}
           {!hideTimeline && (
             <ResizablePanel defaultSize={100 - leftPanelSize} minSize={20}>
-              <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full flex overflow-y-auto scrollbar-thin">
-                <div className="flex-1 overflow-x-auto">
+              <div ref={rightPaneRef} onScroll={handleRightScroll} className="h-full overflow-x-auto overflow-y-auto scrollbar-thin">
                 <div 
                   className="relative"
                   style={{ minWidth: `${filteredDates.length * 60}px` }}
@@ -9250,7 +9250,6 @@ function ProjectGanttView({
                       </div>
                     );
                   })()}
-                </div>
                 </div>
               </div>
             </ResizablePanel>
