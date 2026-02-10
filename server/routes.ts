@@ -1207,7 +1207,8 @@ export async function registerRoutes(
   app.put('/api/users/:userId/role', async (req, res) => {
     try {
       // SECURITY: Only super_admin can change user roles
-      const currentUser = req.user as User | undefined;
+      const userId = req.session?.userId || (req.user as any)?.id;
+      const currentUser = userId ? await storage.getUser(userId) : null;
       if (!currentUser || currentUser.role !== 'super_admin') {
         return res.status(403).json({ message: 'Super admin access required' });
       }
@@ -1244,7 +1245,8 @@ export async function registerRoutes(
   // Deactivate user (super admin only)
   app.put('/api/users/:userId/deactivate', async (req, res) => {
     try {
-      const currentUser = req.user as User | undefined;
+      const currentUserId = req.session?.userId || (req.user as any)?.id;
+      const currentUser = currentUserId ? await storage.getUser(currentUserId) : null;
       if (!currentUser || currentUser.role !== 'super_admin') {
         return res.status(403).json({ message: 'Super admin access required' });
       }
@@ -1271,7 +1273,8 @@ export async function registerRoutes(
   // Reactivate user (super admin only)
   app.put('/api/users/:userId/reactivate', async (req, res) => {
     try {
-      const currentUser = req.user as User | undefined;
+      const currentUserId = req.session?.userId || (req.user as any)?.id;
+      const currentUser = currentUserId ? await storage.getUser(currentUserId) : null;
       if (!currentUser || currentUser.role !== 'super_admin') {
         return res.status(403).json({ message: 'Super admin access required' });
       }
