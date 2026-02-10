@@ -12771,13 +12771,21 @@ For RESOURCES (array):
 
 Guidelines:
 - If user mentions "project", "initiative", "program" → create a project with related tasks/risks
-- If user mentions "task", "todo", "work item", "action item" → create tasks only
-- If user mentions "risk", "concern", "threat" → create risks only
-- If user mentions "issue", "problem", "bug", "blocker" → create issues only
-- If user mentions "milestone", "deadline", "deliverable", "phase" → create milestones only
+- If user mentions "task", "todo", "work item", "action item" → create tasks. If no projectId is provided in the context, you MUST also create one or more projects to hold the tasks. Distribute tasks across the projects logically.
+- If user mentions "risk", "concern", "threat" → create risks. If no projectId is provided, also create a project.
+- If user mentions "issue", "problem", "bug", "blocker" → create issues. If no projectId is provided, also create a project.
+- If user mentions "milestone", "deadline", "deliverable", "phase" → create milestones. If no projectId is provided, also create a project.
 - If user mentions "resource", "team member", "person", "staff" → create resources only
+- If the user asks to create items across "a few projects" or "multiple projects", create multiple projects each with their own tasks/items. In this case, return a "projects" array instead of a single "project" object in items.
 - Be specific and realistic based on the domain context
 - Generate 3-8 items when creating multiple of the same type
+- When distributing tasks across multiple projects, assign each task a "projectIndex" (0-based) matching the project in the "projects" array.
+
+For MULTIPLE PROJECTS, use this items structure:
+{
+  "projects": [{ "name": "...", "description": "...", ... }, { "name": "...", ... }],
+  "tasks": [{ "name": "...", "projectIndex": 0, ... }, { "name": "...", "projectIndex": 1, ... }]
+}
 
 Return ONLY valid JSON.`;
 
@@ -12809,6 +12817,7 @@ Return ONLY valid JSON.`;
       
       // Validate that there's something to create
       const hasItems = aiResult.items?.project || 
+        (aiResult.items?.projects?.length > 0) ||
         (aiResult.items?.tasks?.length > 0) || 
         (aiResult.items?.risks?.length > 0) || 
         (aiResult.items?.issues?.length > 0) || 
@@ -12828,7 +12837,7 @@ Return ONLY valid JSON.`;
         (aiResult.items?.issues?.length > 0) || 
         (aiResult.items?.milestones?.length > 0);
       
-      const hasProjectContext = projectId || aiResult.items?.project;
+      const hasProjectContext = projectId || aiResult.items?.project || (aiResult.items?.projects?.length > 0);
       
       if (needsProjectContext && !hasProjectContext) {
         return res.status(400).json({ 
@@ -12847,8 +12856,34 @@ Return ONLY valid JSON.`;
       const today = new Date();
       let currentProjectId = projectId ? Number(projectId) : null;
       
-      // Create project if needed
-      if (aiResult.items?.project) {
+      // Handle multiple projects (projects array)
+      const projectIndexToId: Record<number, number> = {};
+      if (aiResult.items?.projects?.length > 0) {
+        const createdProjects = [];
+        for (let i = 0; i < aiResult.items.projects.length; i++) {
+          const proj = aiResult.items.projects[i];
+          const projectData = {
+            organizationId: Number(organizationId),
+            portfolioId: portfolioId ? Number(portfolioId) : null,
+            name: proj.name,
+            description: proj.description,
+            status: proj.status || "Initiation",
+            priority: proj.priority || "Medium",
+            health: proj.health || "Green",
+            budget: String(proj.budget || 0),
+            startDate: today.toISOString().split('T')[0],
+            source: "ai_generated",
+          };
+          const project = await storage.createProject(projectData);
+          projectIndexToId[i] = project.id;
+          createdProjects.push(project);
+          if (i === 0) currentProjectId = project.id;
+        }
+        results.created.projects = createdProjects;
+        results.summary.push(`Created ${createdProjects.length} project(s)`);
+      }
+      // Handle single project
+      else if (aiResult.items?.project) {
         const projectData = {
           organizationId: Number(organizationId),
           portfolioId: portfolioId ? Number(portfolioId) : null,
@@ -12864,34 +12899,46 @@ Return ONLY valid JSON.`;
         
         const project = await storage.createProject(projectData);
         currentProjectId = project.id;
+        projectIndexToId[0] = project.id;
         results.created.project = project;
         results.summary.push(`Created project "${project.name}"`);
       }
       
       // Create tasks
-      if (aiResult.items?.tasks?.length > 0 && currentProjectId) {
-        let currentDate = new Date(today);
-        const createdTasks = [];
-        
+      if (aiResult.items?.tasks?.length > 0) {
+        const tasksByProject: Record<number, any[]> = {};
         for (const taskData of aiResult.items.tasks) {
-          const startDate = new Date(currentDate);
-          const durationDays = taskData.durationDays || 5;
-          const endDate = new Date(currentDate);
-          endDate.setDate(endDate.getDate() + durationDays);
-          
-          const task = await storage.createTask({
-            projectId: currentProjectId,
-            name: taskData.name,
-            description: taskData.description,
-            startDate: startDate.toISOString().split('T')[0],
-            endDate: endDate.toISOString().split('T')[0],
-            durationDays,
-            status: taskData.status || "Not Started",
-            priority: taskData.priority || "Medium",
-            progress: 0,
-          });
-          createdTasks.push(task);
-          currentDate.setDate(currentDate.getDate() + durationDays);
+          const targetProjectId = (taskData.projectIndex !== undefined && projectIndexToId[taskData.projectIndex])
+            ? projectIndexToId[taskData.projectIndex]
+            : currentProjectId;
+          if (!targetProjectId) continue;
+          if (!tasksByProject[targetProjectId]) tasksByProject[targetProjectId] = [];
+          tasksByProject[targetProjectId].push(taskData);
+        }
+
+        const createdTasks = [];
+        for (const [projId, tasks] of Object.entries(tasksByProject)) {
+          let currentDate = new Date(today);
+          for (const taskData of tasks) {
+            const startDate = new Date(currentDate);
+            const durationDays = taskData.durationDays || 5;
+            const endDate = new Date(currentDate);
+            endDate.setDate(endDate.getDate() + durationDays);
+            
+            const task = await storage.createTask({
+              projectId: Number(projId),
+              name: taskData.name,
+              description: taskData.description,
+              startDate: startDate.toISOString().split('T')[0],
+              endDate: endDate.toISOString().split('T')[0],
+              durationDays,
+              status: taskData.status || "Not Started",
+              priority: taskData.priority || "Medium",
+              progress: 0,
+            });
+            createdTasks.push(task);
+            currentDate.setDate(currentDate.getDate() + durationDays);
+          }
         }
         results.created.tasks = createdTasks;
         results.summary.push(`Created ${createdTasks.length} task(s)`);
@@ -12901,8 +12948,11 @@ Return ONLY valid JSON.`;
       if (aiResult.items?.risks?.length > 0 && currentProjectId) {
         const createdRisks = [];
         for (const riskData of aiResult.items.risks) {
+          const targetProjectId = (riskData.projectIndex !== undefined && projectIndexToId[riskData.projectIndex])
+            ? projectIndexToId[riskData.projectIndex]
+            : currentProjectId;
           const risk = await storage.createRisk({
-            projectId: currentProjectId,
+            projectId: targetProjectId,
             title: riskData.title,
             description: riskData.description,
             probability: riskData.probability || "Medium",
@@ -12920,8 +12970,11 @@ Return ONLY valid JSON.`;
       if (aiResult.items?.issues?.length > 0 && currentProjectId) {
         const createdIssues = [];
         for (const issueData of aiResult.items.issues) {
+          const targetProjectId = (issueData.projectIndex !== undefined && projectIndexToId[issueData.projectIndex])
+            ? projectIndexToId[issueData.projectIndex]
+            : currentProjectId;
           const issue = await storage.createIssue({
-            projectId: currentProjectId,
+            projectId: targetProjectId,
             title: issueData.title,
             description: issueData.description,
             priority: issueData.priority || "Medium",
@@ -12941,11 +12994,13 @@ Return ONLY valid JSON.`;
           const milestoneDate = new Date(today);
           milestoneDate.setDate(milestoneDate.getDate() + (milestoneData.daysFromStart || 30));
           
-          // Use title if provided, otherwise fall back to name
           const milestoneTitle = milestoneData.title || milestoneData.name || "Milestone";
+          const targetProjectId = (milestoneData.projectIndex !== undefined && projectIndexToId[milestoneData.projectIndex])
+            ? projectIndexToId[milestoneData.projectIndex]
+            : currentProjectId;
           
           const milestone = await storage.createMilestone({
-            projectId: currentProjectId,
+            projectId: targetProjectId,
             title: milestoneTitle,
             description: milestoneData.description,
             dueDate: milestoneDate.toISOString().split('T')[0],
@@ -12976,7 +13031,9 @@ Return ONLY valid JSON.`;
       }
       
       // Determine redirect path
-      if (results.created.project) {
+      if (results.created.projects?.length > 0) {
+        results.redirectTo = `/projects`;
+      } else if (results.created.project) {
         results.redirectTo = `/projects/${results.created.project.id}`;
       } else if (currentProjectId) {
         results.redirectTo = `/projects/${currentProjectId}`;

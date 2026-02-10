@@ -118,6 +118,12 @@ export function AICreateButton() {
         queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'issues'] });
         queryClient.invalidateQueries({ queryKey: ['/api/projects', pid, 'milestones'] });
       }
+      if (data.created?.projects?.length > 0) {
+        for (const proj of data.created.projects) {
+          queryClient.invalidateQueries({ queryKey: ['/api/projects', proj.id] });
+          queryClient.invalidateQueries({ queryKey: ['/api/projects', proj.id, 'tasks'] });
+        }
+      }
       setAiDialogOpen(false);
       setAiPrompt("");
       if (data.redirectTo) {
