@@ -891,13 +891,18 @@ function getUserIdFromRequest(req: any): string | undefined {
   return req.session?.userId;
 }
 
+// Helper to check if user has elevated system role (super_admin or marketing)
+function hasAdminAccess(user: User | undefined | null): boolean {
+  return user?.role === 'super_admin' || user?.role === 'marketing';
+}
+
 // Helper to check if user has access to an organization
 async function userHasOrgAccess(userId: string | undefined, orgId: number): Promise<boolean> {
   if (!userId) return false;
   
-  // Check if user is super_admin (has access to all orgs)
+  // Check if user has admin role (super_admin or marketing) - has access to all orgs
   const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (user?.role === 'super_admin') return true;
+  if (hasAdminAccess(user)) return true;
   
   // Check if user is a member of this organization
   const membership = await storage.getUserOrganizations(userId);
@@ -908,9 +913,9 @@ async function userHasOrgAccess(userId: string | undefined, orgId: number): Prom
 async function getUserOrgIds(userId: string | undefined): Promise<number[]> {
   if (!userId) return [];
   
-  // Check if user is super_admin
+  // Check if user has admin role
   const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (user?.role === 'super_admin') {
+  if (hasAdminAccess(user)) {
     const allOrgs = await storage.getOrganizations();
     return allOrgs.map(o => o.id);
   }
@@ -923,9 +928,9 @@ async function getUserOrgIds(userId: string | undefined): Promise<number[]> {
 async function userHasAnyOrgAccess(userId: string | undefined): Promise<boolean> {
   if (!userId) return false;
   
-  // Super admins always have access
+  // Admin roles always have access
   const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (user?.role === 'super_admin') return true;
+  if (hasAdminAccess(user)) return true;
   
   // Check if user is a member of at least one organization
   const membership = await storage.getUserOrganizations(userId);
@@ -1157,8 +1162,8 @@ export async function registerRoutes(
       
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
       
-      // Super admins can see all users
-      if (user.role === 'super_admin') {
+      // Admin roles can see all users
+      if (hasAdminAccess(user)) {
         if (organizationId) {
           const orgMembers = await storage.getOrganizationMembers(organizationId);
           const memberUserIds = orgMembers.map(m => m.userId);
@@ -1210,7 +1215,7 @@ export async function registerRoutes(
       const { role } = req.body;
       
       // Validate role is a valid value
-      const validRoles = ['user', 'super_admin'];
+      const validRoles = ['user', 'super_admin', 'marketing'];
       if (!role || !validRoles.includes(role)) {
         return res.status(400).json({ message: 'Invalid role. Must be one of: ' + validRoles.join(', ') });
       }
@@ -1581,7 +1586,7 @@ export async function registerRoutes(
       
       // Also allow super_admin
       const user = await storage.getUser(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       
       if (!isOrgAdmin && !isSuperAdmin) {
         return res.status(403).json({ message: 'Only organization admins can reorder dashboard tabs' });
@@ -1765,8 +1770,8 @@ export async function registerRoutes(
       }
       
       const user = await storage.getUser(userId);
-      if (!user || user.role !== 'super_admin') {
-        return res.status(403).json({ message: 'Super admin access required' });
+      if (!user || !hasAdminAccess(user)) {
+        return res.status(403).json({ message: 'Admin access required' });
       }
       
       const deactivatedOrgs = await storage.getDeactivatedOrganizations();
@@ -1785,8 +1790,8 @@ export async function registerRoutes(
       }
       
       const user = await storage.getUser(userId);
-      if (!user || user.role !== 'super_admin') {
-        return res.status(403).json({ message: 'Super admin access required' });
+      if (!user || !hasAdminAccess(user)) {
+        return res.status(403).json({ message: 'Admin access required' });
       }
       
       const allMembers = await db.select({
@@ -1833,8 +1838,8 @@ export async function registerRoutes(
       }
       
       const user = await storage.getUser(userId);
-      if (!user || user.role !== 'super_admin') {
-        return res.status(403).json({ message: 'Super admin access required' });
+      if (!user || !hasAdminAccess(user)) {
+        return res.status(403).json({ message: 'Admin access required' });
       }
       
       const { billingProvider } = await import("./services/billing");
@@ -2172,7 +2177,7 @@ export async function registerRoutes(
       
       // Also check if user is super_admin
       const user = await storage.getUser(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       
       const isAdmin = currentMember?.role === 'org_admin' || currentMember?.role === 'owner' || isSuperAdmin;
       
@@ -2208,7 +2213,7 @@ export async function registerRoutes(
       const members = await storage.getOrganizationMembers(orgId);
       const currentMember = members.find(m => m.userId === userId);
       const user = await storage.getUser(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       
       if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
         return res.status(403).json({ message: 'Only organization admins can remove seats' });
@@ -2269,7 +2274,7 @@ export async function registerRoutes(
       const members = await storage.getOrganizationMembers(orgId);
       const currentMember = members.find(m => m.userId === userId);
       const user = await storage.getUser(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       
       if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
         return res.status(403).json({ message: 'Only organization admins can purchase extra seats' });
@@ -9982,7 +9987,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       return res.status(401).json({ message: 'Authentication required' });
     }
     
-    const isSuperAdmin = user.role === 'super_admin';
+    const isSuperAdmin = hasAdminAccess(user);
     if (!isSuperAdmin) {
       const memberships = await storage.getUserOrganizations(user.id);
       const isAnyOrgAdmin = memberships.some(m => m.role === 'org_admin');
@@ -10024,7 +10029,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       return res.status(404).json({ message: 'Organization not found' });
     }
     
-    const isSuperAdmin = user.role === 'super_admin';
+    const isSuperAdmin = hasAdminAccess(user);
     const memberships = await storage.getUserOrganizations(user.id);
     const isOrgAdmin = memberships.some(m => m.organizationId === organizationId && m.role === 'org_admin');
     
@@ -10479,7 +10484,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       return res.status(404).json({ message: 'Organization not found' });
     }
     
-    const isSuperAdmin = user.role === 'super_admin';
+    const isSuperAdmin = hasAdminAccess(user);
     const memberships = await storage.getUserOrganizations(user.id);
     const isOrgAdmin = memberships.some(m => m.organizationId === organizationId && m.role === 'org_admin');
     
@@ -10666,8 +10671,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         return res.status(401).json({ message: "User not found" });
       }
 
-      // Super admins can always approve
-      if (user.role === 'super_admin') {
+      // Admin roles can always approve
+      if (hasAdminAccess(user)) {
         return res.json({ canApprove: true });
       }
 
@@ -10719,7 +10724,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         return res.status(401).json({ message: "User not found" });
       }
 
-      const isSuperAdmin = user.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       if (!isSuperAdmin) {
         // Check if user is org_admin or owner for this organization
         const memberships = await storage.getUserOrganizations(userId);
@@ -10766,7 +10771,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         return res.status(401).json({ message: "User not found" });
       }
 
-      const isSuperAdmin = user.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       if (!isSuperAdmin) {
         const memberships = await storage.getUserOrganizations(userId);
         const isOrgAdmin = memberships.some(m => m.organizationId === existing.organizationId && (m.role === 'org_admin' || m.role === 'owner'));
@@ -12043,7 +12048,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       
       // Check admin access
       const user = await storage.getUser(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       const memberships = await storage.getUserOrganizations(userId);
       const isOrgAdmin = memberships.some(m => m.organizationId === orgId && m.role === 'org_admin');
       
@@ -12074,7 +12079,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       
       // Check admin access
       const user = await storage.getUser(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       const memberships = await storage.getUserOrganizations(userId);
       const isOrgAdmin = memberships.some(m => m.organizationId === orgId && m.role === 'org_admin');
       
@@ -12135,7 +12140,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       
       // Check admin access
       const user = await storage.getUser(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       const memberships = await storage.getUserOrganizations(userId);
       const isOrgAdmin = memberships.some(m => m.organizationId === existingView.organizationId && m.role === 'org_admin');
       
@@ -12180,7 +12185,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       
       // Check admin access
       const user = await storage.getUser(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       const memberships = await storage.getUserOrganizations(userId);
       const isOrgAdmin = memberships.some(m => m.organizationId === existingView.organizationId && m.role === 'org_admin');
       
@@ -12276,7 +12281,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       // Check user has access to the organization (admin or owner only)
       const membership = await storage.getOrganizationMember(orgId, userId);
       const user = await storage.getUser(userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       const isOrgAdmin = membership?.role === 'owner' || membership?.role === 'org_admin' || membership?.role === 'admin';
       
       if (!isSuperAdmin && !isOrgAdmin) {
@@ -14389,8 +14394,8 @@ Return ONLY valid JSON.`;
     }
 
     const user = await storage.getUser(userId);
-    if (user?.role !== 'super_admin') {
-      return res.status(403).json({ message: "Super admin access required" });
+    if (!hasAdminAccess(user)) {
+      return res.status(403).json({ message: "Admin access required" });
     }
 
     try {
@@ -14508,8 +14513,8 @@ Return ONLY valid JSON.`;
     }
 
     const user = await storage.getUser(userId);
-    if (user?.role !== 'super_admin') {
-      return res.status(403).json({ message: "Super admin access required" });
+    if (!hasAdminAccess(user)) {
+      return res.status(403).json({ message: "Admin access required" });
     }
 
     try {
@@ -14575,8 +14580,8 @@ Return ONLY valid JSON.`;
     }
 
     const user = await storage.getUser(userId);
-    if (user?.role !== 'super_admin') {
-      return res.status(403).json({ message: "Super admin access required" });
+    if (!hasAdminAccess(user)) {
+      return res.status(403).json({ message: "Admin access required" });
     }
 
     try {
@@ -15596,7 +15601,7 @@ Return ONLY valid JSON.`;
       const userResource = resources.find(r => r.userId === userId);
       const user = await storage.getUser(userId);
       const membership = (await storage.getOrganizationMembers(organizationId)).find(m => m.userId === userId);
-      const isSuperAdmin = user?.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(user);
       const isOrgAdmin = membership?.role === 'org_admin' || membership?.role === 'owner';
       const isApprover = userResource?.isApprover === true;
 
@@ -16748,8 +16753,8 @@ Return ONLY valid JSON.`;
     }
 
     const user = await storage.getUser(userId);
-    if (user?.role !== 'super_admin') {
-      return res.status(403).json({ message: 'Super admin access required' });
+    if (!hasAdminAccess(user)) {
+      return res.status(403).json({ message: 'Admin access required' });
     }
 
     try {
@@ -17188,8 +17193,8 @@ Return ONLY valid JSON.`;
 
     try {
       const user = await storage.getUser(userId);
-      if (!user || user.role !== 'super_admin') {
-        return res.status(403).json({ message: 'Forbidden: Super admin access required' });
+      if (!user || !hasAdminAccess(user)) {
+        return res.status(403).json({ message: 'Forbidden: Admin access required' });
       }
 
       const limit = Number(req.query.limit) || 100;
@@ -17225,8 +17230,8 @@ Return ONLY valid JSON.`;
 
     try {
       const user = await storage.getUser(userId);
-      if (!user || user.role !== 'super_admin') {
-        return res.status(403).json({ message: 'Forbidden: Super admin access required' });
+      if (!user || !hasAdminAccess(user)) {
+        return res.status(403).json({ message: 'Forbidden: Admin access required' });
       }
 
       const stats = await storage.getUserConsentStats();
@@ -19405,7 +19410,7 @@ Return ONLY valid JSON.`;
         return res.status(401).json({ message: "User not found" });
       }
 
-      const isSuperAdmin = realUser.role === 'super_admin';
+      const isSuperAdmin = hasAdminAccess(realUser);
       if (!isSuperAdmin) {
         const realUserMemberships = await storage.getUserOrganizations(realUserId);
         const realUserMembership = realUserMemberships.find(m => m.organizationId === orgId);

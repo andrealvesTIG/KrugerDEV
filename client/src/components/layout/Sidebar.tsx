@@ -666,10 +666,10 @@ export function Sidebar() {
 
               {/* Menu Items */}
               {userMenuItems.map((item) => {
-                if ((item as any).superAdminOnly && user?.role !== 'super_admin') {
+                if ((item as any).superAdminOnly && user?.role !== 'super_admin' && user?.role !== 'marketing') {
                   return null;
                 }
-                if (item.href === '/billing' && currentOrganization?.billingHidden && user?.role !== 'super_admin') {
+                if (item.href === '/billing' && currentOrganization?.billingHidden && user?.role !== 'super_admin' && user?.role !== 'marketing') {
                   return null;
                 }
                 const isActive = location === item.href;

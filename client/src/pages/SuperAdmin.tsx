@@ -39,13 +39,15 @@ export default function SuperAdmin() {
   }
 
   const isSuperAdmin = user?.role === "super_admin";
+  const isMarketing = user?.role === "marketing";
+  const hasAdminAccess = isSuperAdmin || isMarketing;
 
-  if (!isSuperAdmin) {
+  if (!hasAdminAccess) {
     return (
       <div className="flex h-96 flex-col items-center justify-center gap-4">
         <ShieldAlert className="h-16 w-16 text-muted-foreground/50" />
         <h2 className="text-2xl font-bold text-foreground">Access Denied</h2>
-        <p className="text-muted-foreground">You need Super Admin privileges to access this page.</p>
+        <p className="text-muted-foreground">You need Super Admin or Marketing privileges to access this page.</p>
         <Badge variant="outline" className="text-sm">
           Current role: {user?.role || "user"}
         </Badge>
@@ -157,6 +159,7 @@ const defaultOrgColumns: OrgColumnKey[] = ['name', 'slug', 'description', 'creat
 
 function OrganizationsTab() {
   const { user } = useAuth();
+  const isMarketing = user?.role === 'marketing';
   const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
@@ -451,7 +454,7 @@ function OrganizationsTab() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setIsCreateOpen(true)} data-testid="button-create-org">
+          <Button onClick={() => setIsCreateOpen(true)} disabled={isMarketing} data-testid="button-create-org">
             <Plus className="h-4 w-4 mr-2" />
             Create Organization
           </Button>
@@ -497,6 +500,7 @@ function OrganizationsTab() {
                       variant="ghost" 
                       size="icon" 
                       onClick={() => setDemoDataOrg(org)}
+                      disabled={isMarketing}
                       data-testid={`button-demo-data-${org.id}`}
                       title="Generate demo data"
                     >
@@ -506,6 +510,7 @@ function OrganizationsTab() {
                       variant="ghost" 
                       size="icon" 
                       onClick={() => setDeleteDemoDataOrg(org)}
+                      disabled={isMarketing}
                       data-testid={`button-remove-demo-data-${org.id}`}
                       title="Remove all demo data"
                     >
@@ -520,6 +525,7 @@ function OrganizationsTab() {
                         setBonusSeats(null);
                         setBillingHidden(null);
                       }}
+                      disabled={isMarketing}
                       data-testid={`button-billing-${org.id}`}
                       title="Manage billing & seats"
                     >
@@ -529,6 +535,7 @@ function OrganizationsTab() {
                       variant="ghost" 
                       size="icon" 
                       onClick={() => setEditingOrg(org)}
+                      disabled={isMarketing}
                       data-testid={`button-edit-org-${org.id}`}
                     >
                       <Edit className="h-4 w-4 text-slate-400" />
@@ -537,6 +544,7 @@ function OrganizationsTab() {
                       variant="ghost" 
                       size="icon" 
                       onClick={() => setDeleteId(org.id)}
+                      disabled={isMarketing}
                       data-testid={`button-delete-org-${org.id}`}
                     >
                       <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
@@ -637,6 +645,7 @@ function OrganizationsTab() {
                             variant="ghost" 
                             size="icon" 
                             onClick={() => setRestoreOrgId(org.id)}
+                            disabled={isMarketing}
                             data-testid={`button-restore-org-${org.id}`}
                             title="Restore organization"
                           >
@@ -1049,6 +1058,7 @@ type SortDirection = 'asc' | 'desc';
 
 function AllUsersTab() {
   const { user: currentUser } = useAuth();
+  const isMarketing = currentUser?.role === 'marketing';
   const { toast } = useToast();
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -1331,12 +1341,14 @@ function AllUsersTab() {
                   <Select 
                     value={user.role || 'user'} 
                     onValueChange={(role) => updateUserRole.mutate({ userId: user.id, role })}
+                    disabled={isMarketing}
                   >
                     <SelectTrigger className="w-[140px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="marketing">Marketing</SelectItem>
                       <SelectItem value="super_admin">Super Admin</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1350,6 +1362,7 @@ function AllUsersTab() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleEditClick(user)}
+                      disabled={isMarketing}
                       data-testid={`button-edit-user-${user.id}`}
                     >
                       <Edit className="h-4 w-4" />
@@ -1358,7 +1371,7 @@ function AllUsersTab() {
                       variant="ghost"
                       size="icon"
                       onClick={() => setDeactivateUserId(user.id)}
-                      disabled={user.id === currentUser?.id}
+                      disabled={isMarketing || user.id === currentUser?.id}
                       data-testid={`button-deactivate-user-${user.id}`}
                       title="Deactivate user"
                     >
@@ -1368,7 +1381,7 @@ function AllUsersTab() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleDeleteClick(user)}
-                      disabled={user.id === currentUser?.id}
+                      disabled={isMarketing || user.id === currentUser?.id}
                       data-testid={`button-delete-user-${user.id}`}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -1420,7 +1433,7 @@ function AllUsersTab() {
                             variant="ghost"
                             size="icon"
                             onClick={() => reactivateUser.mutate(user.id)}
-                            disabled={reactivateUser.isPending}
+                            disabled={isMarketing || reactivateUser.isPending}
                             data-testid={`button-reactivate-user-${user.id}`}
                             title="Reactivate user"
                           >
@@ -1430,6 +1443,7 @@ function AllUsersTab() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDeleteClick(user)}
+                            disabled={isMarketing}
                             data-testid={`button-delete-deactivated-user-${user.id}`}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -1563,6 +1577,7 @@ function AllUsersTab() {
                                 userId: editingUser!.id,
                                 role
                               })}
+                              disabled={isMarketing}
                             >
                               <SelectTrigger className="w-[120px]" data-testid={`select-membership-role-${membership.organizationId}`}>
                                 <SelectValue />
@@ -1583,7 +1598,7 @@ function AllUsersTab() {
                                 orgId: membership.organizationId,
                                 userId: editingUser!.id
                               })}
-                              disabled={removeMembership.isPending}
+                              disabled={isMarketing || removeMembership.isPending}
                               data-testid={`button-remove-membership-${membership.organizationId}`}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -1634,7 +1649,7 @@ function AllUsersTab() {
                       userId: editingUser!.id,
                       role: addingOrgRole
                     })}
-                    disabled={!addingOrgId || addMembership.isPending}
+                    disabled={isMarketing || !addingOrgId || addMembership.isPending}
                     data-testid="button-add-membership"
                   >
                     {addMembership.isPending ? (
@@ -3852,6 +3867,8 @@ interface HelpTicket {
 }
 
 function HelpTicketsTab() {
+  const { user: currentUser } = useAuth();
+  const isMarketing = currentUser?.role === 'marketing';
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<HelpTicket | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -4060,6 +4077,7 @@ function HelpTicketsTab() {
                       <Select
                         value={ticket.status}
                         onValueChange={(value) => handleStatusChange(ticket.id, value)}
+                        disabled={isMarketing}
                       >
                         <SelectTrigger className="w-32" data-testid={`select-status-${ticket.id}`}>
                           <SelectValue />
@@ -4076,6 +4094,7 @@ function HelpTicketsTab() {
                       <Select
                         value={ticket.priority || "normal"}
                         onValueChange={(value) => handlePriorityChange(ticket.id, value)}
+                        disabled={isMarketing}
                       >
                         <SelectTrigger className="w-28" data-testid={`select-priority-${ticket.id}`}>
                           <SelectValue />
@@ -4204,7 +4223,7 @@ function HelpTicketsTab() {
                 <Button
                   variant="destructive"
                   onClick={() => deleteTicketMutation.mutate(selectedTicket.id)}
-                  disabled={deleteTicketMutation.isPending}
+                  disabled={isMarketing || deleteTicketMutation.isPending}
                   data-testid="button-delete-ticket"
                 >
                   {deleteTicketMutation.isPending ? (
@@ -4224,7 +4243,7 @@ function HelpTicketsTab() {
                     });
                     setViewDialogOpen(false);
                   }}
-                  disabled={updateTicketMutation.isPending}
+                  disabled={isMarketing || updateTicketMutation.isPending}
                   data-testid="button-resolve-ticket"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
