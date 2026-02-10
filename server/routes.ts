@@ -12705,6 +12705,7 @@ Return a JSON response with this structure:
 {
   "intent": "project" | "task" | "risk" | "issue" | "milestone" | "resource" | "multiple",
   "requiresProject": boolean,
+  "assignToMe": boolean,
   "items": {
     "project": { ... } | null,
     "tasks": [...] | [],
@@ -12777,6 +12778,7 @@ Guidelines:
 - If user mentions "milestone", "deadline", "deliverable", "phase" → create milestones. If no projectId is provided, also create a project.
 - If user mentions "resource", "team member", "person", "staff" → create resources only
 - If the user asks to create items across "a few projects" or "multiple projects", create multiple projects each with their own tasks/items. In this case, return a "projects" array instead of a single "project" object in items.
+- If the user says "assign me", "assign to me", "for me", or similar, set "assignToMe": true
 - Be specific and realistic based on the domain context
 - Generate 3-8 items when creating multiple of the same type
 - When distributing tasks across multiple projects, assign each task a "projectIndex" (0-based) matching the project in the "projects" array.
@@ -12942,6 +12944,34 @@ Return ONLY valid JSON.`;
         }
         results.created.tasks = createdTasks;
         results.summary.push(`Created ${createdTasks.length} task(s)`);
+      }
+      
+      // Assign tasks to the current user if requested
+      if (aiResult.assignToMe && results.created.tasks?.length > 0) {
+        try {
+          const userResource = await db.select().from(resources)
+            .where(and(
+              eq(resources.userId, userId),
+              eq(resources.organizationId, Number(organizationId)),
+              eq(resources.isActive, true)
+            ))
+            .limit(1);
+          
+          if (userResource.length > 0) {
+            const resourceId = userResource[0].id;
+            for (const task of results.created.tasks) {
+              await storage.addTaskResourceAssignment({
+                taskId: task.id,
+                resourceId: resourceId,
+                allocationPercentage: 100,
+                role: "Assignee",
+              });
+            }
+            results.summary.push(`Assigned all tasks to you`);
+          }
+        } catch (assignErr) {
+          console.error("Error assigning tasks to user:", assignErr);
+        }
       }
       
       // Create risks
