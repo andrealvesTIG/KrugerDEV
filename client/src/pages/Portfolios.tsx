@@ -448,8 +448,9 @@ function CreatePortfolioDialog({ open, onOpenChange, organizationId }: { open: b
   const createMutation = useCreatePortfolio();
   const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
   
+  const formSchema = insertPortfolioSchema.omit({ organizationId: true });
   const form = useForm<InsertPortfolio>({
-    resolver: zodResolver(insertPortfolioSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: { name: "", description: "", strategy: "", organizationId: organizationId || undefined }
   });
 
@@ -519,8 +520,9 @@ function EditPortfolioDialog({ portfolio, open, onOpenChange }: { portfolio: Por
   const [teamMemberResourceIds, setTeamMemberResourceIds] = useState<number[]>([]);
   const [teamMemberOpen, setTeamMemberOpen] = useState(false);
   
+  const formSchema = insertPortfolioSchema.omit({ organizationId: true });
   const form = useForm<InsertPortfolio>({
-    resolver: zodResolver(insertPortfolioSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: { name: "", description: "", strategy: "" }
   });
 
