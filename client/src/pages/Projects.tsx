@@ -1401,12 +1401,11 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
           <Plus className="mr-2 h-4 w-4" /> New Project
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto min-h-0">
         {/* Source Selector - Card-based design with logos */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
           <button
@@ -2103,7 +2102,6 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
             </DialogFooter>
           </div>
         )}
-        </div>
       </DialogContent>
     </Dialog>
     </>
