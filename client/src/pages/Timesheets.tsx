@@ -526,8 +526,13 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     document.body.style.cursor = "";
   };
 
-  // Initialize grid data for any new cells (tasks/dates not yet in gridData)
+  // Sync grid data from server entries
   useEffect(() => {
+    const entryMap = new Map<string, TimesheetEntryWithDetails>();
+    for (const entry of entries) {
+      entryMap.set(`${entry.taskId}-${entry.entryDate}`, entry);
+    }
+
     setGridData(prevGridData => {
       const data = { ...prevGridData };
       let changed = false;
@@ -539,13 +544,32 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
         }
         for (const date of dates) {
           const dateKey = formatDateKey(date);
-          // Only initialize if this cell doesn't exist yet
+          const entry = entryMap.get(`${task.id}-${dateKey}`);
+          const serverHours = entry ? String(Number(entry.hours)) : "";
+          const serverNotes = entry?.notes || "";
+          const serverId = entry?.id;
+
           if (data[task.id][dateKey] === undefined) {
-            const entry = entries.find(e => e.taskId === task.id && e.entryDate === dateKey);
             data[task.id][dateKey] = {
-              hours: entry ? String(Number(entry.hours)) : "",
-              notes: entry?.notes || "",
-              id: entry?.id
+              hours: serverHours,
+              notes: serverNotes,
+              id: serverId
+            };
+            changed = true;
+          } else if (!hasChanges) {
+            const cell = data[task.id][dateKey];
+            if (cell.hours !== serverHours || cell.notes !== serverNotes || cell.id !== serverId) {
+              data[task.id][dateKey] = {
+                hours: serverHours,
+                notes: serverNotes,
+                id: serverId
+              };
+              changed = true;
+            }
+          } else if (serverId && !data[task.id][dateKey].id) {
+            data[task.id][dateKey] = {
+              ...data[task.id][dateKey],
+              id: serverId
             };
             changed = true;
           }
@@ -554,7 +578,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
       
       return changed ? data : prevGridData;
     });
-  }, [entries, assignedTasks, dates, setGridData]);
+  }, [entries, assignedTasks, dates, setGridData, hasChanges]);
 
   const handleHoursChange = (taskId: number, dateKey: string, value: string) => {
     // Allow only numbers and one decimal point
@@ -2060,14 +2084,16 @@ export default function Timesheets() {
     toast({ title: "Copied", description: `${copiedCount} entries copied from last week. Remember to save!` });
   };
 
-  // Auto-save handler
+  // Auto-save handler - only sends entries for current visible dates
   const handleAutoSave = useCallback(() => {
     if (!currentOrganization || !currentResource || !hasChanges) return;
 
+    const visibleDateKeys = new Set(dates.map(d => formatDateKey(d)));
     const formattedData: Record<string, Record<string, { hours: number; notes: string; id?: number }>> = {};
     for (const taskId in gridData) {
       formattedData[taskId] = {};
       for (const dateKey in gridData[taskId]) {
+        if (!visibleDateKeys.has(dateKey)) continue;
         const { hours, notes, id } = gridData[taskId][dateKey];
         formattedData[taskId][dateKey] = {
           hours: hours ? parseFloat(hours) : 0,
@@ -2077,7 +2103,7 @@ export default function Timesheets() {
       }
     }
     handleSave(formattedData);
-  }, [gridData, currentOrganization, currentResource, hasChanges]);
+  }, [gridData, dates, currentOrganization, currentResource, hasChanges]);
 
   const navigateDate = (direction: "prev" | "next") => {
     if (viewMode === "day") {
@@ -2140,9 +2166,41 @@ export default function Timesheets() {
     }
 
     try {
-      await bulkUpsert.mutateAsync(entriesToUpsert);
+      const results = await bulkUpsert.mutateAsync(entriesToUpsert);
+
+      // Sync server-assigned IDs back into gridData
+      if (Array.isArray(results)) {
+        setGridData(prev => {
+          const updated = { ...prev };
+          let changed = false;
+          for (const saved of results) {
+            const taskId = saved.taskId;
+            const dateKey = saved.entryDate;
+            if (updated[taskId]?.[dateKey] && updated[taskId][dateKey].id !== saved.id) {
+              updated[taskId] = { ...updated[taskId] };
+              updated[taskId][dateKey] = { ...updated[taskId][dateKey], id: saved.id };
+              changed = true;
+            }
+          }
+          return changed ? updated : prev;
+        });
+
+        // Warn if some entries were skipped
+        const skipped = entriesToUpsert.length - results.length;
+        if (skipped > 0) {
+          toast({ 
+            title: "Partially Saved", 
+            description: `${results.length} entries saved, ${skipped} could not be saved (may be locked, in a closed period, or already submitted)`,
+            variant: "destructive"
+          });
+        } else {
+          toast({ title: "Saved", description: "Your timesheet has been saved" });
+        }
+      } else {
+        toast({ title: "Saved", description: "Your timesheet has been saved" });
+      }
+
       setHasChanges(false);
-      toast({ title: "Saved", description: "Your timesheet has been saved" });
     } catch (err) {
       toast({ title: "Error", description: "Failed to save timesheet", variant: "destructive" });
     }
