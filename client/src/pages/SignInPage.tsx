@@ -1135,6 +1135,7 @@ interface PlanData {
   monthlyPriceCents: number | null;
   maxSeats: number | null;
   extraSeatPriceCents: number | null;
+  displayOrder: number | null;
   meterRules: {
     meterCode: string;
     meterName: string;
@@ -1144,31 +1145,29 @@ interface PlanData {
   }[];
 }
 
+function getMeterValue(rules: PlanData['meterRules'], meterCode: string): { quota: number | null; hasOverage: boolean } {
+  const quota = rules.find(r => r.meterCode === meterCode && r.ruleType === 'INCLUDED_QUOTA');
+  const hasOverage = rules.some(r => r.meterCode === meterCode && r.ruleType === 'METERED_OVERAGE');
+  return { quota: quota?.includedUnitsMonthly ?? null, hasOverage };
+}
+
 function getPlanFeatures(plan: PlanData): string[] {
   const features: string[] = [];
   const rules = plan.meterRules;
 
-  const creditsQuota = rules.find(r => r.meterCode === 'credits' && r.ruleType === 'INCLUDED_QUOTA');
-  if (creditsQuota?.includedUnitsMonthly) {
-    features.push(`${creditsQuota.includedUnitsMonthly.toLocaleString()} credits/month`);
+  const credits = getMeterValue(rules, 'credits');
+  if (credits.quota) {
+    features.push(`${credits.quota.toLocaleString()} credits/month`);
   }
 
-  const aiQuota = rules.find(r => r.meterCode === 'ai_runs' && r.ruleType === 'INCLUDED_QUOTA');
-  const aiCap = rules.find(r => r.meterCode === 'ai_runs' && r.ruleType === 'HARD_CAP');
-  const aiOverage = rules.find(r => r.meterCode === 'ai_runs' && r.ruleType === 'METERED_OVERAGE');
-  if (aiQuota?.includedUnitsMonthly) {
-    if (aiOverage && (!aiCap || (aiCap.hardCapUnits && aiCap.hardCapUnits > aiQuota.includedUnitsMonthly * 10))) {
-      features.push(`${aiQuota.includedUnitsMonthly.toLocaleString()} AI runs/month`);
-    } else if (aiCap && aiCap.hardCapUnits && aiCap.hardCapUnits <= aiQuota.includedUnitsMonthly) {
-      features.push(`${aiQuota.includedUnitsMonthly.toLocaleString()} AI runs/month`);
-    } else {
-      features.push(`${aiQuota.includedUnitsMonthly.toLocaleString()} AI runs/month`);
-    }
+  const aiRuns = getMeterValue(rules, 'ai_runs');
+  if (aiRuns.quota) {
+    features.push(`${aiRuns.quota.toLocaleString()} AI runs/month`);
   }
 
-  const docsQuota = rules.find(r => r.meterCode === 'documents' && r.ruleType === 'INCLUDED_QUOTA');
-  if (docsQuota?.includedUnitsMonthly) {
-    features.push(`${docsQuota.includedUnitsMonthly.toLocaleString()} documents`);
+  const docs = getMeterValue(rules, 'documents');
+  if (docs.quota) {
+    features.push(`${docs.quota.toLocaleString()} documents`);
   }
 
   if (plan.maxSeats) {
@@ -1184,18 +1183,14 @@ function getPlanFeatures(plan: PlanData): string[] {
   return features;
 }
 
-const PLAN_ORDER = ['FREE', 'BASIC', 'TEAM', 'ENTERPRISE', 'CUSTOM'];
-
 function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
   const { data: plans, isLoading } = useQuery<PlanData[]>({
     queryKey: ['/api/billing/plans'],
   });
 
-  const sortedPlans = plans?.sort((a, b) => {
-    const aIdx = PLAN_ORDER.indexOf(a.code);
-    const bIdx = PLAN_ORDER.indexOf(b.code);
-    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
-  });
+  const sortedPlans = plans ? [...plans].sort((a, b) => {
+    return (a.displayOrder ?? 999) - (b.displayOrder ?? 999);
+  }) : [];
 
   const mostPopularCode = 'TEAM';
 
@@ -1219,7 +1214,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
             <Loader2 className="h-8 w-8 animate-spin text-orange-400" />
           </div>
         ) : (
-          <div className={`grid md:grid-cols-2 lg:grid-cols-${sortedPlans?.length || 5} gap-4 max-w-7xl mx-auto`}>
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 max-w-7xl mx-auto">
             {sortedPlans?.map((plan) => {
               const isPopular = plan.code === mostPopularCode;
               const isCustom = plan.code === 'CUSTOM';
