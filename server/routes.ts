@@ -1512,6 +1512,17 @@ export async function registerRoutes(
           role: 'org_admin' 
         });
       }
+      // Auto-assign FREE plan subscription to new organization
+      try {
+        const { billingProvider } = await import("./services/billing");
+        await billingProvider.createSubscription({
+          planCode: "FREE",
+          orgId: org.id,
+          userId: ownerId || undefined,
+        });
+      } catch (billingErr) {
+        console.error("Failed to assign FREE plan to organization:", billingErr);
+      }
       res.status(201).json(org);
     } catch (err) {
       res.status(500).json({ message: 'Failed to create organization' });
