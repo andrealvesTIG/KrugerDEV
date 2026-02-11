@@ -136,7 +136,8 @@ function QuickAddPortfolioDialog({ open, onOpenChange, organizationId }: { open:
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label>Name</Label>
-            <Input {...form.register("name", { required: true })} placeholder="Portfolio name" data-testid="input-portfolio-name" />
+            <Input {...form.register("name", { required: "Portfolio name is required" })} placeholder="Portfolio name" data-testid="input-portfolio-name" />
+            {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
           </div>
           <div className="space-y-2">
             <Label>Description</Label>

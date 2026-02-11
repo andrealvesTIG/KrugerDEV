@@ -3509,9 +3509,14 @@ export async function registerRoutes(
       
       const input = api.portfolios.create.input.parse(req.body);
       
+      if (!input.name || !input.name.trim()) {
+        return res.status(400).json({ message: "Portfolio name is required" });
+      }
+      
       // Set createdBy to current user for team member access control
       const portfolioData = {
         ...input,
+        name: input.name.trim(),
         createdBy: userId || undefined,
       };
       

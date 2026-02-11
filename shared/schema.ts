@@ -1190,7 +1190,9 @@ export const insertOrganizationMemberSchema = createInsertSchema(organizationMem
 export const insertOrganizationInviteSchema = createInsertSchema(organizationInvites).omit({ id: true, createdAt: true, acceptedAt: true });
 export const insertOrganizationAccessRequestSchema = createInsertSchema(organizationAccessRequests).omit({ id: true, createdAt: true, reviewedAt: true });
 export const insertExternalShareSchema = createInsertSchema(externalShares).omit({ id: true, sharedAt: true });
-export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true });
+export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true }).extend({
+  name: z.string().min(1, "Portfolio name is required"),
+});
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true });
 // Risk schema is now an alias for Issue schema with itemType="risk"
 // Extend to handle date strings for escalatedAt field
