@@ -1870,11 +1870,18 @@ function PeriodManagementTab() {
 function MyReportTab() {
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
-  const [reportRange, setReportRange] = useState<"this_month" | "last_month" | "last_3_months" | "last_6_months" | "this_year">("this_month");
+  const [reportRange, setReportRange] = useState<"this_month" | "last_month" | "last_3_months" | "last_6_months" | "this_year" | "custom">("this_month");
+  const [customStartDate, setCustomStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [customEndDate, setCustomEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [sortField, setSortField] = useState<"hours" | "entries" | "projectName">("hours");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
 
   const { startDate, endDate } = useMemo(() => {
+    if (reportRange === "custom") {
+      return { startDate: customStartDate, endDate: customEndDate };
+    }
     const now = new Date();
     let start: Date;
     let end: Date;
@@ -1903,7 +1910,7 @@ function MyReportTab() {
       startDate: format(start, "yyyy-MM-dd"),
       endDate: format(end, "yyyy-MM-dd")
     };
-  }, [reportRange]);
+  }, [reportRange, customStartDate, customEndDate]);
 
   const { data: report, isLoading } = useMyTimesheetReport(
     currentOrganization?.id || null,
@@ -1912,25 +1919,79 @@ function MyReportTab() {
     endDate
   );
 
-  const sortedProjects = useMemo(() => {
+  const filteredReport = useMemo(() => {
+    if (!report) return null;
+    let entries = report.entries;
+    if (statusFilter !== "all") {
+      entries = entries.filter(e => e.status === statusFilter);
+    }
+    if (projectFilter !== "all") {
+      entries = entries.filter(e => String(e.projectId) === projectFilter);
+    }
+
+    const totalHours = entries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+    const byStatus: Record<string, number> = {};
+    const byProject: Record<string, { projectId: number; projectName: string; hours: number; entries: number }> = {};
+    const byWeek: Record<string, number> = {};
+
+    for (const entry of entries) {
+      const status = entry.status || "Draft";
+      byStatus[status] = (byStatus[status] || 0) + Number(entry.hours || 0);
+
+      const projectKey = String(entry.projectId);
+      if (!byProject[projectKey]) {
+        byProject[projectKey] = {
+          projectId: entry.projectId,
+          projectName: entry.project?.name || "Unknown",
+          hours: 0,
+          entries: 0
+        };
+      }
+      byProject[projectKey].hours += Number(entry.hours || 0);
+      byProject[projectKey].entries += 1;
+
+      const entryDate = new Date(entry.entryDate + "T00:00:00");
+      const weekStart = new Date(entryDate);
+      const day = weekStart.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      weekStart.setDate(weekStart.getDate() + diff);
+      const weekKey = weekStart.toISOString().split("T")[0];
+      byWeek[weekKey] = (byWeek[weekKey] || 0) + Number(entry.hours || 0);
+    }
+
+    return {
+      totalHours,
+      totalEntries: entries.length,
+      byStatus,
+      byProject: Object.values(byProject).sort((a, b) => b.hours - a.hours),
+      byWeek
+    };
+  }, [report, statusFilter, projectFilter]);
+
+  const allProjects = useMemo(() => {
     if (!report?.byProject) return [];
-    return [...report.byProject].sort((a, b) => {
+    return report.byProject;
+  }, [report?.byProject]);
+
+  const sortedProjects = useMemo(() => {
+    if (!filteredReport?.byProject) return [];
+    return [...filteredReport.byProject].sort((a, b) => {
       const multiplier = sortDir === "asc" ? 1 : -1;
       if (sortField === "projectName") return multiplier * a.projectName.localeCompare(b.projectName);
       return multiplier * (a[sortField] - b[sortField]);
     });
-  }, [report?.byProject, sortField, sortDir]);
+  }, [filteredReport?.byProject, sortField, sortDir]);
 
   const weeklyData = useMemo(() => {
-    if (!report?.byWeek) return [];
-    return Object.entries(report.byWeek)
+    if (!filteredReport?.byWeek) return [];
+    return Object.entries(filteredReport.byWeek)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([weekStart, hours]) => ({
         weekStart,
         weekLabel: format(parseISO(weekStart), "MMM d"),
         hours
       }));
-  }, [report?.byWeek]);
+  }, [filteredReport?.byWeek]);
 
   const maxWeeklyHours = useMemo(() => {
     if (!weeklyData.length) return 40;
@@ -1951,7 +2012,8 @@ function MyReportTab() {
     last_month: "Last Month",
     last_3_months: "Last 3 Months",
     last_6_months: "Last 6 Months",
-    this_year: "This Year"
+    this_year: "This Year",
+    custom: "Custom Range"
   };
 
   if (isLoading) {
@@ -1969,24 +2031,92 @@ function MyReportTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground" data-testid="text-report-title">My Hours Report</h3>
-          <p className="text-sm text-muted-foreground">
-            {format(parseISO(startDate), "MMM d, yyyy")} - {format(parseISO(endDate), "MMM d, yyyy")}
-          </p>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground" data-testid="text-report-title">My Hours Report</h3>
+            <p className="text-sm text-muted-foreground">
+              {format(parseISO(startDate), "MMM d, yyyy")} - {format(parseISO(endDate), "MMM d, yyyy")}
+              {(statusFilter !== "all" || projectFilter !== "all") && (
+                <span className="ml-2 text-xs">
+                  (filtered)
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={reportRange} onValueChange={(v) => setReportRange(v as typeof reportRange)}>
+              <SelectTrigger className="w-[160px]" data-testid="select-report-range">
+                <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(rangeLabels).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]" data-testid="select-status-filter">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="Draft">Draft</SelectItem>
+                <SelectItem value="Submitted">Submitted</SelectItem>
+                <SelectItem value="Approved">Approved</SelectItem>
+                <SelectItem value="Rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={projectFilter} onValueChange={setProjectFilter}>
+              <SelectTrigger className="w-[160px]" data-testid="select-project-filter">
+                <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {allProjects.map(p => (
+                  <SelectItem key={p.projectId} value={String(p.projectId)}>{p.projectName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(statusFilter !== "all" || projectFilter !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setStatusFilter("all"); setProjectFilter("all"); }}
+                data-testid="button-clear-filters"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
-        <Select value={reportRange} onValueChange={(v) => setReportRange(v as typeof reportRange)}>
-          <SelectTrigger className="w-[180px]" data-testid="select-report-range">
-            <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(rangeLabels).map(([key, label]) => (
-              <SelectItem key={key} value={key}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {reportRange === "custom" && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+              <Input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="w-[160px]"
+                data-testid="input-custom-start-date"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
+              <Input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="w-[160px]"
+                data-testid="input-custom-end-date"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1999,7 +2129,7 @@ function MyReportTab() {
               <div>
                 <p className="text-xs text-muted-foreground">Total Hours</p>
                 <p className="text-xl font-bold text-foreground" data-testid="text-total-hours">
-                  {(report?.totalHours || 0).toFixed(1)}
+                  {(filteredReport?.totalHours || 0).toFixed(1)}
                 </p>
               </div>
             </div>
@@ -2014,7 +2144,7 @@ function MyReportTab() {
               <div>
                 <p className="text-xs text-muted-foreground">Approved</p>
                 <p className="text-xl font-bold text-foreground" data-testid="text-approved-hours">
-                  {(report?.byStatus?.["Approved"] || 0).toFixed(1)}h
+                  {(filteredReport?.byStatus?.["Approved"] || 0).toFixed(1)}h
                 </p>
               </div>
             </div>
@@ -2029,7 +2159,7 @@ function MyReportTab() {
               <div>
                 <p className="text-xs text-muted-foreground">Submitted</p>
                 <p className="text-xl font-bold text-foreground" data-testid="text-submitted-hours">
-                  {(report?.byStatus?.["Submitted"] || 0).toFixed(1)}h
+                  {(filteredReport?.byStatus?.["Submitted"] || 0).toFixed(1)}h
                 </p>
               </div>
             </div>
@@ -2044,7 +2174,7 @@ function MyReportTab() {
               <div>
                 <p className="text-xs text-muted-foreground">Draft</p>
                 <p className="text-xl font-bold text-foreground" data-testid="text-draft-hours">
-                  {(report?.byStatus?.["Draft"] || 0).toFixed(1)}h
+                  {(filteredReport?.byStatus?.["Draft"] || 0).toFixed(1)}h
                 </p>
               </div>
             </div>
@@ -2092,7 +2222,7 @@ function MyReportTab() {
                   </button>
                 </div>
                 {sortedProjects.map((proj) => {
-                  const percentage = report?.totalHours ? (proj.hours / report.totalHours) * 100 : 0;
+                  const percentage = filteredReport?.totalHours ? (proj.hours / filteredReport.totalHours) * 100 : 0;
                   return (
                     <div key={proj.projectId} className="flex items-center gap-3 px-2 py-2 rounded-md hover-elevate" data-testid={`row-project-${proj.projectId}`}>
                       <div className="flex-1 min-w-0">
@@ -2163,12 +2293,12 @@ function MyReportTab() {
           <CardTitle className="text-sm font-medium text-foreground">Status Breakdown</CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0">
-          {!report?.byStatus || Object.keys(report.byStatus).length === 0 ? (
+          {!filteredReport?.byStatus || Object.keys(filteredReport.byStatus).length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No entries for this period</p>
           ) : (
             <div className="flex items-center gap-6 flex-wrap">
-              {Object.entries(report.byStatus).map(([status, hours]) => {
-                const percentage = report.totalHours ? (hours / report.totalHours) * 100 : 0;
+              {Object.entries(filteredReport.byStatus).map(([status, hours]) => {
+                const percentage = filteredReport.totalHours ? (hours / filteredReport.totalHours) * 100 : 0;
                 const statusConfig: Record<string, { color: string; icon: typeof CheckCircle2 }> = {
                   Approved: { color: "text-emerald-600", icon: CheckCircle2 },
                   Submitted: { color: "text-amber-600", icon: Send },
