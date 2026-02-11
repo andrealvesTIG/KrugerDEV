@@ -3,16 +3,25 @@ import { type DialogProps } from "@radix-ui/react-dialog"
 import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn, normalizeSearch } from "@/lib/utils"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
+
+const accentInsensitiveFilter = (value: string, search: string, keywords?: string[]) => {
+  const normalizedValue = normalizeSearch(value);
+  const normalizedSearch = normalizeSearch(search);
+  const normalizedKeywords = keywords?.map(k => normalizeSearch(k)).join(" ") || "";
+  const haystack = `${normalizedValue} ${normalizedKeywords}`;
+  return haystack.includes(normalizedSearch) ? 1 : 0;
+};
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
->(({ className, ...props }, ref) => (
+>(({ className, filter, ...props }, ref) => (
   <CommandPrimitive
     ref={ref}
+    filter={filter ?? accentInsensitiveFilter}
     className={cn(
       "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
       className
