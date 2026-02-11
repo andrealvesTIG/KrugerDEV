@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useResources } from "@/hooks/use-resources";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,8 @@ export function ResourceAssignment({
   const [open, setOpen] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [searchValue, setSearchValue] = useState("");
+  const commandInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -133,20 +135,20 @@ export function ResourceAssignment({
 
   const toggleResource = (resourceId: number) => {
     if (selectedResourceIds.includes(resourceId)) {
-      // Remove resource and its allocation
       onSelectionChange(selectedResourceIds.filter(id => id !== resourceId));
       if (onAllocationsChange) {
         onAllocationsChange(allocations.filter(a => a.resourceId !== resourceId));
       }
     } else {
-      // Add resource with default 100% allocation
       onSelectionChange([...selectedResourceIds, resourceId]);
       if (onAllocationsChange) {
         onAllocationsChange([...allocations, { resourceId, allocationPercentage: 100 }]);
       }
     }
-    // Close the dropdown after selection
-    setOpen(false);
+    setSearchValue("");
+    requestAnimationFrame(() => {
+      commandInputRef.current?.focus();
+    });
   };
 
   const removeResource = (resourceId: number) => {
@@ -233,7 +235,7 @@ export function ResourceAssignment({
         )}
       </div>
       
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (!isOpen) setSearchValue(""); }}>
         <PopoverTrigger asChild>
           <Button 
             type="button" 
@@ -298,8 +300,8 @@ export function ResourceAssignment({
               </div>
             ) : (
               <div className="flex flex-col">
-                <Command>
-                  <CommandInput placeholder="Search resources..." />
+                <Command shouldFilter={true}>
+                  <CommandInput ref={commandInputRef} placeholder="Search resources..." value={searchValue} onValueChange={setSearchValue} />
                   <CommandList className="max-h-[200px]">
                     <CommandEmpty>No resources found.</CommandEmpty>
                     <CommandGroup>
