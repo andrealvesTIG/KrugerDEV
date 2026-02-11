@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { normalizeSearch } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -222,12 +223,12 @@ function OrganizationsTab() {
   const filteredOrganizations = useMemo(() => {
     let result = organizations ?? [];
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
+      const q = normalizeSearch(searchQuery);
       result = result.filter(org =>
-        org.name?.toLowerCase().includes(q) ||
-        org.slug?.toLowerCase().includes(q) ||
-        org.description?.toLowerCase().includes(q) ||
-        getOwnerName(org.ownerId)?.toLowerCase().includes(q)
+        normalizeSearch(org.name).includes(q) ||
+        normalizeSearch(org.slug).includes(q) ||
+        normalizeSearch(org.description).includes(q) ||
+        normalizeSearch(getOwnerName(org.ownerId)).includes(q)
       );
     }
     const sorted = [...result];
@@ -1215,10 +1216,10 @@ function AllUsersTab() {
   // Filter by search query
   const filteredUsers = allActiveUsers.filter(user => {
     if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    const fullName = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase();
-    const email = (user.email || '').toLowerCase();
-    const role = (user.role || 'user').toLowerCase();
+    const query = normalizeSearch(searchQuery);
+    const fullName = normalizeSearch(`${user.firstName || ''} ${user.lastName || ''}`);
+    const email = normalizeSearch(user.email);
+    const role = normalizeSearch(user.role || 'user');
     return fullName.includes(query) || email.includes(query) || role.includes(query);
   });
 

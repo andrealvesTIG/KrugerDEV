@@ -16,7 +16,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertProjectInvoiceSchema, type ProjectInvoice } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, normalizeSearch } from "@/lib/utils";
 import { Link } from "wouter";
 import { z } from "zod";
 import { format } from "date-fns";
@@ -147,9 +147,9 @@ export default function Invoices() {
   }, [invoices]);
 
   const filteredInvoices = invoices?.filter(invoice => {
-    const matchesSearch = invoice.title.toLowerCase().includes(search.toLowerCase()) ||
-      invoice.invoiceNumber?.toLowerCase().includes(search.toLowerCase()) ||
-      invoice.vendorName?.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = normalizeSearch(invoice.title).includes(normalizeSearch(search)) ||
+      normalizeSearch(invoice.invoiceNumber).includes(normalizeSearch(search)) ||
+      normalizeSearch(invoice.vendorName).includes(normalizeSearch(search));
     const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
     const matchesProject = projectFilter === "all" || invoice.projectId.toString() === projectFilter;
     return matchesSearch && matchesStatus && matchesProject;

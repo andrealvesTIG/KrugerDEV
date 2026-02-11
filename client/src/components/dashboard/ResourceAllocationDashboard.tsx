@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { normalizeSearch } from "@/lib/utils";
 import { useOrganization } from "@/hooks/use-organization";
 import { useResources } from "@/hooks/use-resources";
 import { useProjects } from "@/hooks/use-projects";
@@ -85,14 +86,14 @@ export function ResourceAllocationDashboard() {
       if (filters.resourceId && r.id !== filters.resourceId) return false;
       if (filters.department && r.department !== filters.department) return false;
       if (filters.skill) {
-        const resourceSkills = r.skills?.split(",").map(s => s.trim().toLowerCase()) || [];
-        if (!resourceSkills.includes(filters.skill.toLowerCase())) return false;
+        const resourceSkills = r.skills?.split(",").map(s => normalizeSearch(s.trim())) || [];
+        if (!resourceSkills.includes(normalizeSearch(filters.skill))) return false;
       }
       if (filters.searchQuery) {
-        const query = filters.searchQuery.toLowerCase();
-        const matchesName = r.displayName.toLowerCase().includes(query);
-        const matchesEmail = r.email?.toLowerCase().includes(query);
-        const matchesDept = r.department?.toLowerCase().includes(query);
+        const query = normalizeSearch(filters.searchQuery);
+        const matchesName = normalizeSearch(r.displayName).includes(query);
+        const matchesEmail = normalizeSearch(r.email).includes(query);
+        const matchesDept = normalizeSearch(r.department).includes(query);
         if (!matchesName && !matchesEmail && !matchesDept) return false;
       }
       return true;
@@ -188,7 +189,7 @@ export function ResourceAllocationDashboard() {
 
   const skillAllocation = allSkills.slice(0, 10).map(skill => {
     const resourcesWithSkill = activeResources.filter(r => 
-      r.skills?.split(",").map(s => s.trim().toLowerCase()).includes(skill.toLowerCase())
+      r.skills?.split(",").map(s => normalizeSearch(s.trim())).includes(normalizeSearch(skill))
     );
     const assignedWithSkill = resourcesWithSkill.filter(r => assignedResourceIds.has(r.id)).length;
     return {

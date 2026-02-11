@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, normalizeSearch } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
@@ -288,7 +288,7 @@ export default function ProjectIntakes() {
   const intakesList = Array.isArray(intakes) ? intakes : [];
   
   const filteredIntakes = intakesList.filter(intake => {
-    const matchesSearch = intake.projectName.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = normalizeSearch(intake.projectName).includes(normalizeSearch(search));
     const matchesStatus = statusFilter === "all" 
       || (statusFilter === "in_review" && (intake.status === "draft" || intake.status === "in_progress"))
       || intake.status === statusFilter;

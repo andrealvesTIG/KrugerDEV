@@ -47,7 +47,7 @@ interface SystemProjectView {
   isActive: boolean;
   displayOrder: number;
 }
-import { cn } from "@/lib/utils";
+import { cn, normalizeSearch } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -196,7 +196,7 @@ export function ViewsDropdown({
   const filteredColumns = useMemo(() => {
     if (!columnSearch.trim()) return allColumns;
     return allColumns.filter(c => 
-      c.label.toLowerCase().includes(columnSearch.toLowerCase())
+      normalizeSearch(c.label).includes(normalizeSearch(columnSearch))
     );
   }, [allColumns, columnSearch]);
 

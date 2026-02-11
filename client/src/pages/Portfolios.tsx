@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { normalizeSearch } from "@/lib/utils";
 import { usePortfolios, useCreatePortfolio, useUpdatePortfolio } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
 import { useResources } from "@/hooks/use-resources";
@@ -56,8 +57,8 @@ export default function Portfolios() {
 
   const filteredPortfolios = portfolios
     ?.filter(p => 
-      p.name.toLowerCase().includes(search.toLowerCase()) || 
-      p.description?.toLowerCase().includes(search.toLowerCase())
+      normalizeSearch(p.name).includes(normalizeSearch(search)) || 
+      normalizeSearch(p.description).includes(normalizeSearch(search))
     )
     .sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;

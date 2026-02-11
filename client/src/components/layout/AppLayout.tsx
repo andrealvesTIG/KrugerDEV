@@ -1,4 +1,5 @@
 import { ReactNode, useState, useMemo, useRef, useEffect } from "react";
+import { normalizeSearch } from "@/lib/utils";
 import { Sidebar, SidebarProvider, useSidebarState, logoIcon, logoBlack, logoWhite } from "./Sidebar";
 import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
@@ -70,8 +71,8 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
 
   const filteredOrgs = useMemo(() => {
     if (!orgSearchQuery.trim()) return organizations;
-    const q = orgSearchQuery.toLowerCase();
-    return organizations.filter(org => org.name?.toLowerCase().includes(q));
+    const q = normalizeSearch(orgSearchQuery);
+    return organizations.filter(org => normalizeSearch(org.name).includes(q));
   }, [organizations, orgSearchQuery]);
   
   const stopActingAsMutation = useMutation({

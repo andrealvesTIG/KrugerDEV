@@ -57,7 +57,7 @@ import { api } from "@shared/routes";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, normalizeSearch } from "@/lib/utils";
 import { DndContext, DragEndEvent, DragOverEvent, DragOverlay, DragStartEvent, closestCorners, useSensor, useSensors, PointerSensor, useDroppable, useDraggable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -3008,12 +3008,12 @@ function ProjectCommentsFeed({ projectId }: { projectId: number }) {
 
   // Filter users based on mention search
   const filteredUsers = users?.filter(u => {
-    const searchLower = mentionSearch.toLowerCase();
+    const searchLower = normalizeSearch(mentionSearch);
     return (
-      u.username?.toLowerCase().includes(searchLower) ||
-      u.email?.toLowerCase().includes(searchLower) ||
-      u.firstName?.toLowerCase().includes(searchLower) ||
-      u.lastName?.toLowerCase().includes(searchLower)
+      normalizeSearch(u.username).includes(searchLower) ||
+      normalizeSearch(u.email).includes(searchLower) ||
+      normalizeSearch(u.firstName).includes(searchLower) ||
+      normalizeSearch(u.lastName).includes(searchLower)
     );
   }).slice(0, 5) || [];
 
@@ -4172,12 +4172,12 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const filteredTasks = useMemo(() => {
     if (!tasks) return [];
     if (!searchQuery.trim()) return tasks;
-    const query = searchQuery.toLowerCase();
+    const query = normalizeSearch(searchQuery);
     return tasks.filter(task => 
-      task.name.toLowerCase().includes(query) ||
-      task.description?.toLowerCase().includes(query) ||
-      task.assignee?.toLowerCase().includes(query) ||
-      task.status?.toLowerCase().includes(query)
+      normalizeSearch(task.name).includes(query) ||
+      normalizeSearch(task.description).includes(query) ||
+      normalizeSearch(task.assignee).includes(query) ||
+      normalizeSearch(task.status).includes(query)
     );
   }, [tasks, searchQuery]);
   
@@ -6827,8 +6827,8 @@ function TaskDependenciesSection({
   // Filter by search query (name + task ID)
   const filteredPredecessors = availablePredecessors.filter(task => {
     if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    const nameMatch = task.name.toLowerCase().includes(query);
+    const query = normalizeSearch(searchQuery);
+    const nameMatch = normalizeSearch(task.name).includes(query);
     const idMatch = String(task.id).includes(query);
     const taskIndexMatch = task.taskIndex ? String(task.taskIndex).includes(query) : false;
     return nameMatch || idMatch || taskIndexMatch;
@@ -7612,9 +7612,9 @@ function ProjectGanttView({
   
   const filteredColumnsToAdd = useMemo(() => {
     if (!columnSearchQuery.trim()) return availableColumnsToAdd;
-    const query = columnSearchQuery.toLowerCase();
+    const query = normalizeSearch(columnSearchQuery);
     return availableColumnsToAdd.filter(col => 
-      col.label.toLowerCase().includes(query) || col.id.toLowerCase().includes(query)
+      normalizeSearch(col.label).includes(query) || normalizeSearch(col.id).includes(query)
     );
   }, [availableColumnsToAdd, columnSearchQuery]);
   

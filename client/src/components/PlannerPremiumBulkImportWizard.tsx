@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { normalizeSearch } from "@/lib/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -270,7 +271,7 @@ export function PlannerPremiumBulkImportWizard({
 
   const selectAll = () => {
     const filteredPlans = plansData?.plans.filter(p => 
-      p.title.toLowerCase().includes(searchQuery.toLowerCase())
+      normalizeSearch(p.title).includes(normalizeSearch(searchQuery))
     ) || [];
     setSelectedPlans(filteredPlans.map(p => p.id));
   };
@@ -280,7 +281,7 @@ export function PlannerPremiumBulkImportWizard({
   };
 
   const filteredPlans = plansData?.plans.filter(p =>
-    p.title.toLowerCase().includes(searchQuery.toLowerCase())
+    normalizeSearch(p.title).includes(normalizeSearch(searchQuery))
   ) || [];
 
   const completedCount = importProgress.filter(p => p.status === 'success').length;

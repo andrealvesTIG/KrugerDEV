@@ -32,7 +32,7 @@ import {
   Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal, MoreVertical, ArrowUpToLine
 } from "lucide-react";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, normalizeSearch } from "@/lib/utils";
 import type { Project } from "@shared/schema";
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
@@ -316,10 +316,10 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
 
   const filteredAvailableProjects = useMemo(() => {
     if (!searchQuery.trim()) return availableProjects;
-    const query = searchQuery.toLowerCase();
+    const query = normalizeSearch(searchQuery);
     return availableProjects.filter(p => 
-      p.name.toLowerCase().includes(query) || 
-      p.description?.toLowerCase().includes(query)
+      normalizeSearch(p.name).includes(query) || 
+      normalizeSearch(p.description).includes(query)
     );
   }, [availableProjects, searchQuery]);
 

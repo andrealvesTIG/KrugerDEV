@@ -21,7 +21,7 @@
   import { zodResolver } from "@hookform/resolvers/zod";
   import { insertIssueSchema, type Issue } from "@shared/schema";
   import { useToast } from "@/hooks/use-toast";
-  import { cn } from "@/lib/utils";
+  import { cn, normalizeSearch } from "@/lib/utils";
   import { motion } from "framer-motion";
   import { Link } from "wouter";
   import { LimitExceededDialog } from "@/components/LimitExceededDialog";
@@ -271,8 +271,8 @@
     };
 
     const filteredIssues = issues?.filter(issue => {
-      const matchesSearch = issue.title.toLowerCase().includes(search.toLowerCase()) ||
-        issue.description?.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = normalizeSearch(issue.title).includes(normalizeSearch(search)) ||
+        normalizeSearch(issue.description).includes(normalizeSearch(search));
       const matchesStatus = statusFilter === "all" || issue.status === statusFilter;
       const matchesPriority = priorityFilter === "all" || issue.priority === priorityFilter;
       // Handle both null and "issue" as regular issues (null is legacy, "issue" is new format)

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { normalizeSearch } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
@@ -117,10 +118,10 @@ export function SearchCommand() {
   // Local search for User Guide sections
   const userGuideResults = useMemo(() => {
     if (query.length < 2) return [];
-    const lowerQuery = query.toLowerCase();
+    const lowerQuery = normalizeSearch(query);
     return userGuideSections.filter(section => 
-      section.name.toLowerCase().includes(lowerQuery) ||
-      section.keywords.some(keyword => keyword.toLowerCase().includes(lowerQuery))
+      normalizeSearch(section.name).includes(lowerQuery) ||
+      section.keywords.some(keyword => normalizeSearch(keyword).includes(lowerQuery))
     );
   }, [query]);
 

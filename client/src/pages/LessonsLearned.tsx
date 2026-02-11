@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { normalizeSearch } from "@/lib/utils";
 import { useAllLessonsLearned, useUpdateLessonLearned, useDeleteLessonLearned } from "@/hooks/use-lessons-learned";
 import { useOrganization } from "@/hooks/use-organization";
 import { useProjects } from "@/hooks/use-projects";
@@ -133,8 +134,8 @@ export default function LessonsLearned() {
 
   const filteredLessons = lessons?.filter(l => {
     const matchesSearch = searchTerm === "" || 
-      l.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (l.description && l.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      normalizeSearch(l.title).includes(normalizeSearch(searchTerm)) ||
+      (l.description && normalizeSearch(l.description).includes(normalizeSearch(searchTerm)));
     const matchesCategory = filterCategory === "all" || l.category === filterCategory;
     const matchesType = filterType === "all" || l.lessonType === filterType;
     const matchesStatus = filterStatus === "all" || l.status === filterStatus;

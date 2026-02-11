@@ -37,7 +37,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertTaskSchema, type Task } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, normalizeSearch } from "@/lib/utils";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
 const statusColors = {
@@ -108,7 +108,7 @@ export default function Tasks() {
     let myResource = orgResources.find(r => r.userId === user.id);
     // If not found, try matching by email address
     if (!myResource && user.email) {
-      myResource = orgResources.find(r => r.email?.toLowerCase() === user.email?.toLowerCase());
+      myResource = orgResources.find(r => normalizeSearch(r.email) === normalizeSearch(user.email));
     }
     return myResource?.id ?? null;
   }, [user?.id, user?.email, orgResources]);
@@ -138,12 +138,12 @@ export default function Tasks() {
     
     // Filter by search query
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
+      const query = normalizeSearch(searchQuery).trim();
       filteredTasks = filteredTasks.filter(task => 
-        task.name.toLowerCase().includes(query) ||
-        task.description?.toLowerCase().includes(query) ||
-        task.assignee?.toLowerCase().includes(query) ||
-        task.status?.toLowerCase().includes(query)
+        normalizeSearch(task.name).includes(query) ||
+        normalizeSearch(task.description).includes(query) ||
+        normalizeSearch(task.assignee).includes(query) ||
+        normalizeSearch(task.status).includes(query)
       );
     }
     

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { normalizeSearch } from "@/lib/utils";
 import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useQuery } from "@tanstack/react-query";
@@ -348,10 +349,10 @@ export default function Resources() {
   };
 
   const filteredResources = resources?.filter(r => 
-    r.displayName.toLowerCase().includes(search.toLowerCase()) || 
-    r.email?.toLowerCase().includes(search.toLowerCase()) ||
-    r.title?.toLowerCase().includes(search.toLowerCase()) ||
-    r.department?.toLowerCase().includes(search.toLowerCase())
+    normalizeSearch(r.displayName).includes(normalizeSearch(search)) || 
+    normalizeSearch(r.email).includes(normalizeSearch(search)) ||
+    normalizeSearch(r.title).includes(normalizeSearch(search)) ||
+    normalizeSearch(r.department).includes(normalizeSearch(search))
   );
 
   const handleDelete = async () => {

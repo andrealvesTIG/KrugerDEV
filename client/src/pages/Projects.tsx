@@ -30,7 +30,7 @@ import { format, differenceInDays, parseISO, addDays, startOfMonth, endOfMonth, 
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, normalizeSearch } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable, closestCenter } from "@dnd-kit/core";
 import { useSortable, SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
@@ -186,7 +186,7 @@ export default function Projects() {
         const portfolioName = (row["Portfolio"] || row["portfolio"] || "").toString().trim();
         let matchedPortfolioId: number | null = null;
         if (portfolioName) {
-          const matchedPortfolio = portfolios?.find(p => p.name.toLowerCase() === portfolioName.toLowerCase());
+          const matchedPortfolio = portfolios?.find(p => normalizeSearch(p.name) === normalizeSearch(portfolioName));
           if (matchedPortfolio) {
             matchedPortfolioId = matchedPortfolio.id;
           }
@@ -293,7 +293,7 @@ export default function Projects() {
     
     // Filter first
     const filtered = allProjects.filter(p => {
-      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = normalizeSearch(p.name).includes(normalizeSearch(search));
       const matchesSource = sourceFilter === "all" || 
         (sourceFilter === "manual" && (p.source === "manual" || !p.source)) ||
         (sourceFilter === "imported" && p.source === "imported") ||
@@ -1256,9 +1256,9 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const filteredDataversePlans = useMemo(() => {
     if (!dataversePlans?.plans) return [];
     if (!dataverseSearchTerm.trim()) return dataversePlans.plans;
-    const term = dataverseSearchTerm.toLowerCase();
+    const term = normalizeSearch(dataverseSearchTerm);
     return dataversePlans.plans.filter(plan => 
-      plan.title.toLowerCase().includes(term)
+      normalizeSearch(plan.title).includes(term)
     );
   }, [dataversePlans?.plans, dataverseSearchTerm]);
   
@@ -1310,9 +1310,9 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const filteredPlannerPlans = useMemo(() => {
     if (!plannerPlans?.plans) return [];
     if (!plannerSearchTerm.trim()) return plannerPlans.plans;
-    const searchLower = plannerSearchTerm.toLowerCase().trim();
+    const searchLower = normalizeSearch(plannerSearchTerm).trim();
     return plannerPlans.plans.filter(plan => 
-      plan.title.toLowerCase().includes(searchLower)
+      normalizeSearch(plan.title).includes(searchLower)
     );
   }, [plannerPlans?.plans, plannerSearchTerm]);
 
