@@ -3513,10 +3513,18 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Portfolio name is required" });
       }
       
-      // Set createdBy to current user for team member access control
+      const trimmedName = input.name.trim();
+      if (input.organizationId) {
+        const existing = await storage.getPortfolios(input.organizationId);
+        const duplicate = existing.find(p => p.name.toLowerCase() === trimmedName.toLowerCase());
+        if (duplicate) {
+          return res.status(400).json({ message: "A portfolio with this name already exists in this organization" });
+        }
+      }
+      
       const portfolioData = {
         ...input,
-        name: input.name.trim(),
+        name: trimmedName,
         createdBy: userId || undefined,
       };
       
@@ -3543,7 +3551,22 @@ export async function registerRoutes(
   app.put(api.portfolios.update.path, async (req, res) => {
     try {
       const input = api.portfolios.update.input.parse(req.body);
-      const updated = await storage.updatePortfolio(Number(req.params.id), input);
+      const portfolioId = Number(req.params.id);
+      
+      if (input.name) {
+        const trimmedName = input.name.trim();
+        const currentPortfolio = await storage.getPortfolio(portfolioId);
+        if (currentPortfolio && currentPortfolio.organizationId) {
+          const existing = await storage.getPortfolios(currentPortfolio.organizationId);
+          const duplicate = existing.find(p => p.id !== portfolioId && p.name.toLowerCase() === trimmedName.toLowerCase());
+          if (duplicate) {
+            return res.status(400).json({ message: "A portfolio with this name already exists in this organization" });
+          }
+        }
+        input.name = trimmedName;
+      }
+      
+      const updated = await storage.updatePortfolio(portfolioId, input);
       res.json(updated);
     } catch (err) {
        if (err instanceof z.ZodError) {
