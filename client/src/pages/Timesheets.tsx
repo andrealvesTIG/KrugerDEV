@@ -20,6 +20,7 @@ import {
   useReopenTimesheetPeriod,
   useDeleteTimesheetPeriod,
   useClosedTimesheetPeriods,
+  useMyTimesheetReport,
   type TimesheetEntryWithDetails,
   type NonProjectTimeEntryWithCategory
 } from "@/hooks/use-timesheets";
@@ -78,7 +79,10 @@ import {
   LockOpen,
   CalendarRange,
   Undo2,
-  MoreVertical
+  MoreVertical,
+  BarChart3,
+  FileText,
+  ArrowUpDown
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -1863,6 +1867,334 @@ function PeriodManagementTab() {
   );
 }
 
+function MyReportTab() {
+  const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
+  const [reportRange, setReportRange] = useState<"this_month" | "last_month" | "last_3_months" | "last_6_months" | "this_year">("this_month");
+  const [sortField, setSortField] = useState<"hours" | "entries" | "projectName">("hours");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const { startDate, endDate } = useMemo(() => {
+    const now = new Date();
+    let start: Date;
+    let end: Date;
+    switch (reportRange) {
+      case "last_month":
+        start = startOfMonth(subMonths(now, 1));
+        end = endOfMonth(subMonths(now, 1));
+        break;
+      case "last_3_months":
+        start = startOfMonth(subMonths(now, 2));
+        end = endOfMonth(now);
+        break;
+      case "last_6_months":
+        start = startOfMonth(subMonths(now, 5));
+        end = endOfMonth(now);
+        break;
+      case "this_year":
+        start = new Date(now.getFullYear(), 0, 1);
+        end = endOfMonth(now);
+        break;
+      default:
+        start = startOfMonth(now);
+        end = endOfMonth(now);
+    }
+    return {
+      startDate: format(start, "yyyy-MM-dd"),
+      endDate: format(end, "yyyy-MM-dd")
+    };
+  }, [reportRange]);
+
+  const { data: report, isLoading } = useMyTimesheetReport(
+    currentOrganization?.id || null,
+    user?.id,
+    startDate,
+    endDate
+  );
+
+  const sortedProjects = useMemo(() => {
+    if (!report?.byProject) return [];
+    return [...report.byProject].sort((a, b) => {
+      const multiplier = sortDir === "asc" ? 1 : -1;
+      if (sortField === "projectName") return multiplier * a.projectName.localeCompare(b.projectName);
+      return multiplier * (a[sortField] - b[sortField]);
+    });
+  }, [report?.byProject, sortField, sortDir]);
+
+  const weeklyData = useMemo(() => {
+    if (!report?.byWeek) return [];
+    return Object.entries(report.byWeek)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([weekStart, hours]) => ({
+        weekStart,
+        weekLabel: format(parseISO(weekStart), "MMM d"),
+        hours
+      }));
+  }, [report?.byWeek]);
+
+  const maxWeeklyHours = useMemo(() => {
+    if (!weeklyData.length) return 40;
+    return Math.max(...weeklyData.map(w => w.hours), 40);
+  }, [weeklyData]);
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  };
+
+  const rangeLabels: Record<string, string> = {
+    this_month: "This Month",
+    last_month: "Last Month",
+    last_3_months: "Last 3 Months",
+    last_6_months: "Last 6 Months",
+    this_year: "This Year"
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-8">
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Loading your report...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h3 className="text-lg font-semibold text-foreground" data-testid="text-report-title">My Hours Report</h3>
+          <p className="text-sm text-muted-foreground">
+            {format(parseISO(startDate), "MMM d, yyyy")} - {format(parseISO(endDate), "MMM d, yyyy")}
+          </p>
+        </div>
+        <Select value={reportRange} onValueChange={(v) => setReportRange(v as typeof reportRange)}>
+          <SelectTrigger className="w-[180px]" data-testid="select-report-range">
+            <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(rangeLabels).map(([key, label]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+                <Clock className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Hours</p>
+                <p className="text-xl font-bold text-foreground" data-testid="text-total-hours">
+                  {(report?.totalHours || 0).toFixed(1)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Approved</p>
+                <p className="text-xl font-bold text-foreground" data-testid="text-approved-hours">
+                  {(report?.byStatus?.["Approved"] || 0).toFixed(1)}h
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
+                <Send className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Submitted</p>
+                <p className="text-xl font-bold text-foreground" data-testid="text-submitted-hours">
+                  {(report?.byStatus?.["Submitted"] || 0).toFixed(1)}h
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Draft</p>
+                <p className="text-xl font-bold text-foreground" data-testid="text-draft-hours">
+                  {(report?.byStatus?.["Draft"] || 0).toFixed(1)}h
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-foreground">Hours by Project</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {sortedProjects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <FolderOpen className="h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">No project hours found for this period</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-center text-xs text-muted-foreground px-2 py-1.5">
+                  <button
+                    className="flex-1 text-left flex items-center gap-1"
+                    onClick={() => handleSort("projectName")}
+                    data-testid="button-sort-project"
+                  >
+                    Project
+                    {sortField === "projectName" && <ArrowUpDown className="h-3 w-3" />}
+                  </button>
+                  <button
+                    className="w-20 text-right flex items-center justify-end gap-1"
+                    onClick={() => handleSort("entries")}
+                    data-testid="button-sort-entries"
+                  >
+                    Entries
+                    {sortField === "entries" && <ArrowUpDown className="h-3 w-3" />}
+                  </button>
+                  <button
+                    className="w-20 text-right flex items-center justify-end gap-1"
+                    onClick={() => handleSort("hours")}
+                    data-testid="button-sort-hours"
+                  >
+                    Hours
+                    {sortField === "hours" && <ArrowUpDown className="h-3 w-3" />}
+                  </button>
+                </div>
+                {sortedProjects.map((proj) => {
+                  const percentage = report?.totalHours ? (proj.hours / report.totalHours) * 100 : 0;
+                  return (
+                    <div key={proj.projectId} className="flex items-center gap-3 px-2 py-2 rounded-md hover-elevate" data-testid={`row-project-${proj.projectId}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{proj.projectName}</p>
+                        <div className="mt-1 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-blue-500 transition-all"
+                            style={{ width: `${Math.min(percentage, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-xs text-muted-foreground w-20 text-right tabular-nums">{proj.entries}</span>
+                      <span className="text-sm font-medium text-foreground w-20 text-right tabular-nums">{proj.hours.toFixed(1)}h</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-foreground">Weekly Trend</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {weeklyData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <TrendingUp className="h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">No weekly data available for this period</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {weeklyData.map((week) => {
+                  const barWidth = (week.hours / maxWeeklyHours) * 100;
+                  const isOverTarget = week.hours > 40;
+                  return (
+                    <div key={week.weekStart} className="flex items-center gap-3" data-testid={`row-week-${week.weekStart}`}>
+                      <span className="text-xs text-muted-foreground w-16 shrink-0">{week.weekLabel}</span>
+                      <div className="flex-1 h-6 rounded bg-muted overflow-hidden relative">
+                        <div
+                          className={`h-full rounded transition-all ${isOverTarget ? 'bg-amber-500' : 'bg-blue-500'}`}
+                          style={{ width: `${Math.min(barWidth, 100)}%` }}
+                        />
+                        <div
+                          className="absolute top-0 bottom-0 w-px bg-muted-foreground/30"
+                          style={{ left: `${(40 / maxWeeklyHours) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-foreground w-14 text-right tabular-nums shrink-0">
+                        {week.hours.toFixed(1)}h
+                      </span>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                  <div className="w-3 h-px bg-muted-foreground/30" />
+                  <span>40h target</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-foreground">Status Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          {!report?.byStatus || Object.keys(report.byStatus).length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No entries for this period</p>
+          ) : (
+            <div className="flex items-center gap-6 flex-wrap">
+              {Object.entries(report.byStatus).map(([status, hours]) => {
+                const percentage = report.totalHours ? (hours / report.totalHours) * 100 : 0;
+                const statusConfig: Record<string, { color: string; icon: typeof CheckCircle2 }> = {
+                  Approved: { color: "text-emerald-600", icon: CheckCircle2 },
+                  Submitted: { color: "text-amber-600", icon: Send },
+                  Draft: { color: "text-muted-foreground", icon: FileText },
+                  Rejected: { color: "text-destructive", icon: X },
+                };
+                const config = statusConfig[status] || { color: "text-muted-foreground", icon: FileText };
+                const Icon = config.icon;
+                return (
+                  <div key={status} className="flex items-center gap-2" data-testid={`status-${status.toLowerCase()}`}>
+                    <Icon className={`h-4 w-4 ${config.color}`} />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{status}</p>
+                      <p className="text-xs text-muted-foreground">{hours.toFixed(1)}h ({percentage.toFixed(0)}%)</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function Timesheets() {
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
@@ -2718,6 +3050,26 @@ export default function Timesheets() {
                 />
               )}
             </button>
+            <button
+              onClick={() => setActiveTab("report")}
+              className={`pb-3 text-sm font-medium transition-colors relative ${
+                activeTab === "report" 
+                  ? "text-foreground" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="tab-my-report"
+            >
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                My Report
+              </div>
+              {activeTab === "report" && (
+                <motion.div 
+                  layoutId="activeTab"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                />
+              )}
+            </button>
             {currentResource?.isApprover && (
               <button
                 onClick={() => setActiveTab("approve")}
@@ -3232,6 +3584,15 @@ export default function Timesheets() {
                 </div>
               </CardContent>
             </Card>
+          </motion.div>
+        )}
+
+        {activeTab === "report" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <MyReportTab />
           </motion.div>
         )}
 

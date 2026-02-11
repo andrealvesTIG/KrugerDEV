@@ -296,6 +296,27 @@ export function useReopenTimesheetPeriod() {
   });
 }
 
+export interface TimesheetReportData {
+  totalHours: number;
+  totalEntries: number;
+  byStatus: Record<string, number>;
+  byProject: { projectId: number; projectName: string; hours: number; entries: number }[];
+  byWeek: Record<string, number>;
+  entries: TimesheetEntryWithDetails[];
+}
+
+export function useMyTimesheetReport(organizationId: number | null, userId: string | undefined, startDate: string, endDate: string) {
+  return useQuery<TimesheetReportData>({
+    queryKey: ["/api/timesheets/my-report", organizationId, userId, startDate, endDate],
+    enabled: !!organizationId && !!userId && !!startDate && !!endDate,
+    queryFn: async () => {
+      const response = await fetch(`/api/timesheets/my-report?organizationId=${organizationId}&startDate=${startDate}&endDate=${endDate}`);
+      if (!response.ok) throw new Error("Failed to fetch timesheet report");
+      return response.json();
+    },
+  });
+}
+
 export function useDeleteTimesheetPeriod() {
   const queryClient = useQueryClient();
   return useMutation({

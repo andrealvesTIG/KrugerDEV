@@ -16223,6 +16223,74 @@ Return ONLY valid JSON.`;
     }
   });
 
+  app.get('/api/timesheets/my-report', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    try {
+      const organizationId = Number(req.query.organizationId);
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+
+      if (!organizationId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'organizationId, startDate, and endDate are required' });
+      }
+
+      const entriesWithDetails = await storage.getTimesheetEntriesWithDetails(userId, organizationId, startDate, endDate);
+
+      const enrichedEntries = entriesWithDetails.map(({ entry, task, project }) => ({
+        ...entry,
+        task,
+        project
+      }));
+
+      const totalHours = enrichedEntries.reduce((sum, e) => sum + Number(e.hours || 0), 0);
+
+      const byStatus: Record<string, number> = {};
+      const byProject: Record<string, { projectId: number; projectName: string; hours: number; entries: number }> = {};
+      const byWeek: Record<string, number> = {};
+
+      for (const entry of enrichedEntries) {
+        const status = entry.status || 'Draft';
+        byStatus[status] = (byStatus[status] || 0) + Number(entry.hours || 0);
+
+        const projectKey = String(entry.projectId);
+        if (!byProject[projectKey]) {
+          byProject[projectKey] = {
+            projectId: entry.projectId,
+            projectName: entry.project?.name || 'Unknown',
+            hours: 0,
+            entries: 0
+          };
+        }
+        byProject[projectKey].hours += Number(entry.hours || 0);
+        byProject[projectKey].entries += 1;
+
+        const entryDate = new Date(entry.entryDate + 'T00:00:00');
+        const weekStart = new Date(entryDate);
+        const day = weekStart.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        weekStart.setDate(weekStart.getDate() + diff);
+        const weekKey = weekStart.toISOString().split('T')[0];
+        byWeek[weekKey] = (byWeek[weekKey] || 0) + Number(entry.hours || 0);
+      }
+
+      res.json({
+        totalHours,
+        totalEntries: enrichedEntries.length,
+        byStatus,
+        byProject: Object.values(byProject).sort((a, b) => b.hours - a.hours),
+        byWeek,
+        entries: enrichedEntries
+      });
+    } catch (error) {
+      console.error('Error getting timesheet report:', error);
+      res.status(500).json({ message: 'Failed to get timesheet report' });
+    }
+  });
+
   // ===== Timesheet Periods (Period Closing/Locking) =====
   
   // Get all timesheet periods for organization (approvers only)
