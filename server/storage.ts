@@ -1428,8 +1428,8 @@ export class DatabaseStorage implements IStorage {
             ? sql`${portfolios.organizationId} IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`
             : sql`1=1`,
           or(
-            ilike(portfolios.name, searchPattern),
-            ilike(portfolios.description, searchPattern)
+            sql`unaccent(${portfolios.name}) ILIKE unaccent(${searchPattern})`,
+            sql`unaccent(${portfolios.description}) ILIKE unaccent(${searchPattern})`
           )
         )
       )
@@ -1443,8 +1443,8 @@ export class DatabaseStorage implements IStorage {
             ? sql`${projects.organizationId} IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`
             : sql`1=1`,
           or(
-            ilike(projects.name, searchPattern),
-            ilike(projects.description, searchPattern)
+            sql`unaccent(${projects.name}) ILIKE unaccent(${searchPattern})`,
+            sql`unaccent(${projects.description}) ILIKE unaccent(${searchPattern})`
           )
         )
       )
@@ -1474,8 +1474,8 @@ export class DatabaseStorage implements IStorage {
         and(
           sql`${tasks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
-            ilike(tasks.name, searchPattern),
-            ilike(tasks.description, searchPattern)
+            sql`unaccent(${tasks.name}) ILIKE unaccent(${searchPattern})`,
+            sql`unaccent(${tasks.description}) ILIKE unaccent(${searchPattern})`
           )
         )
       )
@@ -1487,8 +1487,8 @@ export class DatabaseStorage implements IStorage {
         and(
           sql`${issues.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
-            ilike(issues.title, searchPattern),
-            ilike(issues.description, searchPattern)
+            sql`unaccent(${issues.title}) ILIKE unaccent(${searchPattern})`,
+            sql`unaccent(${issues.description}) ILIKE unaccent(${searchPattern})`
           )
         )
       )
@@ -1501,8 +1501,8 @@ export class DatabaseStorage implements IStorage {
           eq(issues.itemType, 'risk'),
           sql`${issues.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
-            ilike(issues.title, searchPattern),
-            ilike(issues.description, searchPattern)
+            sql`unaccent(${issues.title}) ILIKE unaccent(${searchPattern})`,
+            sql`unaccent(${issues.description}) ILIKE unaccent(${searchPattern})`
           )
         )
       )
@@ -1514,8 +1514,8 @@ export class DatabaseStorage implements IStorage {
         and(
           sql`${milestones.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
-            ilike(milestones.title, searchPattern),
-            ilike(milestones.description, searchPattern)
+            sql`unaccent(${milestones.title}) ILIKE unaccent(${searchPattern})`,
+            sql`unaccent(${milestones.description}) ILIKE unaccent(${searchPattern})`
           )
         )
       )

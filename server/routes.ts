@@ -891,6 +891,11 @@ function getUserIdFromRequest(req: any): string | undefined {
   return req.session?.userId;
 }
 
+function normalizeSearchStr(str: string | null | undefined): string {
+  if (!str) return "";
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
 // Helper to check if user has elevated system role (super_admin or marketing)
 function hasAdminAccess(user: User | undefined | null): boolean {
   return user?.role === 'super_admin' || user?.role === 'marketing';
@@ -2806,7 +2811,7 @@ export async function registerRoutes(
       
       // Fall back to internal users if no external directory is configured or Graph API failed
       const allUsers = await storage.getAllUsers();
-      const searchLower = q.toLowerCase();
+      const normalizedQuery = normalizeSearchStr(q);
       
       const matchingUsers = allUsers
         .filter(user => {
@@ -2816,11 +2821,11 @@ export async function registerRoutes(
           // Skip if already has a pending invite
           if (user.email && pendingInviteEmails.has(user.email.toLowerCase())) return false;
           
-          // Match on name or email
-          const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').toLowerCase();
-          const email = user.email?.toLowerCase() || '';
+          // Match on name or email (accent-insensitive)
+          const fullName = normalizeSearchStr([user.firstName, user.lastName].filter(Boolean).join(' '));
+          const email = normalizeSearchStr(user.email);
           
-          return fullName.includes(searchLower) || email.includes(searchLower);
+          return fullName.includes(normalizedQuery) || email.includes(normalizedQuery);
         })
         .slice(0, 10) // Limit results
         .map(user => ({
