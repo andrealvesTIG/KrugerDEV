@@ -477,7 +477,7 @@ function CreatePortfolioDialog({ open, onOpenChange, organizationId }: { open: b
           <Plus className="mr-2 h-4 w-4" /> New Portfolio
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Portfolio</DialogTitle>
         </DialogHeader>
@@ -564,7 +564,7 @@ function EditPortfolioDialog({ portfolio, open, onOpenChange }: { portfolio: Por
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Portfolio</DialogTitle>
         </DialogHeader>
