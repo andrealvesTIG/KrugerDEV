@@ -604,124 +604,7 @@ export default function SignInPage() {
         </div>
       </section>
       {/* Pricing Section */}
-      <section id="pricing-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
-              Simple Pricing
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Free Forever, Scale When Ready
-            </h2>
-            <p className="text-lg text-slate-300 max-w-2xl mx-auto">
-              Start for free with unlimited projects. Upgrade only when you need advanced features.
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 max-w-7xl mx-auto">
-            {/* Free Plan */}
-            <div className="p-5 rounded-2xl bg-slate-800/50 border border-slate-600">
-              <div className="text-center mb-5">
-                <h3 className="text-lg font-semibold text-white mb-2">Free Forever</h3>
-                <div className="text-3xl font-bold text-white mb-1">$0</div>
-                <p className="text-slate-300 text-xs">Forever free</p>
-              </div>
-              <ul className="space-y-2 mb-5">
-                {["200 credits/month", "25 AI runs/month", "50 documents", "1 seat included", "Basic dashboards"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
-                    <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-free">Get it Free</Button>
-            </div>
-            
-            {/* Professional Plan */}
-            <div className="p-5 rounded-2xl bg-slate-800/50 border border-slate-600">
-              <div className="text-center mb-5">
-                <h3 className="text-lg font-semibold text-white mb-2">Professional</h3>
-                <div className="text-3xl font-bold text-white mb-1">$12</div>
-                <p className="text-slate-300 text-xs">per month</p>
-              </div>
-              <ul className="space-y-2 mb-5">
-                {["500 credits/month", "500 AI runs/month", "1,000 documents", "Up to 3 seats", "$5/extra seat", "Advanced reporting"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
-                    <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-professional">
-                Start Free
-              </Button>
-            </div>
-            
-            {/* Business Plan */}
-            <div className="p-5 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge className="bg-orange-500 text-white text-xs">Most Popular</Badge>
-              </div>
-              <div className="text-center mb-5">
-                <h3 className="text-lg font-semibold text-white mb-2">Business</h3>
-                <div className="text-3xl font-bold text-white mb-1">$28</div>
-                <p className="text-slate-300 text-xs">per month</p>
-              </div>
-              <ul className="space-y-2 mb-5">
-                {["1,000 credits/month", "2,500 AI runs/month", "5,000 documents", "Up to 25 seats", "$8/extra seat", "Priority support"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
-                    <CheckCircle className="h-3.5 w-3.5 text-orange-400 flex-shrink-0" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button size="sm" className="w-full bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 font-semibold" onClick={scrollToSignIn} data-testid="button-pricing-business">
-                Start Free
-              </Button>
-            </div>
-            
-            {/* Enterprise Plan */}
-            <div className="p-5 rounded-2xl bg-slate-800/50 border border-slate-600">
-              <div className="text-center mb-5">
-                <h3 className="text-lg font-semibold text-white mb-2">Enterprise</h3>
-                <div className="text-3xl font-bold text-white mb-1">$900</div>
-                <p className="text-slate-300 text-xs">per month</p>
-              </div>
-              <ul className="space-y-2 mb-5">
-                {["7,500 credits/month", "Unlimited AI runs", "Unlimited documents", "Up to 25 seats", "$6/extra seat", "SSO / SAML"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
-                    <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-enterprise">
-                Start Free
-              </Button>
-            </div>
-            
-            {/* Custom Plan */}
-            <div className="p-5 rounded-2xl bg-slate-800/50 border border-slate-600">
-              <div className="text-center mb-5">
-                <h3 className="text-lg font-semibold text-white mb-2">Custom</h3>
-                <div className="text-3xl font-bold text-white mb-1">Contact</div>
-                <p className="text-slate-300 text-xs">Custom pricing</p>
-              </div>
-              <ul className="space-y-2 mb-5">
-                {["Unlimited credits", "Unlimited AI runs", "Unlimited documents", "Unlimited seats", "Dedicated support"].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
-                    <CheckCircle className="h-3.5 w-3.5 text-green-400 flex-shrink-0" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button variant="outline" size="sm" className="w-full border-slate-500 text-slate-200 hover:bg-slate-600" onClick={scrollToSignIn} data-testid="button-pricing-custom">
-                Contact Sales
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
+      <PricingSection scrollToSignIn={scrollToSignIn} />
       {/* CTA / Sign In Section */}
       <section id="signin-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-700/50 to-slate-800">
         <div className="max-w-7xl mx-auto">
@@ -1242,5 +1125,166 @@ export default function SignInPage() {
       {/* Footer */}
       <LandingFooter />
     </div>
+  );
+}
+
+interface PlanData {
+  id: number;
+  code: string;
+  name: string;
+  monthlyPriceCents: number | null;
+  maxSeats: number | null;
+  extraSeatPriceCents: number | null;
+  meterRules: {
+    meterCode: string;
+    meterName: string;
+    ruleType: string;
+    includedUnitsMonthly: number | null;
+    hardCapUnits: number | null;
+  }[];
+}
+
+function getPlanFeatures(plan: PlanData): string[] {
+  const features: string[] = [];
+  const rules = plan.meterRules;
+
+  const creditsQuota = rules.find(r => r.meterCode === 'credits' && r.ruleType === 'INCLUDED_QUOTA');
+  if (creditsQuota?.includedUnitsMonthly) {
+    features.push(`${creditsQuota.includedUnitsMonthly.toLocaleString()} credits/month`);
+  }
+
+  const aiQuota = rules.find(r => r.meterCode === 'ai_runs' && r.ruleType === 'INCLUDED_QUOTA');
+  const aiCap = rules.find(r => r.meterCode === 'ai_runs' && r.ruleType === 'HARD_CAP');
+  const aiOverage = rules.find(r => r.meterCode === 'ai_runs' && r.ruleType === 'METERED_OVERAGE');
+  if (aiQuota?.includedUnitsMonthly) {
+    if (aiOverage && (!aiCap || (aiCap.hardCapUnits && aiCap.hardCapUnits > aiQuota.includedUnitsMonthly * 10))) {
+      features.push(`${aiQuota.includedUnitsMonthly.toLocaleString()} AI runs/month`);
+    } else if (aiCap && aiCap.hardCapUnits && aiCap.hardCapUnits <= aiQuota.includedUnitsMonthly) {
+      features.push(`${aiQuota.includedUnitsMonthly.toLocaleString()} AI runs/month`);
+    } else {
+      features.push(`${aiQuota.includedUnitsMonthly.toLocaleString()} AI runs/month`);
+    }
+  }
+
+  const docsQuota = rules.find(r => r.meterCode === 'documents' && r.ruleType === 'INCLUDED_QUOTA');
+  if (docsQuota?.includedUnitsMonthly) {
+    features.push(`${docsQuota.includedUnitsMonthly.toLocaleString()} documents`);
+  }
+
+  if (plan.maxSeats) {
+    features.push(plan.maxSeats === 1 ? `1 seat included` : `Up to ${plan.maxSeats} seats`);
+  } else {
+    features.push("Unlimited seats");
+  }
+
+  if (plan.extraSeatPriceCents) {
+    features.push(`$${plan.extraSeatPriceCents / 100}/extra seat`);
+  }
+
+  return features;
+}
+
+const PLAN_ORDER = ['FREE', 'BASIC', 'TEAM', 'ENTERPRISE', 'CUSTOM'];
+
+function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
+  const { data: plans, isLoading } = useQuery<PlanData[]>({
+    queryKey: ['/api/billing/plans'],
+  });
+
+  const sortedPlans = plans?.sort((a, b) => {
+    const aIdx = PLAN_ORDER.indexOf(a.code);
+    const bIdx = PLAN_ORDER.indexOf(b.code);
+    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+  });
+
+  const mostPopularCode = 'TEAM';
+
+  return (
+    <section id="pricing-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-16">
+          <Badge variant="secondary" className="mb-4 bg-orange-500/10 text-orange-400 border-orange-500/20">
+            Simple Pricing
+          </Badge>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Free Forever, Scale When Ready
+          </h2>
+          <p className="text-lg text-slate-300 max-w-2xl mx-auto">
+            Start for free with unlimited projects. Upgrade only when you need advanced features.
+          </p>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-orange-400" />
+          </div>
+        ) : (
+          <div className={`grid md:grid-cols-2 lg:grid-cols-${sortedPlans?.length || 5} gap-4 max-w-7xl mx-auto`}>
+            {sortedPlans?.map((plan) => {
+              const isPopular = plan.code === mostPopularCode;
+              const isCustom = plan.code === 'CUSTOM';
+              const isFree = plan.code === 'FREE';
+              const features = getPlanFeatures(plan);
+              const priceDisplay = isCustom
+                ? 'Contact'
+                : plan.monthlyPriceCents != null
+                  ? `$${plan.monthlyPriceCents / 100}`
+                  : '$0';
+              const subtitle = isFree ? 'Forever free' : isCustom ? 'Custom pricing' : 'per month';
+
+              return (
+                <div
+                  key={plan.id}
+                  className={
+                    isPopular
+                      ? "p-5 rounded-2xl bg-gradient-to-b from-orange-500/15 to-slate-800/50 border-2 border-orange-500 relative"
+                      : "p-5 rounded-2xl bg-slate-800/50 border border-slate-600"
+                  }
+                >
+                  {isPopular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-orange-500 text-white text-xs">Most Popular</Badge>
+                    </div>
+                  )}
+                  <div className="text-center mb-5">
+                    <h3 className="text-lg font-semibold text-white mb-2">{plan.name}</h3>
+                    <div className="text-3xl font-bold text-white mb-1">{priceDisplay}</div>
+                    <p className="text-slate-300 text-xs">{subtitle}</p>
+                  </div>
+                  <ul className="space-y-2 mb-5">
+                    {features.map((feature, i) => (
+                      <li key={i} className="flex items-center gap-2 text-slate-200 text-xs">
+                        <CheckCircle className={`h-3.5 w-3.5 flex-shrink-0 ${isPopular ? 'text-orange-400' : 'text-green-400'}`} />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  {isPopular ? (
+                    <Button
+                      size="sm"
+                      className="w-full bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-400 hover:to-orange-300 font-semibold"
+                      onClick={scrollToSignIn}
+                      data-testid={`button-pricing-${plan.code.toLowerCase()}`}
+                    >
+                      Start Free
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-slate-500 text-slate-200 hover:bg-slate-600"
+                      onClick={scrollToSignIn}
+                      data-testid={`button-pricing-${plan.code.toLowerCase()}`}
+                    >
+                      {isFree ? 'Get it Free' : isCustom ? 'Contact Sales' : 'Start Free'}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
