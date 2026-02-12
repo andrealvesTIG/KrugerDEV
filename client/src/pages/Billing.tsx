@@ -19,6 +19,25 @@ import { format } from "date-fns";
 import PayPalSubscriptionButton from "@/components/PayPalSubscriptionButton";
 import type { Plan, Subscription, UsageRollup } from "@shared/schema";
 
+interface CycleUsageRollup {
+  meterCode: string;
+  includedUnits: number;
+  usedUnits: number;
+  remainingUnits: number;
+  overageUnits: number;
+  overageCostMicrocents: number;
+  hardCapHit: boolean;
+}
+
+interface BillingCycleHistory {
+  id: number;
+  periodStart: string;
+  periodEnd: string;
+  status: string;
+  planName: string;
+  usage: CycleUsageRollup[];
+}
+
 interface PlanWithRules extends Omit<Plan, 'monthlyPriceCents'> {
   monthlyPriceCents?: number | null;
   meterRules?: Array<{
@@ -358,6 +377,19 @@ export function BillingContent() {
         : '/api/billing/history?limit=50';
       const res = await fetch(url, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch billing history');
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const { data: cycleHistory, isLoading: cycleHistoryLoading } = useQuery<BillingCycleHistory[]>({
+    queryKey: ['/api/billing/cycle-history', currentOrganization?.id],
+    queryFn: async () => {
+      const url = currentOrganization?.id 
+        ? `/api/billing/cycle-history?orgId=${currentOrganization.id}`
+        : '/api/billing/cycle-history';
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch cycle history');
       return res.json();
     },
     enabled: !!user,
@@ -1106,10 +1138,105 @@ export function BillingContent() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-5 mt-4">
+          <Card data-testid="card-billing-cycle-history">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Calendar className="h-4 w-4" />
+                Billing Cycle History
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Credit usage and allocations for each billing period
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {cycleHistoryLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !cycleHistory || cycleHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No billing cycle history yet</p>
+                  <p className="text-xs mt-1">Your billing cycles will appear here as each period completes</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {cycleHistory.map((cycle) => {
+                    const creditsUsage = cycle.usage.find(u => u.meterCode === 'credits');
+                    const otherUsage = cycle.usage.filter(u => u.meterCode !== 'credits');
+                    const isCurrent = cycle.status === "OPEN";
+                    const creditsPercent = creditsUsage && creditsUsage.includedUnits > 0
+                      ? Math.min((creditsUsage.usedUnits / creditsUsage.includedUnits) * 100, 100)
+                      : 0;
+
+                    return (
+                      <div 
+                        key={cycle.id} 
+                        className={`border rounded-md overflow-visible ${isCurrent ? "border-primary/50" : ""}`}
+                        data-testid={`cycle-${cycle.id}`}
+                      >
+                        <div className="flex items-center justify-between gap-3 p-3 bg-muted/30">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium">
+                              {format(new Date(cycle.periodStart), "MMM d")} - {format(new Date(cycle.periodEnd), "MMM d, yyyy")}
+                            </span>
+                            <Badge variant={isCurrent ? "default" : "secondary"} className="text-xs">
+                              {isCurrent ? "Current" : "Closed"}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{cycle.planName}</span>
+                        </div>
+                        <div className="p-3 space-y-3">
+                          {creditsUsage && (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 text-sm">
+                                <div className="flex items-center gap-1.5">
+                                  <Wallet className="h-3.5 w-3.5 text-primary" />
+                                  <span className="font-medium">Credits</span>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {creditsUsage.usedUnits.toLocaleString()} / {creditsUsage.includedUnits.toLocaleString()} used
+                                </span>
+                              </div>
+                              <Progress 
+                                value={creditsPercent} 
+                                className={`h-1.5 ${creditsUsage.remainingUnits <= 0 && creditsUsage.includedUnits > 0 ? "bg-destructive/20" : ""}`}
+                              />
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>{creditsUsage.remainingUnits.toLocaleString()} remaining</span>
+                                {creditsUsage.overageUnits > 0 && (
+                                  <span className="text-destructive">
+                                    {creditsUsage.overageUnits.toLocaleString()} overage
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {otherUsage.length > 0 && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t">
+                              {otherUsage.map((u) => (
+                                <div key={u.meterCode} className="text-xs">
+                                  <span className="text-muted-foreground capitalize">{u.meterCode.replace(/_/g, ' ')}</span>
+                                  <div className="font-medium">
+                                    {u.usedUnits} / {u.includedUnits > 0 ? u.includedUnits : 'Unlimited'}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card data-testid="card-payment-history">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
-                <History className="h-4 w-4" />
+                <Receipt className="h-4 w-4" />
                 Payment History
               </CardTitle>
               <CardDescription className="text-xs">
@@ -1123,7 +1250,7 @@ export function BillingContent() {
                 </div>
               ) : !billingHistory || billingHistory.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <History className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <Receipt className="h-10 w-10 mx-auto mb-3 opacity-50" />
                   <p className="text-sm">No payment history yet</p>
                   <p className="text-xs mt-1">Your payments will appear here once you upgrade to a paid plan</p>
                 </div>
@@ -1132,7 +1259,7 @@ export function BillingContent() {
                   {billingHistory.map((transaction) => (
                     <div 
                       key={transaction.id} 
-                      className="flex items-center justify-between p-3 border rounded-md"
+                      className="flex items-center justify-between gap-3 p-3 border rounded-md"
                       data-testid={`transaction-${transaction.id}`}
                     >
                       <div className="flex items-center gap-3">

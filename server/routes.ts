@@ -15,7 +15,7 @@ import { sendEmail, sendAccessRequestNotification, sendAccessRequestDecisionNoti
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createProjectAssignmentNotification } from "./services/notificationEngine";
 import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, initializeSubscriptionSchedule, calculateNextScheduledTime } from "./services/scheduledReports";
 import { db } from "./db";
-import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, type Task } from "@shared/schema";
+import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, type Task } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import multer from "multer";
@@ -14052,6 +14052,78 @@ Return ONLY valid JSON.`;
     } catch (error) {
       console.error("Error fetching billing history:", error);
       res.status(500).json({ message: "Failed to fetch billing history" });
+    }
+  });
+
+  app.get('/api/billing/cycle-history', async (req, res) => {
+    const userId = req.session?.userId || (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
+      const { billingProvider } = await import("./services/billing");
+
+      if (orgId) {
+        const [membership] = await db.select().from(organizationMembers)
+          .where(and(eq(organizationMembers.organizationId, orgId), eq(organizationMembers.userId, userId)))
+          .limit(1);
+        if (!membership) {
+          return res.status(403).json({ message: "Not a member of this organization" });
+        }
+      }
+
+      let subscription = null;
+      if (orgId) {
+        subscription = await billingProvider.getSubscriptionForOrg(orgId);
+      } else {
+        subscription = await billingProvider.getSubscriptionForUser(userId);
+      }
+
+      if (!subscription) {
+        return res.json([]);
+      }
+
+      const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
+
+      const cycles = await db
+        .select()
+        .from(billingCycles)
+        .where(eq(billingCycles.subscriptionId, subscription.id))
+        .orderBy(desc(billingCycles.periodStart));
+
+      const result = [];
+      for (const cycle of cycles) {
+        const rollups = await db
+          .select({
+            meterCode: meters.code,
+            includedUnits: usageRollups.includedUnits,
+            usedUnits: usageRollups.usedUnits,
+            remainingUnits: usageRollups.remainingUnits,
+            overageUnits: usageRollups.overageUnits,
+            overageCostMicrocents: usageRollups.overageCostMicrocents,
+            hardCapHit: usageRollups.hardCapHit,
+          })
+          .from(usageRollups)
+          .innerJoin(meters, eq(usageRollups.meterId, meters.id))
+          .where(eq(usageRollups.billingCycleId, cycle.id));
+
+        result.push({
+          id: cycle.id,
+          periodStart: cycle.periodStart,
+          periodEnd: cycle.periodEnd,
+          status: cycle.status,
+          planName: plan?.name || "Unknown",
+          usage: rollups,
+        });
+      }
+
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching billing cycle history:", error);
+      res.status(500).json({ message: "Failed to fetch billing cycle history" });
     }
   });
 
