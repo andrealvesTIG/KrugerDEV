@@ -10014,6 +10014,65 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  // Onboarding endpoints
+  app.get('/api/onboarding/status', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const { getUserOnboardingStatus } = await import("./services/onboarding");
+      const status = await getUserOnboardingStatus(userId);
+      res.json(status);
+    } catch (err) {
+      console.error("Error getting onboarding status:", err);
+      res.status(500).json({ message: "Error checking onboarding status" });
+    }
+  });
+
+  app.post('/api/onboarding/complete', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const { companyName, industry, createDemoData } = req.body;
+      if (!companyName || typeof companyName !== 'string') {
+        return res.status(400).json({ message: "Company name is required" });
+      }
+      const { completeOnboarding } = await import("./services/onboarding");
+      await completeOnboarding(userId, { companyName, industry: industry || "General", createDemoData: !!createDemoData });
+      res.json({ success: true, demoDataCreated: !!createDemoData });
+    } catch (err) {
+      console.error("Error completing onboarding:", err);
+      res.status(500).json({ message: "Failed to complete onboarding" });
+    }
+  });
+
+  app.post('/api/onboarding/skip', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      await db.update(users).set({ onboardingCompleted: true }).where(eq(users.id, userId));
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error skipping onboarding:", err);
+      res.status(500).json({ message: "Failed to skip onboarding" });
+    }
+  });
+
+  app.post('/api/onboarding/generate-sample-data', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const userOrgs = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, userId));
+      if (userOrgs.length === 0) return res.status(400).json({ message: "No organization found. Please complete onboarding first." });
+      const orgId = userOrgs[0].organizationId;
+      const { generateSampleDataForOrg } = await import("./services/onboarding");
+      await generateSampleDataForOrg(userId, orgId);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error generating sample data:", err);
+      res.status(500).json({ message: "Failed to generate sample data" });
+    }
+  });
+
   // Demo Data Generation (Org Admin or Super Admin)
   app.get('/api/demo-data/industries', async (req, res) => {
     const userId = getUserIdFromRequest(req);

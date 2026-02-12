@@ -286,6 +286,12 @@ export function setupGoogleAuth(app: Express) {
           }
         }
 
+        try {
+          await ensureUserOrganization(existingUser.id, email);
+        } catch (orgError) {
+          console.error("Error ensuring organization for existing Google user:", orgError);
+        }
+
         req.session.userId = existingUser.id;
         await new Promise<void>((resolve, reject) => {
           req.session.save((err) => {

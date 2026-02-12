@@ -329,20 +329,27 @@ export async function completeOnboarding(
   userId: string,
   data: OnboardingData
 ): Promise<{ organization: any; portfolio?: any; projects?: any[] }> {
-  const slug = generateSlug(data.companyName);
+  const existingMemberships = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, userId));
+  let organization: any;
   
-  const [organization] = await db.insert(organizations).values({
-    name: data.companyName,
-    slug,
-    description: `${data.companyName} organization`,
-    ownerId: userId,
-  }).returning();
-  
-  await db.insert(organizationMembers).values({
-    organizationId: organization.id,
-    userId,
-    role: 'org_admin',
-  });
+  if (existingMemberships.length > 0) {
+    const [existingOrg] = await db.select().from(organizations).where(eq(organizations.id, existingMemberships[0].organizationId)).limit(1);
+    organization = existingOrg;
+  } else {
+    const slug = generateSlug(data.companyName);
+    [organization] = await db.insert(organizations).values({
+      name: data.companyName,
+      slug,
+      description: `${data.companyName} organization`,
+      ownerId: userId,
+    }).returning();
+    
+    await db.insert(organizationMembers).values({
+      organizationId: organization.id,
+      userId,
+      role: 'org_admin',
+    });
+  }
   
   await db.update(users)
     .set({ onboardingCompleted: true })
@@ -352,14 +359,23 @@ export async function completeOnboarding(
     return { organization };
   }
   
-  const template = getIndustryTemplate(data.industry);
+  const result = await generateSampleDataForOrg(userId, organization.id, data.industry);
+  return { organization, portfolio: result.portfolio, projects: result.projects };
+}
+
+export async function generateSampleDataForOrg(
+  userId: string,
+  organizationId: number,
+  industry: string = "General"
+): Promise<{ portfolio: any; projects: any[] }> {
+  const template = getIndustryTemplate(industry);
   const today = new Date();
   
   const [portfolio] = await db.insert(portfolios).values({
-    organizationId: organization.id,
+    organizationId,
     name: template.portfolioName,
     description: template.portfolioDescription,
-    strategy: `${data.industry} industry best practices`,
+    strategy: `${industry} industry best practices`,
     managerId: userId,
     isDemo: true,
   }).returning();
@@ -372,7 +388,7 @@ export async function completeOnboarding(
     const endOffset = startOffset + 120;
     
     const [project] = await db.insert(projects).values({
-      organizationId: organization.id,
+      organizationId,
       portfolioId: portfolio.id,
       name: projectTemplate.name,
       description: projectTemplate.description,
@@ -465,7 +481,7 @@ export async function completeOnboarding(
   
   for (const resourceTemplate of resourceTemplates) {
     await db.insert(resources).values({
-      organizationId: organization.id,
+      organizationId,
       displayName: resourceTemplate.name,
       email: resourceTemplate.email,
       title: resourceTemplate.title,
@@ -489,7 +505,7 @@ export async function completeOnboarding(
   for (let intakeIdx = 0; intakeIdx < intakeTemplates.length; intakeIdx++) {
     const intakeTemplate = intakeTemplates[intakeIdx];
     await db.insert(projectIntakes).values({
-      organizationId: organization.id,
+      organizationId,
       intakeNumber: `INT-${year}-${String(intakeIdx + 1).padStart(3, '0')}`,
       projectName: intakeTemplate.name,
       description: intakeTemplate.description,
@@ -505,7 +521,7 @@ export async function completeOnboarding(
     });
   }
   
-  return { organization, portfolio, projects: createdProjects };
+  return { portfolio, projects: createdProjects };
 }
 
 export async function getUserOnboardingStatus(userId: string): Promise<{

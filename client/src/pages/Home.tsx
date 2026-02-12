@@ -6,7 +6,7 @@ import { useAllIssues, useCreateIssue } from "@/hooks/use-issues";
 import { useAllMilestones } from "@/hooks/use-milestones";
 import { useProjects } from "@/hooks/use-projects";
 import { useCreateTask } from "@/hooks/use-tasks";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,8 +43,10 @@ import {
   FolderPlus,
   Users,
   Upload,
+  Sparkles,
 } from "lucide-react";
 import { Link } from "wouter";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format, startOfWeek, endOfWeek, addDays, isAfter, isBefore, parseISO, differenceInDays, formatDistanceToNow } from "date-fns";
 import type { Task, Issue, Project, Milestone } from "@shared/schema";
 
@@ -136,6 +138,34 @@ export default function Home() {
   const { toast } = useToast();
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [showCreateIssue, setShowCreateIssue] = useState(false);
+  const [isGeneratingDemo, setIsGeneratingDemo] = useState(false);
+
+  const generateDemoMutation = useMutation({
+    mutationFn: async () => {
+      setIsGeneratingDemo(true);
+      const res = await apiRequest("POST", "/api/onboarding/generate-sample-data", {});
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sample data created",
+        description: "We've generated sample portfolios, projects, and tasks for you to explore.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolios"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      setIsGeneratingDemo(false);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate sample data. Please try again.",
+        variant: "destructive",
+      });
+      setIsGeneratingDemo(false);
+    },
+  });
 
   const today = new Date();
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
@@ -464,6 +494,41 @@ export default function Home() {
               </CardContent>
             </Card>
           </div>
+          {currentOrganization && (
+            <Card className="border-0 shadow-sm bg-primary/5 dark:bg-primary/10">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 flex-shrink-0">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground">Quick Start with Sample Data</div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Generate sample portfolios, projects, tasks, and milestones so you can explore the platform right away.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => generateDemoMutation.mutate()}
+                    disabled={isGeneratingDemo}
+                    data-testid="button-generate-sample-data"
+                  >
+                    {isGeneratingDemo ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-1" />
+                        Generate
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
