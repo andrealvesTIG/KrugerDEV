@@ -3732,6 +3732,27 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/portfolios/:id/risk-assessment/history', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: "Portfolio not found" });
+
+      const userOrgs = await storage.getUserOrganizations(userId);
+      if (!userOrgs.find(m => m.organizationId === portfolio.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const history = await storage.getPortfolioRiskAssessmentHistory(portfolioId);
+      res.json(history);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get risk assessment history" });
+    }
+  });
+
   app.get('/api/portfolio-risk-assessments/org/:orgId', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;

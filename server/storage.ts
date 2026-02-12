@@ -475,6 +475,7 @@ export interface IStorage {
   getLatestPortfolioRiskAssessment(portfolioId: number): Promise<PortfolioRiskAssessment | undefined>;
   getLatestRiskAssessmentsForOrg(organizationId: number): Promise<PortfolioRiskAssessment[]>;
   getPortfolioRiskAssessmentByShareToken(shareToken: string): Promise<PortfolioRiskAssessment | undefined>;
+  getPortfolioRiskAssessmentHistory(portfolioId: number): Promise<Pick<PortfolioRiskAssessment, 'id' | 'riskScore' | 'generatedAt'>[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4172,6 +4173,16 @@ export class DatabaseStorage implements IStorage {
     const [result] = await db.select().from(portfolioRiskAssessments)
       .where(eq(portfolioRiskAssessments.shareToken, shareToken));
     return result;
+  }
+
+  async getPortfolioRiskAssessmentHistory(portfolioId: number): Promise<Pick<PortfolioRiskAssessment, 'id' | 'riskScore' | 'generatedAt'>[]> {
+    return await db.select({
+      id: portfolioRiskAssessments.id,
+      riskScore: portfolioRiskAssessments.riskScore,
+      generatedAt: portfolioRiskAssessments.generatedAt,
+    }).from(portfolioRiskAssessments)
+      .where(eq(portfolioRiskAssessments.portfolioId, portfolioId))
+      .orderBy(portfolioRiskAssessments.generatedAt);
   }
 }
 
