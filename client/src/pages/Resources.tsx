@@ -1028,6 +1028,7 @@ interface AssignmentWeekData {
 }
 
 type TimeScale = "day" | "week" | "month" | "quarter" | "year";
+type DisplayUnit = "hours" | "percent" | "fte";
 
 interface TimePeriod {
   start: Date;
@@ -1048,6 +1049,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [timeScale, setTimeScale] = useState<TimeScale>("week");
   const [periodCount, setPeriodCount] = useState<number>(12);
+  const [displayUnit, setDisplayUnit] = useState<DisplayUnit>("hours");
 
   // Calculate data range from assignments
   const dataRange = useMemo(() => {
@@ -1312,6 +1314,29 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
     });
   };
 
+  const formatCellValue = (allocation: number, capacity: number): string => {
+    if (allocation === 0) return "-";
+    switch (displayUnit) {
+      case "hours":
+        return `${allocation.toFixed(0)}h`;
+      case "percent":
+        return `${((allocation / capacity) * 100).toFixed(0)}%`;
+      case "fte":
+        return (allocation / capacity).toFixed(2);
+    }
+  };
+
+  const formatTooltipValue = (allocation: number, capacity: number): string => {
+    switch (displayUnit) {
+      case "hours":
+        return `${allocation.toFixed(0)}h / ${capacity.toFixed(0)}h`;
+      case "percent":
+        return `${((allocation / capacity) * 100).toFixed(0)}% utilization`;
+      case "fte":
+        return `${(allocation / capacity).toFixed(2)} FTE`;
+    }
+  };
+
   // Get heat color based on utilization
   const getHeatColor = (allocation: number, capacity: number) => {
     if (allocation === 0) return "bg-slate-50 dark:bg-slate-900";
@@ -1337,20 +1362,35 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
     <div className="space-y-2">
       {/* Timescale controls */}
       <div className="flex items-center justify-between gap-4 pb-2 border-b">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Scale:</span>
-          <Select value={timeScale} onValueChange={(v) => { setTimeScale(v as TimeScale); setPeriodCount(DEFAULT_PERIODS[v as TimeScale]); }}>
-            <SelectTrigger className="w-[100px] h-8" data-testid="select-timescale">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="day">Days</SelectItem>
-              <SelectItem value="week">Weeks</SelectItem>
-              <SelectItem value="month">Months</SelectItem>
-              <SelectItem value="quarter">Quarters</SelectItem>
-              <SelectItem value="year">Years</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Scale:</span>
+            <Select value={timeScale} onValueChange={(v) => { setTimeScale(v as TimeScale); setPeriodCount(DEFAULT_PERIODS[v as TimeScale]); }}>
+              <SelectTrigger className="w-[100px] h-8" data-testid="select-timescale">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="day">Days</SelectItem>
+                <SelectItem value="week">Weeks</SelectItem>
+                <SelectItem value="month">Months</SelectItem>
+                <SelectItem value="quarter">Quarters</SelectItem>
+                <SelectItem value="year">Years</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Show:</span>
+            <Select value={displayUnit} onValueChange={(v) => setDisplayUnit(v as DisplayUnit)}>
+              <SelectTrigger className="w-[120px] h-8" data-testid="select-display-unit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hours">Hours</SelectItem>
+                <SelectItem value="percent">% Utilization</SelectItem>
+                <SelectItem value="fte">FTE</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomOut} title="Zoom out" data-testid="button-zoom-out">
@@ -1415,26 +1455,33 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{group.name}</p>
                         <p className="text-[10px] text-muted-foreground">
-                          {group.assignments.length} assignment{group.assignments.length > 1 ? 's' : ''} • {group.capacity}h/week
+                          {group.assignments.length} assignment{group.assignments.length > 1 ? 's' : ''} • {
+                            displayUnit === "hours" ? `${group.capacity}h/week` :
+                            displayUnit === "percent" ? "100% = full capacity" :
+                            `1.0 FTE = ${group.capacity}h/week`
+                          }
                         </p>
                       </div>
                     </div>
                   </div>
                   <div className="flex-1 flex">
-                    {group.weeks.map((weekData, weekIdx) => (
+                    {group.weeks.map((weekData, weekIdx) => {
+                      const periodCap = getPeriodCapacity(group.capacity, periods[weekIdx]);
+                      return (
                       <div
                         key={weekIdx}
-                        className={`flex-1 p-1.5 border-r min-w-[65px] ${getHeatColor(weekData.allocation, group.capacity)} transition-colors`}
+                        className={`flex-1 p-1.5 border-r min-w-[65px] ${getHeatColor(weekData.allocation, periodCap)} transition-colors`}
                         title={weekData.tasks.length > 0 
-                          ? `${weekData.tasks.map(t => `${t.name} (${t.allocation}%)`).join('\n')}\n\nTotal: ${weekData.allocation.toFixed(0)}h / ${group.capacity}h`
+                          ? `${weekData.tasks.map(t => `${t.name} (${t.allocation}%)`).join('\n')}\n\nTotal: ${formatTooltipValue(weekData.allocation, periodCap)}`
                           : "No assignments"
                         }
                       >
-                        <div className={`text-center text-xs ${getTextColor(weekData.allocation, group.capacity)}`}>
-                          {weekData.allocation > 0 ? `${weekData.allocation.toFixed(0)}h` : "-"}
+                        <div className={`text-center text-xs ${getTextColor(weekData.allocation, periodCap)}`}>
+                          {formatCellValue(weekData.allocation, periodCap)}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 
@@ -1485,7 +1532,7 @@ function ResourceHeatmap({ assignments, resources, onTaskClick, groupBy }: Resou
                             }}
                           >
                             <div className={`text-center text-xs ${weekData.active ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                              {weekData.active ? `${weekData.allocation.toFixed(0)}h` : "-"}
+                              {weekData.active ? formatCellValue(weekData.allocation, getPeriodCapacity(group.capacity, periods[weekIdx])) : "-"}
                             </div>
                           </div>
                         ))}
