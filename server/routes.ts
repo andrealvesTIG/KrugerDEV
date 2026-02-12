@@ -3763,6 +3763,36 @@ export async function registerRoutes(
 
   app.get('/api/portfolio-risk-assessments/share/:token', async (req, res) => {
     try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const assessment = await storage.getPortfolioRiskAssessmentByShareToken(req.params.token);
+      if (!assessment) return res.status(404).json({ message: "Report not found" });
+
+      const portfolio = await storage.getPortfolio(assessment.portfolioId);
+      const report = JSON.parse(assessment.reportJson);
+
+      res.json({
+        id: assessment.id,
+        portfolioId: assessment.portfolioId,
+        portfolioName: portfolio?.name || 'Portfolio',
+        riskScore: assessment.riskScore,
+        summary: assessment.summary,
+        shareToken: assessment.shareToken,
+        generatedAt: assessment.generatedAt,
+        report,
+      });
+    } catch (err) {
+      console.error("Error serving shared risk assessment:", err);
+      res.status(500).json({ message: "Failed to load report" });
+    }
+  });
+
+  app.get('/api/portfolio-risk-assessments/share/:token/pdf', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
       const assessment = await storage.getPortfolioRiskAssessmentByShareToken(req.params.token);
       if (!assessment) return res.status(404).json({ message: "Report not found" });
 
@@ -3776,8 +3806,8 @@ export async function registerRoutes(
       res.setHeader('Content-Disposition', `inline; filename="risk-assessment-${assessment.portfolioId}.pdf"`);
       res.send(pdfBuffer);
     } catch (err) {
-      console.error("Error serving shared risk assessment:", err);
-      res.status(500).json({ message: "Failed to load report" });
+      console.error("Error serving shared risk assessment PDF:", err);
+      res.status(500).json({ message: "Failed to generate PDF" });
     }
   });
 

@@ -400,7 +400,7 @@ export default function PortfolioDetails() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/api/portfolio-risk-assessments/share/${riskShareToken}`);
+                  navigator.clipboard.writeText(`${window.location.origin}/risk-assessment/share/${riskShareToken}`);
                   toast({
                     title: "Link Copied",
                     description: "Share link has been copied to clipboard.",
