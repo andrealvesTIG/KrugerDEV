@@ -9884,8 +9884,18 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const memberships = await storage.getUserOrganizations(userId);
       const membership = memberships.find(m => m.organizationId === orgId);
       if (!membership) return res.status(403).json({ message: "Not a member of this organization" });
+
+      const { checkAndEnforceLimit, METER_CODES, recordResourceUsage } = await import("./services/billing");
+      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, orgId);
+      if (!limitCheck.allowed) {
+        return res.status(403).json({ message: limitCheck.error || "AI run limit reached", limitExceeded: true, resourceType: "ai_run" });
+      }
+
       const { generateResourceOptimization } = await import('./services/resourceOptimizationAI');
       const result = await generateResourceOptimization(orgId);
+
+      await recordResourceUsage(userId, METER_CODES.AI_RUNS, `ai_optimization_${orgId}_${Date.now()}`, 1, orgId);
+
       res.json(result);
     } catch (err: any) {
       console.error("Error generating resource optimization:", err);
