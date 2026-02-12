@@ -66,6 +66,7 @@ import {
   lessonsLearned, type LessonLearned, type InsertLessonLearned,
   resourceSkills, type ResourceSkill, type InsertResourceSkill,
   resourceAvailability, type ResourceAvailability, type InsertResourceAvailability,
+  portfolioRiskAssessments, type PortfolioRiskAssessment, type InsertPortfolioRiskAssessment,
   customDashboards, apiRequestLogs, userActivityLogs, featureUsageLogs,
   errorLogs, helpTickets, simulationRuns, reportSubscriptions
 } from "@shared/schema";
@@ -468,6 +469,12 @@ export interface IStorage {
 
   // Full tab with sections and fields
   getFullCustomProjectTab(tabId: number): Promise<{ tab: CustomProjectTab; sections: (CustomTabSection & { fields: CustomTabField[] })[] } | undefined>;
+
+  // Portfolio Risk Assessments
+  createPortfolioRiskAssessment(assessment: InsertPortfolioRiskAssessment): Promise<PortfolioRiskAssessment>;
+  getLatestPortfolioRiskAssessment(portfolioId: number): Promise<PortfolioRiskAssessment | undefined>;
+  getLatestRiskAssessmentsForOrg(organizationId: number): Promise<PortfolioRiskAssessment[]>;
+  getPortfolioRiskAssessmentByShareToken(shareToken: string): Promise<PortfolioRiskAssessment | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4135,6 +4142,36 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLessonLearned(id: number): Promise<void> {
     await db.delete(lessonsLearned).where(eq(lessonsLearned.id, id));
+  }
+
+  async createPortfolioRiskAssessment(assessment: InsertPortfolioRiskAssessment): Promise<PortfolioRiskAssessment> {
+    const [created] = await db.insert(portfolioRiskAssessments).values(assessment).returning();
+    return created;
+  }
+
+  async getLatestPortfolioRiskAssessment(portfolioId: number): Promise<PortfolioRiskAssessment | undefined> {
+    const [result] = await db.select().from(portfolioRiskAssessments)
+      .where(eq(portfolioRiskAssessments.portfolioId, portfolioId))
+      .orderBy(desc(portfolioRiskAssessments.generatedAt))
+      .limit(1);
+    return result;
+  }
+
+  async getLatestRiskAssessmentsForOrg(organizationId: number): Promise<PortfolioRiskAssessment[]> {
+    const fiveDaysAgo = new Date();
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+    return await db.select().from(portfolioRiskAssessments)
+      .where(and(
+        eq(portfolioRiskAssessments.organizationId, organizationId),
+        sql`${portfolioRiskAssessments.generatedAt} >= ${fiveDaysAgo}`
+      ))
+      .orderBy(desc(portfolioRiskAssessments.generatedAt));
+  }
+
+  async getPortfolioRiskAssessmentByShareToken(shareToken: string): Promise<PortfolioRiskAssessment | undefined> {
+    const [result] = await db.select().from(portfolioRiskAssessments)
+      .where(eq(portfolioRiskAssessments.shareToken, shareToken));
+    return result;
   }
 }
 

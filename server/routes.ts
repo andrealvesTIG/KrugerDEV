@@ -3627,6 +3627,173 @@ export async function registerRoutes(
     }
   });
 
+  app.post('/api/portfolios/:id/risk-assessment', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: "Portfolio not found" });
+
+      const userOrgs = await storage.getUserOrganizations(userId);
+      if (!userOrgs.find(m => m.organizationId === portfolio.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const existing = await storage.getLatestPortfolioRiskAssessment(portfolioId);
+      if (existing) {
+        const ageInDays = (Date.now() - new Date(existing.generatedAt!).getTime()) / (1000 * 60 * 60 * 24);
+        if (ageInDays < 5) {
+          const cachedReport = JSON.parse(existing.reportJson);
+          return res.json({
+            success: true,
+            cached: true,
+            assessment: {
+              id: existing.id,
+              riskScore: existing.riskScore,
+              summary: existing.summary,
+              shareToken: existing.shareToken,
+              generatedAt: existing.generatedAt,
+              report: cachedReport,
+            },
+          });
+        }
+      }
+
+      const { recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
+      const { generatePortfolioRiskAssessment } = await import("./services/portfolioRiskAssessment");
+
+      const report = await generatePortfolioRiskAssessment(portfolioId, portfolio.organizationId);
+
+      const crypto = await import("crypto");
+      const shareToken = crypto.randomBytes(32).toString('hex');
+
+      const assessment = await storage.createPortfolioRiskAssessment({
+        portfolioId,
+        organizationId: portfolio.organizationId,
+        riskScore: report.riskScore,
+        summary: report.summary,
+        reportJson: JSON.stringify(report),
+        shareToken,
+        generatedBy: userId,
+        generatedAt: new Date(),
+      });
+
+      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_risk_assessment_${Date.now()}`);
+
+      res.json({
+        success: true,
+        cached: false,
+        assessment: {
+          id: assessment.id,
+          riskScore: assessment.riskScore,
+          summary: assessment.summary,
+          shareToken: assessment.shareToken,
+          generatedAt: assessment.generatedAt,
+          report,
+        },
+      });
+    } catch (err) {
+      console.error("Error generating portfolio risk assessment:", err);
+      res.status(500).json({ message: "Failed to generate risk assessment" });
+    }
+  });
+
+  app.get('/api/portfolios/:id/risk-assessment/latest', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const portfolioId = Number(req.params.id);
+      const assessment = await storage.getLatestPortfolioRiskAssessment(portfolioId);
+      if (!assessment) return res.json(null);
+
+      const report = JSON.parse(assessment.reportJson);
+      res.json({
+        id: assessment.id,
+        riskScore: assessment.riskScore,
+        summary: assessment.summary,
+        shareToken: assessment.shareToken,
+        generatedAt: assessment.generatedAt,
+        report,
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get risk assessment" });
+    }
+  });
+
+  app.get('/api/portfolio-risk-assessments/org/:orgId', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const orgId = Number(req.params.orgId);
+      const userOrgs = await storage.getUserOrganizations(userId);
+      if (!userOrgs.find(m => m.organizationId === orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const assessments = await storage.getLatestRiskAssessmentsForOrg(orgId);
+      const uniqueByPortfolio = new Map<number, typeof assessments[0]>();
+      for (const a of assessments) {
+        if (!uniqueByPortfolio.has(a.portfolioId)) {
+          uniqueByPortfolio.set(a.portfolioId, a);
+        }
+      }
+      res.json(Array.from(uniqueByPortfolio.values()).map(a => ({
+        portfolioId: a.portfolioId,
+        riskScore: a.riskScore,
+        summary: a.summary,
+        generatedAt: a.generatedAt,
+      })));
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get risk assessments" });
+    }
+  });
+
+  app.get('/api/portfolio-risk-assessments/share/:token', async (req, res) => {
+    try {
+      const assessment = await storage.getPortfolioRiskAssessmentByShareToken(req.params.token);
+      if (!assessment) return res.status(404).json({ message: "Report not found" });
+
+      const portfolio = await storage.getPortfolio(assessment.portfolioId);
+      const report = JSON.parse(assessment.reportJson);
+
+      const { generateRiskAssessmentPDF } = await import("./services/portfolioRiskAssessment");
+      const pdfBuffer = await generateRiskAssessmentPDF(report, portfolio?.name || 'Portfolio');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="risk-assessment-${assessment.portfolioId}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (err) {
+      console.error("Error serving shared risk assessment:", err);
+      res.status(500).json({ message: "Failed to load report" });
+    }
+  });
+
+  app.get('/api/portfolios/:id/risk-assessment/:assessmentId/pdf', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const assessment = await storage.getLatestPortfolioRiskAssessment(Number(req.params.id));
+      if (!assessment) return res.status(404).json({ message: "No assessment found" });
+
+      const portfolio = await storage.getPortfolio(assessment.portfolioId);
+      const report = JSON.parse(assessment.reportJson);
+
+      const { generateRiskAssessmentPDF } = await import("./services/portfolioRiskAssessment");
+      const pdfBuffer = await generateRiskAssessmentPDF(report, portfolio?.name || 'Portfolio');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="risk-assessment-${assessment.portfolioId}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to generate PDF" });
+    }
+  });
+
   app.get('/api/portfolios/:id/overview', async (req, res) => {
     try {
       const portfolio = await storage.getPortfolio(Number(req.params.id));

@@ -2166,3 +2166,23 @@ export const insertResourceSkillSchema = createInsertSchema(resourceSkills).omit
 });
 export type InsertResourceSkill = z.infer<typeof insertResourceSkillSchema>;
 export type ResourceSkill = typeof resourceSkills.$inferSelect;
+
+export const portfolioRiskAssessments = pgTable("portfolio_risk_assessments", {
+  id: serial("id").primaryKey(),
+  portfolioId: integer("portfolio_id").references(() => portfolios.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  riskScore: integer("risk_score").notNull(),
+  summary: text("summary").notNull(),
+  reportJson: text("report_json").notNull(),
+  shareToken: text("share_token").notNull(),
+  generatedBy: varchar("generated_by").references(() => users.id),
+  generatedAt: timestamp("generated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPortfolioRiskAssessmentSchema = createInsertSchema(portfolioRiskAssessments).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertPortfolioRiskAssessment = z.infer<typeof insertPortfolioRiskAssessmentSchema>;
+export type PortfolioRiskAssessment = typeof portfolioRiskAssessments.$inferSelect;

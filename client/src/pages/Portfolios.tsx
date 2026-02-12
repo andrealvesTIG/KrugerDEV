@@ -11,14 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List, Users, X, Calendar, DollarSign, Building2, Target } from "lucide-react";
+import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List, Users, X, Calendar, DollarSign, Building2, Target, Shield } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,6 +40,22 @@ export default function Portfolios() {
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const { toast } = useToast();
+
+  const { data: riskAssessments } = useQuery<{ portfolioId: number; riskScore: number; summary: string; generatedAt: string }[]>({
+    queryKey: ['/api/portfolio-risk-assessments/org', currentOrganization?.id],
+    enabled: !!currentOrganization?.id,
+  });
+
+  const getRiskScoreForPortfolio = (portfolioId: number) => {
+    return riskAssessments?.find(a => a.portfolioId === portfolioId);
+  };
+
+  const getRiskScoreColor = (score: number) => {
+    if (score <= 25) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+    if (score <= 50) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+    if (score <= 75) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+    return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400';
+  };
 
   const deletePortfolio = useMutation({
     mutationFn: async (id: number) => {
@@ -201,6 +217,22 @@ export default function Portfolios() {
                                 </Badge>
                               )}
                               <span className="text-[10px] text-muted-foreground">{healthSummary.total} projects</span>
+                              {(() => {
+                                const riskData = getRiskScoreForPortfolio(portfolio.id);
+                                if (!riskData) return null;
+                                const ageInDays = (Date.now() - new Date(riskData.generatedAt).getTime()) / (1000 * 60 * 60 * 24);
+                                if (ageInDays > 5) return null;
+                                return (
+                                  <Badge
+                                    variant="secondary"
+                                    className={`text-[10px] px-1.5 py-0 gap-0.5 ${getRiskScoreColor(riskData.riskScore)}`}
+                                    data-testid={`badge-risk-score-${portfolio.id}`}
+                                  >
+                                    <Shield className="h-2.5 w-2.5" />
+                                    {riskData.riskScore}
+                                  </Badge>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
