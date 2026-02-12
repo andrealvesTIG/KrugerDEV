@@ -8241,6 +8241,8 @@ function ProjectGanttView({
     createTask.mutate({
       projectId,
       name: 'New Task',
+      startDate: format(new Date(), 'yyyy-MM-dd'),
+      endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
       outlineLevel: referenceTask.outlineLevel || 1,
       parentId: referenceTask.parentId || null,
       status: 'Not Started',
