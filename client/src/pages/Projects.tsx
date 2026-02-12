@@ -8,7 +8,7 @@ import { ExternalBadge } from "@/components/ExternalBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm, Controller } from "react-hook-form";
@@ -16,8 +16,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project, Resource } from "@shared/schema";
-import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -87,9 +87,29 @@ export default function Projects() {
   const createProject = useCreateProject();
   const { toast } = useToast();
   const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
+  const [riskAssessProjectId, setRiskAssessProjectId] = useState<number | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [, navigate] = useLocation();
+
+  const generateProjectRiskAssessment = useMutation({
+    mutationFn: async (projectId: number) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/risk-assessment`);
+      return res.json();
+    },
+    onSuccess: (_data: any, projectId: number) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "latest"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "history"] });
+      toast({ title: "Success", description: "Risk assessment generated successfully." });
+      setRiskAssessProjectId(null);
+      navigate(`/projects/${projectId}`);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to generate risk assessment.", variant: "destructive" });
+      setRiskAssessProjectId(null);
+    },
+  });
 
   const handleExportToExcel = async () => {
     if (!projects || projects.length === 0) {
@@ -785,6 +805,13 @@ export default function Projects() {
                                   View Details
                                 </Link>
                               </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}
+                                data-testid={`menu-risk-assessment-project-fullscreen-${project.id}`}
+                              >
+                                <Shield className="h-4 w-4 mr-2" />
+                                AI Risk Assessment
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
                                 onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} 
@@ -1016,6 +1043,13 @@ export default function Projects() {
                             View Details
                           </Link>
                         </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}
+                          data-testid={`menu-risk-assessment-project-${project.id}`}
+                        >
+                          <Shield className="h-4 w-4 mr-2" />
+                          AI Risk Assessment
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
                           onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} 
@@ -1080,6 +1114,28 @@ export default function Projects() {
               data-testid="button-confirm-delete-project"
             >
               {deleteProject.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={riskAssessProjectId !== null} onOpenChange={() => setRiskAssessProjectId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate AI Risk Assessment</DialogTitle>
+            <DialogDescription>
+              This will use AI to analyze the project and generate a comprehensive risk assessment. This action will consume 1 AI credit.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRiskAssessProjectId(null)}>Cancel</Button>
+            <Button 
+              onClick={() => riskAssessProjectId && generateProjectRiskAssessment.mutate(riskAssessProjectId)}
+              disabled={generateProjectRiskAssessment.isPending}
+              data-testid="button-confirm-risk-assessment-project"
+            >
+              {generateProjectRiskAssessment.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {generateProjectRiskAssessment.isPending ? "Generating..." : "Generate Assessment"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -8,10 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List, Users, X, Calendar, DollarSign, Building2, Target, Shield } from "lucide-react";
+import { Plus, Search, FolderOpen, ArrowRight, Pencil, Briefcase, MoreVertical, Trash2, LayoutGrid, List, Users, X, Calendar, DollarSign, Building2, Target, Shield, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -24,7 +24,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertPortfolioSchema } from "@shared/schema";
 import type { InsertPortfolio, Portfolio, Resource } from "@shared/schema";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
@@ -37,9 +37,30 @@ export default function Portfolios() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
   const [deletePortfolioId, setDeletePortfolioId] = useState<number | null>(null);
+  const [riskAssessPortfolioId, setRiskAssessPortfolioId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const { toast } = useToast();
+  const [, navigate] = useLocation();
+
+  const generateRiskAssessment = useMutation({
+    mutationFn: async (portfolioId: number) => {
+      const res = await apiRequest("POST", `/api/portfolios/${portfolioId}/risk-assessment`);
+      return res.json();
+    },
+    onSuccess: (_data: any, portfolioId: number) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolio-risk-assessments/org', currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolios", portfolioId, "risk-assessment", "latest"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolios", portfolioId, "risk-assessment", "history"] });
+      toast({ title: "Success", description: "Risk assessment generated successfully." });
+      setRiskAssessPortfolioId(null);
+      navigate(`/portfolios/${portfolioId}`);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to generate risk assessment.", variant: "destructive" });
+      setRiskAssessPortfolioId(null);
+    },
+  });
 
   const { data: riskAssessments } = useQuery<{ portfolioId: number; riskScore: number; summary: string; generatedAt: string }[]>({
     queryKey: ['/api/portfolio-risk-assessments/org', currentOrganization?.id],
@@ -252,6 +273,13 @@ export default function Portfolios() {
                               <Pencil className="h-4 w-4 mr-2" />
                               Edit
                             </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={(e) => { e.preventDefault(); setRiskAssessPortfolioId(portfolio.id); }}
+                              data-testid={`menu-risk-assessment-portfolio-${portfolio.id}`}
+                            >
+                              <Shield className="h-4 w-4 mr-2" />
+                              AI Risk Assessment
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
                               onClick={(e) => { e.preventDefault(); setDeletePortfolioId(portfolio.id); }} 
@@ -412,6 +440,13 @@ export default function Portfolios() {
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => setRiskAssessPortfolioId(portfolio.id)}
+                            data-testid={`menu-risk-assessment-portfolio-table-${portfolio.id}`}
+                          >
+                            <Shield className="h-4 w-4 mr-2" />
+                            AI Risk Assessment
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 
                             onClick={() => setDeletePortfolioId(portfolio.id)} 
@@ -468,6 +503,28 @@ export default function Portfolios() {
               data-testid="button-confirm-delete-portfolio"
             >
               {deletePortfolio.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={riskAssessPortfolioId !== null} onOpenChange={() => setRiskAssessPortfolioId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate AI Risk Assessment</DialogTitle>
+            <DialogDescription>
+              This will use AI to analyze the portfolio and generate a comprehensive risk assessment. This action will consume 1 AI credit.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRiskAssessPortfolioId(null)}>Cancel</Button>
+            <Button 
+              onClick={() => riskAssessPortfolioId && generateRiskAssessment.mutate(riskAssessPortfolioId)}
+              disabled={generateRiskAssessment.isPending}
+              data-testid="button-confirm-risk-assessment-portfolio"
+            >
+              {generateRiskAssessment.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {generateRiskAssessment.isPending ? "Generating..." : "Generate Assessment"}
             </Button>
           </DialogFooter>
         </DialogContent>
