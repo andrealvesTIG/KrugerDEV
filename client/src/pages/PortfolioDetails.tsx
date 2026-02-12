@@ -200,7 +200,7 @@ export default function PortfolioDetails() {
 
         <div className="mt-6">
           <TabsContent value="summary">
-            <SummaryTab metrics={metrics} portfolio={portfolio} onNavigate={setActiveTab} />
+            <SummaryTab metrics={metrics} portfolio={portfolio} portfolioId={id} onNavigate={setActiveTab} getRiskScoreColor={getRiskScoreColor} getRiskScoreBg={getRiskScoreBg} getRiskScoreLabel={getRiskScoreLabel} />
           </TabsContent>
           <TabsContent value="projects">
             <ProjectsTab portfolioId={id} organizationId={currentOrganization?.id || 0} />
@@ -236,11 +236,28 @@ export default function PortfolioDetails() {
   );
 }
 
-function SummaryTab({ metrics, portfolio, onNavigate }: { 
+function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreColor, getRiskScoreBg, getRiskScoreLabel }: { 
   metrics: any; 
   portfolio: any;
+  portfolioId: number;
   onNavigate: (tab: string) => void;
+  getRiskScoreColor: (score: number) => string;
+  getRiskScoreBg: (score: number) => string;
+  getRiskScoreLabel: (score: number) => string;
 }) {
+  const { data: latestAssessment } = useQuery<{ riskScore: number; generatedAt: string; summary: string } | null>({
+    queryKey: ["/api/portfolios", portfolioId, "risk-assessment", "latest"],
+  });
+
+  const recentAssessment = useMemo(() => {
+    if (!latestAssessment?.riskScore || !latestAssessment?.generatedAt) return null;
+    const generatedAt = new Date(latestAssessment.generatedAt);
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+    if (generatedAt > tenDaysAgo) return { score: latestAssessment.riskScore, generatedAt };
+    return null;
+  }, [latestAssessment]);
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -308,7 +325,20 @@ function SummaryTab({ metrics, portfolio, onNavigate }: {
               <span className="text-2xl font-bold">{metrics.openRisks}</span>
               <span className="text-sm text-muted-foreground">of {metrics.riskCount}</span>
             </div>
-            {metrics.highRisks > 0 && (
+            {recentAssessment && (
+              <div className="mt-2 flex items-center gap-2" data-testid="display-summary-risk-score">
+                <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-md", getRiskScoreBg(recentAssessment.score))}>
+                  <Shield className="h-3.5 w-3.5" />
+                  <span className={cn("text-sm font-bold", getRiskScoreColor(recentAssessment.score))}>
+                    {recentAssessment.score}
+                  </span>
+                  <span className={cn("text-xs font-medium", getRiskScoreColor(recentAssessment.score))}>
+                    {getRiskScoreLabel(recentAssessment.score)}
+                  </span>
+                </div>
+              </div>
+            )}
+            {!recentAssessment && metrics.highRisks > 0 && (
               <Badge className="mt-2 bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 text-xs">
                 {metrics.highRisks} High Priority
               </Badge>
