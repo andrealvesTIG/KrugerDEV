@@ -5527,6 +5527,7 @@ function TaskNameCell({
   onUpdateName,
   onEdit,
   isReadOnly,
+  onCreateTaskAt,
 }: {
   task: Task;
   colWidth: number;
@@ -5544,6 +5545,7 @@ function TaskNameCell({
   onUpdateName: (taskId: number, name: string) => void;
   onEdit: (task: Task) => void;
   isReadOnly?: boolean;
+  onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
@@ -5697,6 +5699,19 @@ function TaskNameCell({
             <ChevronLeft className="h-3.5 w-3.5 mr-2" />
             Outdent
           </DropdownMenuItem>
+          {onCreateTaskAt && !isReadOnly && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCreateTaskAt(task, 'above'); }} data-testid={`task-create-above-${task.id}`}>
+                <ArrowUp className="h-3.5 w-3.5 mr-2" />
+                Create Task Above
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCreateTaskAt(task, 'below'); }} data-testid={`task-create-below-${task.id}`}>
+                <ArrowDown className="h-3.5 w-3.5 mr-2" />
+                Create Task Below
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -5767,6 +5782,7 @@ function ProjectGanttTaskRowMeta({
   hasDependencies,
   computedWbs,
   isReadOnly,
+  onCreateTaskAt,
 }: { 
   task: Task;
   rowIndex: number;
@@ -5797,6 +5813,7 @@ function ProjectGanttTaskRowMeta({
   hasDependencies?: boolean;
   computedWbs?: string;
   isReadOnly?: boolean;
+  onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -6047,6 +6064,7 @@ function ProjectGanttTaskRowMeta({
               onUpdateName={(taskId, name) => handleInlineUpdate('name', name, task.name)}
               onEdit={onEdit}
               isReadOnly={isReadOnly}
+              onCreateTaskAt={onCreateTaskAt}
             />
           );
         }
@@ -7106,6 +7124,7 @@ function ProjectGanttView({
 }) {
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
+  const createTask = useCreateTask();
   const deleteTask = useDeleteTask();
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
@@ -8213,6 +8232,39 @@ function ProjectGanttView({
     }
   };
 
+  const handleCreateTaskAt = (referenceTask: Task, position: 'above' | 'below') => {
+    const refIndex = tasks.findIndex(t => t.id === referenceTask.id);
+    if (refIndex === -1) return;
+
+    const targetIndex = position === 'above' ? refIndex : refIndex + 1;
+
+    createTask.mutate({
+      projectId,
+      name: 'New Task',
+      outlineLevel: referenceTask.outlineLevel || 1,
+      parentId: referenceTask.parentId || null,
+      status: 'Not Started',
+      progress: 0,
+    }, {
+      onSuccess: (newTask: Task) => {
+        reorderTask.mutate({
+          projectId,
+          taskId: newTask.id,
+          newIndex: targetIndex,
+        });
+        toast({ title: "Task created", description: `New task created ${position} "${referenceTask.name}"` });
+      },
+      onError: (error: unknown) => {
+        const err = error as { limitExceeded?: boolean; message?: string };
+        if (err.limitExceeded) {
+          toast({ title: "Limit reached", description: err.message || "Task limit reached", variant: "destructive" });
+        } else {
+          toast({ title: "Error", description: err.message || "Failed to create task", variant: "destructive" });
+        }
+      }
+    });
+  };
+
   // State for dependencies dialog
   const [dependenciesDialogTask, setDependenciesDialogTask] = useState<Task | null>(null);
 
@@ -9170,6 +9222,7 @@ function ProjectGanttView({
                               hasDependencies={tasksWithDependencies.has(task.id)}
                               computedWbs={wbsMap.get(task.id)}
                               isReadOnly={isReadOnly}
+                              onCreateTaskAt={handleCreateTaskAt}
                             />
                           )}
                         </SortableTaskRow>
