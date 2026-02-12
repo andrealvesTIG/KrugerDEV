@@ -30,7 +30,7 @@ import {
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
   Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X,
   Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal, MoreVertical, ArrowUpToLine,
-  Shield, Share2, Download, FileText, Sparkles, RefreshCw
+  Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink
 } from "lucide-react";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -1608,20 +1608,32 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
               </Button>
             )}
             {riskShareToken && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/risk-assessment/share/${riskShareToken}`);
-                  toast({
-                    title: "Link Copied",
-                    description: "Share link has been copied to clipboard.",
-                  });
-                }}
-                data-testid="button-risk-copy-share"
-              >
-                <Share2 className="h-4 w-4 mr-2" />
-                Copy Share Link
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    window.open(`/risk-assessment/share/${riskShareToken}`, "_blank");
+                  }}
+                  data-testid="button-risk-open-tab"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in New Tab
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/risk-assessment/share/${riskShareToken}`);
+                    toast({
+                      title: "Link Copied",
+                      description: "Share link has been copied to clipboard.",
+                    });
+                  }}
+                  data-testid="button-risk-copy-share"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Copy Share Link
+                </Button>
+              </>
             )}
             <Button
               variant="ghost"
