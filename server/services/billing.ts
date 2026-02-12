@@ -87,11 +87,27 @@ export class MockBillingProvider implements BillingProvider {
     const periodEnd = new Date(subscription.currentPeriodEnd);
     if (now > periodEnd) {
       const { start, end } = getMonthBoundaries(now);
+
+      await db
+        .update(billingCycles)
+        .set({ status: "CLOSED" })
+        .where(
+          and(
+            eq(billingCycles.subscriptionId, subscription.id),
+            eq(billingCycles.status, "OPEN")
+          )
+        );
+
       const [updated] = await db
         .update(subscriptions)
         .set({ currentPeriodStart: start, currentPeriodEnd: end })
         .where(eq(subscriptions.id, subscription.id))
         .returning();
+
+      if (updated) {
+        await this.getOrCreateBillingCycle(updated.id);
+      }
+
       return updated || subscription;
     }
     return subscription;
