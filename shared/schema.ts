@@ -2186,3 +2186,23 @@ export const insertPortfolioRiskAssessmentSchema = createInsertSchema(portfolioR
 });
 export type InsertPortfolioRiskAssessment = z.infer<typeof insertPortfolioRiskAssessmentSchema>;
 export type PortfolioRiskAssessment = typeof portfolioRiskAssessments.$inferSelect;
+
+export const projectRiskAssessments = pgTable("project_risk_assessments", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  riskScore: integer("risk_score").notNull(),
+  summary: text("summary").notNull(),
+  reportJson: text("report_json").notNull(),
+  shareToken: text("share_token").notNull(),
+  generatedBy: varchar("generated_by").references(() => users.id),
+  generatedAt: timestamp("generated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertProjectRiskAssessmentSchema = createInsertSchema(projectRiskAssessments).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertProjectRiskAssessment = z.infer<typeof insertProjectRiskAssessmentSchema>;
+export type ProjectRiskAssessment = typeof projectRiskAssessments.$inferSelect;
