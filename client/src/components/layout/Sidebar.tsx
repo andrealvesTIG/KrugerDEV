@@ -371,13 +371,7 @@ export function Sidebar() {
             isMicrosoftConnected={!!currentOrganization}
             onNavigate={() => setIsMobileOpen(false)}
           />
-          {isCollapsed ? (
-            <img 
-              src={logoIcon} 
-              alt="FridayReport.AI" 
-              className="h-8 w-8 flex-shrink-0 object-contain"
-            />
-          ) : (
+          {isCollapsed ? null : (
             <>
               {currentOrganization?.logoUrl && !logoLoadFailed ? (
                 <>
