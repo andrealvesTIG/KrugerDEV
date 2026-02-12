@@ -7205,8 +7205,9 @@ function ProjectGanttView({
     }
   }, []);
   
-  // Forward vertical wheel events on left pane to right pane (left pane has overflow-y: hidden)
+  // Forward vertical wheel events on left pane to right pane (left pane has overflow-y: hidden in gantt mode)
   useEffect(() => {
+    if (hideTimeline) return;
     const leftPane = leftPaneRef.current;
     if (!leftPane) return;
     const onWheel = (e: WheelEvent) => {
@@ -7217,7 +7218,7 @@ function ProjectGanttView({
     };
     leftPane.addEventListener('wheel', onWheel, { passive: false });
     return () => leftPane.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [hideTimeline]);
   
   // Baseline state
   const [showBaseline, setShowBaseline] = useState(false);
@@ -9011,7 +9012,7 @@ function ProjectGanttView({
         >
           {/* Left pane: Metadata columns (horizontal scroll if columns exceed panel width) */}
           <ResizablePanel defaultSize={hideTimeline ? 100 : leftPanelSize} minSize={20} maxSize={hideTimeline ? 100 : 80}>
-            <div ref={leftPaneRef} className="h-full overflow-x-auto overflow-y-hidden relative scrollbar-thin">
+            <div ref={leftPaneRef} className={cn("h-full overflow-x-auto relative scrollbar-thin", hideTimeline ? "overflow-y-auto" : "overflow-y-hidden")}>
               <div style={{ minWidth: `${totalColumnsWidth}px` }}>
               {/* Header row - height must match timeline header */}
               <div className="flex border-b bg-muted/50 sticky top-0 z-10 h-[28px]">
