@@ -7816,6 +7816,33 @@ function ProjectGanttView({
   };
 
   // Bulk baseline for selected tasks
+  const handleBulkSetProgress = async (progressValue: number) => {
+    if (selectedTaskIds.size < 2) return;
+    
+    const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const task of selectedTasks) {
+      try {
+        await updateTask.mutateAsync({
+          id: task.id,
+          projectId: task.projectId,
+          progress: progressValue,
+        });
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+    
+    if (errorCount === 0) {
+      toast({ title: "Progress updated", description: `${successCount} task${successCount !== 1 ? 's' : ''} set to ${progressValue}%` });
+    } else {
+      toast({ title: "Partial success", description: `${successCount} updated, ${errorCount} failed`, variant: "destructive" });
+    }
+  };
+
   const handleBulkBaseline = async () => {
     if (selectedTaskIds.size === 0) return;
     
@@ -8799,6 +8826,31 @@ function ProjectGanttView({
               <IndentDecrease className="h-4 w-4 mr-2" />
               Outdent
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={selectedTaskIds.size < 2 || updateTask.isPending || isReadOnly}
+                  data-testid="button-bulk-set-progress"
+                >
+                  <Circle className="h-4 w-4 mr-2" />
+                  Set Progress
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {[0, 25, 50, 75, 100].map(val => (
+                  <DropdownMenuItem
+                    key={val}
+                    onClick={() => handleBulkSetProgress(val)}
+                    data-testid={`bulk-progress-${val}`}
+                  >
+                    {val}%
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <div className="w-px h-5 bg-border" />
             <Button
               variant="outline"
