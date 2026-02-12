@@ -37,7 +37,8 @@ import { cn, normalizeSearch } from "@/lib/utils";
 import type { Project } from "@shared/schema";
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
+  LineChart, Line, CartesianGrid, ReferenceLine
 } from "recharts";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -74,6 +75,7 @@ export default function PortfolioDetails() {
         setRiskAssessmentId(data.assessment.id || null);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/portfolios", id, "risk-assessment", "latest"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolios", id, "risk-assessment", "history"] });
       setRiskDialogOpen(true);
       setRiskConfirmOpen(false);
     },
@@ -1284,6 +1286,8 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
         </CardContent>
       </Card>
 
+      <RiskScoreTrendChart portfolioId={portfolioId} getRiskScoreColor={getRiskScoreColor} />
+
       <Dialog open={!!editingRisk} onOpenChange={(open) => !open && setEditingRisk(null)}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1646,6 +1650,87 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function RiskScoreTrendChart({ portfolioId, getRiskScoreColor }: {
+  portfolioId: number;
+  getRiskScoreColor: (score: number) => string;
+}) {
+  const { data: history } = useQuery<{ id: number; riskScore: number; generatedAt: string }[]>({
+    queryKey: ["/api/portfolios", portfolioId, "risk-assessment", "history"],
+  });
+
+  if (!history || history.length < 2) return null;
+
+  const chartData = history.map((item) => ({
+    date: format(new Date(item.generatedAt), "MMM d"),
+    fullDate: format(new Date(item.generatedAt), "MMM d, yyyy"),
+    score: item.riskScore,
+  }));
+
+  const latestScore = chartData[chartData.length - 1].score;
+  const previousScore = chartData[chartData.length - 2].score;
+  const scoreDelta = latestScore - previousScore;
+
+  return (
+    <Card data-testid="card-risk-trend">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-4">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <TrendingUp className="h-4 w-4" />
+            Risk Score Trend
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <span className={cn("text-lg font-bold", getRiskScoreColor(latestScore))}>
+              {latestScore}
+            </span>
+            {scoreDelta !== 0 && (
+              <Badge className={cn("text-xs", scoreDelta > 0 ? "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300")}>
+                {scoreDelta > 0 ? "+" : ""}{scoreDelta} pts
+              </Badge>
+            )}
+          </div>
+        </div>
+        <CardDescription>{history.length} assessments tracked</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-48" data-testid="display-risk-trend-chart">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} className="text-muted-foreground" />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload;
+                  const score = d.score as number;
+                  return (
+                    <div className="bg-popover border rounded-md p-2 shadow-md">
+                      <p className="text-xs text-muted-foreground">{d.fullDate}</p>
+                      <p className={cn("text-sm font-bold", getRiskScoreColor(score))}>
+                        Score: {score}
+                      </p>
+                    </div>
+                  );
+                }}
+              />
+              <ReferenceLine y={30} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" label={{ value: "Low", position: "right", fontSize: 10 }} />
+              <ReferenceLine y={60} stroke="hsl(var(--chart-4))" strokeDasharray="3 3" label={{ value: "Medium", position: "right", fontSize: 10 }} />
+              <Line
+                type="monotone"
+                dataKey="score"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                dot={{ r: 4, fill: "hsl(var(--primary))" }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
