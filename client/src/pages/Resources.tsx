@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2, BarChart3, TrendingUp, CalendarDays } from "lucide-react";
+import { Plus, Search, Users, Pencil, Trash2, Mail, Briefcase, DollarSign, MoreVertical, Download, Upload, UserCircle, GitMerge, ArrowRight, Check, ExternalLink, ClipboardList, ChevronDown, ChevronRight, FolderKanban, Building2, Layers, Wrench, Calendar, Clock, Percent, X, FileText, Target, ListTodo, User, Grid3X3, LayoutList, ZoomIn, ZoomOut, Maximize2, BarChart3, TrendingUp, CalendarDays, Sparkles, AlertTriangle, Lightbulb, ArrowUpDown, Loader2, RefreshCw } from "lucide-react";
 import CapacityPlanningView from "@/components/resources/CapacityPlanningView";
 import WorkloadDashboard from "@/components/resources/WorkloadDashboard";
 import AvailabilityCalendar from "@/components/resources/AvailabilityCalendar";
@@ -73,6 +73,7 @@ export default function Resources() {
   const [isImporting, setIsImporting] = useState(false);
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"resources" | "assignments" | "capacity" | "workload" | "availability" | "forecast">("resources");
+  const [isAIOptimizeOpen, setIsAIOptimizeOpen] = useState(false);
   const [groupBy1, setGroupBy1] = useState<string>("resource");
   const [groupBy2, setGroupBy2] = useState<string>("none");
   const [groupBy3, setGroupBy3] = useState<string>("none");
@@ -83,6 +84,16 @@ export default function Resources() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+
+  const aiOptimizeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/organizations/${currentOrganization?.id}/resource-optimization`);
+      return res.json();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   // Fetch task details when a task is selected
   const { data: selectedTaskData, isLoading: isLoadingTask } = useQuery({
@@ -411,6 +422,15 @@ export default function Resources() {
         >
           <GitMerge className="mr-2 h-4 w-4" />
           Match & Merge
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => { setIsAIOptimizeOpen(true); aiOptimizeMutation.mutate(); }}
+          disabled={aiOptimizeMutation.isPending || !currentOrganization?.id}
+          data-testid="button-ai-optimize"
+        >
+          {aiOptimizeMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+          AI Optimize
         </Button>
         <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-resource">
           <Plus className="mr-2 h-4 w-4" />
@@ -998,6 +1018,126 @@ export default function Resources() {
           ) : (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               Task not found
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAIOptimizeOpen} onOpenChange={setIsAIOptimizeOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto" aria-describedby="ai-optimize-description">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI Resource Optimization
+            </DialogTitle>
+            <p id="ai-optimize-description" className="text-sm text-muted-foreground">
+              AI-powered analysis of your team's resource allocation with actionable suggestions.
+            </p>
+          </DialogHeader>
+
+          {aiOptimizeMutation.isPending && (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Analyzing resource allocation across your projects...</p>
+            </div>
+          )}
+
+          {aiOptimizeMutation.isError && (
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <AlertTriangle className="h-8 w-8 text-destructive" />
+              <p className="text-sm text-destructive">Failed to generate suggestions. Please try again.</p>
+              <Button variant="outline" onClick={() => aiOptimizeMutation.mutate()} data-testid="button-retry-ai">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {aiOptimizeMutation.isSuccess && aiOptimizeMutation.data && (
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-sm" data-testid="text-ai-summary">{aiOptimizeMutation.data.summary}</p>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-3">
+                {aiOptimizeMutation.data.suggestions?.map((suggestion: any, idx: number) => {
+                  const severityColor = suggestion.severity === "high" 
+                    ? "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900" 
+                    : suggestion.severity === "medium" 
+                    ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900"
+                    : "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900";
+                  
+                  const typeIcon = suggestion.type === "overallocation" ? <AlertTriangle className="h-4 w-4" />
+                    : suggestion.type === "underutilization" ? <ArrowUpDown className="h-4 w-4" />
+                    : suggestion.type === "bottleneck" ? <AlertTriangle className="h-4 w-4" />
+                    : suggestion.type === "timeline_risk" ? <Clock className="h-4 w-4" />
+                    : suggestion.type === "cost_saving" ? <DollarSign className="h-4 w-4" />
+                    : <Lightbulb className="h-4 w-4" />;
+
+                  return (
+                    <Card key={idx} className={`border ${severityColor}`} data-testid={`card-suggestion-${idx}`}>
+                      <CardContent className="pt-4 space-y-3">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5">{typeIcon}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-medium text-sm">{suggestion.title}</h4>
+                              <Badge variant="outline" className="text-[10px]">
+                                {suggestion.severity}
+                              </Badge>
+                              <Badge variant="secondary" className="text-[10px]">
+                                {suggestion.type?.replace(/_/g, " ")}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">{suggestion.description}</p>
+                          </div>
+                        </div>
+
+                        {suggestion.suggestedAction && (
+                          <div className="pl-7">
+                            <p className="text-sm">
+                              <span className="font-medium">Suggested action:</span> {suggestion.suggestedAction}
+                            </p>
+                          </div>
+                        )}
+
+                        {suggestion.estimatedImpact && (
+                          <div className="pl-7">
+                            <p className="text-xs text-muted-foreground">
+                              <span className="font-medium">Expected impact:</span> {suggestion.estimatedImpact}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="pl-7 flex flex-wrap gap-1">
+                          {suggestion.affectedResources?.map((r: string, i: number) => (
+                            <Badge key={`r-${i}`} variant="outline" className="text-[10px]">
+                              <User className="h-3 w-3 mr-1" />{r}
+                            </Badge>
+                          ))}
+                          {suggestion.affectedProjects?.map((p: string, i: number) => (
+                            <Badge key={`p-${i}`} variant="outline" className="text-[10px]">
+                              <FolderKanban className="h-3 w-3 mr-1" />{p}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t">
+                <p className="text-xs text-muted-foreground">
+                  Generated {aiOptimizeMutation.data.generatedAt ? new Date(aiOptimizeMutation.data.generatedAt).toLocaleString() : "just now"}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => aiOptimizeMutation.mutate()} data-testid="button-regenerate-ai">
+                  <RefreshCw className="mr-2 h-3 w-3" />
+                  Regenerate
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

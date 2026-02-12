@@ -9874,6 +9874,25 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  // ==================== AI RESOURCE OPTIMIZATION ====================
+
+  app.post('/api/organizations/:orgId/resource-optimization', async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+      const orgId = Number(req.params.orgId);
+      const userId = (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const membership = await storage.getOrganizationMember(orgId, userId);
+      if (!membership) return res.status(403).json({ message: "Not a member of this organization" });
+      const { generateResourceOptimization } = await import('./services/resourceOptimizationAI');
+      const result = await generateResourceOptimization(orgId);
+      res.json(result);
+    } catch (err: any) {
+      console.error("Error generating resource optimization:", err);
+      res.status(500).json({ message: err.message || "Error generating resource optimization suggestions" });
+    }
+  });
+
   // ==================== RESOURCE UTILIZATION & CAPACITY ====================
 
   app.get('/api/organizations/:orgId/resource-utilization', async (req, res) => {
