@@ -775,10 +775,17 @@ async function getCreditsLimit(subscriptionId: number): Promise<{ included: numb
 // Helper function to check and enforce credit limits before resource creation
 export async function checkCreditLimit(
   userId: string,
-  resourceType: ResourceType
+  resourceType: ResourceType,
+  orgId?: number | null
 ): Promise<{ allowed: boolean; error?: string; creditsRequired: number; creditsRemaining?: number }> {
   try {
-    let subscription = await billingProvider.getSubscriptionForUser(userId);
+    let subscription = null;
+    if (orgId) {
+      subscription = await billingProvider.getSubscriptionForOrg(orgId);
+    }
+    if (!subscription) {
+      subscription = await billingProvider.getSubscriptionForUser(userId);
+    }
     if (!subscription) {
       await billingProvider.ensureUserHasSubscription(userId);
       subscription = await billingProvider.getSubscriptionForUser(userId);
@@ -824,9 +831,9 @@ export async function checkCreditLimit(
 export async function checkAndEnforceLimit(
   userId: string,
   meterCode: MeterCode,
-  unitsToAdd: number = 1
+  unitsToAdd: number = 1,
+  orgId?: number | null
 ): Promise<{ allowed: boolean; error?: string; remaining?: number }> {
-  // Map old meter codes to resource types
   const meterToResource: Record<string, ResourceType> = {
     projects: RESOURCE_TYPES.PROJECT,
     tasks: RESOURCE_TYPES.TASK,
@@ -851,11 +858,10 @@ export async function checkAndEnforceLimit(
     return { allowed: true };
   }
   
-  const result = await checkCreditLimit(userId, resourceType);
+  const result = await checkCreditLimit(userId, resourceType, orgId);
   return {
     allowed: result.allowed,
     error: result.error,
-    // creditsRemaining is in hundredths, convert to actual credits for display
     remaining: result.creditsRemaining !== undefined ? result.creditsRemaining / 100 : undefined
   };
 }
