@@ -30,7 +30,7 @@ import {
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
   Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X,
   Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal, MoreVertical, ArrowUpToLine,
-  Shield, Share2, Download, FileText, Sparkles
+  Shield, Share2, Download, FileText, Sparkles, RefreshCw
 } from "lucide-react";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -39,8 +39,8 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend
 } from "recharts";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -73,6 +73,7 @@ export default function PortfolioDetails() {
         setRiskShareToken(data.assessment.shareToken || "");
         setRiskAssessmentId(data.assessment.id || null);
       }
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolios", id, "risk-assessment", "latest"] });
       setRiskDialogOpen(true);
       setRiskConfirmOpen(false);
     },
@@ -118,9 +119,9 @@ export default function PortfolioDetails() {
       const data = await res.json();
       if (data && data.riskScore && data.report) {
         const generatedAt = new Date(data.generatedAt);
-        const fiveDaysAgo = new Date();
-        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-        if (generatedAt > fiveDaysAgo) {
+        const tenDaysAgo = new Date();
+        tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+        if (generatedAt > tenDaysAgo) {
           setRiskReport(data.report);
           setRiskShareToken(data.shareToken || "");
           setRiskAssessmentId(data.id || null);
@@ -132,6 +133,10 @@ export default function PortfolioDetails() {
     } catch {
       setRiskConfirmOpen(true);
     }
+  };
+
+  const handleRecalculateRisk = () => {
+    setRiskConfirmOpen(true);
   };
 
   const getRiskScoreColor = (score: number) => {
@@ -205,6 +210,7 @@ export default function PortfolioDetails() {
               portfolioId={id}
               portfolioName={portfolio.name}
               onRiskAssessmentClick={handleRiskAssessmentClick}
+              onRecalculateRisk={handleRecalculateRisk}
               generateRiskAssessment={generateRiskAssessment}
               riskConfirmOpen={riskConfirmOpen}
               setRiskConfirmOpen={setRiskConfirmOpen}
@@ -998,10 +1004,11 @@ function PortfolioProjectsGanttView({ projects }: { projects: Project[] }) {
   );
 }
 
-function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, generateRiskAssessment, riskConfirmOpen, setRiskConfirmOpen, riskDialogOpen, setRiskDialogOpen, riskReport, riskAssessmentId, riskShareToken, getRiskScoreColor, getRiskScoreBg, getRiskScoreLabel }: {
+function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalculateRisk, generateRiskAssessment, riskConfirmOpen, setRiskConfirmOpen, riskDialogOpen, setRiskDialogOpen, riskReport, riskAssessmentId, riskShareToken, getRiskScoreColor, getRiskScoreBg, getRiskScoreLabel }: {
   portfolioId: number;
   portfolioName: string;
   onRiskAssessmentClick: () => void;
+  onRecalculateRisk: () => void;
   generateRiskAssessment: any;
   riskConfirmOpen: boolean;
   setRiskConfirmOpen: (open: boolean) => void;
@@ -1015,12 +1022,24 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, generateR
   getRiskScoreLabel: (score: number) => string;
 }) {
   const { data: risks, isLoading, refetch } = usePortfolioRisks(portfolioId);
+  const { data: latestAssessment } = useQuery<{ riskScore: number; generatedAt: string; summary: string } | null>({
+    queryKey: ["/api/portfolios", portfolioId, "risk-assessment", "latest"],
+  });
   const [editingRisk, setEditingRisk] = useState<PortfolioRisk | null>(null);
   const [deleteRisk, setDeleteRisk] = useState<PortfolioRisk | null>(null);
   const updateRisk = useUpdateRisk();
   const deleteRiskMutation = useDeleteRisk();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const recentAssessment = useMemo(() => {
+    if (!latestAssessment?.riskScore || !latestAssessment?.generatedAt) return null;
+    const generatedAt = new Date(latestAssessment.generatedAt);
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+    if (generatedAt > tenDaysAgo) return { score: latestAssessment.riskScore, generatedAt };
+    return null;
+  }, [latestAssessment]);
 
   const editForm = useForm({
     defaultValues: {
@@ -1101,19 +1120,58 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, generateR
               </CardTitle>
               <CardDescription className="mt-1">All risks from projects in this portfolio ({allRisks.length} total, {escalatedRisks.length} escalated)</CardDescription>
             </div>
-            <Button
-              variant="outline"
-              onClick={onRiskAssessmentClick}
-              disabled={generateRiskAssessment.isPending}
-              data-testid="button-risk-assessment"
-            >
-              {generateRiskAssessment.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Shield className="h-4 w-4 mr-2" />
+            <div className="flex items-center gap-3">
+              {recentAssessment && (
+                <div
+                  className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={onRiskAssessmentClick}
+                  data-testid="display-current-risk-score"
+                >
+                  <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md", getRiskScoreBg(recentAssessment.score))}>
+                    <Shield className="h-4 w-4" />
+                    <span className={cn("text-lg font-bold", getRiskScoreColor(recentAssessment.score))} data-testid="text-current-risk-score">
+                      {recentAssessment.score}
+                    </span>
+                    <span className={cn("text-xs font-medium", getRiskScoreColor(recentAssessment.score))}>
+                      {getRiskScoreLabel(recentAssessment.score)}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground hidden sm:inline" data-testid="text-risk-score-date">
+                    {recentAssessment.generatedAt.toLocaleDateString()}
+                  </span>
+                </div>
               )}
-              AI Risk Assessment
-            </Button>
+              {recentAssessment ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRecalculateRisk}
+                  disabled={generateRiskAssessment.isPending}
+                  data-testid="button-recalculate-risk"
+                >
+                  {generateRiskAssessment.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Recalculate
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={onRiskAssessmentClick}
+                  disabled={generateRiskAssessment.isPending}
+                  data-testid="button-risk-assessment"
+                >
+                  {generateRiskAssessment.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Shield className="h-4 w-4 mr-2" />
+                  )}
+                  AI Risk Assessment
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
