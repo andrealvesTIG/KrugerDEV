@@ -5528,6 +5528,7 @@ function TaskNameCell({
   onEdit,
   isReadOnly,
   onCreateTaskAt,
+  onDeleteTask,
 }: {
   task: Task;
   colWidth: number;
@@ -5546,9 +5547,11 @@ function TaskNameCell({
   onEdit: (task: Task) => void;
   isReadOnly?: boolean;
   onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
+  onDeleteTask?: (task: Task) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(task.name);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -5712,8 +5715,41 @@ function TaskNameCell({
               </DropdownMenuItem>
             </>
           )}
+          {onDeleteTask && !isReadOnly && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); setIsDeleteDialogOpen(true); }}
+                className="text-destructive focus:text-destructive"
+                data-testid={`task-delete-${task.id}`}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                Delete Task
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{task.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid={`task-delete-cancel-${task.id}`}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { onDeleteTask?.(task); setIsDeleteDialogOpen(false); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid={`task-delete-confirm-${task.id}`}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -5783,6 +5819,7 @@ function ProjectGanttTaskRowMeta({
   computedWbs,
   isReadOnly,
   onCreateTaskAt,
+  onDeleteTask,
 }: { 
   task: Task;
   rowIndex: number;
@@ -5814,6 +5851,7 @@ function ProjectGanttTaskRowMeta({
   computedWbs?: string;
   isReadOnly?: boolean;
   onCreateTaskAt?: (task: Task, position: 'above' | 'below') => void;
+  onDeleteTask?: (task: Task) => void;
 }) {
   const { data: taskAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(task.id);
   const updateTaskResources = useUpdateTaskResourceAssignments();
@@ -6065,6 +6103,7 @@ function ProjectGanttTaskRowMeta({
               onEdit={onEdit}
               isReadOnly={isReadOnly}
               onCreateTaskAt={onCreateTaskAt}
+              onDeleteTask={onDeleteTask}
             />
           );
         }
@@ -8267,6 +8306,18 @@ function ProjectGanttView({
     });
   };
 
+  const handleDeleteTask = (task: Task) => {
+    deleteTask.mutate({ id: task.id, projectId: task.projectId }, {
+      onSuccess: () => {
+        toast({ title: "Task deleted", description: `"${task.name}" has been deleted` });
+      },
+      onError: (error: unknown) => {
+        const err = error as { message?: string };
+        toast({ title: "Error", description: err.message || "Failed to delete task", variant: "destructive" });
+      }
+    });
+  };
+
   // State for dependencies dialog
   const [dependenciesDialogTask, setDependenciesDialogTask] = useState<Task | null>(null);
 
@@ -9225,6 +9276,7 @@ function ProjectGanttView({
                               computedWbs={wbsMap.get(task.id)}
                               isReadOnly={isReadOnly}
                               onCreateTaskAt={handleCreateTaskAt}
+                              onDeleteTask={handleDeleteTask}
                             />
                           )}
                         </SortableTaskRow>
