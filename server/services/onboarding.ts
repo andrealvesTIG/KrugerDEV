@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { users, organizations, organizationMembers, portfolios, projects, milestones, issues, tasks, resources, changeRequests, projectIntakes } from "@shared/schema";
+import { users, organizations, organizationMembers, portfolios, projects, milestones, issues, tasks, resources, changeRequests, projectIntakes, subscriptions } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { extractDomain, isPersonalEmailDomain } from "./companyLookup";
 
@@ -335,6 +335,20 @@ export async function completeOnboarding(
   if (existingMemberships.length > 0) {
     const [existingOrg] = await db.select().from(organizations).where(eq(organizations.id, existingMemberships[0].organizationId)).limit(1);
     organization = existingOrg;
+
+    const existingSub = await db.select().from(subscriptions).where(eq(subscriptions.orgId, organization.id)).limit(1);
+    if (existingSub.length === 0) {
+      try {
+        const { billingProvider } = await import("./services/billing");
+        await billingProvider.createSubscription({
+          planCode: "FREE",
+          orgId: organization.id,
+          userId,
+        });
+      } catch (billingErr) {
+        console.error("Failed to assign FREE plan to existing organization:", billingErr);
+      }
+    }
   } else {
     const slug = generateSlug(data.companyName);
     [organization] = await db.insert(organizations).values({
@@ -349,6 +363,17 @@ export async function completeOnboarding(
       userId,
       role: 'org_admin',
     });
+
+    try {
+      const { billingProvider } = await import("./services/billing");
+      await billingProvider.createSubscription({
+        planCode: "FREE",
+        orgId: organization.id,
+        userId,
+      });
+    } catch (billingErr) {
+      console.error("Failed to assign FREE plan to organization during onboarding:", billingErr);
+    }
   }
   
   await db.update(users)
@@ -568,6 +593,21 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
   
   if (userOrgs.length > 0) {
     const [existingOrg] = await db.select().from(organizations).where(eq(organizations.id, userOrgs[0].organizationId)).limit(1);
+    if (existingOrg) {
+      const existingSub = await db.select().from(subscriptions).where(eq(subscriptions.orgId, existingOrg.id)).limit(1);
+      if (existingSub.length === 0) {
+        try {
+          const { billingProvider } = await import("./services/billing");
+          await billingProvider.createSubscription({
+            planCode: "FREE",
+            orgId: existingOrg.id,
+            userId,
+          });
+        } catch (billingErr) {
+          console.error("Failed to assign FREE plan to existing organization:", billingErr);
+        }
+      }
+    }
     return { organization: existingOrg || null, created: false, role: userOrgs[0].role };
   }
 
@@ -620,6 +660,17 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
     userId,
     role: 'org_admin',
   });
+
+  try {
+    const { billingProvider } = await import("./services/billing");
+    await billingProvider.createSubscription({
+      planCode: "FREE",
+      orgId: newOrg.id,
+      userId,
+    });
+  } catch (billingErr) {
+    console.error("Failed to assign FREE plan to auto-created organization:", billingErr);
+  }
 
   await db.update(users)
     .set({ 
