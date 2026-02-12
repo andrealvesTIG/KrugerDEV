@@ -82,13 +82,29 @@ function getMonthBoundaries(date: Date = new Date()): { start: Date; end: Date }
 }
 
 export class MockBillingProvider implements BillingProvider {
+  private async advancePeriodIfNeeded(subscription: Subscription): Promise<Subscription> {
+    const now = new Date();
+    const periodEnd = new Date(subscription.currentPeriodEnd);
+    if (now > periodEnd) {
+      const { start, end } = getMonthBoundaries(now);
+      const [updated] = await db
+        .update(subscriptions)
+        .set({ currentPeriodStart: start, currentPeriodEnd: end })
+        .where(eq(subscriptions.id, subscription.id))
+        .returning();
+      return updated || subscription;
+    }
+    return subscription;
+  }
+
   async getSubscriptionForUser(userId: string): Promise<Subscription | null> {
     const [subscription] = await db
       .select()
       .from(subscriptions)
       .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "ACTIVE")))
       .limit(1);
-    return subscription || null;
+    if (!subscription) return null;
+    return this.advancePeriodIfNeeded(subscription);
   }
 
   async getSubscriptionForOrg(orgId: number): Promise<Subscription | null> {
@@ -97,7 +113,8 @@ export class MockBillingProvider implements BillingProvider {
       .from(subscriptions)
       .where(and(eq(subscriptions.orgId, orgId), eq(subscriptions.status, "ACTIVE")))
       .limit(1);
-    return subscription || null;
+    if (!subscription) return null;
+    return this.advancePeriodIfNeeded(subscription);
   }
 
   async checkSeatLimit(orgId: number, seatsToAdd: number = 1): Promise<SeatLimitResult> {
