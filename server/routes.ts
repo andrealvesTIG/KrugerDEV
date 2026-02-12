@@ -14065,25 +14065,20 @@ Return ONLY valid JSON.`;
       const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
       const { billingProvider } = await import("./services/billing");
 
-      if (orgId) {
-        const [membership] = await db.select().from(organizationMembers)
-          .where(and(eq(organizationMembers.organizationId, orgId), eq(organizationMembers.userId, userId)))
-          .limit(1);
-        if (!membership) {
-          return res.status(403).json({ message: "Not a member of this organization" });
-        }
-      }
-
       let subscription = null;
       if (orgId) {
         subscription = await billingProvider.getSubscriptionForOrg(orgId);
+        if (!subscription) {
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", orgId });
+        }
       } else {
         subscription = await billingProvider.getSubscriptionForUser(userId);
+        if (!subscription) {
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", userId });
+        }
       }
 
-      if (!subscription) {
-        return res.json([]);
-      }
+      await billingProvider.getOrCreateBillingCycle(subscription.id);
 
       const [plan] = await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1);
 
