@@ -8131,8 +8131,36 @@ function ProjectGanttView({
     }
   };
 
-  // Collapse/expand state management
-  const [collapsedTasks, setCollapsedTasks] = useState<Set<number>>(new Set());
+  // Collapse/expand state management - persisted per user per project
+  const { user: authUser } = useAuth();
+  const getCollapsedTasksKey = (pid: number, uid: string) => `project-collapsed-tasks-${uid}-${pid}`;
+
+  const [collapsedTasks, setCollapsedTasks] = useState<Set<number>>(() => {
+    if (!authUser?.id) return new Set<number>();
+    try {
+      const saved = localStorage.getItem(getCollapsedTasksKey(projectId, authUser.id));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<number>(parsed);
+      }
+    } catch {}
+    return new Set<number>();
+  });
+
+  useEffect(() => {
+    if (!authUser?.id) return;
+    try {
+      const saved = localStorage.getItem(getCollapsedTasksKey(projectId, authUser.id));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setCollapsedTasks(new Set<number>(parsed));
+          return;
+        }
+      }
+    } catch {}
+    setCollapsedTasks(new Set<number>());
+  }, [projectId, authUser?.id]);
 
   const toggleCollapse = (taskId: number) => {
     setCollapsedTasks(prev => {
@@ -8141,6 +8169,11 @@ function ProjectGanttView({
         next.delete(taskId);
       } else {
         next.add(taskId);
+      }
+      if (authUser?.id) {
+        try {
+          localStorage.setItem(getCollapsedTasksKey(projectId, authUser.id), JSON.stringify(Array.from(next)));
+        } catch {}
       }
       return next;
     });
