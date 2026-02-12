@@ -9878,10 +9878,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   app.post('/api/organizations/:orgId/resource-optimization', async (req, res) => {
     try {
-      if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
-      const orgId = Number(req.params.orgId);
-      const userId = (req.user as any)?.id;
+      const userId = req.session?.userId || (req.user as any)?.id;
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const orgId = Number(req.params.orgId);
       const membership = await storage.getOrganizationMember(orgId, userId);
       if (!membership) return res.status(403).json({ message: "Not a member of this organization" });
       const { generateResourceOptimization } = await import('./services/resourceOptimizationAI');
