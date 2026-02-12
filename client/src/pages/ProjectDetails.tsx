@@ -8179,6 +8179,35 @@ function ProjectGanttView({
     });
   };
 
+  const collapseAllTasks = useCallback(() => {
+    if (!tasks || tasks.length === 0) return;
+    const parentIds = new Set<number>();
+    for (let i = 0; i < tasks.length; i++) {
+      const currentLevel = tasks[i].outlineLevel || 1;
+      if (i + 1 < tasks.length) {
+        const nextLevel = tasks[i + 1].outlineLevel || 1;
+        if (nextLevel > currentLevel) {
+          parentIds.add(tasks[i].id);
+        }
+      }
+    }
+    setCollapsedTasks(parentIds);
+    if (authUser?.id) {
+      try {
+        localStorage.setItem(getCollapsedTasksKey(projectId, authUser.id), JSON.stringify(Array.from(parentIds)));
+      } catch {}
+    }
+  }, [tasks, authUser?.id, projectId]);
+
+  const expandAllTasks = useCallback(() => {
+    setCollapsedTasks(new Set<number>());
+    if (authUser?.id) {
+      try {
+        localStorage.setItem(getCollapsedTasksKey(projectId, authUser.id), JSON.stringify([]));
+      } catch {}
+    }
+  }, [authUser?.id, projectId]);
+
   // Determine which tasks have children, filter visible tasks, and compute WBS
   // Uses tasks in their original order to preserve hierarchy
   const { visibleTasks, taskHasChildren, wbsMap } = useMemo(() => {
@@ -8805,6 +8834,25 @@ function ProjectGanttView({
               <Flag className="h-3.5 w-3.5" />
               Baseline Schedule
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1" data-testid="button-outline-control">
+                  <ListTodo className="h-3.5 w-3.5" />
+                  Outline
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={expandAllTasks} data-testid="button-expand-all-tasks">
+                  <ChevronDown className="h-4 w-4 mr-2" />
+                  Expand All
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={collapseAllTasks} data-testid="button-collapse-all-tasks">
+                  <ChevronRight className="h-4 w-4 mr-2" />
+                  Collapse All
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
