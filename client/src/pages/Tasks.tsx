@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer, RefreshCw } from "lucide-react";
+import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer, RefreshCw, Lock as LockIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -1219,7 +1219,7 @@ const taskZoomLabels: Record<TaskZoomLevel, string> = {
   '5year': '5 Years'
 };
 
-type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'duration' | 'progress' | 'status' | 'priority' | 'assignee' | 'resources' | 'wbs' | 'phase' | 'category' | 'estimatedHours' | 'actualHours' | 'remainingHours';
+type TaskGanttColumn = 'actions' | 'outlineLevel' | 'task' | 'startDate' | 'endDate' | 'duration' | 'progress' | 'status' | 'priority' | 'assignee' | 'resources' | 'wbs' | 'phase' | 'category' | 'estimatedHours' | 'actualHours' | 'remainingHours' | 'timesheetBlocked';
 
 const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[] = [
   { id: 'actions', label: '', width: 'w-10' },
@@ -1239,6 +1239,7 @@ const TASK_GANTT_COLUMNS: { id: TaskGanttColumn; label: string; width: string }[
   { id: 'estimatedHours', label: 'Est. Hours', width: 'w-24' },
   { id: 'actualHours', label: 'Actual Hours', width: 'w-24' },
   { id: 'remainingHours', label: 'Rem. Hours', width: 'w-24' },
+  { id: 'timesheetBlocked', label: 'TS Blocked', width: 'w-20' },
 ];
 
 function GanttTaskRow({ 
@@ -1637,6 +1638,11 @@ function GanttTaskRow({
           {task.remainingHours ? `${task.remainingHours}h` : '—'}
         </div>
       )}
+      {visibleColumns.includes('timesheetBlocked') && (
+        <div className="w-20 flex-shrink-0 border-r px-1 py-0.5 text-xs text-muted-foreground flex items-center justify-center" data-testid={`task-timesheet-blocked-${task.id}`}>
+          {task.timesheetBlocked ? <LockIcon className="h-3 w-3 text-amber-500" /> : <span className="text-muted-foreground/50">—</span>}
+        </div>
+      )}
       <div className="flex-1 relative px-1 py-0.5 min-h-[28px]">
         {/* Baseline bar (rendered first, below actual bar) */}
         {hasBaseline && baselineStart && baselineEnd && (
@@ -1904,6 +1910,7 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
     if (visibleColumns.includes('estimatedHours')) w += 96;
     if (visibleColumns.includes('actualHours')) w += 96;
     if (visibleColumns.includes('remainingHours')) w += 96;
+    if (visibleColumns.includes('timesheetBlocked')) w += 80;
     return w;
   }, [visibleColumns]);
 
@@ -2043,6 +2050,9 @@ function GanttView({ tasks, projects, onTaskClick, embedded = false, organizatio
           )}
           {visibleColumns.includes('remainingHours') && (
             <div className="w-24 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground">Rem. Hours</div>
+          )}
+          {visibleColumns.includes('timesheetBlocked') && (
+            <div className="w-20 flex-shrink-0 border-r px-1 py-1 font-semibold text-xs text-foreground text-center">TS Blocked</div>
           )}
           <div className="flex-1 flex">
             {filteredDates.map((date, i) => (
@@ -2296,7 +2306,10 @@ function DraggableTaskCard({
           </DropdownMenu>
         </div>
         <CardContent className="p-4">
-          <div className="font-medium text-sm truncate" title={task.name}>{task.name}</div>
+          <div className="font-medium text-sm truncate flex items-center gap-1" title={task.name}>
+            {task.timesheetBlocked && <LockIcon className="h-3 w-3 text-amber-500 flex-shrink-0" />}
+            <span className="truncate">{task.name}</span>
+          </div>
           <Link 
             href={`/projects/${task.projectId}`}
             onClick={(e) => e.stopPropagation()}

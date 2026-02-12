@@ -17,9 +17,10 @@ import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
 import type { InsertProject, Project, Resource } from "@shared/schema";
 import { Link } from "wouter";
-import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket } from "lucide-react";
+import { Plus, Search, Calendar, Target, AlertCircle, TrendingUp, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, Download, RefreshCw, CheckCircle, Loader2, ClipboardList, ExternalLink, Table2, Settings2, Check, Crown, Database, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
@@ -631,6 +632,17 @@ export default function Projects() {
                             <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200">
                               {project.name}
                             </h3>
+                            {project.timesheetBlocked && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md" data-testid={`project-ts-blocked-fullscreen-${project.id}`}>
+                                    <LockIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                                    <span className="text-xs font-medium text-amber-700 dark:text-amber-300">TS Blocked</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>Timesheet entries blocked for this project</TooltipContent>
+                              </Tooltip>
+                            )}
                             {project.source === "planner" && project.plannerPlanId && (
                               <button
                                 type="button"
@@ -842,6 +854,17 @@ export default function Projects() {
                       <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors duration-200 truncate" title={project.name}>
                         {project.name}
                       </h3>
+                      {project.timesheetBlocked && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md" data-testid={`project-ts-blocked-${project.id}`}>
+                              <LockIcon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                              <span className="text-xs font-medium text-amber-700 dark:text-amber-300">TS Blocked</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>Timesheet entries blocked for this project</TooltipContent>
+                        </Tooltip>
+                      )}
                       {/* Planner Logo for synced projects */}
                       {project.source === "planner" && project.plannerPlanId && (
                         <button
@@ -2602,6 +2625,16 @@ function ProjectsGridView({
             <Link href={`/projects/${project.id}`} className="font-medium text-primary hover:underline truncate flex-1 min-w-0" title={project.name}>
               {project.name}
             </Link>
+            {project.timesheetBlocked && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex-shrink-0" data-testid={`project-ts-blocked-table-${project.id}`}>
+                    <LockIcon className="h-3.5 w-3.5 text-amber-500" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>Timesheet entries blocked</TooltipContent>
+              </Tooltip>
+            )}
             {project.source === "planner" && project.plannerPlanId && (
               <button
                 type="button"
@@ -3310,6 +3343,16 @@ function DraggableProjectCard({ project }: { project: Project }) {
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <div className="font-medium text-sm line-clamp-2 flex-1">{project.name}</div>
+              {project.timesheetBlocked && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex-shrink-0" data-testid={`project-timesheet-blocked-${project.id}`}>
+                      <LockIcon className="h-3.5 w-3.5 text-amber-500" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>Timesheet entries blocked</TooltipContent>
+                </Tooltip>
+              )}
               {project.source === "planner" && project.plannerPlanId && (
                 <button
                   type="button"

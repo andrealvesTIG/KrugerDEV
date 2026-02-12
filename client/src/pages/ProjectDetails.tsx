@@ -5219,7 +5219,7 @@ type GanttColumn =
   | 'cost' | 'actualCost'
   | 'resources' | 'assignee' 
   | 'constraintType' | 'constraintDate'
-  | 'isMilestone' | 'isCritical' | 'isSummary'
+  | 'isMilestone' | 'isCritical' | 'isSummary' | 'timesheetBlocked'
   | 'phase' | 'category' | 'labels' | 'notes';
 
 type GanttColumnConfig = { 
@@ -5269,6 +5269,7 @@ const GANTT_COLUMNS: GanttColumnConfig[] = [
   { id: 'isMilestone', label: 'Milestone', width: 'w-20', widthPx: 80, category: 'flags' },
   { id: 'isCritical', label: 'Critical', width: 'w-18', widthPx: 72, category: 'flags' },
   { id: 'isSummary', label: 'Summary', width: 'w-20', widthPx: 80, category: 'flags' },
+  { id: 'timesheetBlocked', label: 'TS Blocked', width: 'w-20', widthPx: 80, category: 'flags' },
   // Metadata
   { id: 'phase', label: 'Phase', width: 'w-24', widthPx: 96, category: 'metadata' },
   { id: 'category', label: 'Category', width: 'w-24', widthPx: 96, category: 'metadata' },
@@ -6190,7 +6191,7 @@ function ProjectGanttTaskRowMeta({
           );
         }
         
-        const centerAlign = ['progress', 'isMilestone', 'isCritical', 'isSummary', 'durationDays'].includes(colId);
+        const centerAlign = ['progress', 'isMilestone', 'isCritical', 'isSummary', 'timesheetBlocked', 'durationDays'].includes(colId);
         const isSummaryTask = hasChildren;
         
         const statusOptions = [
@@ -6579,6 +6580,16 @@ function ProjectGanttTaskRowMeta({
               );
             case 'isSummary':
               return task.isSummary ? <Check className="h-3 w-3 text-blue-500 mx-auto" /> : <span className="text-muted-foreground/50">—</span>;
+            case 'timesheetBlocked':
+              return (
+                <InlineEditCell
+                  value={task.timesheetBlocked}
+                  displayValue={task.timesheetBlocked ? <LockIcon className="h-3 w-3 text-amber-500 mx-auto" /> : <span className="text-muted-foreground/50">—</span>}
+                  editType="boolean"
+                  onSave={(val) => handleInlineUpdate('timesheetBlocked', val as boolean, task.timesheetBlocked)}
+                  disabled={isReadOnly}
+                />
+              );
             case 'phase':
               return (
                 <InlineEditCell
