@@ -1420,41 +1420,46 @@ export class DatabaseStorage implements IStorage {
     const searchPattern = `%${query}%`;
     const limit = 10;
 
-    // Filter portfolios by organization IDs
+    // Filter portfolios by organization IDs (exclude soft-deleted)
     const portfolioResults = await db.select().from(portfolios)
       .where(
         and(
+          isNull(portfolios.deletedAt),
           organizationIds && organizationIds.length > 0
             ? sql`${portfolios.organizationId} IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`
             : sql`1=1`,
           or(
-            sql`unaccent(${portfolios.name}) ILIKE unaccent(${searchPattern})`,
-            sql`unaccent(${portfolios.description}) ILIKE unaccent(${searchPattern})`
+            sql`COALESCE(${portfolios.name}, '') ILIKE ${searchPattern}`,
+            sql`COALESCE(${portfolios.description}, '') ILIKE ${searchPattern}`
           )
         )
       )
       .limit(limit);
 
-    // Filter projects by organization IDs
+    // Filter projects by organization IDs (exclude soft-deleted)
     const projectResults = await db.select().from(projects)
       .where(
         and(
+          isNull(projects.deletedAt),
           organizationIds && organizationIds.length > 0
             ? sql`${projects.organizationId} IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`
             : sql`1=1`,
           or(
-            sql`unaccent(${projects.name}) ILIKE unaccent(${searchPattern})`,
-            sql`unaccent(${projects.description}) ILIKE unaccent(${searchPattern})`
+            sql`COALESCE(${projects.name}, '') ILIKE ${searchPattern}`,
+            sql`COALESCE(${projects.description}, '') ILIKE ${searchPattern}`
           )
         )
       )
       .limit(limit);
 
-    // Get accessible project IDs for filtering tasks, issues, risks, milestones
+    // Get accessible project IDs for filtering tasks, issues, risks, milestones (exclude soft-deleted)
     const accessibleProjects = organizationIds && organizationIds.length > 0
       ? await db.select({ id: projects.id }).from(projects)
-          .where(sql`${projects.organizationId} IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`)
-      : await db.select({ id: projects.id }).from(projects);
+          .where(and(
+            isNull(projects.deletedAt),
+            sql`${projects.organizationId} IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`
+          ))
+      : await db.select({ id: projects.id }).from(projects).where(isNull(projects.deletedAt));
     const projectIds = accessibleProjects.map(p => p.id);
 
     if (projectIds.length === 0) {
@@ -1468,41 +1473,44 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    // Filter tasks by accessible projects
+    // Filter tasks by accessible projects (exclude soft-deleted)
     const taskResults = await db.select().from(tasks)
       .where(
         and(
+          isNull(tasks.deletedAt),
           sql`${tasks.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
-            sql`unaccent(${tasks.name}) ILIKE unaccent(${searchPattern})`,
-            sql`unaccent(${tasks.description}) ILIKE unaccent(${searchPattern})`
+            sql`COALESCE(${tasks.name}, '') ILIKE ${searchPattern}`,
+            sql`COALESCE(${tasks.description}, '') ILIKE ${searchPattern}`
           )
         )
       )
       .limit(limit);
 
-    // Filter issues by accessible projects
+    // Filter issues by accessible projects (exclude soft-deleted)
     const issueResults = await db.select().from(issues)
       .where(
         and(
+          isNull(issues.deletedAt),
           sql`${issues.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
-            sql`unaccent(${issues.title}) ILIKE unaccent(${searchPattern})`,
-            sql`unaccent(${issues.description}) ILIKE unaccent(${searchPattern})`
+            sql`COALESCE(${issues.title}, '') ILIKE ${searchPattern}`,
+            sql`COALESCE(${issues.description}, '') ILIKE ${searchPattern}`
           )
         )
       )
       .limit(limit);
 
-    // Filter risks by accessible projects (risks are now in issues table with itemType='risk')
+    // Filter risks by accessible projects (risks are now in issues table with itemType='risk', exclude soft-deleted)
     const riskResults = await db.select().from(issues)
       .where(
         and(
+          isNull(issues.deletedAt),
           eq(issues.itemType, 'risk'),
           sql`${issues.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
-            sql`unaccent(${issues.title}) ILIKE unaccent(${searchPattern})`,
-            sql`unaccent(${issues.description}) ILIKE unaccent(${searchPattern})`
+            sql`COALESCE(${issues.title}, '') ILIKE ${searchPattern}`,
+            sql`COALESCE(${issues.description}, '') ILIKE ${searchPattern}`
           )
         )
       )
@@ -1514,8 +1522,8 @@ export class DatabaseStorage implements IStorage {
         and(
           sql`${milestones.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`,
           or(
-            sql`unaccent(${milestones.title}) ILIKE unaccent(${searchPattern})`,
-            sql`unaccent(${milestones.description}) ILIKE unaccent(${searchPattern})`
+            sql`COALESCE(${milestones.title}, '') ILIKE ${searchPattern}`,
+            sql`COALESCE(${milestones.description}, '') ILIKE ${searchPattern}`
           )
         )
       )
