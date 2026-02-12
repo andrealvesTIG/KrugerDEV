@@ -9881,7 +9881,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const userId = req.session?.userId || (req.user as any)?.id;
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
       const orgId = Number(req.params.orgId);
-      const membership = await storage.getOrganizationMember(orgId, userId);
+      const memberships = await storage.getUserOrganizations(userId);
+      const membership = memberships.find(m => m.organizationId === orgId);
       if (!membership) return res.status(403).json({ message: "Not a member of this organization" });
       const { generateResourceOptimization } = await import('./services/resourceOptimizationAI');
       const result = await generateResourceOptimization(orgId);
