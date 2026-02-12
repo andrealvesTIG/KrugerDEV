@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
@@ -55,7 +55,11 @@ function getActionLabel(type: string) {
   }
 }
 
-export function AICreateButton() {
+export interface AICreateButtonHandle {
+  openWithVoice: () => void;
+}
+
+export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreateButton(_props, ref) {
   const { currentOrganization } = useOrganization();
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -63,6 +67,7 @@ export function AICreateButton() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const startVoiceOnOpenRef = useRef(false);
 
   const [step, setStep] = useState<DialogStep>("input");
   const [previewActions, setPreviewActions] = useState<PreviewAction[]>([]);
@@ -130,6 +135,13 @@ export function AICreateButton() {
     }
   };
 
+  useImperativeHandle(ref, () => ({
+    openWithVoice: () => {
+      startVoiceOnOpenRef.current = true;
+      setAiDialogOpen(true);
+    },
+  }));
+
   useEffect(() => {
     if (!aiDialogOpen) {
       if (recognitionRef.current) {
@@ -137,6 +149,9 @@ export function AICreateButton() {
         setIsRecording(false);
       }
       resetDialog();
+    } else if (startVoiceOnOpenRef.current) {
+      startVoiceOnOpenRef.current = false;
+      setTimeout(() => toggleVoiceInput(), 100);
     }
   }, [aiDialogOpen]);
 
@@ -434,4 +449,4 @@ export function AICreateButton() {
       </DialogContent>
     </Dialog>
   );
-}
+});

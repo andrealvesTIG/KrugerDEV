@@ -21,7 +21,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 import { HelpDialog } from "@/components/HelpDialog";
-import { AICreateButton } from "./AICreateButton";
+import { AICreateButton, AICreateButtonHandle } from "./AICreateButton";
+import { Mic } from "lucide-react";
 import { FridayCountdown } from "./FridayCountdown";
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -59,6 +60,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [orgSearchQuery, setOrgSearchQuery] = useState("");
   const orgSearchRef = useRef<HTMLInputElement>(null);
+  const aiCreateRef = useRef<AICreateButtonHandle>(null);
   const { theme } = useTheme();
   const { toast } = useToast();
 
@@ -221,7 +223,15 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <FridayCountdown />
-            <AICreateButton />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => aiCreateRef.current?.openWithVoice()}
+              data-testid="button-voice-command"
+            >
+              <Mic className="h-4 w-4" />
+            </Button>
+            <AICreateButton ref={aiCreateRef} />
             <QuickAddMenu />
             <Button
               variant="ghost"
