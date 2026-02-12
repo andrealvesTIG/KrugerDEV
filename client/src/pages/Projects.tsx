@@ -1344,6 +1344,9 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const form = useForm<InsertProject>({
     resolver: zodResolver(insertProjectSchema.extend({
       name: z.string().min(1, "Project name is required"),
+      startDate: z.string().nullable().optional().transform(v => v || null),
+      endDate: z.string().nullable().optional().transform(v => v || null),
+      budget: z.string().nullable().optional().transform(v => v || "0"),
     })),
     defaultValues: {
       name: "",
@@ -1351,14 +1354,21 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
       priority: "Medium",
       status: "Initiation",
       budget: "0",
-      startDate: "",
-      endDate: "",
+      startDate: undefined,
+      endDate: undefined,
       organizationId: organizationId || undefined,
     }
   });
 
   const onSubmit = (data: InsertProject) => {
-    createMutation.mutate({ ...data, organizationId: organizationId || null }, {
+    const cleanedData = {
+      ...data,
+      organizationId: organizationId || null,
+      startDate: data.startDate || null,
+      endDate: data.endDate || null,
+      budget: data.budget || "0",
+    };
+    createMutation.mutate(cleanedData, {
       onSuccess: () => {
         toast({ title: "Success", description: "Project created successfully" });
         onOpenChange(false);
@@ -1634,7 +1644,17 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
 
             <DialogFooter>
               <Button type="submit" disabled={createMutation.isPending} data-testid="button-create-project">
-                {createMutation.isPending ? "Creating..." : "Create Project"}
+                {createMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Project
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </form>
