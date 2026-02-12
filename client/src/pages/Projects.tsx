@@ -1344,6 +1344,7 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
   const form = useForm<InsertProject>({
     resolver: zodResolver(insertProjectSchema.extend({
       name: z.string().min(1, "Project name is required"),
+      organizationId: z.number().nullable().optional(),
       startDate: z.string().nullable().optional().transform(v => v || null),
       endDate: z.string().nullable().optional().transform(v => v || null),
       budget: z.string().nullable().optional().transform(v => v || "0"),
@@ -1359,6 +1360,12 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
       organizationId: organizationId || undefined,
     }
   });
+
+  useEffect(() => {
+    if (organizationId) {
+      form.setValue("organizationId", organizationId);
+    }
+  }, [organizationId, form]);
 
   const onSubmit = (data: InsertProject) => {
     const cleanedData = {
@@ -1568,7 +1575,11 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
         </div>
 
         {projectSource === "manual" && (
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+            const firstError = Object.values(errors)[0];
+            const message = firstError?.message || "Please check the form fields and try again";
+            toast({ title: "Validation Error", description: String(message), variant: "destructive" });
+          })} className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="name">Project Name</Label>
