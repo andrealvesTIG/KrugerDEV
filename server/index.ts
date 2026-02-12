@@ -39,6 +39,16 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Allow embedding in Microsoft Teams iframes
+app.use((req, res, next) => {
+  res.removeHeader('X-Frame-Options');
+  res.setHeader(
+    'Content-Security-Policy',
+    "frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.microsoft.com https://*.office.com https://*.office365.com https://*.sharepoint.com https://*.officeapps.live.com https://teams.live.com https://*.skype.com"
+  );
+  next();
+});
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
