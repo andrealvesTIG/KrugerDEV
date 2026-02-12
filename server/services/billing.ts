@@ -181,6 +181,23 @@ export class MockBillingProvider implements BillingProvider {
       throw new Error(`Plan not found: ${params.planCode}`);
     }
 
+    // Guard: prevent duplicate active subscriptions for the same plan
+    if (params.orgId) {
+      const [existing] = await db.select().from(subscriptions)
+        .where(and(eq(subscriptions.orgId, params.orgId), eq(subscriptions.status, "ACTIVE"), eq(subscriptions.planId, plan.id)))
+        .limit(1);
+      if (existing) {
+        return existing;
+      }
+    } else if (params.userId) {
+      const [existing] = await db.select().from(subscriptions)
+        .where(and(eq(subscriptions.userId, params.userId), eq(subscriptions.status, "ACTIVE"), eq(subscriptions.planId, plan.id)))
+        .limit(1);
+      if (existing) {
+        return existing;
+      }
+    }
+
     const { start, end } = getMonthBoundaries();
     const subjectType = params.orgId ? "ORG" : "USER";
 
