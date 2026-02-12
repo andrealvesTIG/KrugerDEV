@@ -1646,12 +1646,12 @@ function CreateProjectDialog({ open, onOpenChange, portfolios, organizationId }:
               <Button type="submit" disabled={createMutation.isPending} data-testid="button-create-project">
                 {createMutation.isPending ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="animate-spin" />
                     Creating...
                   </>
                 ) : (
                   <>
-                    <Plus className="mr-2 h-4 w-4" />
+                    <Plus />
                     Create Project
                   </>
                 )}
