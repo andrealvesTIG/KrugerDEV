@@ -67,6 +67,7 @@ import {
   resourceSkills, type ResourceSkill, type InsertResourceSkill,
   resourceAvailability, type ResourceAvailability, type InsertResourceAvailability,
   portfolioRiskAssessments, type PortfolioRiskAssessment, type InsertPortfolioRiskAssessment,
+  projectRiskAssessments, type ProjectRiskAssessment, type InsertProjectRiskAssessment,
   customDashboards, apiRequestLogs, userActivityLogs, featureUsageLogs,
   errorLogs, helpTickets, simulationRuns, reportSubscriptions
 } from "@shared/schema";
@@ -476,6 +477,12 @@ export interface IStorage {
   getLatestRiskAssessmentsForOrg(organizationId: number): Promise<PortfolioRiskAssessment[]>;
   getPortfolioRiskAssessmentByShareToken(shareToken: string): Promise<PortfolioRiskAssessment | undefined>;
   getPortfolioRiskAssessmentHistory(portfolioId: number): Promise<Pick<PortfolioRiskAssessment, 'id' | 'riskScore' | 'generatedAt'>[]>;
+
+  // Project Risk Assessments
+  createProjectRiskAssessment(assessment: InsertProjectRiskAssessment): Promise<ProjectRiskAssessment>;
+  getLatestProjectRiskAssessment(projectId: number): Promise<ProjectRiskAssessment | undefined>;
+  getProjectRiskAssessmentByShareToken(shareToken: string): Promise<ProjectRiskAssessment | undefined>;
+  getProjectRiskAssessmentHistory(projectId: number): Promise<Pick<ProjectRiskAssessment, 'id' | 'riskScore' | 'generatedAt'>[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4183,6 +4190,35 @@ export class DatabaseStorage implements IStorage {
     }).from(portfolioRiskAssessments)
       .where(eq(portfolioRiskAssessments.portfolioId, portfolioId))
       .orderBy(portfolioRiskAssessments.generatedAt);
+  }
+
+  async createProjectRiskAssessment(assessment: InsertProjectRiskAssessment): Promise<ProjectRiskAssessment> {
+    const [created] = await db.insert(projectRiskAssessments).values(assessment).returning();
+    return created;
+  }
+
+  async getLatestProjectRiskAssessment(projectId: number): Promise<ProjectRiskAssessment | undefined> {
+    const [result] = await db.select().from(projectRiskAssessments)
+      .where(eq(projectRiskAssessments.projectId, projectId))
+      .orderBy(desc(projectRiskAssessments.generatedAt))
+      .limit(1);
+    return result;
+  }
+
+  async getProjectRiskAssessmentByShareToken(shareToken: string): Promise<ProjectRiskAssessment | undefined> {
+    const [result] = await db.select().from(projectRiskAssessments)
+      .where(eq(projectRiskAssessments.shareToken, shareToken));
+    return result;
+  }
+
+  async getProjectRiskAssessmentHistory(projectId: number): Promise<Pick<ProjectRiskAssessment, 'id' | 'riskScore' | 'generatedAt'>[]> {
+    return await db.select({
+      id: projectRiskAssessments.id,
+      riskScore: projectRiskAssessments.riskScore,
+      generatedAt: projectRiskAssessments.generatedAt,
+    }).from(projectRiskAssessments)
+      .where(eq(projectRiskAssessments.projectId, projectId))
+      .orderBy(projectRiskAssessments.generatedAt);
   }
 }
 

@@ -56,6 +56,7 @@ import FridayPage from "@/pages/FridayPage";
 import Simulation from "@/pages/Simulation";
 import ReportSubscriptions from "@/pages/ReportSubscriptions"
 import SharedRiskAssessment from "@/pages/SharedRiskAssessment"
+import SharedProjectRiskAssessment from "@/pages/SharedProjectRiskAssessment"
 import Home from "@/pages/Home"
 
 function ModuleGuard({ children, moduleKey }: { children: ReactNode; moduleKey: string }) {
@@ -189,6 +190,7 @@ function Router() {
         <Route path="/user-guide" component={UserGuide} />
         <Route path="/scheduled-reports" component={ReportSubscriptions} />
         <Route path="/risk-assessment/share/:token" component={SharedRiskAssessment} />
+        <Route path="/project-risk-assessment/share/:token" component={SharedProjectRiskAssessment} />
         <Route path="/embed" component={Embed} />
         <Route component={NotFound} />
       </Switch>

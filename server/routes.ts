@@ -3854,6 +3854,206 @@ export async function registerRoutes(
     }
   });
 
+  // === Project Risk Assessment Endpoints ===
+
+  app.post('/api/projects/:id/risk-assessment', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const projectId = Number(req.params.id);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      const orgId = project.organizationId;
+      const userOrgs = await storage.getUserOrganizations(userId);
+      if (!userOrgs.find(m => m.organizationId === orgId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const existing = await storage.getLatestProjectRiskAssessment(projectId);
+      if (existing) {
+        const ageInDays = (Date.now() - new Date(existing.generatedAt!).getTime()) / (1000 * 60 * 60 * 24);
+        if (ageInDays < 5) {
+          const cachedReport = JSON.parse(existing.reportJson);
+          return res.json({
+            success: true,
+            cached: true,
+            assessment: {
+              id: existing.id,
+              riskScore: existing.riskScore,
+              summary: existing.summary,
+              shareToken: existing.shareToken,
+              generatedAt: existing.generatedAt,
+              report: cachedReport,
+            },
+          });
+        }
+      }
+
+      const { checkAndEnforceLimit, METER_CODES, recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
+      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, orgId);
+      if (!limitCheck.allowed) {
+        return res.status(403).json({
+          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
+          limitExceeded: true,
+          resourceType: "ai_runs"
+        });
+      }
+
+      const { generateProjectRiskAssessment } = await import("./services/projectRiskAssessment");
+      const report = await generateProjectRiskAssessment(projectId, orgId);
+
+      const crypto = await import("crypto");
+      const shareToken = crypto.randomBytes(32).toString('hex');
+
+      const assessment = await storage.createProjectRiskAssessment({
+        projectId,
+        organizationId: orgId,
+        riskScore: report.riskScore,
+        summary: report.summary,
+        reportJson: JSON.stringify(report),
+        shareToken,
+        generatedBy: userId,
+        generatedAt: new Date(),
+      });
+
+      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_project_risk_assessment_${Date.now()}`);
+
+      res.json({
+        success: true,
+        cached: false,
+        assessment: {
+          id: assessment.id,
+          riskScore: assessment.riskScore,
+          summary: assessment.summary,
+          shareToken: assessment.shareToken,
+          generatedAt: assessment.generatedAt,
+          report,
+        },
+      });
+    } catch (err) {
+      console.error("Error generating project risk assessment:", err);
+      res.status(500).json({ message: "Failed to generate risk assessment" });
+    }
+  });
+
+  app.get('/api/projects/:id/risk-assessment/latest', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const projectId = Number(req.params.id);
+      const assessment = await storage.getLatestProjectRiskAssessment(projectId);
+      if (!assessment) return res.json(null);
+
+      const report = JSON.parse(assessment.reportJson);
+      res.json({
+        id: assessment.id,
+        riskScore: assessment.riskScore,
+        summary: assessment.summary,
+        shareToken: assessment.shareToken,
+        generatedAt: assessment.generatedAt,
+        report,
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get risk assessment" });
+    }
+  });
+
+  app.get('/api/projects/:id/risk-assessment/history', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const projectId = Number(req.params.id);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      const userOrgs = await storage.getUserOrganizations(userId);
+      if (!userOrgs.find(m => m.organizationId === project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const history = await storage.getProjectRiskAssessmentHistory(projectId);
+      res.json(history);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get risk assessment history" });
+    }
+  });
+
+  app.get('/api/project-risk-assessments/share/:token', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const assessment = await storage.getProjectRiskAssessmentByShareToken(req.params.token);
+      if (!assessment) return res.status(404).json({ message: "Report not found" });
+
+      const project = await storage.getProject(assessment.projectId);
+      const report = JSON.parse(assessment.reportJson);
+
+      res.json({
+        id: assessment.id,
+        projectId: assessment.projectId,
+        projectName: project?.name || 'Project',
+        riskScore: assessment.riskScore,
+        summary: assessment.summary,
+        shareToken: assessment.shareToken,
+        generatedAt: assessment.generatedAt,
+        report,
+      });
+    } catch (err) {
+      console.error("Error serving shared project risk assessment:", err);
+      res.status(500).json({ message: "Failed to load report" });
+    }
+  });
+
+  app.get('/api/project-risk-assessments/share/:token/pdf', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const assessment = await storage.getProjectRiskAssessmentByShareToken(req.params.token);
+      if (!assessment) return res.status(404).json({ message: "Report not found" });
+
+      const project = await storage.getProject(assessment.projectId);
+      const report = JSON.parse(assessment.reportJson);
+
+      const { generateProjectRiskAssessmentPDF } = await import("./services/projectRiskAssessment");
+      const pdfBuffer = await generateProjectRiskAssessmentPDF(report, project?.name || 'Project');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="project-risk-assessment-${assessment.projectId}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (err) {
+      console.error("Error serving project risk assessment PDF:", err);
+      res.status(500).json({ message: "Failed to generate PDF" });
+    }
+  });
+
+  app.get('/api/projects/:id/risk-assessment/:assessmentId/pdf', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const assessment = await storage.getLatestProjectRiskAssessment(Number(req.params.id));
+      if (!assessment) return res.status(404).json({ message: "No assessment found" });
+
+      const project = await storage.getProject(assessment.projectId);
+      const report = JSON.parse(assessment.reportJson);
+
+      const { generateProjectRiskAssessmentPDF } = await import("./services/projectRiskAssessment");
+      const pdfBuffer = await generateProjectRiskAssessmentPDF(report, project?.name || 'Project');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="project-risk-assessment-${assessment.projectId}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to generate PDF" });
+    }
+  });
+
   app.get('/api/portfolios/:id/overview', async (req, res) => {
     try {
       const portfolio = await storage.getPortfolio(Number(req.params.id));

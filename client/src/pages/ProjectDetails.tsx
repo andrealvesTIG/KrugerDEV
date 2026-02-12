@@ -39,7 +39,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Users, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, LockOpen, CloudDownload, ArrowUpToLine, IndentIncrease, IndentDecrease, Type } from "lucide-react";
+import { Loader2, AlertTriangle, AlertCircle, CheckSquare, Calendar as CalendarIcon, DollarSign, Plus, Trash2, Bug, Sparkles, ListTodo, HelpCircle, FileText, Pencil, Check, X, LayoutGrid, GanttChartSquare, Table, GripVertical, User as UserIcon, Users, Flag, GanttChart, Columns3, History, Clock, MoreVertical, ZoomIn, ZoomOut, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Milestone as MilestoneIcon, ClipboardList, FolderOpen, ExternalLink, Download, Upload, Link as LinkIcon, Link2, Eye, EyeOff, Search, CheckCircle2, Circle, ArrowRight, MessageSquare, MessageCircle, Send, Reply, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2, Undo2, Redo2, FolderKanban, RefreshCw, Focus, GitBranch, Share2, Mail, Crown, Pin, PinOff, RotateCcw, Lock as LockIcon, LockOpen, CloudDownload, ArrowUpToLine, IndentIncrease, IndentDecrease, Type, Shield, TrendingUp } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
@@ -3355,6 +3356,85 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
   const { data: riskAssignments } = useRiskResourceAssignments(editingRisk?.id ?? null);
   const { toast } = useToast();
 
+  const [riskAssessmentDialogOpen, setRiskAssessmentDialogOpen] = useState(false);
+  const [riskReport, setRiskReport] = useState<any>(null);
+  const [riskAssessmentId, setRiskAssessmentId] = useState<number | null>(null);
+  const [riskShareToken, setRiskShareToken] = useState("");
+  const [riskConfirmOpen, setRiskConfirmOpen] = useState(false);
+
+  const { data: latestProjectAssessment } = useQuery<{ riskScore: number; generatedAt: string; summary: string; shareToken: string; id: number; report: any } | null>({
+    queryKey: ["/api/projects", projectId, "risk-assessment", "latest"],
+  });
+
+  const recentProjectAssessment = useMemo(() => {
+    if (!latestProjectAssessment?.riskScore || !latestProjectAssessment?.generatedAt) return null;
+    const generatedAt = new Date(latestProjectAssessment.generatedAt);
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+    if (generatedAt > tenDaysAgo) return { score: latestProjectAssessment.riskScore, generatedAt };
+    return null;
+  }, [latestProjectAssessment]);
+
+  const generateProjectRiskAssessment = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/risk-assessment`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data?.assessment) {
+        setRiskReport(data.assessment.report);
+        setRiskAssessmentId(data.assessment.id);
+        setRiskShareToken(data.assessment.shareToken || "");
+        setRiskAssessmentDialogOpen(true);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "latest"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "history"] });
+    },
+    onError: (err: any) => {
+      if (err?.limitExceeded) {
+        toast({ title: "Credit Limit Reached", description: err.message || "Please upgrade your plan.", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: err?.message || "Failed to generate risk assessment", variant: "destructive" });
+      }
+    },
+  });
+
+  const handleProjectRiskAssessmentClick = () => {
+    if (latestProjectAssessment?.report) {
+      setRiskReport(latestProjectAssessment.report);
+      setRiskAssessmentId(latestProjectAssessment.id);
+      setRiskShareToken(latestProjectAssessment.shareToken || "");
+      setRiskAssessmentDialogOpen(true);
+    } else {
+      setRiskConfirmOpen(true);
+    }
+  };
+
+  const handleRecalculateProjectRisk = () => {
+    setRiskConfirmOpen(true);
+  };
+
+  const getRiskScoreColor = (score: number) => {
+    if (score <= 25) return "text-emerald-600 dark:text-emerald-400";
+    if (score <= 50) return "text-amber-500 dark:text-amber-400";
+    if (score <= 75) return "text-orange-500 dark:text-orange-400";
+    return "text-rose-600 dark:text-rose-400";
+  };
+
+  const getRiskScoreBg = (score: number) => {
+    if (score <= 25) return "bg-emerald-100 dark:bg-emerald-900/50";
+    if (score <= 50) return "bg-amber-100 dark:bg-amber-900/50";
+    if (score <= 75) return "bg-orange-100 dark:bg-orange-900/50";
+    return "bg-rose-100 dark:bg-rose-900/50";
+  };
+
+  const getRiskScoreLabel = (score: number) => {
+    if (score <= 25) return "Low";
+    if (score <= 50) return "Moderate";
+    if (score <= 75) return "High";
+    return "Critical";
+  };
+
   useEffect(() => {
     if (riskAssignments && editingRisk) {
       setSelectedResourceIds(riskAssignments.map(a => a.resourceId));
@@ -3469,14 +3549,69 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
   if (isLoading) return <Loader2 className="animate-spin" />;
 
   return (
+    <div className="space-y-6">
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
         <div>
-          <CardTitle>Project Risks</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+            Project Risks
+          </CardTitle>
           <CardDescription>Track and mitigate potential issues.</CardDescription>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}>
-          <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} disabled={readOnly}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
+        <div className="flex items-center gap-3 flex-wrap">
+          {recentProjectAssessment && (
+            <div
+              className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={handleProjectRiskAssessmentClick}
+              data-testid="display-project-risk-score"
+            >
+              <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md", getRiskScoreBg(recentProjectAssessment.score))}>
+                <Shield className="h-4 w-4" />
+                <span className={cn("text-lg font-bold", getRiskScoreColor(recentProjectAssessment.score))} data-testid="text-project-risk-score">
+                  {recentProjectAssessment.score}
+                </span>
+                <span className={cn("text-xs font-medium", getRiskScoreColor(recentProjectAssessment.score))}>
+                  {getRiskScoreLabel(recentProjectAssessment.score)}
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground hidden sm:inline" data-testid="text-project-risk-score-date">
+                {recentProjectAssessment.generatedAt.toLocaleDateString()}
+              </span>
+            </div>
+          )}
+          {recentProjectAssessment ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRecalculateProjectRisk}
+              disabled={generateProjectRiskAssessment.isPending}
+              data-testid="button-recalculate-project-risk"
+            >
+              {generateProjectRiskAssessment.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Recalculate
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={handleProjectRiskAssessmentClick}
+              disabled={generateProjectRiskAssessment.isPending}
+              data-testid="button-project-risk-assessment"
+            >
+              {generateProjectRiskAssessment.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Shield className="h-4 w-4 mr-2" />
+              )}
+              AI Risk Assessment
+            </Button>
+          )}
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}>
+            <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} disabled={readOnly}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>{editingRisk ? "Edit Risk" : "Add New Risk"}</DialogTitle>
@@ -3709,6 +3844,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -3830,6 +3966,258 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
         open={historyRiskId !== null} 
         onOpenChange={(open) => !open && setHistoryRiskId(null)} 
       />
+    </Card>
+
+    <AlertDialog open={riskConfirmOpen} onOpenChange={setRiskConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Generate AI Risk Assessment</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will use AI to analyze your project data (tasks, risks, issues, milestones, and budget) and produce a comprehensive risk assessment report. This uses 1 AI credit.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel data-testid="button-project-risk-cancel">Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => generateProjectRiskAssessment.mutate()}
+            disabled={generateProjectRiskAssessment.isPending}
+            data-testid="button-project-risk-confirm"
+          >
+            {generateProjectRiskAssessment.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Analyzing...</>
+            ) : (
+              "Generate Assessment"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <Dialog open={riskAssessmentDialogOpen} onOpenChange={setRiskAssessmentDialogOpen}>
+      <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Project Risk Assessment — {projectName || "Project"}
+          </DialogTitle>
+        </DialogHeader>
+        <ScrollArea className="max-h-[55vh] pr-4">
+          {riskReport && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className={cn("flex items-center justify-center h-16 w-16 rounded-md text-2xl font-bold", getRiskScoreBg(riskReport.riskScore), getRiskScoreColor(riskReport.riskScore))} data-testid="display-project-assessment-score">
+                  {riskReport.riskScore}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <Badge className={cn("mb-1", getRiskScoreBg(riskReport.riskScore), getRiskScoreColor(riskReport.riskScore))}>
+                    {riskReport.overallRiskLevel || getRiskScoreLabel(riskReport.riskScore)}
+                  </Badge>
+                  <p className="text-sm text-muted-foreground">{riskReport.summary}</p>
+                </div>
+              </div>
+
+              {riskReport.categories && riskReport.categories.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Risk Categories</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3" data-testid="display-project-risk-categories">
+                      {riskReport.categories.map((cat: any, idx: number) => (
+                        <div key={idx} className="flex items-center justify-between gap-4" data-testid={`project-risk-category-${idx}`}>
+                          <span className="text-sm font-medium flex-1">{cat.name}</span>
+                          <div className="flex items-center gap-2">
+                            <Progress value={cat.score} className="w-24 h-2" />
+                            <span className={cn("text-sm font-semibold w-8 text-right", getRiskScoreColor(cat.score))}>
+                              {cat.score}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {riskReport.topRisks && riskReport.topRisks.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Top Risks</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3" data-testid="display-project-top-risks">
+                      {riskReport.topRisks.map((risk: any, idx: number) => (
+                        <div key={idx} className="flex items-start gap-3 p-3 rounded-md bg-muted/50" data-testid={`project-top-risk-${idx}`}>
+                          <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{risk.title}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Impact: {risk.impact}</p>
+                            <p className="text-xs text-muted-foreground">Likelihood: {risk.likelihood}</p>
+                            {risk.mitigation && (
+                              <p className="text-xs text-primary mt-1">Mitigation: {risk.mitigation}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {riskReport.recommendations && riskReport.recommendations.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Recommendations</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2" data-testid="display-project-recommendations">
+                      {riskReport.recommendations.map((rec: any, idx: number) => (
+                        <div key={idx} className="flex items-start gap-3 p-3 rounded-md bg-muted/50" data-testid={`project-recommendation-${idx}`}>
+                          <CheckCircle2 className="h-4 w-4 mt-0.5 text-emerald-500 shrink-0" />
+                          <p className="text-sm">{typeof rec === "string" ? rec : rec.text || rec.description || rec.title}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </ScrollArea>
+        <DialogFooter className="flex-row flex-wrap gap-2 pt-4 border-t">
+          {riskAssessmentId && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                window.open(`/api/projects/${projectId}/risk-assessment/${riskAssessmentId}/pdf`, "_blank");
+              }}
+              data-testid="button-project-risk-download-pdf"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
+          )}
+          {riskShareToken && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  window.open(`/project-risk-assessment/share/${riskShareToken}`, "_blank");
+                }}
+                data-testid="button-project-risk-open-tab"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in New Tab
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/project-risk-assessment/share/${riskShareToken}`);
+                  toast({
+                    title: "Link Copied",
+                    description: "Share link has been copied to clipboard.",
+                  });
+                }}
+                data-testid="button-project-risk-copy-share"
+              >
+                <Share2 className="h-4 w-4 mr-2" />
+                Copy Share Link
+              </Button>
+            </>
+          )}
+          <Button
+            variant="ghost"
+            onClick={() => setRiskAssessmentDialogOpen(false)}
+            data-testid="button-project-risk-dialog-close"
+          >
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <ProjectRiskScoreTrendChart projectId={projectId} getRiskScoreColor={getRiskScoreColor} />
+    </div>
+  );
+}
+
+function ProjectRiskScoreTrendChart({ projectId, getRiskScoreColor }: {
+  projectId: number;
+  getRiskScoreColor: (score: number) => string;
+}) {
+  const { data: history } = useQuery<{ id: number; riskScore: number; generatedAt: string }[]>({
+    queryKey: ["/api/projects", projectId, "risk-assessment", "history"],
+  });
+
+  if (!history || history.length < 2) return null;
+
+  const chartData = history.map((item) => ({
+    date: format(new Date(item.generatedAt), "MMM d"),
+    fullDate: format(new Date(item.generatedAt), "MMM d, yyyy"),
+    score: item.riskScore,
+  }));
+
+  const latestScore = chartData[chartData.length - 1].score;
+  const previousScore = chartData[chartData.length - 2].score;
+  const scoreDelta = latestScore - previousScore;
+
+  return (
+    <Card data-testid="card-project-risk-trend">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-4">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <TrendingUp className="h-4 w-4" />
+            Risk Score Trend
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <span className={cn("text-lg font-bold", getRiskScoreColor(latestScore))}>
+              {latestScore}
+            </span>
+            {scoreDelta !== 0 && (
+              <Badge className={cn("text-xs", scoreDelta > 0 ? "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300")}>
+                {scoreDelta > 0 ? "+" : ""}{scoreDelta} pts
+              </Badge>
+            )}
+          </div>
+        </div>
+        <CardDescription>{history.length} assessments tracked</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="h-48" data-testid="display-project-risk-trend-chart">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} className="text-muted-foreground" />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload;
+                  const score = d.score as number;
+                  return (
+                    <div className="bg-popover border rounded-md p-2 shadow-md">
+                      <p className="text-xs text-muted-foreground">{d.fullDate}</p>
+                      <p className={cn("text-sm font-bold", getRiskScoreColor(score))}>
+                        Score: {score}
+                      </p>
+                    </div>
+                  );
+                }}
+              />
+              <ReferenceLine y={30} stroke="hsl(var(--chart-2))" strokeDasharray="3 3" label={{ value: "Low", position: "right", fontSize: 10 }} />
+              <ReferenceLine y={60} stroke="hsl(var(--chart-4))" strokeDasharray="3 3" label={{ value: "Medium", position: "right", fontSize: 10 }} />
+              <Line
+                type="monotone"
+                dataKey="score"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                dot={{ r: 4, fill: "hsl(var(--primary))" }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
     </Card>
   );
 }
