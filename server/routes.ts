@@ -15206,13 +15206,26 @@ Return ONLY valid JSON.`;
           .innerJoin(meters, eq(usageRollups.meterId, meters.id))
           .where(eq(usageRollups.billingCycleId, cycle.id));
 
+        const convertedRollups = rollups.map(r => {
+          if (r.meterCode === 'credits') {
+            return {
+              ...r,
+              includedUnits: r.includedUnits / 100,
+              usedUnits: r.usedUnits / 100,
+              remainingUnits: r.remainingUnits / 100,
+              overageUnits: r.overageUnits / 100,
+            };
+          }
+          return r;
+        });
+
         result.push({
           id: cycle.id,
           periodStart: cycle.periodStart,
           periodEnd: cycle.periodEnd,
           status: cycle.status,
           planName: plan?.name || "Unknown",
-          usage: rollups,
+          usage: convertedRollups,
         });
       }
 
