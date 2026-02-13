@@ -145,7 +145,7 @@ export default function LandingPageNew() {
 
   return (
     <div className="min-h-screen bg-background" data-testid="landing-page">
-      <header className="flex items-center justify-between gap-4 flex-wrap px-6 py-4 md:px-12 lg:px-20 border-b border-border">
+      <header className="relative flex items-center justify-center sm:justify-between gap-4 flex-wrap px-6 py-4 md:px-12 lg:px-20 border-b border-border">
         <a href="https://fridayreport.ai" target="_blank" rel="noopener noreferrer" data-testid="link-logo">
           <img
             src={logoBlack}
@@ -172,7 +172,7 @@ export default function LandingPageNew() {
         <Button
           variant="ghost"
           size="icon"
-          className="sm:hidden"
+          className="sm:hidden absolute right-6"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           data-testid="button-mobile-menu"
         >
