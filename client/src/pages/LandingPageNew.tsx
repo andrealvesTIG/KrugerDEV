@@ -55,12 +55,14 @@ export default function LandingPageNew() {
   return (
     <div className="min-h-screen bg-background" data-testid="landing-page">
       <header className="flex items-center justify-between gap-4 flex-wrap px-6 py-4 md:px-12 lg:px-20 border-b border-border">
-        <img
-          src={logoBlack}
-          alt="FridayReport.AI"
-          className="h-8 object-contain dark:invert"
-          data-testid="img-logo"
-        />
+        <a href="https://fridayreport.ai" target="_blank" rel="noopener noreferrer" data-testid="link-logo">
+          <img
+            src={logoBlack}
+            alt="FridayReport.AI"
+            className="h-8 object-contain dark:invert"
+            data-testid="img-logo"
+          />
+        </a>
         <div className="flex items-center gap-3 flex-wrap">
           <Button
             variant="ghost"
