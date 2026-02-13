@@ -116,7 +116,7 @@ export default function LandingPageNew() {
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-headline"
             >
-              Project Management software that keeps your business organized
+              Project Management software to keep your business organized
             </h1>
 
             <ul className="mt-8 space-y-3">
