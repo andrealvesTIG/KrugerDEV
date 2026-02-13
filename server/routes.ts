@@ -3767,6 +3767,7 @@ export async function registerRoutes(
       if (!portfolio) return res.status(404).json({ message: "Portfolio not found" });
 
       const userOrgs = await storage.getUserOrganizations(userId);
+      console.log("[risk-assessment] userId:", userId, "type:", typeof userId, "portfolio.orgId:", portfolio.organizationId, "userOrgs:", userOrgs.map(m => ({ orgId: m.organizationId, orgIdType: typeof m.organizationId })));
       if (!userOrgs.find(m => m.organizationId === portfolio.organizationId)) {
         return res.status(403).json({ message: "Access denied" });
       }
