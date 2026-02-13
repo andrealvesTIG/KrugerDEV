@@ -57,6 +57,26 @@ export default function PortfolioDetails() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  const { data: latestHeaderAssessment } = useQuery<{ riskScore: number; generatedAt: string; summary: string } | null>({
+    queryKey: ["/api/portfolios", id, "risk-assessment", "latest"],
+  });
+
+  const headerRiskBadge = useMemo(() => {
+    if (!latestHeaderAssessment?.riskScore || !latestHeaderAssessment?.generatedAt) return null;
+    const generatedAt = new Date(latestHeaderAssessment.generatedAt);
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+    if (generatedAt <= tenDaysAgo) return null;
+    return latestHeaderAssessment;
+  }, [latestHeaderAssessment]);
+
+  const getRiskBadgeColor = (score: number) => {
+    if (score <= 25) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+    if (score <= 50) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+    if (score <= 75) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+    return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400';
+  };
+
   const [riskDialogOpen, setRiskDialogOpen] = useState(false);
   const [riskReport, setRiskReport] = useState<any>(null);
   const [riskShareToken, setRiskShareToken] = useState<string>("");
@@ -181,6 +201,17 @@ export default function PortfolioDetails() {
             {portfolio.isCustom && (
               <Badge variant="secondary" className="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 shrink-0">
                 Custom Portfolio
+              </Badge>
+            )}
+            {headerRiskBadge && (
+              <Badge
+                variant="secondary"
+                className={`gap-1 shrink-0 ${getRiskBadgeColor(headerRiskBadge.riskScore)}`}
+                data-testid="badge-portfolio-risk-score"
+                title={headerRiskBadge.summary}
+              >
+                <Shield className="h-3 w-3" />
+                Risk Score: {headerRiskBadge.riskScore}
               </Badge>
             )}
           </div>

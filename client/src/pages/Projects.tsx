@@ -63,6 +63,22 @@ export default function Projects() {
     enabled: !!currentOrganization?.id,
   });
   
+  const { data: projectRiskAssessments } = useQuery<{ projectId: number; riskScore: number; summary: string; generatedAt: string }[]>({
+    queryKey: ['/api/project-risk-assessments/org', currentOrganization?.id],
+    enabled: !!currentOrganization?.id,
+  });
+
+  const getRiskScoreForProject = (projectId: number) => {
+    return projectRiskAssessments?.find(a => a.projectId === projectId);
+  };
+
+  const getRiskScoreColor = (score: number) => {
+    if (score <= 25) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+    if (score <= 50) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+    if (score <= 75) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+    return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400';
+  };
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   
@@ -101,6 +117,7 @@ export default function Projects() {
     onSuccess: (_data: any, projectId: number) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "latest"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "history"] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-risk-assessments/org', currentOrganization?.id] });
       toast({ title: "Success", description: "Risk assessment generated successfully." });
       setRiskAssessProjectId(null);
       navigate(`/projects/${projectId}`);
@@ -752,6 +769,29 @@ export default function Projects() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {(() => {
+                              const riskData = getRiskScoreForProject(project.id);
+                              if (!riskData) return null;
+                              const ageInDays = (Date.now() - new Date(riskData.generatedAt).getTime()) / (1000 * 60 * 60 * 24);
+                              if (ageInDays > 5) return null;
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div>
+                                      <Badge
+                                        variant="secondary"
+                                        className={`text-[10px] px-1.5 py-0 gap-0.5 ${getRiskScoreColor(riskData.riskScore)}`}
+                                        data-testid={`badge-risk-score-project-fullscreen-${project.id}`}
+                                      >
+                                        <Shield className="h-2.5 w-2.5" />
+                                        {riskData.riskScore}
+                                      </Badge>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{riskData.summary}</TooltipContent>
+                                </Tooltip>
+                              );
+                            })()}
                           </div>
                           <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                             <div className="flex items-center gap-2">
@@ -987,6 +1027,29 @@ export default function Projects() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {(() => {
+                        const riskData = getRiskScoreForProject(project.id);
+                        if (!riskData) return null;
+                        const ageInDays = (Date.now() - new Date(riskData.generatedAt).getTime()) / (1000 * 60 * 60 * 24);
+                        if (ageInDays > 5) return null;
+                        return (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-[10px] px-1.5 py-0 gap-0.5 ${getRiskScoreColor(riskData.riskScore)}`}
+                                  data-testid={`badge-risk-score-project-${project.id}`}
+                                >
+                                  <Shield className="h-2.5 w-2.5" />
+                                  {riskData.riskScore}
+                                </Badge>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>{riskData.summary}</TooltipContent>
+                          </Tooltip>
+                        );
+                      })()}
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">

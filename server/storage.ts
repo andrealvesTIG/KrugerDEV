@@ -481,6 +481,7 @@ export interface IStorage {
   // Project Risk Assessments
   createProjectRiskAssessment(assessment: InsertProjectRiskAssessment): Promise<ProjectRiskAssessment>;
   getLatestProjectRiskAssessment(projectId: number): Promise<ProjectRiskAssessment | undefined>;
+  getLatestProjectRiskAssessmentsForOrg(organizationId: number): Promise<ProjectRiskAssessment[]>;
   getProjectRiskAssessmentByShareToken(shareToken: string): Promise<ProjectRiskAssessment | undefined>;
   getProjectRiskAssessmentHistory(projectId: number): Promise<Pick<ProjectRiskAssessment, 'id' | 'riskScore' | 'generatedAt'>[]>;
 }
@@ -4223,6 +4224,17 @@ export class DatabaseStorage implements IStorage {
   async createProjectRiskAssessment(assessment: InsertProjectRiskAssessment): Promise<ProjectRiskAssessment> {
     const [created] = await db.insert(projectRiskAssessments).values(assessment).returning();
     return created;
+  }
+
+  async getLatestProjectRiskAssessmentsForOrg(organizationId: number): Promise<ProjectRiskAssessment[]> {
+    const fiveDaysAgo = new Date();
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+    return await db.select().from(projectRiskAssessments)
+      .where(and(
+        eq(projectRiskAssessments.organizationId, organizationId),
+        sql`${projectRiskAssessments.generatedAt} >= ${fiveDaysAgo}`
+      ))
+      .orderBy(desc(projectRiskAssessments.generatedAt));
   }
 
   async getLatestProjectRiskAssessment(projectId: number): Promise<ProjectRiskAssessment | undefined> {

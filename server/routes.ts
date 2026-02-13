@@ -3916,6 +3916,35 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/project-risk-assessments/org/:orgId', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const orgId = Number(req.params.orgId);
+      const userOrgs = await storage.getUserOrganizations(userId);
+      if (!userOrgs.find(m => m.organizationId === orgId)) {
+        return res.status(403).json({ message: "You are not a member of this organization." });
+      }
+
+      const assessments = await storage.getLatestProjectRiskAssessmentsForOrg(orgId);
+      const uniqueByProject = new Map<number, typeof assessments[0]>();
+      for (const a of assessments) {
+        if (!uniqueByProject.has(a.projectId)) {
+          uniqueByProject.set(a.projectId, a);
+        }
+      }
+      res.json(Array.from(uniqueByProject.values()).map(a => ({
+        projectId: a.projectId,
+        riskScore: a.riskScore,
+        summary: a.summary,
+        generatedAt: a.generatedAt,
+      })));
+    } catch (err) {
+      res.status(500).json({ message: "Failed to get project risk assessments" });
+    }
+  });
+
   app.get('/api/portfolio-risk-assessments/share/:token', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
