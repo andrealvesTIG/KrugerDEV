@@ -201,7 +201,7 @@ export default function ProjectDetails() {
   });
 
   const headerProjectRiskBadge = useMemo(() => {
-    if (!latestHeaderProjectAssessment?.riskScore || !latestHeaderProjectAssessment?.generatedAt) return null;
+    if (latestHeaderProjectAssessment?.riskScore === undefined || latestHeaderProjectAssessment?.riskScore === null || !latestHeaderProjectAssessment?.generatedAt) return null;
     const generatedAt = new Date(latestHeaderProjectAssessment.generatedAt);
     const tenDaysAgo = new Date();
     tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
@@ -2461,7 +2461,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
   });
 
   const summaryRiskBadge = useMemo(() => {
-    if (!summaryRiskAssessment?.riskScore || !summaryRiskAssessment?.generatedAt) return null;
+    if (summaryRiskAssessment?.riskScore === undefined || summaryRiskAssessment?.riskScore === null || !summaryRiskAssessment?.generatedAt) return null;
     const generatedAt = new Date(summaryRiskAssessment.generatedAt);
     const tenDaysAgo = new Date();
     tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);

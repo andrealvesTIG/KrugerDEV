@@ -62,7 +62,7 @@ export default function PortfolioDetails() {
   });
 
   const headerRiskBadge = useMemo(() => {
-    if (!latestHeaderAssessment?.riskScore || !latestHeaderAssessment?.generatedAt) return null;
+    if (latestHeaderAssessment?.riskScore === undefined || latestHeaderAssessment?.riskScore === null || !latestHeaderAssessment?.generatedAt) return null;
     const generatedAt = new Date(latestHeaderAssessment.generatedAt);
     const tenDaysAgo = new Date();
     tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
