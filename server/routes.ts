@@ -14051,24 +14051,31 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: "organizationId and actions array are required" });
       }
 
-      const { checkAndEnforceLimit, METER_CODES, recordCreditUsage, RESOURCE_TYPES, checkCreditLimit } = await import("./services/billing");
+      const { checkCreditLimit, recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
 
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(Number(organizationId))) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
 
-      const totalActions = actions.filter((a: any) => a.type !== "assign_to_me").length;
-      const creditCheck = await checkCreditLimit(userId, RESOURCE_TYPES.AI_RUN, organizationId ? Number(organizationId) : undefined);
-      const totalCreditCostNeeded = creditCheck.creditsRequired * Math.max(1, totalActions);
-      if (!creditCheck.allowed || (creditCheck.creditsRemaining !== undefined && creditCheck.creditsRemaining < totalCreditCostNeeded)) {
-        return res.status(403).json({
-          message: `Not enough credits. This action requires ${totalCreditCostNeeded / 100} credits for ${totalActions} item(s). You have ${(creditCheck.creditsRemaining || 0) / 100} credits remaining.`,
-          limitExceeded: true,
-          resourceType: "ai_runs",
-          creditsRequired: totalCreditCostNeeded / 100,
-          itemCount: totalActions,
-        });
+      const billableActions = actions.filter((a: any) => a.type !== "assign_to_me");
+      const billableCount = billableActions.length;
+
+      if (billableCount > 0) {
+        const creditCheck = await checkCreditLimit(userId, RESOURCE_TYPES.AI_RUN, organizationId ? Number(organizationId) : undefined);
+        const perItemCost = creditCheck.creditsRequired;
+        const totalCreditCostNeeded = perItemCost * billableCount;
+        if (!creditCheck.allowed || (creditCheck.creditsRemaining !== undefined && creditCheck.creditsRemaining < totalCreditCostNeeded)) {
+          const displayCost = totalCreditCostNeeded / 100;
+          const displayRemaining = (creditCheck.creditsRemaining || 0) / 100;
+          return res.status(403).json({
+            message: `Not enough credits. Creating ${billableCount} item(s) requires ${displayCost} credits. You have ${displayRemaining} credits remaining.`,
+            limitExceeded: true,
+            resourceType: "ai_runs",
+            creditsRequired: displayCost,
+            itemCount: billableCount,
+          });
+        }
       }
 
       const today = new Date();
@@ -14264,18 +14271,10 @@ Return ONLY valid JSON.`;
         results.summary.push(`Created ${createdResources.length} resource(s)`);
       }
 
-      const totalItemsCreated =
-        (results.created.projects?.length || 0) +
-        (results.created.project ? 1 : 0) +
-        (results.created.tasks?.length || 0) +
-        (results.created.risks?.length || 0) +
-        (results.created.issues?.length || 0) +
-        (results.created.milestones?.length || 0) +
-        (results.created.resources?.length || 0);
-
-      const creditsToCharge = Math.max(1, totalItemsCreated);
-      for (let i = 0; i < creditsToCharge; i++) {
-        await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_smart_create_item_${Date.now()}_${i}`, organizationId ? Number(organizationId) : undefined);
+      if (billableCount > 0) {
+        for (let i = 0; i < billableCount; i++) {
+          await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_create_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`, organizationId ? Number(organizationId) : undefined);
+        }
       }
 
       let redirectTo;
