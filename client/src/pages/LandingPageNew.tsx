@@ -134,15 +134,14 @@ export default function LandingPageNew() {
             <div className="mt-10 flex items-center gap-4 flex-wrap">
               <Button
                 size="lg"
+                className="bg-[#F37021] border-[#F37021] text-white"
                 onClick={() => setLocation("/auth")}
                 data-testid="button-cta"
               >
                 Start free. Keep it free forever
               </Button>
             </div>
-            <p className="mt-3 text-sm text-muted-foreground" data-testid="text-no-credit-card">
-              Free forever. No credit card.
-            </p>
+            <p className="mt-3 text-sm text-muted-foreground" data-testid="text-no-credit-card">No credit card required.</p>
           </div>
 
           <div className="flex-1 max-w-2xl w-full">
@@ -185,7 +184,6 @@ export default function LandingPageNew() {
           </div>
         </section>
       </main>
-
       <footer className="border-t border-border py-6">
         <div className="flex flex-wrap justify-center items-center gap-4 mb-3">
           <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-terms">Terms of Service</a>
@@ -208,7 +206,6 @@ export default function LandingPageNew() {
           . All rights reserved.
         </p>
       </footer>
-
       <style>{`
         @keyframes logoScroll {
           0% { transform: translateX(0); }
