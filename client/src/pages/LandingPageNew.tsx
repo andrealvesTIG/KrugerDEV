@@ -186,8 +186,15 @@ export default function LandingPageNew() {
         </section>
       </main>
 
-      <footer className="border-t border-border py-6 text-center">
-        <p className="text-sm text-muted-foreground" data-testid="text-footer">
+      <footer className="border-t border-border py-6">
+        <div className="flex flex-wrap justify-center items-center gap-4 mb-3">
+          <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-terms">Terms of Service</a>
+          <span className="text-muted-foreground">|</span>
+          <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-privacy">Privacy Statement</a>
+          <span className="text-muted-foreground">|</span>
+          <a href="/guide" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-guide">User Guide</a>
+        </div>
+        <p className="text-sm text-muted-foreground text-center" data-testid="text-footer">
           &copy; {new Date().getFullYear()} Built by{" "}
           <a
             href="https://trusteditgroup.com"
