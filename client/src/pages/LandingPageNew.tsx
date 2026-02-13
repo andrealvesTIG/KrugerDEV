@@ -17,9 +17,9 @@ const clientLogos = [
 ];
 
 const valueProps = [
-  { bold: "Save money.", rest: "All Projects, AI, Integrations + 20 more." },
-  { bold: "Save time.", rest: "All teams working together with perfect context." },
-  { bold: "Create infinite productivity.", rest: "AI Agents & Workflows." },
+  { bold: "Small & Big Teams.", rest: "Works whether you manage a few people or an entire organization." },
+  { bold: "Save Money.", rest: "Use AI to catch issues early and avoid costly delays." },
+  { bold: "Work Faster.", rest: "Focus on what matters instead of chasing updates." },
 ];
 
 export default function LandingPageNew() {
