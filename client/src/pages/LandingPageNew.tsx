@@ -17,7 +17,7 @@ const clientLogos = [
 ];
 
 const valueProps = [
-  { bold: "Small & Big Teams.", rest: "Works whether you manage a few people or an entire organization." },
+  { bold: "Any size team.", rest: "Works for a few people or the whole organization." },
   { bold: "Save Money.", rest: "Use AI to catch issues early and avoid costly delays." },
   { bold: "Work Faster.", rest: "Focus on what matters instead of chasing updates." },
 ];
