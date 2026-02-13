@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import PDFDocument from "pdfkit";
 import { storage } from "../storage";
+import { DEFAULT_RISK_ASSESSMENT_CONFIG, type RiskAssessmentConfig } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -38,7 +39,10 @@ export interface RiskAssessmentReport {
   recommendations: string[];
 }
 
-const SYSTEM_PROMPT = `You are an expert portfolio risk analyst performing a comprehensive risk assessment for a project portfolio. Analyze the provided portfolio data including projects, risks, issues, milestones, and financial information.
+function buildPortfolioSystemPrompt(config: RiskAssessmentConfig): string {
+  const t = config.thresholds;
+  const cats = config.categories.length > 0 ? config.categories.join(", ") : "Schedule Risk, Budget Risk, Resource Risk, Technical Risk, Scope Risk";
+  let prompt = `You are an expert portfolio risk analyst performing a comprehensive risk assessment for a project portfolio. Analyze the provided portfolio data including projects, risks, issues, milestones, and financial information.
 
 Return a JSON object with this exact structure:
 {
@@ -47,7 +51,7 @@ Return a JSON object with this exact structure:
   "overallRiskLevel": "<Critical|High|Medium|Low>",
   "categories": [
     {
-      "name": "<category name e.g. Schedule Risk, Budget Risk, Resource Risk, Technical Risk, Scope Risk>",
+      "name": "<category name from: ${cats}>",
       "score": <number 1-100>,
       "level": "<Critical|High|Medium|Low>",
       "findings": ["<finding 1>", "<finding 2>"],
@@ -77,14 +81,21 @@ Return a JSON object with this exact structure:
 }
 
 Assessment criteria:
-- Score 1-25: Low risk - portfolio is well-managed with minor concerns
-- Score 26-50: Medium risk - some areas need attention but manageable
-- Score 51-75: High risk - significant issues requiring immediate action
-- Score 76-100: Critical risk - portfolio is at serious risk of failure
+- Score 1-${t.lowMax}: Low risk - portfolio is well-managed with minor concerns
+- Score ${t.lowMax + 1}-${t.mediumMax}: Medium risk - some areas need attention but manageable
+- Score ${t.mediumMax + 1}-${t.highMax}: High risk - significant issues requiring immediate action
+- Score ${t.highMax + 1}-100: Critical risk - portfolio is at serious risk of failure
 
-Evaluate: project health distribution, budget utilization, schedule adherence, open risks and issues, milestone completion rates, resource allocation, and cross-project dependencies.
+Evaluate the following categories: ${cats}.
+Also evaluate: project health distribution, budget utilization, schedule adherence, open risks and issues, milestone completion rates, resource allocation, and cross-project dependencies.`;
 
-Return ONLY valid JSON, no markdown formatting.`;
+  if (config.customInstructions?.trim()) {
+    prompt += `\n\nAdditional instructions from the organization:\n${config.customInstructions}`;
+  }
+
+  prompt += `\n\nReturn ONLY valid JSON, no markdown formatting.`;
+  return prompt;
+}
 
 export async function generatePortfolioRiskAssessment(
   portfolioId: number,
@@ -92,6 +103,9 @@ export async function generatePortfolioRiskAssessment(
 ): Promise<RiskAssessmentReport> {
   const portfolio = await storage.getPortfolio(portfolioId);
   if (!portfolio) throw new Error("Portfolio not found");
+
+  const org = await storage.getOrganization(organizationId);
+  const config: RiskAssessmentConfig = { ...DEFAULT_RISK_ASSESSMENT_CONFIG, ...(org?.riskAssessmentConfig || {}) };
 
   const allProjects = await storage.getProjects(organizationId);
   const portfolioProjects = allProjects.filter(p => p.portfolioId === portfolioId);
@@ -172,13 +186,13 @@ export async function generatePortfolioRiskAssessment(
   };
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: config.model,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: buildPortfolioSystemPrompt(config) },
       { role: "user", content: JSON.stringify(dataPayload) },
     ],
-    temperature: 0.3,
-    max_tokens: 3000,
+    temperature: config.temperature,
+    max_tokens: config.maxTokens,
   });
 
   const content = response.choices[0]?.message?.content || "{}";

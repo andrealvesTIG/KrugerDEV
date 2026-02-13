@@ -1559,6 +1559,53 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/organizations/:id/risk-assessment-config', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const org = await storage.getOrganization(orgId);
+      if (!org) return res.status(404).json({ message: 'Organization not found' });
+      const { DEFAULT_RISK_ASSESSMENT_CONFIG } = await import('@shared/schema');
+      const config = { ...DEFAULT_RISK_ASSESSMENT_CONFIG, ...(org.riskAssessmentConfig || {}) };
+      res.json(config);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to get risk assessment config' });
+    }
+  });
+
+  app.put('/api/organizations/:id/risk-assessment-config', async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getUserOrganizations(userId!);
+      const membership = memberships.find(m => m.organizationId === orgId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        const [user] = await db.select().from(users).where(eq(users.id, userId!));
+        if (!hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Only admins can update risk assessment config' });
+        }
+      }
+      const { riskAssessmentConfigSchema } = await import('@shared/schema');
+      const parsed = riskAssessmentConfigSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid config', errors: parsed.error.flatten() });
+      }
+      if (parsed.data.thresholds.lowMax >= parsed.data.thresholds.mediumMax || parsed.data.thresholds.mediumMax >= parsed.data.thresholds.highMax) {
+        return res.status(400).json({ message: 'Thresholds must be in ascending order: Low < Medium < High' });
+      }
+      const updated = await storage.updateOrganization(orgId, { riskAssessmentConfig: parsed.data });
+      res.json(updated?.riskAssessmentConfig || parsed.data);
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to update risk assessment config' });
+    }
+  });
+
   // Get all organization integrations with status
   app.get('/api/organizations/:id/integrations', async (req, res) => {
     try {
@@ -3683,10 +3730,14 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
 
+      const orgForConfig = await storage.getOrganization(portfolio.organizationId);
+      const { DEFAULT_RISK_ASSESSMENT_CONFIG: DEFAULTS } = await import('@shared/schema');
+      const riskConfig = { ...DEFAULTS, ...(orgForConfig?.riskAssessmentConfig || {}) };
+
       const existing = await storage.getLatestPortfolioRiskAssessment(portfolioId);
       if (existing) {
         const ageInDays = (Date.now() - new Date(existing.generatedAt!).getTime()) / (1000 * 60 * 60 * 24);
-        if (ageInDays < 5) {
+        if (ageInDays < riskConfig.cacheDays) {
           const cachedReport = JSON.parse(existing.reportJson);
           return res.json({
             success: true,
@@ -3913,10 +3964,14 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Access denied" });
       }
 
+      const orgForProjConfig = await storage.getOrganization(orgId);
+      const { DEFAULT_RISK_ASSESSMENT_CONFIG: PROJ_DEFAULTS } = await import('@shared/schema');
+      const projRiskConfig = { ...PROJ_DEFAULTS, ...(orgForProjConfig?.riskAssessmentConfig || {}) };
+
       const existing = await storage.getLatestProjectRiskAssessment(projectId);
       if (existing) {
         const ageInDays = (Date.now() - new Date(existing.generatedAt!).getTime()) / (1000 * 60 * 60 * 24);
-        if (ageInDays < 5) {
+        if (ageInDays < projRiskConfig.cacheDays) {
           const cachedReport = JSON.parse(existing.reportJson);
           return res.json({
             success: true,

@@ -43,6 +43,32 @@ export type SidebarItem = z.infer<typeof sidebarItemSchema>;
 export type SidebarGroup = z.infer<typeof sidebarGroupSchema>;
 export type SidebarStructure = z.infer<typeof sidebarStructureSchema>;
 
+export const riskAssessmentConfigSchema = z.object({
+  model: z.enum(["gpt-4o", "gpt-4o-mini"]).default("gpt-4o"),
+  temperature: z.number().min(0).max(1).default(0.3),
+  maxTokens: z.number().min(500).max(8000).default(3000),
+  cacheDays: z.number().min(1).max(30).default(5),
+  thresholds: z.object({
+    lowMax: z.number().min(1).max(99).default(25),
+    mediumMax: z.number().min(1).max(99).default(50),
+    highMax: z.number().min(1).max(99).default(75),
+  }).default({}),
+  customInstructions: z.string().max(2000).default(""),
+  categories: z.array(z.string()).default(["Schedule Risk", "Budget Risk", "Resource Risk", "Technical Risk", "Scope Risk"]),
+});
+
+export type RiskAssessmentConfig = z.infer<typeof riskAssessmentConfigSchema>;
+
+export const DEFAULT_RISK_ASSESSMENT_CONFIG: RiskAssessmentConfig = {
+  model: "gpt-4o",
+  temperature: 0.3,
+  maxTokens: 3000,
+  cacheDays: 5,
+  thresholds: { lowMax: 25, mediumMax: 50, highMax: 75 },
+  customInstructions: "",
+  categories: ["Schedule Risk", "Budget Risk", "Resource Risk", "Technical Risk", "Scope Risk"],
+};
+
 // === TABLE DEFINITIONS ===
 
 // Users (Imported from ./models/auth)
@@ -63,6 +89,7 @@ export const organizations = pgTable("organizations", {
   dashboardTabOrder: text("dashboard_tab_order").array(), // Array of tab IDs defining dashboard report order
   dashboardHiddenTabs: text("dashboard_hidden_tabs").array(), // Array of tab IDs hidden in overflow menu
   billingHidden: boolean("billing_hidden").default(false),
+  riskAssessmentConfig: jsonb("risk_assessment_config").$type<RiskAssessmentConfig>(),
   deactivatedAt: timestamp("deactivated_at"), // Soft delete timestamp
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
 });
