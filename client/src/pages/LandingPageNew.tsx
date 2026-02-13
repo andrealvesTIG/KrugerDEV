@@ -138,7 +138,7 @@ export default function LandingPageNew() {
           </div>
         </section>
 
-        <section className="py-12 border-t border-border max-w-[1400px] mx-auto">
+        <section className="py-8 border-t border-border max-w-[1400px] mx-auto -mt-4">
           <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase mb-8 text-center">
             Our Clients
           </p>
