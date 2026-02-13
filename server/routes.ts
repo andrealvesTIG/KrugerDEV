@@ -3767,9 +3767,8 @@ export async function registerRoutes(
       if (!portfolio) return res.status(404).json({ message: "Portfolio not found" });
 
       const userOrgs = await storage.getUserOrganizations(userId);
-      console.log("[risk-assessment] userId:", userId, "type:", typeof userId, "portfolio.orgId:", portfolio.organizationId, "userOrgs:", userOrgs.map(m => ({ orgId: m.organizationId, orgIdType: typeof m.organizationId })));
       if (!userOrgs.find(m => m.organizationId === portfolio.organizationId)) {
-        return res.status(403).json({ message: "Access denied" });
+        return res.status(403).json({ message: "You are not a member of this organization. Please ask an admin to invite you." });
       }
 
       const orgForConfig = await storage.getOrganization(portfolio.organizationId);
@@ -3896,7 +3895,7 @@ export async function registerRoutes(
       const orgId = Number(req.params.orgId);
       const userOrgs = await storage.getUserOrganizations(userId);
       if (!userOrgs.find(m => m.organizationId === orgId)) {
-        return res.status(403).json({ message: "Access denied" });
+        return res.status(403).json({ message: "You are not a member of this organization. Please ask an admin to invite you." });
       }
 
       const assessments = await storage.getLatestRiskAssessmentsForOrg(orgId);
@@ -4003,7 +4002,7 @@ export async function registerRoutes(
       const orgId = project.organizationId;
       const userOrgs = await storage.getUserOrganizations(userId);
       if (!userOrgs.find(m => m.organizationId === orgId)) {
-        return res.status(403).json({ message: "Access denied" });
+        return res.status(403).json({ message: "You are not a member of this organization. Please ask an admin to invite you." });
       }
 
       const orgForProjConfig = await storage.getOrganization(orgId);

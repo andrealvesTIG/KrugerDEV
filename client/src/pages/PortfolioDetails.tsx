@@ -79,12 +79,12 @@ export default function PortfolioDetails() {
       setRiskDialogOpen(true);
       setRiskConfirmOpen(false);
     },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to generate risk assessment. Please try again.",
-        variant: "destructive",
-      });
+    onError: (err: any) => {
+      if (err?.limitExceeded) {
+        toast({ title: "Credit Limit Reached", description: err.message || "Please upgrade your plan.", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: err?.message || "Failed to generate risk assessment. Please try again.", variant: "destructive" });
+      }
       setRiskConfirmOpen(false);
     },
   });
