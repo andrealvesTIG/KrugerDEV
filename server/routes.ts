@@ -26,7 +26,28 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import * as crypto from "crypto";
 import OpenAI from "openai";
+
+const ENCRYPTION_KEY = process.env.SESSION_SECRET || 'fridayreport-default-encryption-key-32ch';
+function encryptApiKey(plaintext: string): string {
+  const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+function decryptApiKey(ciphertext: string, cryptoMod?: typeof crypto): string {
+  const c = cryptoMod || crypto;
+  const key = c.createHash('sha256').update(ENCRYPTION_KEY).digest();
+  const [ivHex, encrypted] = ciphertext.split(':');
+  if (!ivHex || !encrypted) return ciphertext;
+  const decipher = c.createDecipheriv('aes-256-cbc', key, Buffer.from(ivHex, 'hex'));
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -1569,8 +1590,22 @@ export async function registerRoutes(
       const org = await storage.getOrganization(orgId);
       if (!org) return res.status(404).json({ message: 'Organization not found' });
       const { DEFAULT_RISK_ASSESSMENT_CONFIG } = await import('@shared/schema');
-      const config = { ...DEFAULT_RISK_ASSESSMENT_CONFIG, ...(org.riskAssessmentConfig || {}) };
-      res.json(config);
+      const rawConfig = { ...DEFAULT_RISK_ASSESSMENT_CONFIG, ...(org.riskAssessmentConfig || {}) };
+      const maskedConfig = { ...rawConfig };
+      if (maskedConfig.customApiKey) {
+        const crypto = await import('crypto');
+        try {
+          const decrypted = decryptApiKey(maskedConfig.customApiKey, crypto);
+          maskedConfig.customApiKey = decrypted.length > 8
+            ? decrypted.slice(0, 4) + '••••••••' + decrypted.slice(-4)
+            : '••••••••';
+        } catch {
+          maskedConfig.customApiKey = maskedConfig.customApiKey.length > 8
+            ? maskedConfig.customApiKey.slice(0, 4) + '••••••••' + maskedConfig.customApiKey.slice(-4)
+            : '••••••••';
+        }
+      }
+      res.json(maskedConfig);
     } catch (err) {
       res.status(500).json({ message: 'Failed to get risk assessment config' });
     }
@@ -1598,6 +1633,12 @@ export async function registerRoutes(
       }
       if (parsed.data.thresholds.lowMax >= parsed.data.thresholds.mediumMax || parsed.data.thresholds.mediumMax >= parsed.data.thresholds.highMax) {
         return res.status(400).json({ message: 'Thresholds must be in ascending order: Low < Medium < High' });
+      }
+      const org = await storage.getOrganization(orgId);
+      if (parsed.data.customApiKey && parsed.data.customApiKey.includes('••••')) {
+        parsed.data.customApiKey = (org?.riskAssessmentConfig as any)?.customApiKey || '';
+      } else if (parsed.data.customApiKey && parsed.data.customApiKey.length > 0) {
+        parsed.data.customApiKey = encryptApiKey(parsed.data.customApiKey);
       }
       const updated = await storage.updateOrganization(orgId, { riskAssessmentConfig: parsed.data });
       res.json(updated?.riskAssessmentConfig || parsed.data);

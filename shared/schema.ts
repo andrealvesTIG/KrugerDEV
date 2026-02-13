@@ -55,6 +55,10 @@ export const riskAssessmentConfigSchema = z.object({
   }).default({}),
   customInstructions: z.string().max(2000).default(""),
   categories: z.array(z.string()).default(["Schedule Risk", "Budget Risk", "Resource Risk", "Technical Risk", "Scope Risk"]),
+  useCustomLLM: z.boolean().default(false),
+  customEndpoint: z.string().max(500).default(""),
+  customApiKey: z.string().max(500).default(""),
+  customModel: z.string().max(200).default(""),
 });
 
 export type RiskAssessmentConfig = z.infer<typeof riskAssessmentConfigSchema>;
@@ -67,6 +71,10 @@ export const DEFAULT_RISK_ASSESSMENT_CONFIG: RiskAssessmentConfig = {
   thresholds: { lowMax: 25, mediumMax: 50, highMax: 75 },
   customInstructions: "",
   categories: ["Schedule Risk", "Budget Risk", "Resource Risk", "Technical Risk", "Scope Risk"],
+  useCustomLLM: false,
+  customEndpoint: "",
+  customApiKey: "",
+  customModel: "",
 };
 
 // === TABLE DEFINITIONS ===

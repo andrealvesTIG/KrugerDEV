@@ -4911,6 +4911,61 @@ function RiskAssessmentConfigSection({ organizationId }: { organizationId: numbe
             />
             <p className="text-xs text-muted-foreground text-right">{config.customInstructions.length}/2000</p>
           </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-base font-medium" data-testid="label-custom-llm">Custom LLM Endpoint</Label>
+                <p className="text-sm text-muted-foreground mt-1">Use your own OpenAI-compatible API endpoint and key instead of the built-in AI service.</p>
+              </div>
+              <Switch
+                checked={config.useCustomLLM}
+                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, useCustomLLM: checked }))}
+                data-testid="switch-use-custom-llm"
+              />
+            </div>
+            {config.useCustomLLM && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-lg">
+                <div className="space-y-2">
+                  <Label htmlFor="custom-endpoint" data-testid="label-custom-endpoint">API Endpoint URL</Label>
+                  <Input
+                    id="custom-endpoint"
+                    type="url"
+                    placeholder="https://api.openai.com/v1"
+                    value={config.customEndpoint}
+                    onChange={(e) => setConfig(prev => ({ ...prev, customEndpoint: e.target.value }))}
+                    data-testid="input-custom-endpoint"
+                  />
+                  <p className="text-xs text-muted-foreground">The base URL for the OpenAI-compatible API (e.g., Azure OpenAI, Ollama, or any compatible provider).</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="custom-api-key" data-testid="label-custom-api-key">API Key</Label>
+                  <Input
+                    id="custom-api-key"
+                    type="password"
+                    placeholder="sk-..."
+                    value={config.customApiKey}
+                    onChange={(e) => setConfig(prev => ({ ...prev, customApiKey: e.target.value }))}
+                    data-testid="input-custom-api-key"
+                  />
+                  <p className="text-xs text-muted-foreground">Your API key for the custom endpoint. It will be stored securely and masked after saving.</p>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="custom-model" data-testid="label-custom-model">Model Name</Label>
+                  <Input
+                    id="custom-model"
+                    placeholder="gpt-4o, claude-3-opus, llama-3, etc."
+                    value={config.customModel}
+                    onChange={(e) => setConfig(prev => ({ ...prev, customModel: e.target.value }))}
+                    data-testid="input-custom-model"
+                  />
+                  <p className="text-xs text-muted-foreground">The model identifier to use with your custom endpoint. If left empty, the selected model above will be used.</p>
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

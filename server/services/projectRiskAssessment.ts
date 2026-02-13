@@ -4,10 +4,37 @@ import { storage } from "../storage";
 import type { RiskAssessmentReport } from "./portfolioRiskAssessment";
 import { DEFAULT_RISK_ASSESSMENT_CONFIG, type RiskAssessmentConfig } from "@shared/schema";
 
-const openai = new OpenAI({
+const defaultOpenai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+function decryptApiKey(ciphertext: string): string {
+  try {
+    const crypto = require('crypto');
+    const ENCRYPTION_KEY = process.env.SESSION_SECRET || 'fridayreport-default-encryption-key-32ch';
+    const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+    const [ivHex, encrypted] = ciphertext.split(':');
+    if (!ivHex || !encrypted) return ciphertext;
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, Buffer.from(ivHex, 'hex'));
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch {
+    return ciphertext;
+  }
+}
+
+function getOpenAIClient(config: RiskAssessmentConfig): { client: OpenAI; model: string } {
+  if (config.useCustomLLM && config.customEndpoint && config.customApiKey) {
+    const apiKey = decryptApiKey(config.customApiKey);
+    return {
+      client: new OpenAI({ apiKey, baseURL: config.customEndpoint }),
+      model: config.customModel || config.model,
+    };
+  }
+  return { client: defaultOpenai, model: config.model };
+}
 
 function buildProjectSystemPrompt(config: RiskAssessmentConfig): string {
   const t = config.thresholds;
@@ -140,8 +167,9 @@ export async function generateProjectRiskAssessment(
     },
   };
 
-  const response = await openai.chat.completions.create({
-    model: config.model,
+  const { client, model } = getOpenAIClient(config);
+  const response = await client.chat.completions.create({
+    model,
     messages: [
       { role: "system", content: buildProjectSystemPrompt(config) },
       { role: "user", content: JSON.stringify(dataPayload) },
