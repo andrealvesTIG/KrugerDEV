@@ -231,7 +231,7 @@ function App() {
               <Route path="/privacy" component={PrivacyStatement} />
               <Route path="/guide" component={PublicUserGuide} />
               <Route path="/friday" component={FridayPage} />
-              <Route path="/landingpage" component={LandingPageNew} />
+              <Route path="/signup" component={LandingPageNew} />
               <Route>
                 <Router />
               </Route>
