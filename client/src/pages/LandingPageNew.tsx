@@ -158,6 +158,22 @@ export default function LandingPageNew() {
           </div>
         </section>
       </main>
+
+      <footer className="border-t border-border py-6 text-center">
+        <p className="text-sm text-muted-foreground" data-testid="text-footer">
+          Built by{" "}
+          <a
+            href="https://trusteditgroup.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary font-medium hover:underline"
+            data-testid="link-trusted-it-group"
+          >
+            Trusted IT Group
+          </a>
+        </p>
+      </footer>
+
       <style>{`
         @keyframes logoScroll {
           0% { transform: translateX(0); }
