@@ -42,8 +42,9 @@ export function FridayCountdown() {
   };
   
   const handleShareLinkedIn = () => {
-    const text = encodeURIComponent(`It's Friday! Time to celebrate another productive week!\n\nhttps://fridayreport.ai/friday?gif=${gifIndex}\n\nfridayreport.ai\n\n#Friday #ProjectManagement #PMO #FridayFeeling`);
-    window.open(`https://www.linkedin.com/feed/?shareActive=true&text=${text}`, '_blank');
+    const fridayUrl = encodeURIComponent(`https://fridayreport.ai/friday?gif=${gifIndex}`);
+    const text = encodeURIComponent(`It's Friday! Time to celebrate another productive week!\n\nfridayreport.ai\n\n#Friday #ProjectManagement #PMO #FridayFeeling`);
+    window.open(`https://www.linkedin.com/feed/?shareActive=true&text=${text}&shareUrl=${fridayUrl}`, '_blank');
   };
   
   const handleOpenFridayPage = () => {
