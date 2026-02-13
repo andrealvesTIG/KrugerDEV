@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Clock, PartyPopper, Coffee, TreePalm, Sparkles, Share2, Copy, ExternalLink } from "lucide-react";
+import { Clock, PartyPopper, Coffee, TreePalm, Sparkles, Share2, Copy, ExternalLink, RefreshCw } from "lucide-react";
 import { SiLinkedin } from "react-icons/si";
 import {
   Dialog,
@@ -124,6 +124,16 @@ export function FridayCountdown() {
                 alt="Party celebration" 
                 className="relative h-40 w-40 object-cover rounded-xl shadow-lg"
               />
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={selectRandomGif}
+                className="absolute -bottom-2 -right-2 rounded-full bg-white dark:bg-slate-800 shadow-md border border-amber-200 dark:border-amber-700 text-amber-600 dark:text-amber-400"
+                title="Next GIF"
+                data-testid="button-next-gif"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
             
             <div className="space-y-2">
