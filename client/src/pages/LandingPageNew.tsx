@@ -254,7 +254,7 @@ export default function LandingPageNew() {
         </section>
 
         <section className="py-8 border-t border-border max-w-[1400px] mx-auto -mt-4">
-          <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase mb-8 text-center">Proud Trusted IT Group Clients</p>
+          <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase mb-8 text-center">Trusted IT Group Clients</p>
           <div className="relative overflow-hidden" data-testid="logo-belt">
             <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-background to-transparent z-10" />
             <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-background to-transparent z-10" />
@@ -433,7 +433,6 @@ export default function LandingPageNew() {
           </div>
         </section>
       </main>
-
       <footer className="border-t border-border py-6">
         <div className="flex flex-wrap justify-center items-center gap-4 mb-3">
           <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-terms">Terms of Service</a>
@@ -456,7 +455,6 @@ export default function LandingPageNew() {
           . All rights reserved.
         </p>
       </footer>
-
       <style>{`
         @keyframes logoScroll {
           0% { transform: translateX(0); }
