@@ -161,7 +161,7 @@ export default function LandingPageNew() {
 
       <footer className="border-t border-border py-6 text-center">
         <p className="text-sm text-muted-foreground" data-testid="text-footer">
-          Built by{" "}
+          &copy; {new Date().getFullYear()} Built by{" "}
           <a
             href="https://trusteditgroup.com"
             target="_blank"
@@ -171,6 +171,7 @@ export default function LandingPageNew() {
           >
             Trusted IT Group
           </a>
+          . All rights reserved.
         </p>
       </footer>
 
