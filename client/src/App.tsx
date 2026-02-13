@@ -42,7 +42,6 @@ import AuthPage from "@/pages/AuthPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import VerifyMagicLinkPage from "@/pages/VerifyMagicLinkPage";
 import SignInPage from "@/pages/SignInPage";
-import LandingPage from "@/pages/LandingPage";
 import SignInWaitingPage from "@/pages/SignInWaitingPage";
 import VerifySignInPage from "@/pages/VerifySignInPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
@@ -136,7 +135,7 @@ function HomePage() {
   }
   
   if (!user) {
-    return <LandingPage />;
+    return <SignInPage />;
   }
   
   return (
