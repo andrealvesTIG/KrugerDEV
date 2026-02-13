@@ -134,7 +134,7 @@ export default function LandingPageNew() {
             <div className="mt-10 flex items-center gap-4 flex-wrap">
               <Button
                 size="lg"
-                className="bg-[#F37021] border-[#F37021] text-white"
+                className="bg-[#F37021] border-[#F37021] text-white text-lg min-h-14"
                 onClick={() => setLocation("/auth")}
                 data-testid="button-cta"
               >
