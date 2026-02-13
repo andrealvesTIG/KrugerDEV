@@ -13,12 +13,39 @@ async function migrate() {
   const migrations: string[] = [
     `ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS is_custom boolean DEFAULT false`,
     `ALTER TABLE organizations ADD COLUMN IF NOT EXISTS risk_assessment_config jsonb`,
+
+    `CREATE TABLE IF NOT EXISTS portfolio_risk_assessments (
+      id SERIAL PRIMARY KEY,
+      portfolio_id INTEGER NOT NULL REFERENCES portfolios(id),
+      organization_id INTEGER NOT NULL REFERENCES organizations(id),
+      risk_score INTEGER NOT NULL,
+      summary TEXT NOT NULL,
+      report_json TEXT NOT NULL,
+      share_token TEXT NOT NULL,
+      generated_by VARCHAR REFERENCES users(id),
+      generated_at TIMESTAMP DEFAULT NOW(),
+      created_at TIMESTAMP DEFAULT NOW()
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS project_risk_assessments (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id),
+      organization_id INTEGER NOT NULL REFERENCES organizations(id),
+      risk_score INTEGER NOT NULL,
+      summary TEXT NOT NULL,
+      report_json TEXT NOT NULL,
+      share_token TEXT NOT NULL,
+      generated_by VARCHAR REFERENCES users(id),
+      generated_at TIMESTAMP DEFAULT NOW(),
+      created_at TIMESTAMP DEFAULT NOW()
+    )`,
   ];
 
   for (const sql of migrations) {
     try {
       await client.query(sql);
-      console.log(`  OK: ${sql.substring(0, 80)}...`);
+      const label = sql.replace(/\s+/g, ' ').trim().substring(0, 80);
+      console.log(`  OK: ${label}...`);
     } catch (err: any) {
       console.warn(`  SKIP: ${err.message}`);
     }
