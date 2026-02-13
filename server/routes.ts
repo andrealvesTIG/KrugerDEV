@@ -13830,6 +13830,43 @@ Return ONLY valid JSON.`;
     }
   });
 
+  // ==================== AI VOICE INPUT USAGE METERING ====================
+  app.post('/api/ai/voice-usage', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const { organizationId } = req.body;
+      if (!organizationId) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(Number(organizationId))) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+
+      const { checkAndEnforceLimit, METER_CODES, recordResourceUsage } = await import("./services/billing");
+      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, Number(organizationId));
+      if (!limitCheck.allowed) {
+        return res.status(403).json({
+          message: limitCheck.error || "AI usage limit reached. Please upgrade your plan.",
+          limitExceeded: true,
+          resourceType: "ai_runs"
+        });
+      }
+
+      await recordResourceUsage(userId, METER_CODES.AI_RUNS, `voice_input_${organizationId}_${Date.now()}`, 1, Number(organizationId));
+
+      return res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error recording voice usage:", error);
+      return res.status(500).json({ message: error.message || "Failed to record voice usage" });
+    }
+  });
+
   // ==================== AI SMART-CREATE PREVIEW (Parse Only) ====================
   app.post('/api/ai/smart-create/preview', async (req, res) => {
     try {

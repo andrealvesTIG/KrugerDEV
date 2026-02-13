@@ -80,7 +80,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
     setRequiresProjectWarning(false);
   };
 
-  const toggleVoiceInput = () => {
+  const toggleVoiceInput = async () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       toast({
         title: "Voice Input Unavailable",
@@ -94,6 +94,37 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
       recognitionRef.current?.stop();
       setIsRecording(false);
     } else {
+      try {
+        const res = await apiRequest('POST', '/api/ai/voice-usage', {
+          organizationId: currentOrganization?.id,
+        });
+        const data = await res.json();
+        if (!data.success) {
+          toast({
+            title: "Voice Input Unavailable",
+            description: data.message || "Could not start voice input.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (error: any) {
+        let errorMsg = "Could not start voice input. You may have reached your AI usage limit.";
+        try {
+          if (error?.message) {
+            const parsed = JSON.parse(error.message);
+            if (parsed?.message) errorMsg = parsed.message;
+          }
+        } catch {}
+        toast({
+          title: "Voice Input Unavailable",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['/api/billing/ai-costs'] });
+
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
