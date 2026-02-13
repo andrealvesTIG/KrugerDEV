@@ -2455,6 +2455,19 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
   const [showHealthReasonDialog, setShowHealthReasonDialog] = useState(false);
   const [pendingHealth, setPendingHealth] = useState<string | null>(null);
   const [healthReason, setHealthReason] = useState(project.healthReason || "");
+
+  const { data: summaryRiskAssessment } = useQuery<{ riskScore: number; generatedAt: string; summary: string } | null>({
+    queryKey: ["/api/projects", project.id, "risk-assessment", "latest"],
+  });
+
+  const summaryRiskBadge = useMemo(() => {
+    if (!summaryRiskAssessment?.riskScore || !summaryRiskAssessment?.generatedAt) return null;
+    const generatedAt = new Date(summaryRiskAssessment.generatedAt);
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+    if (generatedAt <= tenDaysAgo) return null;
+    return summaryRiskAssessment;
+  }, [summaryRiskAssessment]);
   
   // Calculate completion percentage from tasks (leaf tasks only - those without children)
   const { calculatedCompletion, leafTaskCount } = useMemo(() => {
@@ -2822,6 +2835,28 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                 <p className="text-sm font-medium cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors" onClick={() => setEditingField('completionPercentage')} data-testid="text-project-completion">{displayCompletion}%</p>
               )}
             </div>
+            {summaryRiskBadge && (
+              <div>
+                <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">AI Risk Score</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className={cn(
+                      "flex items-center gap-1.5 mt-1 px-2 py-1 rounded-md cursor-help",
+                      summaryRiskBadge.riskScore <= 25 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                      summaryRiskBadge.riskScore <= 50 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                      summaryRiskBadge.riskScore <= 75 ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
+                      "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                    )} data-testid="summary-risk-score-badge">
+                      <Shield className="h-3.5 w-3.5" />
+                      <span className="text-sm font-semibold">{summaryRiskBadge.riskScore}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p className="text-xs">{summaryRiskBadge.summary}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
             <div>
