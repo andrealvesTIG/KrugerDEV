@@ -38,7 +38,7 @@ The system supports plan-based seat limits per organization subscription, with S
 ### Security and Data Integrity
 - **Soft-Delete**: Organizations are deactivated rather than permanently deleted.
 - **Email Verification**: Mandatory for all creation operations.
-- **Bot Protection**: Honeypot fields and time-based validation for public authentication forms, with optional Cloudflare Turnstile integration.
+- **Bot Protection**: Honeypot fields and time-based validation for public authentication forms.
 
 ### User Consent Tracking
 User consents (e.g., Terms of Service, Privacy Policy) are versioned and stored in a `user_consents` table. Users are prompted to re-accept when versions change. Super Admins can view consent records.

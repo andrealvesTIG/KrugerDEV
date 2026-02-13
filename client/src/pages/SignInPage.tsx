@@ -49,7 +49,6 @@ import {
 } from "@/components/ui/accordion";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
-import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
 import { HoneypotField } from "@/components/HoneypotField";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
@@ -176,9 +175,7 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const turnstileRef = useRef<TurnstileWidgetRef>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
 
@@ -235,7 +232,6 @@ export default function SignInPage() {
     try {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", { 
         email: email.trim(),
-        turnstileToken: turnstileToken || undefined,
         termsAccepted,
         ...honeypotPayload
       });
@@ -253,8 +249,6 @@ export default function SignInPage() {
           description: data.message || "Failed to send sign-in link",
           variant: "destructive",
         });
-        turnstileRef.current?.reset();
-        setTurnstileToken(null);
       }
     } catch (error: any) {
       toast({
@@ -262,8 +256,6 @@ export default function SignInPage() {
         description: error.message || "Failed to send sign-in link",
         variant: "destructive",
       });
-      turnstileRef.current?.reset();
-      setTurnstileToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -686,12 +678,6 @@ export default function SignInPage() {
                           data-testid="input-signin-email"
                         />
                       </div>
-                      <TurnstileWidget
-                        ref={turnstileRef}
-                        onSuccess={setTurnstileToken}
-                        onExpire={() => setTurnstileToken(null)}
-                        className="flex justify-center"
-                      />
                       <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700">
                         <Checkbox
                           id="terms"

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useLocation, Link } from "wouter";
 import { Check, Menu, X, Mail, Loader2, CheckCircle, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
-import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
 import { HoneypotField } from "@/components/HoneypotField";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import demoVideo from "@assets/30_sec_video_1771015821657.mp4";
@@ -38,9 +37,7 @@ export default function LandingPageNew() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const turnstileRef = useRef<TurnstileWidgetRef>(null);
   const [honeypotData, setHoneypotData] = useState<{ honeypot1: string; honeypot2: string; formLoadTime: number } | null>(null);
 
   const handleHoneypotChange = useCallback((data: { honeypot1: string; honeypot2: string; formLoadTime: number }) => {
@@ -78,7 +75,6 @@ export default function LandingPageNew() {
     try {
       const response = await apiRequest("POST", "/api/auth/passwordless/request", {
         email: email.trim(),
-        turnstileToken: turnstileToken || undefined,
         termsAccepted,
         ...honeypotPayload
       });
@@ -96,8 +92,6 @@ export default function LandingPageNew() {
           description: data.message || "Failed to send sign-in link",
           variant: "destructive",
         });
-        turnstileRef.current?.reset();
-        setTurnstileToken(null);
       }
     } catch (error: any) {
       toast({
@@ -105,8 +99,6 @@ export default function LandingPageNew() {
         description: error.message || "Failed to send sign-in link",
         variant: "destructive",
       });
-      turnstileRef.current?.reset();
-      setTurnstileToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -328,12 +320,6 @@ export default function LandingPageNew() {
                           data-testid="input-landing-email"
                         />
                       </div>
-                      <TurnstileWidget
-                        ref={turnstileRef}
-                        onSuccess={setTurnstileToken}
-                        onExpire={() => setTurnstileToken(null)}
-                        className="flex justify-center"
-                      />
                       <div className="flex items-start gap-3 p-3 rounded-md bg-muted/50 border border-border">
                         <Checkbox
                           id="landing-terms"

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, XCircle } from "lucide-react";
 import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 import { Footer } from "@/components/layout/Footer";
-import { TurnstileWidget, type TurnstileWidgetRef } from "@/components/TurnstileWidget";
 
 export default function ResetPasswordPage() {
   const [, setLocation] = useLocation();
@@ -21,9 +20,6 @@ export default function ResetPasswordPage() {
   
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const turnstileRef = useRef<TurnstileWidgetRef>(null);
-
   const { data: tokenStatus, isLoading: isVerifying } = useQuery({
     queryKey: ["/api/auth/verify-reset-token", token],
     queryFn: async () => {
@@ -35,7 +31,7 @@ export default function ResetPasswordPage() {
   });
 
   const resetMutation = useMutation({
-    mutationFn: async (data: { token: string; password: string; turnstileToken: string }) => {
+    mutationFn: async (data: { token: string; password: string }) => {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -53,8 +49,6 @@ export default function ResetPasswordPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Reset Failed", description: error.message, variant: "destructive" });
-      turnstileRef.current?.reset();
-      setTurnstileToken(null);
     },
   });
 
@@ -71,16 +65,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (!turnstileToken) {
-      toast({
-        title: "Verification Required",
-        description: "Please complete the security check",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    resetMutation.mutate({ token, password, turnstileToken });
+    resetMutation.mutate({ token, password });
   };
 
   if (!token) {
@@ -198,16 +183,10 @@ export default function ResetPasswordPage() {
                 data-testid="input-confirm-password"
               />
             </div>
-            <TurnstileWidget
-              ref={turnstileRef}
-              onSuccess={setTurnstileToken}
-              onExpire={() => setTurnstileToken(null)}
-              className="flex justify-center"
-            />
             <Button 
               type="submit" 
               className="w-full" 
-              disabled={resetMutation.isPending || !turnstileToken}
+              disabled={resetMutation.isPending}
               data-testid="button-reset-password"
             >
               {resetMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
