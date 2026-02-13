@@ -5,7 +5,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, CalendarDays } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +59,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [orgSearchQuery, setOrgSearchQuery] = useState("");
+  const [orgSort, setOrgSort] = useState<'name' | 'date'>('name');
   const orgSearchRef = useRef<HTMLInputElement>(null);
   const aiCreateRef = useRef<AICreateButtonHandle>(null);
   const { theme } = useTheme();
@@ -72,10 +73,18 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   }, [orgDropdownOpen]);
 
   const filteredOrgs = useMemo(() => {
-    if (!orgSearchQuery.trim()) return organizations;
-    const q = normalizeSearch(orgSearchQuery);
-    return organizations.filter(org => normalizeSearch(org.name).includes(q));
-  }, [organizations, orgSearchQuery]);
+    let list = organizations;
+    if (orgSearchQuery.trim()) {
+      const q = normalizeSearch(orgSearchQuery);
+      list = list.filter(org => normalizeSearch(org.name).includes(q));
+    }
+    return [...list].sort((a, b) => {
+      if (orgSort === 'name') return a.name.localeCompare(b.name);
+      const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return db - da;
+    });
+  }, [organizations, orgSearchQuery, orgSort]);
   
   const stopActingAsMutation = useMutation({
     mutationFn: async () => {
@@ -164,9 +173,9 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                         <ChevronDown className="h-3 w-3" />
                       </button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-64 p-0" align="start">
-                      {organizations.length >= 5 && (
-                        <div className="p-2 border-b">
+                    <PopoverContent className="w-72 p-0" align="start">
+                      <div className="p-2 border-b space-y-2">
+                        {organizations.length >= 5 && (
                           <div className="relative">
                             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                             <Input
@@ -178,8 +187,31 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                               data-testid="input-org-search"
                             />
                           </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground mr-1">Sort:</span>
+                          <Button
+                            variant={orgSort === 'name' ? 'secondary' : 'ghost'}
+                            size="sm"
+                            className="h-6 text-xs px-2 gap-1"
+                            onClick={() => setOrgSort('name')}
+                            data-testid="button-sort-org-name"
+                          >
+                            <ArrowDownAZ className="h-3 w-3" />
+                            A-Z
+                          </Button>
+                          <Button
+                            variant={orgSort === 'date' ? 'secondary' : 'ghost'}
+                            size="sm"
+                            className="h-6 text-xs px-2 gap-1"
+                            onClick={() => setOrgSort('date')}
+                            data-testid="button-sort-org-date"
+                          >
+                            <CalendarDays className="h-3 w-3" />
+                            Date
+                          </Button>
                         </div>
-                      )}
+                      </div>
                       <ScrollArea className={organizations.length >= 8 ? "h-[280px]" : ""}>
                         <div className="p-1">
                           {filteredOrgs.length === 0 ? (
@@ -196,7 +228,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                                   setCurrentOrganization(org);
                                   setOrgDropdownOpen(false);
                                 }}
-                                className={`w-full justify-start gap-2 ${
+                                className={`w-full justify-start gap-2 h-auto py-1.5 ${
                                   currentOrganization?.id === org.id ? 'bg-accent text-accent-foreground' : ''
                                 }`}
                                 data-testid={`dropdown-item-org-${org.id}`}
@@ -206,7 +238,14 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                                 ) : (
                                   <span className="w-3.5 flex-shrink-0" />
                                 )}
-                                <span className="truncate">{org.name}</span>
+                                <div className="flex flex-col items-start min-w-0">
+                                  <span className="truncate w-full text-left">{org.name}</span>
+                                  {org.createdAt && (
+                                    <span className="text-[10px] text-muted-foreground font-normal">
+                                      Created {format(new Date(org.createdAt), "MMM d, yyyy")}
+                                    </span>
+                                  )}
+                                </div>
                               </Button>
                             ))
                           )}
