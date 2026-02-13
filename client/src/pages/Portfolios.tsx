@@ -237,6 +237,15 @@ export default function Portfolios() {
                                   {portfolio.status}
                                 </Badge>
                               )}
+                              {portfolio.isCustom && (
+                                <Badge 
+                                  variant="secondary" 
+                                  className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400"
+                                  data-testid={`badge-custom-${portfolio.id}`}
+                                >
+                                  Custom
+                                </Badge>
+                              )}
                               <span className="text-[10px] text-muted-foreground">{healthSummary.total} projects</span>
                               {(() => {
                                 const riskData = getRiskScoreForPortfolio(portfolio.id);
@@ -397,9 +406,16 @@ export default function Portfolios() {
                         <div className="rounded-lg bg-primary/10 p-2 text-primary shrink-0">
                           <FolderOpen className="h-4 w-4" />
                         </div>
-                        <span className="truncate" title={portfolio.name}>
-                          {portfolio.name}
-                        </span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="truncate" title={portfolio.name}>
+                            {portfolio.name}
+                          </span>
+                          {portfolio.isCustom && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 shrink-0">
+                              Custom
+                            </Badge>
+                          )}
+                        </div>
                       </Link>
                     </TableCell>
                     <TableCell className="max-w-[300px]">
@@ -585,6 +601,18 @@ function CreatePortfolioDialog({ open, onOpenChange, organizationId }: { open: b
           <div className="space-y-2">
             <Label htmlFor="strategy">Strategic Alignment</Label>
             <Textarea id="strategy" {...form.register("strategy")} placeholder="How does this align with company goals?" data-testid="input-portfolio-strategy" />
+          </div>
+          <div className="flex items-center gap-3 rounded-lg border p-3">
+            <Checkbox 
+              id="isCustom" 
+              checked={form.watch("isCustom") || false}
+              onCheckedChange={(checked) => form.setValue("isCustom", !!checked)}
+              data-testid="checkbox-custom-portfolio"
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="isCustom" className="cursor-pointer font-medium">Custom Portfolio</Label>
+              <p className="text-xs text-muted-foreground">Add any project regardless of their existing portfolio assignment.</p>
+            </div>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-portfolio">

@@ -150,7 +150,19 @@ export const portfolios = pgTable("portfolios", {
   deletedAt: timestamp("deleted_at"), // Soft delete timestamp
   deletedBy: varchar("deleted_by").references(() => users.id), // Who deleted it
   isDemo: boolean("is_demo").default(false), // True if created by demo data generator
+  isCustom: boolean("is_custom").default(false), // Custom portfolios can include projects from any portfolio
 });
+
+// Custom Portfolio Projects - junction table for custom portfolios
+export const customPortfolioProjects = pgTable("custom_portfolio_projects", {
+  id: serial("id").primaryKey(),
+  portfolioId: integer("portfolio_id").references(() => portfolios.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  addedAt: timestamp("added_at").defaultNow(),
+  addedBy: varchar("added_by").references(() => users.id),
+}, (table) => [
+  uniqueIndex("custom_portfolio_projects_unique").on(table.portfolioId, table.projectId),
+]);
 
 // Projects
 export const projects = pgTable("projects", {
@@ -1257,6 +1269,8 @@ export type InsertExternalShare = z.infer<typeof insertExternalShareSchema>;
 
 export type Portfolio = typeof portfolios.$inferSelect;
 export type InsertPortfolio = z.infer<typeof insertPortfolioSchema>;
+
+export type CustomPortfolioProject = typeof customPortfolioProjects.$inferSelect;
 
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;

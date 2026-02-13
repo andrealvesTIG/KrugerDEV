@@ -176,7 +176,14 @@ export default function PortfolioDetails() {
           </Button>
         </Link>
         <div className="min-w-0 flex-1 overflow-hidden">
-          <h1 className="text-3xl font-display font-bold truncate" title={portfolio.name || ""}>{portfolio.name}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-display font-bold truncate" title={portfolio.name || ""}>{portfolio.name}</h1>
+            {portfolio.isCustom && (
+              <Badge variant="secondary" className="bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 shrink-0">
+                Custom Portfolio
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground mt-1 truncate" title={portfolio.description || ""}>{portfolio.description}</p>
         </div>
       </div>
@@ -205,7 +212,7 @@ export default function PortfolioDetails() {
             <SummaryTab metrics={metrics} portfolio={portfolio} portfolioId={id} onNavigate={setActiveTab} getRiskScoreColor={getRiskScoreColor} getRiskScoreBg={getRiskScoreBg} getRiskScoreLabel={getRiskScoreLabel} />
           </TabsContent>
           <TabsContent value="projects">
-            <ProjectsTab portfolioId={id} organizationId={currentOrganization?.id || 0} />
+            <ProjectsTab portfolioId={id} organizationId={currentOrganization?.id || 0} isCustom={!!portfolio.isCustom} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab
@@ -421,7 +428,7 @@ const portfolioZoomLabels: Record<PortfolioZoomLevel, string> = {
   1825: '5 Years'
 };
 
-function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; organizationId: number }) {
+function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: number; organizationId: number; isCustom?: boolean }) {
   const { data: projects, isLoading } = usePortfolioProjects(portfolioId);
   const { data: allProjects } = useProjects(organizationId);
   const [view, setView] = useState<"list" | "gantt">("list");
@@ -436,11 +443,14 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
   const availableProjects = useMemo(() => {
     if (!allProjects) return [];
     const portfolioProjectIds = new Set(projects?.map(p => p.id) || []);
+    if (isCustom) {
+      return allProjects.filter(p => !portfolioProjectIds.has(p.id));
+    }
     return allProjects.filter(p => 
       !portfolioProjectIds.has(p.id) && 
       (p.portfolioId === null || p.portfolioId === undefined)
     );
-  }, [allProjects, projects]);
+  }, [allProjects, projects, isCustom]);
 
   const filteredAvailableProjects = useMemo(() => {
     if (!searchQuery.trim()) return availableProjects;
@@ -463,12 +473,21 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
     if (selectedProjectIds.length === 0) return;
     setIsAdding(true);
     try {
-      await Promise.all(
-        selectedProjectIds.map(projectId => 
-          updateProject.mutateAsync({ id: projectId, portfolioId })
-        )
-      );
+      if (isCustom) {
+        await Promise.all(
+          selectedProjectIds.map(projectId => 
+            apiRequest("POST", `/api/portfolios/${portfolioId}/custom-projects`, { projectId })
+          )
+        );
+      } else {
+        await Promise.all(
+          selectedProjectIds.map(projectId => 
+            updateProject.mutateAsync({ id: projectId, portfolioId })
+          )
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'overview'] });
       toast({
         title: "Projects Added",
         description: `Successfully added ${selectedProjectIds.length} project(s) to the portfolio.`,
@@ -489,8 +508,13 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
 
   const handleRemoveProject = async (projectId: number) => {
     try {
-      await updateProject.mutateAsync({ id: projectId, portfolioId: null });
+      if (isCustom) {
+        await apiRequest("DELETE", `/api/portfolios/${portfolioId}/custom-projects/${projectId}`);
+      } else {
+        await updateProject.mutateAsync({ id: projectId, portfolioId: null });
+      }
       queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios', portfolioId, 'overview'] });
       toast({
         title: "Project Removed",
         description: "Project has been removed from the portfolio.",
@@ -525,8 +549,19 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div>
-          <CardTitle>Included Projects</CardTitle>
-          <CardDescription>All projects within this portfolio</CardDescription>
+          <div className="flex items-center gap-2">
+            <CardTitle>Included Projects</CardTitle>
+            {isCustom && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                Custom
+              </Badge>
+            )}
+          </div>
+          <CardDescription>
+            {isCustom 
+              ? "Projects included in this custom portfolio (can include projects from any portfolio)" 
+              : "All projects within this portfolio"}
+          </CardDescription>
         </div>
         <div className="flex items-center gap-3">
           <Button
@@ -678,7 +713,9 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
         <DialogHeader>
           <DialogTitle>Add Projects to Portfolio</DialogTitle>
           <DialogDescription>
-            Select projects to add to this portfolio. Only unassigned projects are shown.
+            {isCustom 
+              ? "Select any projects to include in this custom portfolio. Projects can belong to multiple custom portfolios."
+              : "Select projects to add to this portfolio. Only unassigned projects are shown."}
           </DialogDescription>
         </DialogHeader>
         
@@ -700,7 +737,9 @@ function ProjectsTab({ portfolioId, organizationId }: { portfolioId: number; org
                 <FolderOpen className="h-8 w-8 mb-2" />
                 <p className="text-sm text-center">
                   {availableProjects.length === 0 
-                    ? "No unassigned projects available. All projects are already in portfolios."
+                    ? (isCustom 
+                        ? "All projects are already included in this portfolio."
+                        : "No unassigned projects available. All projects are already in portfolios.")
                     : "No projects match your search."}
                 </p>
               </div>

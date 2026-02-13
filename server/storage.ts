@@ -1,6 +1,6 @@
 import { db } from "./db";
 import {
-  users, portfolios, projects, milestones, issues, tasks,
+  users, portfolios, projects, customPortfolioProjects, milestones, issues, tasks,
   organizations, organizationMembers, organizationInvites, organizationAccessRequests, externalShares, taskChangeLogs, taskDependencies, projectFinancials,
   projectChangeLogs, issueChangeLogs, organizationIntegrations,
   resources, taskResourceAssignments, issueResourceAssignments,
@@ -1379,9 +1379,37 @@ export class DatabaseStorage implements IStorage {
 
   // Portfolio Aggregations
   async getPortfolioProjects(portfolioId: number): Promise<Project[]> {
+    const portfolio = await this.getPortfolio(portfolioId);
+    if (portfolio?.isCustom) {
+      const customLinks = await db.select().from(customPortfolioProjects).where(
+        eq(customPortfolioProjects.portfolioId, portfolioId)
+      );
+      if (customLinks.length === 0) return [];
+      const projectIds = customLinks.map(l => l.projectId);
+      return await db.select().from(projects).where(
+        and(inArray(projects.id, projectIds), isNull(projects.deletedAt))
+      );
+    }
     return await db.select().from(projects).where(
       and(eq(projects.portfolioId, portfolioId), isNull(projects.deletedAt))
     );
+  }
+
+  async addProjectToCustomPortfolio(portfolioId: number, projectId: number, addedBy?: string): Promise<void> {
+    await db.insert(customPortfolioProjects).values({ portfolioId, projectId, addedBy }).onConflictDoNothing();
+  }
+
+  async removeProjectFromCustomPortfolio(portfolioId: number, projectId: number): Promise<void> {
+    await db.delete(customPortfolioProjects).where(
+      and(eq(customPortfolioProjects.portfolioId, portfolioId), eq(customPortfolioProjects.projectId, projectId))
+    );
+  }
+
+  async getCustomPortfolioProjectIds(portfolioId: number): Promise<number[]> {
+    const links = await db.select().from(customPortfolioProjects).where(
+      eq(customPortfolioProjects.portfolioId, portfolioId)
+    );
+    return links.map(l => l.projectId);
   }
 
   async getPortfolioRisks(portfolioId: number): Promise<(Risk & { projectName: string })[]> {

@@ -3600,6 +3600,48 @@ export async function registerRoutes(
     }
   });
 
+  app.post('/api/portfolios/:id/custom-projects', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!portfolio.isCustom) return res.status(400).json({ message: 'Portfolio is not a custom portfolio' });
+      const memberships = await storage.getUserOrganizations(userId);
+      const isMember = memberships.find(m => m.organizationId === portfolio.organizationId);
+      if (!isMember) return res.status(403).json({ message: 'Not authorized for this organization' });
+      const { projectId } = req.body;
+      if (!projectId) return res.status(400).json({ message: 'projectId is required' });
+      const project = await storage.getProject(projectId);
+      if (!project || project.organizationId !== portfolio.organizationId) {
+        return res.status(400).json({ message: 'Project not found or belongs to a different organization' });
+      }
+      await storage.addProjectToCustomPortfolio(portfolioId, projectId, userId);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to add project to custom portfolio' });
+    }
+  });
+
+  app.delete('/api/portfolios/:id/custom-projects/:projectId', async (req, res) => {
+    try {
+      const userId = req.session?.userId || (req.user as any)?.id;
+      if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+      const portfolioId = Number(req.params.id);
+      const portfolio = await storage.getPortfolio(portfolioId);
+      if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
+      if (!portfolio.isCustom) return res.status(400).json({ message: 'Portfolio is not a custom portfolio' });
+      const memberships = await storage.getUserOrganizations(userId);
+      const isMember = memberships.find(m => m.organizationId === portfolio.organizationId);
+      if (!isMember) return res.status(403).json({ message: 'Not authorized for this organization' });
+      await storage.removeProjectFromCustomPortfolio(portfolioId, Number(req.params.projectId));
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ message: 'Failed to remove project from custom portfolio' });
+    }
+  });
+
   app.get('/api/portfolios/:id/risks', async (req, res) => {
     try {
       const risks = await storage.getPortfolioRisks(Number(req.params.id));
