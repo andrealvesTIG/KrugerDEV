@@ -27,9 +27,10 @@ const partyGifs = [
 export function FridayCountdown() {
   const { toast } = useToast();
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0, isFriday: false });
-  const [partyGif, setPartyGif] = useState(partyGifs[0]);
+  const [gifIndex, setGifIndex] = useState(0);
+  const partyGif = partyGifs[gifIndex];
   
-  const shareUrl = `${window.location.origin}/friday`;
+  const shareUrl = `${window.location.origin}/friday?gif=${gifIndex}`;
   
   const handleCopyLink = async () => {
     try {
@@ -46,12 +47,15 @@ export function FridayCountdown() {
   };
   
   const handleOpenFridayPage = () => {
-    window.open('/friday', '_blank');
+    window.open(`/friday?gif=${gifIndex}`, '_blank');
   };
 
   const selectRandomGif = () => {
-    const randomIndex = Math.floor(Math.random() * partyGifs.length);
-    setPartyGif(partyGifs[randomIndex]);
+    let randomIndex = Math.floor(Math.random() * partyGifs.length);
+    if (randomIndex === gifIndex && partyGifs.length > 1) {
+      randomIndex = (randomIndex + 1) % partyGifs.length;
+    }
+    setGifIndex(randomIndex);
   };
 
   useEffect(() => {

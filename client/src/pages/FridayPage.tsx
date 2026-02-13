@@ -31,12 +31,20 @@ export default function FridayPage() {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   
-  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/friday` : 'https://fridayreport.ai/friday';
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}${window.location.search}` : 'https://fridayreport.ai/friday';
 
   useEffect(() => {
-    const randomGifIndex = Math.floor(Math.random() * partyGifs.length);
+    const params = new URLSearchParams(window.location.search);
+    const gifParam = params.get('gif');
+    let gifIdx = Math.floor(Math.random() * partyGifs.length);
+    if (gifParam !== null) {
+      const parsed = parseInt(gifParam, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed < partyGifs.length) {
+        gifIdx = parsed;
+      }
+    }
     const randomMessageIndex = Math.floor(Math.random() * celebrationMessages.length);
-    setPartyGif(partyGifs[randomGifIndex]);
+    setPartyGif(partyGifs[gifIdx]);
     setMessage(celebrationMessages[randomMessageIndex]);
   }, []);
 
