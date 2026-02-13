@@ -14,6 +14,17 @@ async function migrate() {
     `ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS is_custom boolean DEFAULT false`,
     `ALTER TABLE organizations ADD COLUMN IF NOT EXISTS risk_assessment_config jsonb`,
 
+    `CREATE TABLE IF NOT EXISTS custom_portfolio_projects (
+      id SERIAL PRIMARY KEY,
+      portfolio_id INTEGER NOT NULL REFERENCES portfolios(id),
+      project_id INTEGER NOT NULL REFERENCES projects(id),
+      added_at TIMESTAMP DEFAULT NOW(),
+      added_by VARCHAR REFERENCES users(id)
+    )`,
+
+    `CREATE UNIQUE INDEX IF NOT EXISTS custom_portfolio_projects_unique 
+     ON custom_portfolio_projects (portfolio_id, project_id)`,
+
     `CREATE TABLE IF NOT EXISTS portfolio_risk_assessments (
       id SERIAL PRIMARY KEY,
       portfolio_id INTEGER NOT NULL REFERENCES portfolios(id),
