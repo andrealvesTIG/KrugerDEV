@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Check } from "lucide-react";
+import { Check, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import demoVideo from "@assets/30_sec_video_1771015821657.mp4";
@@ -24,6 +24,7 @@ const valueProps = [
 
 export default function LandingPageNew() {
   const [, setLocation] = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     document.title = "FridayReport.AI - AI Project Portfolio Management Software";
@@ -63,7 +64,7 @@ export default function LandingPageNew() {
             data-testid="img-logo"
           />
         </a>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="hidden sm:flex items-center gap-3 flex-wrap">
           <Button
             variant="ghost"
             onClick={() => setLocation("/signin")}
@@ -78,7 +79,35 @@ export default function LandingPageNew() {
             Sign Up
           </Button>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="sm:hidden"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          data-testid="button-mobile-menu"
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </Button>
       </header>
+      {mobileMenuOpen && (
+        <div className="sm:hidden border-b border-border bg-background px-6 py-4 flex flex-col gap-3" data-testid="mobile-menu">
+          <Button
+            variant="ghost"
+            className="w-full justify-start"
+            onClick={() => { setLocation("/signin"); setMobileMenuOpen(false); }}
+            data-testid="button-login-mobile"
+          >
+            Log in
+          </Button>
+          <Button
+            className="w-full"
+            onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
+            data-testid="button-signup-mobile"
+          >
+            Sign Up
+          </Button>
+        </div>
+      )}
       <main className="px-6 md:px-12 lg:px-20">
         <section className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16 py-16 lg:py-24 max-w-[1400px] mx-auto">
           <div className="flex-1 max-w-xl">
