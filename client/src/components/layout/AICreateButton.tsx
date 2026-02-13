@@ -281,7 +281,6 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
   };
 
   const enabledCount = previewActions.filter(a => a.enabled).length;
-  const billableCount = previewActions.filter(a => a.enabled && a.type !== "assign_to_me").length;
 
   const needsProjectSelection = requiresProjectWarning && !selectedProjectId;
 
@@ -339,7 +338,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
                   <Zap className={`h-4 w-4 ${aiCosts.aiProjectGeneration.canAfford ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`} />
                   <div className="flex-1 text-sm">
                     <span className={aiCosts.aiProjectGeneration.canAfford ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'}>
-                      Each AI-created item uses <strong>{aiCosts.aiProjectGeneration.creditCost}</strong> credit{aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''}.
+                      This will use <strong>{aiCosts.aiProjectGeneration.creditCost}</strong> credit{aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''} per AI run.
                     </span>
                     <span className="text-muted-foreground ml-1">
                       ({aiCosts.credits.remaining !== null ? `${aiCosts.credits.remaining} remaining` : 'unlimited'})
@@ -497,11 +496,11 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
                 </div>
               </ScrollArea>
             </div>
-            {aiCosts && billableCount > 0 && (
+            {aiCosts && (
               <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/30" data-testid="text-total-credit-cost">
                 <Zap className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  Total cost: <strong>{billableCount * aiCosts.aiProjectGeneration.creditCost}</strong> credit{billableCount * aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''} ({billableCount} item{billableCount !== 1 ? 's' : ''} x {aiCosts.aiProjectGeneration.creditCost} credit{aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''} each)
+                  This uses <strong>{aiCosts.aiProjectGeneration.creditCost}</strong> credit{aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''} (1 AI run)
                   {aiCosts.credits.remaining !== null && (
                     <> — {aiCosts.credits.remaining} remaining</>
                   )}
@@ -529,7 +528,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
                 disabled={enabledCount === 0 || isPending || needsProjectSelection}
               >
                 {executeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                Create {enabledCount} Item{enabledCount !== 1 ? 's' : ''}{billableCount > 0 ? ` (${billableCount * (aiCosts?.aiProjectGeneration.creditCost || 3)} credit${(billableCount * (aiCosts?.aiProjectGeneration.creditCost || 3)) !== 1 ? 's' : ''})` : ''}
+                Create {enabledCount} Item{enabledCount !== 1 ? 's' : ''}
               </Button>
             </DialogFooter>
           </>
