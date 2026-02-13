@@ -42,7 +42,7 @@ export function FridayCountdown() {
   };
   
   const handleShareLinkedIn = () => {
-    const text = encodeURIComponent(`It's Friday! Time to celebrate another productive week! 🎉\n\n${partyGif}\n\nManage your project portfolio with FridayReport.AI\n${shareUrl}\n\n#Friday #ProjectManagement #PMO #FridayFeeling`);
+    const text = encodeURIComponent(`It's Friday! Time to celebrate another productive week!\n\n${partyGif}\n\n#Friday #ProjectManagement #PMO #FridayFeeling`);
     window.open(`https://www.linkedin.com/feed/?shareActive=true&text=${text}`, '_blank');
   };
   
