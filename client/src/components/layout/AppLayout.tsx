@@ -5,7 +5,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, CalendarDays } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -60,6 +60,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [orgSearchQuery, setOrgSearchQuery] = useState("");
   const [orgSort, setOrgSort] = useState<'name' | 'date'>('name');
+  const [orgSortDir, setOrgSortDir] = useState<'asc' | 'desc'>('asc');
   const orgSearchRef = useRef<HTMLInputElement>(null);
   const aiCreateRef = useRef<AICreateButtonHandle>(null);
   const { theme } = useTheme();
@@ -79,12 +80,13 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
       list = list.filter(org => normalizeSearch(org.name).includes(q));
     }
     return [...list].sort((a, b) => {
-      if (orgSort === 'name') return a.name.localeCompare(b.name);
+      const dir = orgSortDir === 'asc' ? 1 : -1;
+      if (orgSort === 'name') return a.name.localeCompare(b.name) * dir;
       const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return db - da;
+      return (da - db) * dir;
     });
-  }, [organizations, orgSearchQuery, orgSort]);
+  }, [organizations, orgSearchQuery, orgSort, orgSortDir]);
   
   const stopActingAsMutation = useMutation({
     mutationFn: async () => {
@@ -194,21 +196,42 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                             variant={orgSort === 'name' ? 'secondary' : 'ghost'}
                             size="sm"
                             className="h-6 text-xs px-2 gap-1"
-                            onClick={() => setOrgSort('name')}
+                            onClick={() => {
+                              if (orgSort === 'name') {
+                                setOrgSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setOrgSort('name');
+                                setOrgSortDir('asc');
+                              }
+                            }}
                             data-testid="button-sort-org-name"
                           >
-                            <ArrowDownAZ className="h-3 w-3" />
-                            A-Z
+                            {orgSort === 'name' && orgSortDir === 'desc' ? (
+                              <ArrowUpZA className="h-3 w-3" />
+                            ) : (
+                              <ArrowDownAZ className="h-3 w-3" />
+                            )}
+                            {orgSort === 'name' ? (orgSortDir === 'asc' ? 'A-Z' : 'Z-A') : 'A-Z'}
                           </Button>
                           <Button
                             variant={orgSort === 'date' ? 'secondary' : 'ghost'}
                             size="sm"
                             className="h-6 text-xs px-2 gap-1"
-                            onClick={() => setOrgSort('date')}
+                            onClick={() => {
+                              if (orgSort === 'date') {
+                                setOrgSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setOrgSort('date');
+                                setOrgSortDir('desc');
+                              }
+                            }}
                             data-testid="button-sort-org-date"
                           >
                             <CalendarDays className="h-3 w-3" />
-                            Date
+                            {orgSort === 'date' ? (orgSortDir === 'desc' ? 'Newest' : 'Oldest') : 'Date'}
+                            {orgSort === 'date' && (
+                              orgSortDir === 'desc' ? <ArrowDown className="h-2.5 w-2.5" /> : <ArrowUp className="h-2.5 w-2.5" />
+                            )}
                           </Button>
                         </div>
                       </div>
