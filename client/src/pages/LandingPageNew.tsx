@@ -116,11 +116,7 @@ export default function LandingPageNew() {
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-headline"
             >
-              AI software to
-              <br />
-              replace all project
-              <br />
-              tools
+              Project Management software that keeps your business organized
             </h1>
 
             <ul className="mt-8 space-y-3">
