@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useProjects } from "@/hooks/use-projects";
 import { Sparkles, Loader2, Zap, Mic, MicOff, FolderOpen, CheckSquare, AlertTriangle, AlertCircle, Target, Users, UserPlus, ArrowLeft, Check } from "lucide-react";
 
 interface AICostsData {
@@ -72,12 +74,14 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
   const [step, setStep] = useState<DialogStep>("input");
   const [previewActions, setPreviewActions] = useState<PreviewAction[]>([]);
   const [requiresProjectWarning, setRequiresProjectWarning] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
   const resetDialog = () => {
     setStep("input");
     setAiPrompt("");
     setPreviewActions([]);
     setRequiresProjectWarning(false);
+    setSelectedProjectId("");
   };
 
   const toggleVoiceInput = async () => {
@@ -191,6 +195,10 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
     enabled: aiDialogOpen,
   });
 
+  const { data: orgProjects } = useProjects(
+    requiresProjectWarning ? currentOrganization?.id : undefined
+  );
+
   const previewMutation = useMutation({
     mutationFn: async (prompt: string) => {
       const response = await apiRequest('POST', '/api/ai/smart-create/preview', {
@@ -222,9 +230,10 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
   });
 
   const executeMutation = useMutation({
-    mutationFn: async (actions: PreviewAction[]) => {
+    mutationFn: async ({ actions, projectId }: { actions: PreviewAction[]; projectId?: number }) => {
       const response = await apiRequest('POST', '/api/ai/smart-create/execute', {
         organizationId: currentOrganization?.id,
+        projectId,
         actions: actions.map(a => ({ type: a.type, details: a.details })),
       });
       return response.json();
@@ -273,6 +282,8 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
 
   const enabledCount = previewActions.filter(a => a.enabled).length;
 
+  const needsProjectSelection = requiresProjectWarning && !selectedProjectId;
+
   const handleConfirmExecute = () => {
     const enabledActions = previewActions.filter(a => a.enabled);
     if (enabledActions.length === 0) {
@@ -283,7 +294,18 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
       });
       return;
     }
-    executeMutation.mutate(enabledActions);
+    if (needsProjectSelection) {
+      toast({
+        title: "Project Required",
+        description: "Please select a project for the items to be created in.",
+        variant: "destructive",
+      });
+      return;
+    }
+    executeMutation.mutate({
+      actions: enabledActions,
+      projectId: selectedProjectId ? Number(selectedProjectId) : undefined,
+    });
   };
 
   if (!currentOrganization) return null;
@@ -395,11 +417,34 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
             </DialogHeader>
             <div className="py-2">
               {requiresProjectWarning && (
-                <div className="flex items-center gap-2 p-3 mb-3 rounded-md border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                  <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Some items need a project. Please ensure at least one "Project" action is enabled, or these items won't be created.
-                  </p>
+                <div className="p-3 mb-3 rounded-md border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <FolderOpen className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                      These items need a project. Select one below:
+                    </p>
+                  </div>
+                  <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                    <SelectTrigger data-testid="select-project-for-ai" className="bg-background">
+                      <SelectValue placeholder="Select a project..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {orgProjects && orgProjects.length > 0 ? (
+                        orgProjects.map((project: any) => (
+                          <SelectItem key={project.id} value={String(project.id)}>
+                            {project.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__none" disabled>No projects found</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {!selectedProjectId && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Please select a project or the items won't be created.
+                    </p>
+                  )}
                 </div>
               )}
               <div className="flex items-center justify-between mb-3">
@@ -469,7 +514,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
               <Button
                 data-testid="button-confirm-create"
                 onClick={handleConfirmExecute}
-                disabled={enabledCount === 0 || isPending}
+                disabled={enabledCount === 0 || isPending || needsProjectSelection}
               >
                 {executeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
                 Create {enabledCount} Item{enabledCount !== 1 ? 's' : ''}
