@@ -14051,19 +14051,24 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: "organizationId and actions array are required" });
       }
 
-      const { checkAndEnforceLimit, METER_CODES, recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, organizationId);
-      if (!limitCheck.allowed) {
-        return res.status(403).json({
-          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-          limitExceeded: true,
-          resourceType: "ai_runs"
-        });
-      }
+      const { checkAndEnforceLimit, METER_CODES, recordCreditUsage, RESOURCE_TYPES, checkCreditLimit } = await import("./services/billing");
 
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(Number(organizationId))) {
         return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+
+      const totalActions = actions.filter((a: any) => a.type !== "assign_to_me").length;
+      const creditCheck = await checkCreditLimit(userId, RESOURCE_TYPES.AI_RUN, organizationId ? Number(organizationId) : undefined);
+      const totalCreditCostNeeded = creditCheck.creditsRequired * Math.max(1, totalActions);
+      if (!creditCheck.allowed || (creditCheck.creditsRemaining !== undefined && creditCheck.creditsRemaining < totalCreditCostNeeded)) {
+        return res.status(403).json({
+          message: `Not enough credits. This action requires ${totalCreditCostNeeded / 100} credits for ${totalActions} item(s). You have ${(creditCheck.creditsRemaining || 0) / 100} credits remaining.`,
+          limitExceeded: true,
+          resourceType: "ai_runs",
+          creditsRequired: totalCreditCostNeeded / 100,
+          itemCount: totalActions,
+        });
       }
 
       const today = new Date();
@@ -14259,7 +14264,19 @@ Return ONLY valid JSON.`;
         results.summary.push(`Created ${createdResources.length} resource(s)`);
       }
 
-      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_smart_create_confirmed_${Date.now()}`);
+      const totalItemsCreated =
+        (results.created.projects?.length || 0) +
+        (results.created.project ? 1 : 0) +
+        (results.created.tasks?.length || 0) +
+        (results.created.risks?.length || 0) +
+        (results.created.issues?.length || 0) +
+        (results.created.milestones?.length || 0) +
+        (results.created.resources?.length || 0);
+
+      const creditsToCharge = Math.max(1, totalItemsCreated);
+      for (let i = 0; i < creditsToCharge; i++) {
+        await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_smart_create_item_${Date.now()}_${i}`, organizationId ? Number(organizationId) : undefined);
+      }
 
       let redirectTo;
       if (results.created.projects?.length > 0) {

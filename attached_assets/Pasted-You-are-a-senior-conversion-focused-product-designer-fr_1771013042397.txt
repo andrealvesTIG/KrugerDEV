@@ -1,0 +1,70 @@
+You are a senior conversion-focused product designer + front-end engineer.
+ 
+GOAL
+Build a single-screen landing page for fridayreport.ai that maximizes signups (email capture) from first-time visitors. The page must feel credible, modern, and business-grade (not playful). Prioritize psychological clarity, trust, and momentum.
+ 
+STRATEGIC DIRECTION (NO NAME-DROPPING ON PAGE)
+Apply classic persuasion patterns:
+- Lead with a clear, specific positioning line (no hype).
+- Use social proof + authority cues (logos placeholders, testimonials placeholders, “Trusted by…” style line).
+- Reduce friction: one primary CTA, minimal choices.
+- Use contrast, hierarchy, and “guided reading” layout.
+- Use a benefit-first narrative: outcomes > features.
+- Use visual storytelling: simple, iconic “brand advertising” style imagery, clean whitespace, bold headline, one hero illustration.
+ 
+HARD REQUIREMENTS
+1) The page is ONE SCREEN (no scrolling on typical laptop 1440x900). Use responsive layout for mobile (stacked sections).
+2) Include a SIGNUP TABLE (not a basic form). The table must accept:
+   - Full name
+   - Work email
+   - Company
+   - Team size (dropdown: 1–5, 6–15, 16–50, 51–200)
+   - Primary need (dropdown: Delivery, Visibility, Resource planning, Executive reporting, Other)
+   - CTA button: “Get Early Access”
+   The table should look like a premium data-entry panel (rounded corners, subtle borders, clear labels, strong CTA).
+3) On the SAME SCREEN, include a “WINDOW” component that explains the product. This window must visibly contain this exact sentence as a subheading or title:
+   “Project Management Software for small teams”
+   The window should look like an app preview (fake UI) with:
+   - Left mini sidebar (icons)
+   - Top bar (search + user avatar)
+   - Main panel showing: a small KPI row + a simple chart placeholder + a task list placeholder
+   The window copy should explain the core promise in 2–3 short bullets.
+ 
+CONTENT REQUIREMENTS (WRITE THE COPY)
+- Headline: outcome-based, short, specific (avoid fluff like “revolutionary”).
+- Subhead: one sentence that clarifies who it’s for and what improves.
+- 3 key benefits with icons (e.g., “Faster decisions”, “Instant visibility”, “Less admin overhead”).
+- Trust block: “Built by Trusted IT Group” + 2 short credibility bullets (placeholders allowed).
+- 1 short testimonial (placeholder name + role).
+- A micro-FAQ (2 questions max) that reduces risk (privacy, time to value, or onboarding).
+ 
+DESIGN REQUIREMENTS
+- Style: modern, Apple-like cleanliness, enterprise polish.
+- Color: dark-on-light with one strong accent color for CTA (choose a professional blue/indigo OR teal; keep palette minimal).
+- Typography: system fonts or Inter; strong type scale; high contrast.
+- Components: hero area, signup table card, product window card.
+- Use subtle shadows, thin borders, and generous spacing.
+ 
+TECH REQUIREMENTS
+- Implement as a runnable web app in Replit.
+- Use Next.js + Tailwind CSS (preferred) OR plain React + Vite + Tailwind.
+- Provide clean component structure.
+- Validate form inputs (email format required). Show inline validation messages.
+- On submit: do NOT use a real backend. Instead:
+  - store submissions in localStorage
+  - show a success state: “Thanks — we’ll email you shortly.”
+  - display a tiny “View saved leads” link that opens a modal listing saved entries (from localStorage).
+- Accessibility: labels, focus states, keyboard navigation.
+ 
+DELIVERABLE
+Generate the complete code (all files needed) so it runs immediately in Replit. Include short setup/run instructions in a README.
+ 
+PAGE LAYOUT SPEC (ONE SCREEN)
+- Left side: headline + subhead + benefits + trust block (stacked, compact).
+- Right side: top = Product “WINDOW” preview card, bottom = Signup TABLE card (or side-by-side if space allows).
+- Keep CTA visible at all times on desktop.
+ 
+COPY TONE
+Direct, confident, concrete. No exaggerated promises. No buzzword soup.
+ 
+Now build it.

@@ -338,7 +338,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
                   <Zap className={`h-4 w-4 ${aiCosts.aiProjectGeneration.canAfford ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`} />
                   <div className="flex-1 text-sm">
                     <span className={aiCosts.aiProjectGeneration.canAfford ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'}>
-                      This will use <strong>{aiCosts.aiProjectGeneration.creditCost}</strong> credit{aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''}.
+                      Each AI-created item uses <strong>{aiCosts.aiProjectGeneration.creditCost}</strong> credit{aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''}.
                     </span>
                     <span className="text-muted-foreground ml-1">
                       ({aiCosts.credits.remaining !== null ? `${aiCosts.credits.remaining} remaining` : 'unlimited'})
@@ -496,6 +496,17 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
                 </div>
               </ScrollArea>
             </div>
+            {aiCosts && enabledCount > 0 && (
+              <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/30" data-testid="text-total-credit-cost">
+                <Zap className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  Total cost: <strong>{enabledCount * aiCosts.aiProjectGeneration.creditCost}</strong> credit{enabledCount * aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''} ({enabledCount} item{enabledCount !== 1 ? 's' : ''} x {aiCosts.aiProjectGeneration.creditCost} credit{aiCosts.aiProjectGeneration.creditCost !== 1 ? 's' : ''} each)
+                  {aiCosts.credits.remaining !== null && (
+                    <> — {aiCosts.credits.remaining} remaining</>
+                  )}
+                </span>
+              </div>
+            )}
             <DialogFooter className="gap-2">
               <Button
                 variant="ghost"
@@ -517,7 +528,7 @@ export const AICreateButton = forwardRef<AICreateButtonHandle>(function AICreate
                 disabled={enabledCount === 0 || isPending || needsProjectSelection}
               >
                 {executeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                Create {enabledCount} Item{enabledCount !== 1 ? 's' : ''}
+                Create {enabledCount} Item{enabledCount !== 1 ? 's' : ''} ({enabledCount * (aiCosts?.aiProjectGeneration.creditCost || 3)} credit{(enabledCount * (aiCosts?.aiProjectGeneration.creditCost || 3)) !== 1 ? 's' : ''})
               </Button>
             </DialogFooter>
           </>
