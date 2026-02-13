@@ -3823,7 +3823,7 @@ export async function registerRoutes(
         generatedAt: new Date(),
       });
 
-      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_risk_assessment_${Date.now()}`);
+      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_risk_assessment_${Date.now()}`, portfolio.organizationId);
 
       res.json({
         success: true,
@@ -4085,7 +4085,7 @@ export async function registerRoutes(
         generatedAt: new Date(),
       });
 
-      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_project_risk_assessment_${Date.now()}`);
+      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_project_risk_assessment_${Date.now()}`, orgId);
 
       res.json({
         success: true,
