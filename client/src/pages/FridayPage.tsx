@@ -78,7 +78,12 @@ export default function FridayPage() {
         <title>It's Friday! - FridayReport.AI | Celebrate Your Week</title>
         <meta name="description" content="Celebrate another productive week with FridayReport.AI! Share the Friday feeling with your team and manage your project portfolio with our enterprise PMO solution." />
         <meta property="og:title" content="It's Friday! - FridayReport.AI" />
-        <meta property="og:description" content="Celebrate another productive week! Manage your project portfolio with FridayReport.AI - the enterprise PMO solution for modern teams." />
+        <meta property="og:description" content="Celebrate another productive week! Share the Friday feeling with your team." />
+        {partyGif && <meta property="og:image" content={partyGif} />}
+        <meta property="og:url" content={shareUrl} />
+        <meta name="twitter:title" content="It's Friday! - FridayReport.AI" />
+        <meta name="twitter:description" content="Celebrate another productive week! Share the Friday feeling with your team." />
+        {partyGif && <meta name="twitter:image" content={partyGif} />}
         <link rel="canonical" href="https://fridayreport.ai/friday" />
       </Helmet>
       <div className="flex-1 flex items-center justify-center p-4">

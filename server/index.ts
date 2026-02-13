@@ -146,6 +146,31 @@ app.use((req, res, next) => {
     throw err;
   });
 
+  // Server-side OG tag injection for /friday route (social media previews)
+  const { getGifUrlFromQuery, injectFridayOgTags } = await import("./friday-og");
+  app.get("/friday", async (req, res, next) => {
+    try {
+      const gifParam = req.query.gif as string | undefined;
+      const gifUrl = getGifUrlFromQuery(gifParam ?? null);
+
+      if (process.env.NODE_ENV === "production") {
+        const distPath = path.resolve(__dirname, "public");
+        const fs = await import("fs");
+        let html = await fs.promises.readFile(path.resolve(distPath, "index.html"), "utf-8");
+        html = injectFridayOgTags(html, gifUrl);
+        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+      } else {
+        const fs = await import("fs");
+        const clientTemplate = path.resolve(process.cwd(), "client", "index.html");
+        let html = await fs.promises.readFile(clientTemplate, "utf-8");
+        html = injectFridayOgTags(html, gifUrl);
+        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+      }
+    } catch (e) {
+      next(e);
+    }
+  });
+
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
