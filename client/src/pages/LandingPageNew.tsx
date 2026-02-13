@@ -77,7 +77,6 @@ export default function LandingPageNew() {
           </Button>
         </div>
       </header>
-
       <main className="px-6 md:px-12 lg:px-20">
         <section className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16 py-16 lg:py-24 max-w-[1400px] mx-auto">
           <div className="flex-1 max-w-xl">
@@ -139,9 +138,7 @@ export default function LandingPageNew() {
         </section>
 
         <section className="py-8 border-t border-border max-w-[1400px] mx-auto -mt-4">
-          <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase mb-8 text-center">
-            Our Clients
-          </p>
+          <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase mb-8 text-center">Proud Trusted IT Group Clients</p>
           <div className="relative overflow-hidden" data-testid="logo-belt">
             <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-background to-transparent z-10" />
             <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-background to-transparent z-10" />
@@ -161,7 +158,6 @@ export default function LandingPageNew() {
           </div>
         </section>
       </main>
-
       <style>{`
         @keyframes logoScroll {
           0% { transform: translateX(0); }
