@@ -60,7 +60,8 @@ export default function FridayPage() {
   };
 
   const handleShareLinkedIn = () => {
-    const text = encodeURIComponent(`It's Friday! Time to celebrate another productive week!\n\n${partyGif}\n\n#Friday #ProjectManagement #PMO #FridayFeeling`);
+    const gifParam = partyGifs.indexOf(partyGif);
+    const text = encodeURIComponent(`It's Friday! Time to celebrate another productive week!\n\nhttps://fridayreport.ai/friday?gif=${gifParam >= 0 ? gifParam : 0}\n\nfridayreport.ai\n\n#Friday #ProjectManagement #PMO #FridayFeeling`);
     window.open(`https://www.linkedin.com/feed/?shareActive=true&text=${text}`, '_blank');
   };
 
