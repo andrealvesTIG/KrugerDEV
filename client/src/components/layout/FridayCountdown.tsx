@@ -27,7 +27,7 @@ const partyGifs = [
 export function FridayCountdown() {
   const { toast } = useToast();
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0, isFriday: false });
-  const [gifIndex, setGifIndex] = useState(0);
+  const [gifIndex, setGifIndex] = useState(() => Math.floor(Math.random() * partyGifs.length));
   const partyGif = partyGifs[gifIndex];
   
   const shareUrl = `${window.location.origin}/friday?gif=${gifIndex}`;
@@ -102,7 +102,7 @@ export function FridayCountdown() {
 
   if (timeLeft.isFriday) {
     return (
-      <Dialog onOpenChange={(open) => { if (open) selectRandomGif(); }}>
+      <Dialog>
         <DialogTrigger asChild>
           <div 
             className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium cursor-pointer hover:from-amber-200 hover:to-orange-200 dark:hover:from-amber-800/50 dark:hover:to-orange-800/50 transition-all"
