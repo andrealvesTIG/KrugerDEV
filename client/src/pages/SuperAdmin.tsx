@@ -1163,7 +1163,7 @@ interface OrganizationMembership {
   createdAt: string;
 }
 
-type UserSortField = 'name' | 'email' | 'role' | 'createdAt';
+type UserSortField = 'name' | 'email' | 'role' | 'createdAt' | 'engagement';
 type SortDirection = 'asc' | 'desc';
 
 function AllUsersTab() {
@@ -1184,6 +1184,7 @@ function AllUsersTab() {
   const [verifiedFilter, setVerifiedFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
+  const [engagementFilter, setEngagementFilter] = useState<string>("all");
   const pageSize = 15;
   
   const { data: users, isLoading } = useQuery<User[]>({
@@ -1203,9 +1204,43 @@ function AllUsersTab() {
     },
   });
 
+  interface OrgSub { orgId: number; planName: string | null; planCode: string | null; status: string; }
+  const { data: orgSubscriptions } = useQuery<OrgSub[]>({
+    queryKey: ['/api/admin/organizations/subscriptions'],
+  });
+
   const getUserOrgs = (userId: string) => {
     const memberOrgIds = allOrgMembers?.filter(m => m.userId === userId).map(m => m.organizationId) ?? [];
     return allOrganizations?.filter(o => memberOrgIds.includes(o.id)) ?? [];
+  };
+
+  const getEngagementScore = (user: User) => {
+    let score = 0;
+    if (user.emailVerified) score += 25;
+    if (user.onboardingCompleted) score += 25;
+    if (user.termsAcceptedAt) score += 15;
+    const orgCount = getUserOrgs(user.id).length;
+    if (orgCount >= 1) score += 20;
+    if (orgCount >= 2) score += 5;
+    const daysSinceSignup = user.createdAt ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / 86400000) : 0;
+    if (daysSinceSignup >= 7) score += 5;
+    if (daysSinceSignup >= 30) score += 5;
+    return Math.min(score, 100);
+  };
+
+  const getEngagementLabel = (score: number): { label: string; color: string } => {
+    if (score >= 75) return { label: 'High', color: 'text-green-600 dark:text-green-400' };
+    if (score >= 40) return { label: 'Medium', color: 'text-amber-600 dark:text-amber-400' };
+    return { label: 'Low', color: 'text-muted-foreground' };
+  };
+
+  const isOnFreePlan = (userId: string) => {
+    const userOrgIds = allOrgMembers?.filter(m => m.userId === userId).map(m => m.organizationId) ?? [];
+    if (userOrgIds.length === 0) return true;
+    return userOrgIds.every(orgId => {
+      const sub = orgSubscriptions?.find(s => s.orgId === orgId);
+      return !sub || sub.planCode === 'FREE';
+    });
   };
 
   const { data: userMemberships, refetch: refetchMemberships } = useQuery<OrganizationMembership[]>({
@@ -1359,6 +1394,13 @@ function AllUsersTab() {
       if (!user.createdAt) return false;
       if (new Date(user.createdAt) > new Date(dateTo + 'T23:59:59')) return false;
     }
+    if (engagementFilter !== 'all') {
+      const score = getEngagementScore(user);
+      if (engagementFilter === 'high' && score < 75) return false;
+      if (engagementFilter === 'medium' && (score < 40 || score >= 75)) return false;
+      if (engagementFilter === 'low' && score >= 40) return false;
+      if (engagementFilter === 'conversion_ready' && (score < 65 || !isOnFreePlan(user.id))) return false;
+    }
     return true;
   });
 
@@ -1381,6 +1423,9 @@ function AllUsersTab() {
         const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         comparison = dateA - dateB;
+        break;
+      case 'engagement':
+        comparison = getEngagementScore(a) - getEngagementScore(b);
         break;
     }
     return sortDirection === 'asc' ? comparison : -comparison;
@@ -1409,7 +1454,7 @@ function AllUsersTab() {
         <CardDescription>View and manage all users across organizations</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <div className="border rounded-md p-4">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
@@ -1437,6 +1482,20 @@ function AllUsersTab() {
               <span className="text-sm text-muted-foreground">Deactivated</span>
             </div>
             <p className="text-2xl font-bold mt-1" data-testid="text-deactivated-users">{deactivatedUsers.length}</p>
+          </div>
+          <div
+            className="border rounded-md p-4 cursor-pointer hover-elevate"
+            onClick={() => { setEngagementFilter('conversion_ready'); setSortField('engagement'); setSortDirection('desc'); setCurrentPage(1); }}
+            data-testid="card-conversion-ready"
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <span className="text-sm text-muted-foreground">Conversion Ready</span>
+            </div>
+            <p className="text-2xl font-bold mt-1 text-green-600 dark:text-green-400" data-testid="text-conversion-ready">
+              {allActiveUsers.filter(u => getEngagementScore(u) >= 65 && isOnFreePlan(u.id)).length}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">High engagement, free plan</p>
           </div>
         </div>
 
@@ -1480,17 +1539,31 @@ function AllUsersTab() {
             placeholder="To"
             data-testid="input-date-to"
           />
+          <Select value={engagementFilter} onValueChange={(v) => { setEngagementFilter(v); setCurrentPage(1); }}>
+            <SelectTrigger className="w-[160px]" data-testid="select-engagement-filter">
+              <SelectValue placeholder="Engagement" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Engagement</SelectItem>
+              <SelectItem value="high">High Engagement</SelectItem>
+              <SelectItem value="medium">Medium Engagement</SelectItem>
+              <SelectItem value="low">Low Engagement</SelectItem>
+              <SelectItem value="conversion_ready">Conversion Ready</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             size="icon"
             onClick={() => {
-              const headers = ['Name', 'Email', 'System Role', 'Email Verified', 'Organizations', 'Joined'];
+              const headers = ['Name', 'Email', 'System Role', 'Email Verified', 'Organizations', 'Engagement Score', 'Plan Status', 'Joined'];
               const rows = sortedActiveUsers.map(u => [
                 `${u.firstName || ''} ${u.lastName || ''}`.trim(),
                 u.email || '',
                 u.role || 'user',
                 u.emailVerified ? 'Yes' : 'No',
                 getUserOrgs(u.id).map(o => o.name).join('; '),
+                String(getEngagementScore(u)),
+                isOnFreePlan(u.id) ? 'Free' : 'Paid',
                 u.createdAt ? format(new Date(u.createdAt), 'yyyy-MM-dd') : '',
               ]);
               downloadCsv('users.csv', headers, rows);
@@ -1542,6 +1615,18 @@ function AllUsersTab() {
               </TableHead>
               <TableHead>Organizations</TableHead>
               <TableHead>Verified</TableHead>
+              <TableHead 
+                className="cursor-pointer select-none"
+                onClick={() => handleSort('engagement')}
+                data-testid="header-sort-engagement"
+              >
+                <div className="flex items-center gap-1">
+                  Engagement
+                  {sortField === 'engagement' && (
+                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                  )}
+                </div>
+              </TableHead>
               <TableHead 
                 className="cursor-pointer select-none"
                 onClick={() => handleSort('createdAt')}
@@ -1611,6 +1696,29 @@ function AllUsersTab() {
                       No
                     </Badge>
                   )}
+                </TableCell>
+                <TableCell>
+                  {(() => {
+                    const score = getEngagementScore(user);
+                    const { label, color } = getEngagementLabel(score);
+                    const onFree = isOnFreePlan(user.id);
+                    return (
+                      <div className="flex items-center gap-2" data-testid={`engagement-${user.id}`}>
+                        <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${score >= 75 ? 'bg-green-500' : score >= 40 ? 'bg-amber-500' : 'bg-muted-foreground/40'}`}
+                            style={{ width: `${score}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-medium ${color}`}>{score}</span>
+                        {score >= 65 && onFree && (
+                          <Badge variant="outline" className="text-xs gap-1 border-green-500/50">
+                            <Zap className="h-3 w-3 text-green-500" />
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell>
                   {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}
