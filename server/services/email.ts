@@ -862,3 +862,84 @@ https://fridayreport.ai
 
   return sendEmail({ to: email, subject, text, html, cc: ["info@fridayreport.ai"] });
 }
+
+export async function sendUpgradeOfferEmail({
+  to,
+  userName,
+  customMessage,
+  senderName,
+}: {
+  to: string;
+  userName: string;
+  customMessage: string;
+  senderName: string;
+}): Promise<boolean> {
+  const subject = "Unlock More with FridayReport.AI Pro";
+  const appUrl = process.env.REPLIT_DEV_DOMAIN 
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+    : process.env.APP_URL || "https://fridayreport.ai";
+
+  const text = `
+Hi ${userName},
+
+${customMessage}
+
+Upgrade to a paid plan today and unlock:
+- Unlimited projects and portfolios
+- Advanced reporting and analytics
+- Priority support
+- Team collaboration features
+
+Visit ${appUrl} to explore our plans.
+
+Best regards,
+${senderName}
+FridayReport.AI Team
+`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">Unlock your team's full potential</p>
+  </div>
+  
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="margin-top: 0; color: #1f2937;">Hi ${userName},</h2>
+    
+    <p style="color: #374151; white-space: pre-line;">${customMessage}</p>
+    
+    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 24px 0;">
+      <h3 style="margin-top: 0; color: #1f2937; font-size: 16px;">What you get with a paid plan:</h3>
+      <ul style="color: #374151; padding-left: 20px;">
+        <li style="margin-bottom: 8px;">Unlimited projects and portfolios</li>
+        <li style="margin-bottom: 8px;">Advanced reporting and analytics</li>
+        <li style="margin-bottom: 8px;">Priority support</li>
+        <li style="margin-bottom: 8px;">Team collaboration features</li>
+      </ul>
+    </div>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${appUrl}" style="background: #f97316; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">Explore Plans</a>
+    </div>
+    
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+    
+    <p style="font-size: 13px; color: #6b7280; margin-bottom: 0;">
+      Best regards,<br>
+      <strong>${senderName}</strong><br>
+      FridayReport.AI Team
+    </p>
+  </div>
+</body>
+</html>
+`;
+
+  return sendEmail({ to, subject, text, html });
+}

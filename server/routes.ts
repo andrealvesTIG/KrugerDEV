@@ -1946,6 +1946,64 @@ export async function registerRoutes(
     }
   });
 
+  // Send upgrade offer email to users (super_admin or marketing)
+  app.post('/api/admin/send-upgrade-offer', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+      const adminUser = await storage.getUser(userId);
+      if (!adminUser || !hasAdminAccess(adminUser)) return res.status(403).json({ message: 'Admin access required' });
+
+      const { userIds, customMessage } = req.body;
+      if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ message: 'userIds array is required' });
+      }
+      if (!customMessage || typeof customMessage !== 'string' || customMessage.trim().length === 0) {
+        return res.status(400).json({ message: 'customMessage is required' });
+      }
+      if (userIds.length > 50) {
+        return res.status(400).json({ message: 'Maximum 50 users per batch' });
+      }
+
+      const { sendUpgradeOfferEmail, verifyEmailConnection } = await import("./services/email");
+      
+      const emailConfigured = await verifyEmailConnection();
+      if (!emailConfigured) {
+        return res.status(503).json({ message: 'Email service is not configured. Please set up the RESEND_API_KEY to send emails.' });
+      }
+
+      const senderName = `${adminUser.firstName || ''} ${adminUser.lastName || ''}`.trim() || 'FridayReport.AI Admin';
+
+      const sendPromises = userIds.map(async (targetId: string) => {
+        try {
+          const targetUser = await storage.getUser(targetId);
+          if (!targetUser || !targetUser.email) {
+            return { userId: targetId, email: '', success: false };
+          }
+          const userName = `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() || 'there';
+          const success = await sendUpgradeOfferEmail({
+            to: targetUser.email,
+            userName,
+            customMessage: customMessage.trim(),
+            senderName,
+          });
+          return { userId: targetId, email: targetUser.email, success };
+        } catch {
+          return { userId: targetId, email: '', success: false };
+        }
+      });
+
+      const results = await Promise.all(sendPromises);
+      const sent = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+      console.log(`Upgrade offer sent by ${adminUser.email}: ${sent} sent, ${failed} failed, targets: ${userIds.join(', ')}`);
+      res.json({ sent, failed, results });
+    } catch (err) {
+      console.error("Error sending upgrade offers:", err);
+      res.status(500).json({ message: 'Failed to send upgrade offers' });
+    }
+  });
+
   // Get organization billing info (super_admin only)
   app.get('/api/admin/organizations/:id/billing', async (req, res) => {
     try {

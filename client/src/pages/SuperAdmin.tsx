@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
@@ -1223,6 +1223,9 @@ function AllUsersTab() {
         break;
     }
   };
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
+  const [upgradeTargetUsers, setUpgradeTargetUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [upgradeMessage, setUpgradeMessage] = useState("We've noticed you're getting great value from FridayReport.AI! We'd love to help you unlock even more powerful features with one of our paid plans.");
   const pageSize = 15;
   
   const { data: users, isLoading } = useQuery<User[]>({
@@ -1304,6 +1307,35 @@ function AllUsersTab() {
       toast({ title: "Error", description: error.message || "Failed to update user role", variant: "destructive" });
     }
   });
+
+  const sendUpgradeOffer = useMutation({
+    mutationFn: async ({ userIds, customMessage }: { userIds: string[]; customMessage: string }) => {
+      const res = await apiRequest('POST', '/api/admin/send-upgrade-offer', { userIds, customMessage });
+      return res.json();
+    },
+    onSuccess: (data: { sent: number; failed: number }) => {
+      toast({ title: "Upgrade offers sent", description: `${data.sent} email${data.sent !== 1 ? 's' : ''} sent successfully${data.failed > 0 ? `, ${data.failed} failed` : ''}` });
+      setUpgradeDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to send upgrade offers", variant: "destructive" });
+    }
+  });
+
+  const openUpgradeDialog = (targetUsers: { id: string; name: string; email: string }[]) => {
+    setUpgradeTargetUsers(targetUsers);
+    setUpgradeDialogOpen(true);
+  };
+
+  const copyConversionEmails = () => {
+    const conversionUsers = allActiveUsers.filter(u => getEngagementScore(u) >= 65 && isOnFreePlan(u.id));
+    const emails = conversionUsers.map(u => u.email).filter(Boolean).join(', ');
+    navigator.clipboard.writeText(emails).then(() => {
+      toast({ title: "Copied", description: `${conversionUsers.length} email${conversionUsers.length !== 1 ? 's' : ''} copied to clipboard` });
+    }).catch(() => {
+      toast({ title: "Error", description: "Failed to copy to clipboard", variant: "destructive" });
+    });
+  };
 
   const deleteUser = useMutation({
     mutationFn: async (userId: string) => {
@@ -1547,7 +1579,9 @@ function AllUsersTab() {
             <p className="text-2xl font-bold mt-1 text-green-600 dark:text-green-400" data-testid="text-conversion-ready">
               {allActiveUsers.filter(u => getEngagementScore(u) >= 65 && isOnFreePlan(u.id)).length}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">High engagement, free plan</p>
+            <div className="flex items-center gap-1 mt-1">
+              <p className="text-xs text-muted-foreground">High engagement, free plan</p>
+            </div>
           </div>
         </div>
 
@@ -1609,6 +1643,39 @@ function AllUsersTab() {
               <SelectItem value="conversion_ready">Conversion Ready</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={copyConversionEmails}
+            data-testid="button-copy-conversion-emails"
+            title="Copy conversion-ready emails to clipboard"
+          >
+            <Copy className="h-3 w-3 mr-1" />
+            Copy Emails
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              const conversionUsers = allActiveUsers
+                .filter(u => getEngagementScore(u) >= 65 && isOnFreePlan(u.id))
+                .map(u => ({
+                  id: u.id,
+                  name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown',
+                  email: u.email || '',
+                }));
+              if (conversionUsers.length === 0) {
+                toast({ title: "No users", description: "No conversion-ready users to send offers to" });
+                return;
+              }
+              openUpgradeDialog(conversionUsers);
+            }}
+            data-testid="button-bulk-send-upgrade"
+            title="Send upgrade offer to all conversion-ready users"
+          >
+            <Send className="h-3 w-3 mr-1" />
+            Bulk Send Offer
+          </Button>
           <Button
             variant="outline"
             size="icon"
@@ -1770,8 +1837,20 @@ function AllUsersTab() {
                         </div>
                         <span className={`text-xs font-medium ${color}`}>{score}</span>
                         {score >= 65 && onFree && (
-                          <Badge variant="outline" className="text-xs gap-1 border-green-500/50">
-                            <Zap className="h-3 w-3 text-green-500" />
+                          <Badge
+                            variant="outline"
+                            className="text-xs gap-1 border-green-500/50 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openUpgradeDialog([{
+                                id: user.id,
+                                name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown',
+                                email: user.email || '',
+                              }]);
+                            }}
+                            data-testid={`button-upgrade-${user.id}`}
+                          >
+                            <Mail className="h-3 w-3 text-green-500" />
                           </Badge>
                         )}
                       </div>
@@ -1929,6 +2008,74 @@ function AllUsersTab() {
           </Collapsible>
         )}
       </CardContent>
+
+      <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+        <DialogContent data-testid="dialog-upgrade-offer" className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-green-500" />
+              Send Upgrade Offer
+            </DialogTitle>
+            <DialogDescription>
+              Send a personalized upgrade email to {upgradeTargetUsers.length === 1
+                ? upgradeTargetUsers[0].name
+                : `${upgradeTargetUsers.length} conversion-ready users`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Recipients</label>
+              <div className="border rounded-md p-3 max-h-32 overflow-y-auto bg-muted/30">
+                {upgradeTargetUsers.map(u => (
+                  <div key={u.id} className="text-sm flex items-center gap-2 py-0.5">
+                    <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="font-medium">{u.name}</span>
+                    <span className="text-muted-foreground">{u.email}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Message</label>
+              <Textarea
+                value={upgradeMessage}
+                onChange={(e) => setUpgradeMessage(e.target.value)}
+                rows={4}
+                className="resize-none"
+                data-testid="textarea-upgrade-message"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                This message will be included in the email along with plan benefits and a link to explore plans.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setUpgradeDialogOpen(false)} data-testid="button-cancel-upgrade">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => sendUpgradeOffer.mutate({
+                userIds: upgradeTargetUsers.map(u => u.id),
+                customMessage: upgradeMessage,
+              })}
+              disabled={sendUpgradeOffer.isPending || !upgradeMessage.trim()}
+              data-testid="button-confirm-upgrade"
+            >
+              {sendUpgradeOffer.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send to {upgradeTargetUsers.length} user{upgradeTargetUsers.length !== 1 ? 's' : ''}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deleteUserId} onOpenChange={(open) => !open && setDeleteUserId(null)}>
         <DialogContent data-testid="dialog-delete-user">
