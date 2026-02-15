@@ -1167,6 +1167,18 @@ interface OrganizationMembership {
 type UserSortField = 'name' | 'email' | 'role' | 'createdAt' | 'engagement';
 type SortDirection = 'asc' | 'desc';
 
+type UserColumnKey = 'name' | 'email' | 'role' | 'organizations' | 'verified' | 'engagement' | 'joined';
+const defaultUserColumns: UserColumnKey[] = ['name', 'email', 'role', 'organizations', 'engagement', 'joined'];
+const userColumnLabels: Record<UserColumnKey, string> = {
+  name: 'Name',
+  email: 'Email',
+  role: 'System Role',
+  organizations: 'Organizations',
+  verified: 'Verified',
+  engagement: 'Engagement',
+  joined: 'Joined',
+};
+
 function AllUsersTab() {
   const { user: currentUser } = useAuth();
   const isMarketing = currentUser?.role === 'marketing';
@@ -1188,6 +1200,12 @@ function AllUsersTab() {
   const [engagementFilter, setEngagementFilter] = useState<string>("all");
   const [orgFilter, setOrgFilter] = useState<string>("all");
   const [activeCard, setActiveCard] = useState<string | null>(null);
+  const [visibleUserColumns, setVisibleUserColumns] = useState<UserColumnKey[]>(defaultUserColumns);
+  const toggleUserColumn = (col: UserColumnKey) => {
+    setVisibleUserColumns(prev =>
+      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+    );
+  };
 
   const resetAllFilters = () => {
     setSearchQuery('');
@@ -1646,6 +1664,26 @@ function AllUsersTab() {
           </Select>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" data-testid="button-users-column-toggle">
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {(Object.keys(userColumnLabels) as UserColumnKey[]).map(col => (
+                <DropdownMenuCheckboxItem
+                  key={col}
+                  checked={visibleUserColumns.includes(col)}
+                  onCheckedChange={() => toggleUserColumn(col)}
+                >
+                  {userColumnLabels[col]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" data-testid="button-users-actions-menu">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
@@ -1707,164 +1745,188 @@ function AllUsersTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead 
-                className="cursor-pointer select-none"
-                onClick={() => handleSort('name')}
-                data-testid="header-sort-name"
-              >
-                <div className="flex items-center gap-1">
-                  Name
-                  {sortField === 'name' && (
-                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="cursor-pointer select-none"
-                onClick={() => handleSort('email')}
-                data-testid="header-sort-email"
-              >
-                <div className="flex items-center gap-1">
-                  Email
-                  {sortField === 'email' && (
-                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="cursor-pointer select-none"
-                onClick={() => handleSort('role')}
-                data-testid="header-sort-role"
-              >
-                <div className="flex items-center gap-1">
-                  System Role
-                  {sortField === 'role' && (
-                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead>Organizations</TableHead>
-              <TableHead>Verified</TableHead>
-              <TableHead 
-                className="cursor-pointer select-none"
-                onClick={() => handleSort('engagement')}
-                data-testid="header-sort-engagement"
-              >
-                <div className="flex items-center gap-1">
-                  Engagement
-                  {sortField === 'engagement' && (
-                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="cursor-pointer select-none"
-                onClick={() => handleSort('createdAt')}
-                data-testid="header-sort-joined"
-              >
-                <div className="flex items-center gap-1">
-                  Joined
-                  {sortField === 'createdAt' && (
-                    sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                  )}
-                </div>
-              </TableHead>
+              {visibleUserColumns.includes('name') && (
+                <TableHead 
+                  className="cursor-pointer select-none"
+                  onClick={() => handleSort('name')}
+                  data-testid="header-sort-name"
+                >
+                  <div className="flex items-center gap-1">
+                    Name
+                    {sortField === 'name' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    )}
+                  </div>
+                </TableHead>
+              )}
+              {visibleUserColumns.includes('email') && (
+                <TableHead 
+                  className="cursor-pointer select-none"
+                  onClick={() => handleSort('email')}
+                  data-testid="header-sort-email"
+                >
+                  <div className="flex items-center gap-1">
+                    Email
+                    {sortField === 'email' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    )}
+                  </div>
+                </TableHead>
+              )}
+              {visibleUserColumns.includes('role') && (
+                <TableHead 
+                  className="cursor-pointer select-none"
+                  onClick={() => handleSort('role')}
+                  data-testid="header-sort-role"
+                >
+                  <div className="flex items-center gap-1">
+                    System Role
+                    {sortField === 'role' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    )}
+                  </div>
+                </TableHead>
+              )}
+              {visibleUserColumns.includes('organizations') && <TableHead>Organizations</TableHead>}
+              {visibleUserColumns.includes('verified') && <TableHead>Verified</TableHead>}
+              {visibleUserColumns.includes('engagement') && (
+                <TableHead 
+                  className="cursor-pointer select-none"
+                  onClick={() => handleSort('engagement')}
+                  data-testid="header-sort-engagement"
+                >
+                  <div className="flex items-center gap-1">
+                    Engagement
+                    {sortField === 'engagement' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    )}
+                  </div>
+                </TableHead>
+              )}
+              {visibleUserColumns.includes('joined') && (
+                <TableHead 
+                  className="cursor-pointer select-none"
+                  onClick={() => handleSort('createdAt')}
+                  data-testid="header-sort-joined"
+                >
+                  <div className="flex items-center gap-1">
+                    Joined
+                    {sortField === 'createdAt' && (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    )}
+                  </div>
+                </TableHead>
+              )}
               <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {activeUsers?.map(user => (
               <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
-                <TableCell className="font-medium">
-                  {user.firstName} {user.lastName}
-                </TableCell>
-                <TableCell>{user.email || 'N/A'}</TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild disabled={isMarketing}>
-                      <Button variant="outline" className="w-[140px] justify-between" data-testid={`select-role-trigger-${user.id}`}>
-                        {user.role === 'super_admin' ? 'Super Admin' : user.role === 'marketing' ? 'Marketing' : 'User'}
-                        <ChevronDown className="h-4 w-4 opacity-50" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuRadioGroup value={user.role || 'user'} onValueChange={(role) => {
-                        updateUserRole.mutate({ userId: user.id, role });
-                      }}>
-                        <DropdownMenuRadioItem value="user">User</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="marketing">Marketing</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="super_admin">Super Admin</DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1 max-w-[200px]">
-                    {getUserOrgs(user.id).length > 0 ? (
-                      getUserOrgs(user.id).slice(0, 3).map(org => (
-                        <Badge key={org.id} variant="outline" className="text-xs" data-testid={`badge-user-org-${user.id}-${org.id}`}>
-                          {org.name}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">None</span>
-                    )}
-                    {getUserOrgs(user.id).length > 3 && (
-                      <Badge variant="secondary" className="text-xs">+{getUserOrgs(user.id).length - 3}</Badge>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {user.emailVerified ? (
-                    <Badge variant="secondary" className="text-xs gap-1" data-testid={`badge-verified-${user.id}`}>
-                      <CheckCircle className="h-3 w-3 text-green-500" />
-                      Yes
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs gap-1" data-testid={`badge-unverified-${user.id}`}>
-                      <XCircle className="h-3 w-3 text-muted-foreground" />
-                      No
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {(() => {
-                    const score = getEngagementScore(user);
-                    const { label, color } = getEngagementLabel(score);
-                    const onFree = isOnFreePlan(user.id);
-                    return (
-                      <div className="flex items-center gap-2" data-testid={`engagement-${user.id}`}>
-                        <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${score >= 75 ? 'bg-green-500' : score >= 40 ? 'bg-amber-500' : 'bg-muted-foreground/40'}`}
-                            style={{ width: `${score}%` }}
-                          />
-                        </div>
-                        <span className={`text-xs font-medium ${color}`}>{score}</span>
-                        {score >= 65 && onFree && (
-                          <Badge
-                            variant="outline"
-                            className="text-xs gap-1 border-green-500/50 cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openUpgradeDialog([{
-                                id: user.id,
-                                name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown',
-                                email: user.email || '',
-                              }]);
-                            }}
-                            data-testid={`button-upgrade-${user.id}`}
-                          >
-                            <Mail className="h-3 w-3 text-green-500" />
+                {visibleUserColumns.includes('name') && (
+                  <TableCell className="font-medium">
+                    {user.firstName} {user.lastName}
+                  </TableCell>
+                )}
+                {visibleUserColumns.includes('email') && (
+                  <TableCell>{user.email || 'N/A'}</TableCell>
+                )}
+                {visibleUserColumns.includes('role') && (
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild disabled={isMarketing}>
+                        <Button variant="outline" className="w-[140px] justify-between" data-testid={`select-role-trigger-${user.id}`}>
+                          {user.role === 'super_admin' ? 'Super Admin' : user.role === 'marketing' ? 'Marketing' : 'User'}
+                          <ChevronDown className="h-4 w-4 opacity-50" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuRadioGroup value={user.role || 'user'} onValueChange={(role) => {
+                          updateUserRole.mutate({ userId: user.id, role });
+                        }}>
+                          <DropdownMenuRadioItem value="user">User</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="marketing">Marketing</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="super_admin">Super Admin</DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
+                {visibleUserColumns.includes('organizations') && (
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                      {getUserOrgs(user.id).length > 0 ? (
+                        getUserOrgs(user.id).slice(0, 3).map(org => (
+                          <Badge key={org.id} variant="outline" className="text-xs" data-testid={`badge-user-org-${user.id}-${org.id}`}>
+                            {org.name}
                           </Badge>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </TableCell>
-                <TableCell>
-                  {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}
-                </TableCell>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground">None</span>
+                      )}
+                      {getUserOrgs(user.id).length > 3 && (
+                        <Badge variant="secondary" className="text-xs">+{getUserOrgs(user.id).length - 3}</Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                )}
+                {visibleUserColumns.includes('verified') && (
+                  <TableCell>
+                    {user.emailVerified ? (
+                      <Badge variant="secondary" className="text-xs gap-1" data-testid={`badge-verified-${user.id}`}>
+                        <CheckCircle className="h-3 w-3 text-green-500" />
+                        Yes
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs gap-1" data-testid={`badge-unverified-${user.id}`}>
+                        <XCircle className="h-3 w-3 text-muted-foreground" />
+                        No
+                      </Badge>
+                    )}
+                  </TableCell>
+                )}
+                {visibleUserColumns.includes('engagement') && (
+                  <TableCell>
+                    {(() => {
+                      const score = getEngagementScore(user);
+                      const { label, color } = getEngagementLabel(score);
+                      const onFree = isOnFreePlan(user.id);
+                      return (
+                        <div className="flex items-center gap-2" data-testid={`engagement-${user.id}`}>
+                          <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${score >= 75 ? 'bg-green-500' : score >= 40 ? 'bg-amber-500' : 'bg-muted-foreground/40'}`}
+                              style={{ width: `${score}%` }}
+                            />
+                          </div>
+                          <span className={`text-xs font-medium ${color}`}>{score}</span>
+                          {score >= 65 && onFree && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs gap-1 border-green-500/50 cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openUpgradeDialog([{
+                                  id: user.id,
+                                  name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown',
+                                  email: user.email || '',
+                                }]);
+                              }}
+                              data-testid={`button-upgrade-${user.id}`}
+                            >
+                              <Mail className="h-3 w-3 text-green-500" />
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </TableCell>
+                )}
+                {visibleUserColumns.includes('joined') && (
+                  <TableCell>
+                    {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}
+                  </TableCell>
+                )}
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <Button
