@@ -485,7 +485,7 @@ function OrganizationsTab() {
             <SelectContent>
               <SelectItem value="all">All Plans</SelectItem>
               <SelectItem value="no_plan">No Plan</SelectItem>
-              {[...new Set(orgSubscriptions?.map(s => s.planCode).filter(Boolean) ?? [])].map(code => {
+              {Array.from(new Set(orgSubscriptions?.map(s => s.planCode).filter(Boolean) ?? [])).map(code => {
                 const sub = orgSubscriptions?.find(s => s.planCode === code);
                 return (
                   <SelectItem key={code!} value={code!}>{sub?.planName || code}</SelectItem>
