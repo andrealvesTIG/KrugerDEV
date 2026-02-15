@@ -14,12 +14,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import type { Organization, User } from "@shared/schema";
+
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  const sanitize = (v: string) => {
+    let s = String(v ?? '');
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return s;
+  };
+  const escape = (v: string) => `"${sanitize(v).replace(/"/g, '""')}"`;
+  const csv = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 interface IndustryOption {
   id: string;
@@ -154,9 +171,9 @@ interface OrgBillingInfo {
   billingHidden: boolean;
 }
 
-type OrgColumnKey = 'name' | 'slug' | 'description' | 'owner' | 'members' | 'created';
+type OrgColumnKey = 'name' | 'slug' | 'description' | 'owner' | 'members' | 'plan' | 'created';
 
-const defaultOrgColumns: OrgColumnKey[] = ['name', 'slug', 'description', 'created'];
+const defaultOrgColumns: OrgColumnKey[] = ['name', 'slug', 'description', 'plan', 'created'];
 
 function OrganizationsTab() {
   const { user } = useAuth();
@@ -179,6 +196,7 @@ function OrganizationsTab() {
   const [visibleColumns, setVisibleColumns] = useState<OrgColumnKey[]>(defaultOrgColumns);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<string>("newest");
+  const [planFilter, setPlanFilter] = useState<string>("all");
   const pageSize = 15;
 
   const { data: organizations, isLoading } = useQuery<Organization[]>({
@@ -210,6 +228,21 @@ function OrganizationsTab() {
     enabled: user?.role === 'super_admin',
   });
 
+  interface OrgSubscription {
+    orgId: number;
+    planName: string | null;
+    planCode: string | null;
+    status: string;
+  }
+
+  const { data: orgSubscriptions } = useQuery<OrgSubscription[]>({
+    queryKey: ['/api/admin/organizations/subscriptions'],
+  });
+
+  const getOrgPlan = (orgId: number) => {
+    return orgSubscriptions?.find(s => s.orgId === orgId) ?? null;
+  };
+
   const getMemberCount = (orgId: number) => {
     return allOrgMembers?.filter(m => m.organizationId === orgId).length ?? 0;
   };
@@ -231,6 +264,16 @@ function OrganizationsTab() {
         normalizeSearch(getOwnerName(org.ownerId)).includes(q)
       );
     }
+    if (planFilter !== 'all') {
+      if (planFilter === 'no_plan') {
+        result = result.filter(org => !getOrgPlan(org.id));
+      } else {
+        result = result.filter(org => {
+          const plan = getOrgPlan(org.id);
+          return plan?.planCode === planFilter;
+        });
+      }
+    }
     const sorted = [...result];
     switch (sortBy) {
       case "newest":
@@ -250,7 +293,7 @@ function OrganizationsTab() {
         break;
     }
     return sorted;
-  }, [organizations, searchQuery, sortBy, users, allOrgMembers]);
+  }, [organizations, searchQuery, sortBy, users, allOrgMembers, planFilter, orgSubscriptions]);
 
   const totalPages = Math.max(1, Math.ceil((filteredOrganizations?.length ?? 0) / pageSize));
   const effectiveCurrentPage = Math.min(currentPage, totalPages);
@@ -271,6 +314,7 @@ function OrganizationsTab() {
     description: 'Description',
     owner: 'Owner',
     members: 'Members',
+    plan: 'Plan',
     created: 'Created',
   };
 
@@ -434,6 +478,21 @@ function OrganizationsTab() {
               <SelectItem value="members">Most Members</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setCurrentPage(1); }}>
+            <SelectTrigger className="w-[140px]" data-testid="select-plan-filter">
+              <SelectValue placeholder="Plan..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Plans</SelectItem>
+              <SelectItem value="no_plan">No Plan</SelectItem>
+              {[...new Set(orgSubscriptions?.map(s => s.planCode).filter(Boolean) ?? [])].map(code => {
+                const sub = orgSubscriptions?.find(s => s.planCode === code);
+                return (
+                  <SelectItem key={code!} value={code!}>{sub?.planName || code}</SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
           <Badge variant="secondary" className="text-xs">
             {filteredOrganizations.length} org{filteredOrganizations.length !== 1 ? 's' : ''}
           </Badge>
@@ -455,6 +514,31 @@ function OrganizationsTab() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              const headers = ['Name', 'Slug', 'Description', 'Owner', 'Members', 'Plan', 'Status', 'Created'];
+              const rows = filteredOrganizations.map(org => {
+                const plan = getOrgPlan(org.id);
+                return [
+                  org.name,
+                  org.slug,
+                  org.description || '',
+                  getOwnerName(org.ownerId),
+                  String(getMemberCount(org.id)),
+                  plan?.planName || plan?.planCode || 'No plan',
+                  plan?.status || 'N/A',
+                  org.createdAt ? format(new Date(org.createdAt), 'yyyy-MM-dd') : '',
+                ];
+              });
+              downloadCsv('organizations.csv', headers, rows);
+            }}
+            data-testid="button-export-orgs"
+            title="Export to CSV"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
           <Button onClick={() => setIsCreateOpen(true)} disabled={isMarketing} data-testid="button-create-org">
             <Plus className="h-4 w-4 mr-2" />
             Create Organization
@@ -470,6 +554,7 @@ function OrganizationsTab() {
               {visibleColumns.includes('description') && <TableHead>Description</TableHead>}
               {visibleColumns.includes('owner') && <TableHead>Owner</TableHead>}
               {visibleColumns.includes('members') && <TableHead>Members</TableHead>}
+              {visibleColumns.includes('plan') && <TableHead>Plan</TableHead>}
               {visibleColumns.includes('created') && <TableHead>Created</TableHead>}
               <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
@@ -488,6 +573,30 @@ function OrganizationsTab() {
                 {visibleColumns.includes('members') && (
                   <TableCell>
                     <Badge variant="secondary">{getMemberCount(org.id)}</Badge>
+                  </TableCell>
+                )}
+                {visibleColumns.includes('plan') && (
+                  <TableCell>
+                    {(() => {
+                      const plan = getOrgPlan(org.id);
+                      if (!plan) return <span className="text-xs text-muted-foreground">No plan</span>;
+                      return (
+                        <div className="flex items-center gap-1">
+                          <Badge
+                            variant={plan.status === 'ACTIVE' ? 'secondary' : 'outline'}
+                            className="text-xs"
+                            data-testid={`badge-plan-${org.id}`}
+                          >
+                            {plan.planName || plan.planCode}
+                          </Badge>
+                          {plan.status !== 'ACTIVE' && (
+                            <Badge variant="outline" className="text-xs text-amber-500">
+                              {plan.status}
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                 )}
                 {visibleColumns.includes('created') && (
@@ -1071,6 +1180,11 @@ function AllUsersTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<UserSortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [verifiedFilter, setVerifiedFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const pageSize = 15;
   
   const { data: users, isLoading } = useQuery<User[]>({
     queryKey: ['/api/users']
@@ -1079,6 +1193,20 @@ function AllUsersTab() {
   const { data: allOrganizations } = useQuery<Organization[]>({
     queryKey: ['/api/organizations']
   });
+
+  const { data: allOrgMembers } = useQuery<{ organizationId: number; userId: string }[]>({
+    queryKey: ['/api/admin/organization-members'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/organization-members', { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const getUserOrgs = (userId: string) => {
+    const memberOrgIds = allOrgMembers?.filter(m => m.userId === userId).map(m => m.organizationId) ?? [];
+    return allOrganizations?.filter(o => memberOrgIds.includes(o.id)) ?? [];
+  };
 
   const { data: userMemberships, refetch: refetchMemberships } = useQuery<OrganizationMembership[]>({
     queryKey: ['/api/users', editingUser?.id, 'organizations'],
@@ -1199,7 +1327,6 @@ function AllUsersTab() {
     setEditingUser(user);
   };
 
-  // Handle sort toggle
   const handleSort = (field: UserSortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -1207,24 +1334,36 @@ function AllUsersTab() {
       setSortField(field);
       setSortDirection('asc');
     }
+    setCurrentPage(1);
   };
 
   // Separate active and deactivated users
   const allActiveUsers = users?.filter(u => !u.deactivatedAt) || [];
   const deactivatedUsers = users?.filter(u => u.deactivatedAt) || [];
 
-  // Filter by search query
   const filteredUsers = allActiveUsers.filter(user => {
-    if (!searchQuery.trim()) return true;
-    const query = normalizeSearch(searchQuery);
-    const fullName = normalizeSearch(`${user.firstName || ''} ${user.lastName || ''}`);
-    const email = normalizeSearch(user.email);
-    const role = normalizeSearch(user.role || 'user');
-    return fullName.includes(query) || email.includes(query) || role.includes(query);
+    if (searchQuery.trim()) {
+      const query = normalizeSearch(searchQuery);
+      const fullName = normalizeSearch(`${user.firstName || ''} ${user.lastName || ''}`);
+      const email = normalizeSearch(user.email);
+      const role = normalizeSearch(user.role || 'user');
+      if (!fullName.includes(query) && !email.includes(query) && !role.includes(query)) return false;
+    }
+    if (verifiedFilter === 'verified' && !user.emailVerified) return false;
+    if (verifiedFilter === 'unverified' && user.emailVerified) return false;
+    if (dateFrom) {
+      if (!user.createdAt) return false;
+      if (new Date(user.createdAt) < new Date(dateFrom)) return false;
+    }
+    if (dateTo) {
+      if (!user.createdAt) return false;
+      if (new Date(user.createdAt) > new Date(dateTo + 'T23:59:59')) return false;
+    }
+    return true;
   });
 
   // Sort users
-  const activeUsers = [...filteredUsers].sort((a, b) => {
+  const sortedActiveUsers = [...filteredUsers].sort((a, b) => {
     let comparison = 0;
     switch (sortField) {
       case 'name':
@@ -1247,6 +1386,13 @@ function AllUsersTab() {
     return sortDirection === 'asc' ? comparison : -comparison;
   });
 
+  const totalUserPages = Math.max(1, Math.ceil(sortedActiveUsers.length / pageSize));
+  const effectiveUserPage = Math.min(currentPage, totalUserPages);
+  const activeUsers = useMemo(() => {
+    const start = (effectiveUserPage - 1) * pageSize;
+    return sortedActiveUsers.slice(start, start + pageSize);
+  }, [sortedActiveUsers, effectiveUserPage, pageSize]);
+
   // Get organizations the user is NOT a member of (for adding)
   const availableOrgs = allOrganizations?.filter(
     org => !userMemberships?.some(m => m.organizationId === org.id)
@@ -1263,22 +1409,97 @@ function AllUsersTab() {
         <CardDescription>View and manage all users across organizations</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="border rounded-md p-4">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Total Users</span>
+            </div>
+            <p className="text-2xl font-bold mt-1" data-testid="text-total-users">{allActiveUsers.length}</p>
+          </div>
+          <div className="border rounded-md p-4">
+            <div className="flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-amber-500" />
+              <span className="text-sm text-muted-foreground">Unverified</span>
+            </div>
+            <p className="text-2xl font-bold mt-1" data-testid="text-unverified-users">{allActiveUsers.filter(u => !u.emailVerified).length}</p>
+          </div>
+          <div className="border rounded-md p-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">No Organization</span>
+            </div>
+            <p className="text-2xl font-bold mt-1" data-testid="text-no-org-users">{allActiveUsers.filter(u => getUserOrgs(u.id).length === 0).length}</p>
+          </div>
+          <div className="border rounded-md p-4">
+            <div className="flex items-center gap-2">
+              <Archive className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Deactivated</span>
+            </div>
+            <p className="text-2xl font-bold mt-1" data-testid="text-deactivated-users">{deactivatedUsers.length}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by name, email, or role..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-9"
               data-testid="input-search-users"
             />
           </div>
-          {searchQuery && (
-            <span className="text-sm text-muted-foreground">
-              {activeUsers.length} of {allActiveUsers.length} users
-            </span>
-          )}
+          <Badge variant="secondary" className="text-xs">
+            {sortedActiveUsers.length} user{sortedActiveUsers.length !== 1 ? 's' : ''}
+          </Badge>
+          <Select value={verifiedFilter} onValueChange={(v) => { setVerifiedFilter(v); setCurrentPage(1); }}>
+            <SelectTrigger className="w-[140px]" data-testid="select-verified-filter">
+              <SelectValue placeholder="Verification" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="verified">Verified</SelectItem>
+              <SelectItem value="unverified">Unverified</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
+            className="w-[140px]"
+            placeholder="From"
+            data-testid="input-date-from"
+          />
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
+            className="w-[140px]"
+            placeholder="To"
+            data-testid="input-date-to"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              const headers = ['Name', 'Email', 'System Role', 'Email Verified', 'Organizations', 'Joined'];
+              const rows = sortedActiveUsers.map(u => [
+                `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+                u.email || '',
+                u.role || 'user',
+                u.emailVerified ? 'Yes' : 'No',
+                getUserOrgs(u.id).map(o => o.name).join('; '),
+                u.createdAt ? format(new Date(u.createdAt), 'yyyy-MM-dd') : '',
+              ]);
+              downloadCsv('users.csv', headers, rows);
+            }}
+            data-testid="button-export-users"
+            title="Export to CSV"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
         </div>
         <Table>
           <TableHeader>
@@ -1319,6 +1540,8 @@ function AllUsersTab() {
                   )}
                 </div>
               </TableHead>
+              <TableHead>Organizations</TableHead>
+              <TableHead>Verified</TableHead>
               <TableHead 
                 className="cursor-pointer select-none"
                 onClick={() => handleSort('createdAt')}
@@ -1361,6 +1584,35 @@ function AllUsersTab() {
                   </DropdownMenu>
                 </TableCell>
                 <TableCell>
+                  <div className="flex flex-wrap gap-1 max-w-[200px]">
+                    {getUserOrgs(user.id).length > 0 ? (
+                      getUserOrgs(user.id).slice(0, 3).map(org => (
+                        <Badge key={org.id} variant="outline" className="text-xs" data-testid={`badge-user-org-${user.id}-${org.id}`}>
+                          {org.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">None</span>
+                    )}
+                    {getUserOrgs(user.id).length > 3 && (
+                      <Badge variant="secondary" className="text-xs">+{getUserOrgs(user.id).length - 3}</Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {user.emailVerified ? (
+                    <Badge variant="secondary" className="text-xs gap-1" data-testid={`badge-verified-${user.id}`}>
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                      Yes
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs gap-1" data-testid={`badge-unverified-${user.id}`}>
+                      <XCircle className="h-3 w-3 text-muted-foreground" />
+                      No
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell>
                   {user.createdAt ? format(new Date(user.createdAt), 'MMM d, yyyy') : 'N/A'}
                 </TableCell>
                 <TableCell>
@@ -1401,6 +1653,52 @@ function AllUsersTab() {
         </Table>
         {activeUsers.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">No active users found.</div>
+        )}
+
+        {totalUserPages > 1 && (
+          <div className="flex items-center justify-between gap-4 mt-4 flex-wrap">
+            <span className="text-sm text-muted-foreground">
+              Page {effectiveUserPage} of {totalUserPages}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(1)}
+                disabled={effectiveUserPage <= 1}
+                data-testid="button-users-first-page"
+              >
+                First
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={effectiveUserPage <= 1}
+                data-testid="button-users-prev-page"
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalUserPages, p + 1))}
+                disabled={effectiveUserPage >= totalUserPages}
+                data-testid="button-users-next-page"
+              >
+                Next
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(totalUserPages)}
+                disabled={effectiveUserPage >= totalUserPages}
+                data-testid="button-users-last-page"
+              >
+                Last
+              </Button>
+            </div>
+          </div>
         )}
 
         {deactivatedUsers.length > 0 && (

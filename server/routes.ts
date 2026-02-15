@@ -17,7 +17,7 @@ import { AVAILABLE_DASHBOARDS, sendScheduledReport, checkAndSendDueReports, init
 import { db } from "./db";
 import { users, usageEvents, meters, taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, customDashboards, organizationMembers, organizationInvites, plans, subscriptions, billingAuditLogs, billingCycles, usageRollups, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, insertUserConsentSchema, helpTickets, insertHelpTicketSchema, systemProjectViews, timesheetEntries, taskChangeLogs, taskDependencies, notifications, reportSubscriptions, insertReportSubscriptionSchema, type Task } from "@shared/schema";
 import { magicLinkTokens, type User } from "@shared/models/auth";
-import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { eq, and, desc, asc, sql, isNotNull } from "drizzle-orm";
 import multer from "multer";
 import xml2js from "xml2js";
 import Papa from "papaparse";
@@ -1920,6 +1920,29 @@ export async function registerRoutes(
       res.json({ message: 'Organization reactivated', organization: reactivated });
     } catch (err) {
       res.status(500).json({ message: 'Failed to reactivate organization' });
+    }
+  });
+
+  app.get('/api/admin/organizations/subscriptions', async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+      const user = await storage.getUser(userId);
+      if (!user || !hasAdminAccess(user)) return res.status(403).json({ message: 'Admin access required' });
+
+      const allSubs = await db.select({
+        orgId: subscriptions.orgId,
+        planName: plans.name,
+        planCode: plans.code,
+        status: subscriptions.status,
+      }).from(subscriptions)
+        .leftJoin(plans, eq(subscriptions.planId, plans.id))
+        .where(isNotNull(subscriptions.orgId));
+
+      res.json(allSubs);
+    } catch (err) {
+      console.error("Error fetching all org subscriptions:", err);
+      res.status(500).json({ message: 'Failed to fetch subscriptions' });
     }
   });
 
