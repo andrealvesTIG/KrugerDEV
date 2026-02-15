@@ -15,8 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -1644,61 +1644,65 @@ function AllUsersTab() {
               <SelectItem value="conversion_ready">Conversion Ready</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copyConversionEmails}
-            data-testid="button-copy-conversion-emails"
-            title="Copy conversion-ready emails to clipboard"
-          >
-            <Copy className="h-3 w-3 mr-1" />
-            Copy Emails
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => {
-              const conversionUsers = allActiveUsers
-                .filter(u => getEngagementScore(u) >= 65 && isOnFreePlan(u.id))
-                .map(u => ({
-                  id: u.id,
-                  name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown',
-                  email: u.email || '',
-                }));
-              if (conversionUsers.length === 0) {
-                toast({ title: "No users", description: "No conversion-ready users to send offers to" });
-                return;
-              }
-              openUpgradeDialog(conversionUsers);
-            }}
-            data-testid="button-bulk-send-upgrade"
-            title="Send upgrade offer to all conversion-ready users"
-          >
-            <Send className="h-3 w-3 mr-1" />
-            Bulk Send Offer
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              const headers = ['Name', 'Email', 'System Role', 'Email Verified', 'Organizations', 'Engagement Score', 'Plan Status', 'Joined'];
-              const rows = sortedActiveUsers.map(u => [
-                `${u.firstName || ''} ${u.lastName || ''}`.trim(),
-                u.email || '',
-                u.role || 'user',
-                u.emailVerified ? 'Yes' : 'No',
-                getUserOrgs(u.id).map(o => o.name).join('; '),
-                String(getEngagementScore(u)),
-                isOnFreePlan(u.id) ? 'Free' : 'Paid',
-                u.createdAt ? format(new Date(u.createdAt), 'yyyy-MM-dd') : '',
-              ]);
-              downloadCsv('users.csv', headers, rows);
-            }}
-            data-testid="button-export-users"
-            title="Export to CSV"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" data-testid="button-users-actions-menu">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={copyConversionEmails}
+                data-testid="menuitem-copy-conversion-emails"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy Conversion Emails
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  const conversionUsers = allActiveUsers
+                    .filter(u => getEngagementScore(u) >= 65 && isOnFreePlan(u.id))
+                    .map(u => ({
+                      id: u.id,
+                      name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown',
+                      email: u.email || '',
+                    }));
+                  if (conversionUsers.length === 0) {
+                    toast({ title: "No users", description: "No conversion-ready users to send offers to" });
+                    return;
+                  }
+                  openUpgradeDialog(conversionUsers);
+                }}
+                data-testid="menuitem-bulk-send-upgrade"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Bulk Send Upgrade Offer
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  const headers = ['Name', 'Email', 'System Role', 'Email Verified', 'Organizations', 'Engagement Score', 'Plan Status', 'Joined'];
+                  const rows = sortedActiveUsers.map(u => [
+                    `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+                    u.email || '',
+                    u.role || 'user',
+                    u.emailVerified ? 'Yes' : 'No',
+                    getUserOrgs(u.id).map(o => o.name).join('; '),
+                    String(getEngagementScore(u)),
+                    isOnFreePlan(u.id) ? 'Free' : 'Paid',
+                    u.createdAt ? format(new Date(u.createdAt), 'yyyy-MM-dd') : '',
+                  ]);
+                  downloadCsv('users.csv', headers, rows);
+                }}
+                data-testid="menuitem-export-users"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export to CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <Table>
           <TableHeader>
