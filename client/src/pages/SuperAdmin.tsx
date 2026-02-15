@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send, MoreHorizontal } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send, MoreHorizontal, Wrench } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format } from "date-fns";
@@ -1199,6 +1199,7 @@ function AllUsersTab() {
   const [dateTo, setDateTo] = useState<string>("");
   const [engagementFilter, setEngagementFilter] = useState<string>("all");
   const [orgFilter, setOrgFilter] = useState<string>("all");
+  const [technicianFilter, setTechnicianFilter] = useState<string>("all");
   const [activeCard, setActiveCard] = useState<string | null>(null);
   const [visibleUserColumns, setVisibleUserColumns] = useState<UserColumnKey[]>(defaultUserColumns);
   const toggleUserColumn = (col: UserColumnKey) => {
@@ -1214,6 +1215,7 @@ function AllUsersTab() {
     setDateTo('');
     setEngagementFilter('all');
     setOrgFilter('all');
+    setTechnicianFilter('all');
     setSortField('name');
     setSortDirection('asc');
     setCurrentPage(1);
@@ -1324,6 +1326,19 @@ function AllUsersTab() {
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message || "Failed to update user role", variant: "destructive" });
+    }
+  });
+
+  const toggleTechnician = useMutation({
+    mutationFn: async ({ userId, isTechnician }: { userId: string; isTechnician: boolean }) => {
+      return apiRequest('PUT', `/api/users/${userId}/technician`, { isTechnician });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({ title: "Success", description: "Technician status updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to update technician status", variant: "destructive" });
     }
   });
 
@@ -1492,6 +1507,8 @@ function AllUsersTab() {
     }
     if (orgFilter === 'no_org' && getUserOrgs(user.id).length > 0) return false;
     if (orgFilter === 'has_org' && getUserOrgs(user.id).length === 0) return false;
+    if (technicianFilter === 'technician' && !user.isTechnician) return false;
+    if (technicianFilter === 'non_technician' && user.isTechnician) return false;
     return true;
   });
 
@@ -1662,6 +1679,18 @@ function AllUsersTab() {
               <SelectItem value="conversion_ready">Conversion Ready</SelectItem>
             </SelectContent>
           </Select>
+          {!isMarketing && (
+            <Select value={technicianFilter} onValueChange={(v) => { setTechnicianFilter(v); setActiveCard(null); setCurrentPage(1); }}>
+              <SelectTrigger className="w-[160px]" data-testid="select-technician-filter">
+                <SelectValue placeholder="User Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Users</SelectItem>
+                <SelectItem value="non_technician">Users Only</SelectItem>
+                <SelectItem value="technician">Technicians Only</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" data-testid="button-users-column-toggle">
@@ -1825,7 +1854,14 @@ function AllUsersTab() {
               <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
                 {visibleUserColumns.includes('name') && (
                   <TableCell className="font-medium">
-                    {user.firstName} {user.lastName}
+                    <div className="flex items-center gap-2">
+                      <span>{user.firstName} {user.lastName}</span>
+                      {user.isTechnician && (
+                        <Badge variant="secondary" className="text-xs" data-testid={`badge-technician-${user.id}`}>
+                          Tech
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                 )}
                 {visibleUserColumns.includes('email') && (
@@ -1929,6 +1965,18 @@ function AllUsersTab() {
                 )}
                 <TableCell>
                   <div className="flex items-center gap-1">
+                    {!isMarketing && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => toggleTechnician.mutate({ userId: user.id, isTechnician: !user.isTechnician })}
+                        title={user.isTechnician ? 'Remove technician flag' : 'Mark as technician'}
+                        data-testid={`button-toggle-technician-${user.id}`}
+                        className={user.isTechnician ? 'text-blue-500' : ''}
+                      >
+                        <Wrench className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

@@ -50,6 +50,9 @@ export const users = pgTable("users", {
   emailVerificationToken: varchar("email_verification_token"),
   emailVerificationExpiry: timestamp("email_verification_expiry"),
 
+  // Technician flag (managed by super admins only)
+  isTechnician: boolean("is_technician").default(false),
+
   // Terms of Service and Privacy Policy consent
   termsAcceptedAt: timestamp("terms_accepted_at"),
 

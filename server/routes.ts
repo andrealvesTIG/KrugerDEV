@@ -1268,6 +1268,36 @@ export async function registerRoutes(
     }
   });
 
+  // Toggle technician status (super admin only)
+  app.put('/api/users/:userId/technician', async (req, res) => {
+    try {
+      const currentUserId = req.session?.userId || (req.user as any)?.id;
+      const currentUser = currentUserId ? await storage.getUser(currentUserId) : null;
+      if (!currentUser || currentUser.role !== 'super_admin') {
+        return res.status(403).json({ message: 'Super admin access required' });
+      }
+
+      const { isTechnician } = req.body;
+      if (typeof isTechnician !== 'boolean') {
+        return res.status(400).json({ message: 'isTechnician must be a boolean' });
+      }
+
+      const [updated] = await db.update(users)
+        .set({ isTechnician })
+        .where(eq(users.id, req.params.userId))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      res.json(updated);
+    } catch (err) {
+      console.error('Failed to update technician status:', err);
+      res.status(500).json({ message: 'Failed to update technician status' });
+    }
+  });
+
   // Deactivate user (super admin only)
   app.put('/api/users/:userId/deactivate', async (req, res) => {
     try {
