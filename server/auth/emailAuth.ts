@@ -253,7 +253,7 @@ export async function setupAuth(app: Express) {
         console.error("Failed to send welcome email:", err);
       });
 
-      const { passwordHash: _, ...userWithoutPassword } = newUser;
+      const { passwordHash: _, emailVerificationToken: _evt, emailVerificationExpiry: _eve, ...userWithoutPassword } = newUser;
       console.log("Sending response for user:", newUser.id);
       return res.json({
         ...userWithoutPassword,
@@ -329,7 +329,7 @@ export async function setupAuth(app: Express) {
         });
       });
 
-      const { passwordHash: _, ...userWithoutPassword } = user;
+      const { passwordHash: _, emailVerificationToken: _evt, emailVerificationExpiry: _eve, ...userWithoutPassword } = user;
       console.log("Sending login response for user:", user.id);
       return res.json(userWithoutPassword);
     } catch (error) {
@@ -366,7 +366,7 @@ export async function setupAuth(app: Express) {
       if (req.session.actingAsUserId) {
         const [delegateUser] = await db.select().from(users).where(eq(users.id, req.session.actingAsUserId)).limit(1);
         if (delegateUser) {
-          const { passwordHash: _, ...delegateWithoutPassword } = delegateUser;
+          const { passwordHash: _, emailVerificationToken: _evt, emailVerificationExpiry: _eve, ...delegateWithoutPassword } = delegateUser;
           return res.json({
             ...delegateWithoutPassword,
             isActingAs: true,
@@ -384,7 +384,7 @@ export async function setupAuth(app: Express) {
         delete req.session.actingAsOrgId;
       }
 
-      const { passwordHash: _, ...userWithoutPassword } = realUser;
+      const { passwordHash: _, emailVerificationToken: _evt, emailVerificationExpiry: _eve, ...userWithoutPassword } = realUser;
       res.json(userWithoutPassword);
     } catch (error) {
       console.error("Get user error:", error);

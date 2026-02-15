@@ -902,7 +902,16 @@ async function seedDatabase() {
   }
 }
 
-// Helper to get user ID from request (supports both Replit OAuth and Email/Password auth)
+function sanitizeUser(user: any) {
+  if (!user) return user;
+  const { passwordHash, emailVerificationToken, emailVerificationExpiry, apiKey, ...safe } = user;
+  return safe;
+}
+
+function sanitizeUsers(users: any[]) {
+  return users.map(sanitizeUser);
+}
+
 function getUserIdFromRequest(req: any): string | undefined {
   // First check Replit OAuth format
   const replitUserId = req.user?.claims?.sub;
@@ -1195,10 +1204,10 @@ export async function registerRoutes(
           const memberUserIds = orgMembers.map(m => m.userId);
           const allUsers = await storage.getAllUsers();
           const orgUsers = allUsers.filter(u => memberUserIds.includes(u.id));
-          return res.json(orgUsers);
+          return res.json(sanitizeUsers(orgUsers));
         }
         const allUsers = await storage.getAllUsers();
-        return res.json(allUsers);
+        return res.json(sanitizeUsers(allUsers));
       }
       
       // Non-super-admins must specify an organization
@@ -1224,7 +1233,7 @@ export async function registerRoutes(
       const memberUserIds = orgMembers.map(m => m.userId);
       const allUsers = await storage.getAllUsers();
       const orgUsers = allUsers.filter(u => memberUserIds.includes(u.id));
-      return res.json(orgUsers);
+      return res.json(sanitizeUsers(orgUsers));
     } catch (err) {
       res.json([]);
     }
@@ -1261,7 +1270,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: 'User not found' });
       }
       
-      res.json(updated);
+      res.json(sanitizeUser(updated));
     } catch (err) {
       console.error('Failed to update user role:', err);
       res.status(500).json({ message: 'Failed to update user role' });
@@ -1291,7 +1300,7 @@ export async function registerRoutes(
         return res.status(404).json({ message: 'User not found' });
       }
 
-      res.json(updated);
+      res.json(sanitizeUser(updated));
     } catch (err) {
       console.error('Failed to update technician status:', err);
       res.status(500).json({ message: 'Failed to update technician status' });
@@ -1319,7 +1328,7 @@ export async function registerRoutes(
         })
         .where(eq(users.id, req.params.userId))
         .returning();
-      res.json(updated);
+      res.json(sanitizeUser(updated));
     } catch (err) {
       console.error('Failed to deactivate user:', err);
       res.status(500).json({ message: 'Failed to deactivate user' });
@@ -1342,7 +1351,7 @@ export async function registerRoutes(
         })
         .where(eq(users.id, req.params.userId))
         .returning();
-      res.json(updated);
+      res.json(sanitizeUser(updated));
     } catch (err) {
       console.error('Failed to reactivate user:', err);
       res.status(500).json({ message: 'Failed to reactivate user' });
@@ -1362,7 +1371,7 @@ export async function registerRoutes(
         })
         .where(eq(users.id, req.params.userId))
         .returning();
-      res.json(updated);
+      res.json(sanitizeUser(updated));
     } catch (err) {
       res.status(500).json({ message: 'Failed to update user profile' });
     }
@@ -1398,7 +1407,7 @@ export async function registerRoutes(
         .where(eq(users.id, req.params.userId))
         .returning();
       
-      res.json(updated);
+      res.json(sanitizeUser(updated));
     } catch (err) {
       console.error("Error updating avatar:", err);
       res.status(500).json({ message: 'Failed to update avatar' });
@@ -2233,11 +2242,10 @@ export async function registerRoutes(
       }
       
       const members = await storage.getOrganizationMembers(orgId);
-      // Enrich with user data
       const allUsers = await storage.getAllUsers();
       const enrichedMembers = members.map(m => ({
         ...m,
-        user: allUsers.find(u => u.id === m.userId)
+        user: sanitizeUser(allUsers.find(u => u.id === m.userId))
       }));
       res.json(enrichedMembers);
     } catch (err) {
