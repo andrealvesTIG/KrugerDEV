@@ -2255,3 +2255,88 @@ export const insertProjectRiskAssessmentSchema = createInsertSchema(projectRiskA
 });
 export type InsertProjectRiskAssessment = z.infer<typeof insertProjectRiskAssessmentSchema>;
 export type ProjectRiskAssessment = typeof projectRiskAssessments.$inferSelect;
+
+// === LEGACY RISK TABLES ===
+// These tables exist in the database but are no longer actively used.
+// Risks are now managed through the "issues" table with itemType="risk".
+// These definitions are kept for schema completeness and potential data migration.
+
+export const legacyRisks = pgTable("risks", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  probability: text("probability"),
+  impact: text("impact"),
+  status: text("status").default("Open"),
+  mitigationPlan: text("mitigation_plan"),
+  createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by"),
+  isDemo: boolean("is_demo").default(false),
+  riskNumber: text("risk_number"),
+  category: text("category"),
+  riskScore: integer("risk_score"),
+  responseStrategy: text("response_strategy"),
+  contingencyPlan: text("contingency_plan"),
+  triggerEvents: text("trigger_events"),
+  residualRisk: text("residual_risk"),
+  ownerId: varchar("owner_id"),
+  reviewerId: varchar("reviewer_id"),
+  identifiedDate: date("identified_date"),
+  targetResolutionDate: date("target_resolution_date"),
+  actualResolutionDate: date("actual_resolution_date"),
+  impactCost: numeric("impact_cost"),
+  impactSchedule: text("impact_schedule"),
+  proximity: text("proximity"),
+  notes: text("notes"),
+  itemType: text("item_type"),
+});
+
+export type LegacyRisk = typeof legacyRisks.$inferSelect;
+
+export const legacyRiskChangeLogs = pgTable("risk_change_logs", {
+  id: serial("id").primaryKey(),
+  riskId: integer("risk_id").references(() => legacyRisks.id).notNull(),
+  changedBy: varchar("changed_by"),
+  changedByName: text("changed_by_name"),
+  changedAt: timestamp("changed_at").defaultNow(),
+  changeType: text("change_type").notNull(),
+  changeSummary: text("change_summary"),
+  previousValues: text("previous_values"),
+  newValues: text("new_values"),
+});
+
+export type LegacyRiskChangeLog = typeof legacyRiskChangeLogs.$inferSelect;
+
+export const legacyRiskResourceAssignments = pgTable("risk_resource_assignments", {
+  id: serial("id").primaryKey(),
+  riskId: integer("risk_id").references(() => legacyRisks.id).notNull(),
+  resourceId: integer("resource_id").references(() => resources.id).notNull(),
+  role: text("role"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type LegacyRiskResourceAssignment = typeof legacyRiskResourceAssignments.$inferSelect;
+
+export const organizationCustomFields = pgTable("organization_custom_fields", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  fieldType: text("field_type").notNull(),
+  options: text("options").array(),
+  required: boolean("required").default(false),
+  description: text("description"),
+  displayOrder: integer("display_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertOrganizationCustomFieldSchema = createInsertSchema(organizationCustomFields).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertOrganizationCustomField = z.infer<typeof insertOrganizationCustomFieldSchema>;
+export type OrganizationCustomField = typeof organizationCustomFields.$inferSelect;
