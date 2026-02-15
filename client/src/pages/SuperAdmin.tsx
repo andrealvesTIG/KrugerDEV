@@ -1185,6 +1185,44 @@ function AllUsersTab() {
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   const [engagementFilter, setEngagementFilter] = useState<string>("all");
+  const [orgFilter, setOrgFilter] = useState<string>("all");
+  const [activeCard, setActiveCard] = useState<string | null>(null);
+
+  const resetAllFilters = () => {
+    setSearchQuery('');
+    setVerifiedFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setEngagementFilter('all');
+    setOrgFilter('all');
+    setSortField('name');
+    setSortDirection('asc');
+    setCurrentPage(1);
+    setActiveCard(null);
+  };
+
+  const handleCardClick = (card: string) => {
+    if (activeCard === card) {
+      resetAllFilters();
+      return;
+    }
+    resetAllFilters();
+    setActiveCard(card);
+    setCurrentPage(1);
+    switch (card) {
+      case 'unverified':
+        setVerifiedFilter('unverified');
+        break;
+      case 'no_org':
+        setOrgFilter('no_org');
+        break;
+      case 'conversion_ready':
+        setEngagementFilter('conversion_ready');
+        setSortField('engagement');
+        setSortDirection('desc');
+        break;
+    }
+  };
   const pageSize = 15;
   
   const { data: users, isLoading } = useQuery<User[]>({
@@ -1401,6 +1439,8 @@ function AllUsersTab() {
       if (engagementFilter === 'low' && score >= 40) return false;
       if (engagementFilter === 'conversion_ready' && (score < 65 || !isOnFreePlan(user.id))) return false;
     }
+    if (orgFilter === 'no_org' && getUserOrgs(user.id).length > 0) return false;
+    if (orgFilter === 'has_org' && getUserOrgs(user.id).length === 0) return false;
     return true;
   });
 
@@ -1455,21 +1495,33 @@ function AllUsersTab() {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          <div className="border rounded-md p-4">
+          <div
+            className={`border rounded-md p-4 cursor-pointer hover-elevate transition-colors ${activeCard === null ? 'border-primary/50 bg-primary/5' : ''}`}
+            onClick={() => resetAllFilters()}
+            data-testid="card-total-users"
+          >
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Total Users</span>
             </div>
             <p className="text-2xl font-bold mt-1" data-testid="text-total-users">{allActiveUsers.length}</p>
           </div>
-          <div className="border rounded-md p-4">
+          <div
+            className={`border rounded-md p-4 cursor-pointer hover-elevate transition-colors ${activeCard === 'unverified' ? 'border-amber-500/50 bg-amber-500/5' : ''}`}
+            onClick={() => handleCardClick('unverified')}
+            data-testid="card-unverified-users"
+          >
             <div className="flex items-center gap-2">
               <XCircle className="h-4 w-4 text-amber-500" />
               <span className="text-sm text-muted-foreground">Unverified</span>
             </div>
             <p className="text-2xl font-bold mt-1" data-testid="text-unverified-users">{allActiveUsers.filter(u => !u.emailVerified).length}</p>
           </div>
-          <div className="border rounded-md p-4">
+          <div
+            className={`border rounded-md p-4 cursor-pointer hover-elevate transition-colors ${activeCard === 'no_org' ? 'border-primary/50 bg-primary/5' : ''}`}
+            onClick={() => handleCardClick('no_org')}
+            data-testid="card-no-org-users"
+          >
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">No Organization</span>
@@ -1484,8 +1536,8 @@ function AllUsersTab() {
             <p className="text-2xl font-bold mt-1" data-testid="text-deactivated-users">{deactivatedUsers.length}</p>
           </div>
           <div
-            className="border rounded-md p-4 cursor-pointer hover-elevate"
-            onClick={() => { setEngagementFilter('conversion_ready'); setSortField('engagement'); setSortDirection('desc'); setCurrentPage(1); }}
+            className={`border rounded-md p-4 cursor-pointer hover-elevate transition-colors ${activeCard === 'conversion_ready' ? 'border-green-500/50 bg-green-500/5' : ''}`}
+            onClick={() => handleCardClick('conversion_ready')}
             data-testid="card-conversion-ready"
           >
             <div className="flex items-center gap-2">
@@ -1513,7 +1565,13 @@ function AllUsersTab() {
           <Badge variant="secondary" className="text-xs">
             {sortedActiveUsers.length} user{sortedActiveUsers.length !== 1 ? 's' : ''}
           </Badge>
-          <Select value={verifiedFilter} onValueChange={(v) => { setVerifiedFilter(v); setCurrentPage(1); }}>
+          {activeCard !== null && (
+            <Button variant="outline" size="sm" onClick={resetAllFilters} data-testid="button-clear-filters">
+              <XCircle className="h-3 w-3 mr-1" />
+              Clear filters
+            </Button>
+          )}
+          <Select value={verifiedFilter} onValueChange={(v) => { setVerifiedFilter(v); setActiveCard(null); setCurrentPage(1); }}>
             <SelectTrigger className="w-[140px]" data-testid="select-verified-filter">
               <SelectValue placeholder="Verification" />
             </SelectTrigger>
@@ -1539,7 +1597,7 @@ function AllUsersTab() {
             placeholder="To"
             data-testid="input-date-to"
           />
-          <Select value={engagementFilter} onValueChange={(v) => { setEngagementFilter(v); setCurrentPage(1); }}>
+          <Select value={engagementFilter} onValueChange={(v) => { setEngagementFilter(v); setActiveCard(null); setCurrentPage(1); }}>
             <SelectTrigger className="w-[160px]" data-testid="select-engagement-filter">
               <SelectValue placeholder="Engagement" />
             </SelectTrigger>
