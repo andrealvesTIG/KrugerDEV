@@ -127,6 +127,39 @@
 }
 
 /* Status Badges */
+.tiptap .ProseMirror {
+  min-height: 120px;
+  outline: none;
+}
+.tiptap .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  height: 0;
+}
+.tiptap .ProseMirror h2 {
+  @apply text-base font-semibold mb-1 mt-2;
+}
+.tiptap .ProseMirror h3 {
+  @apply text-sm font-semibold mb-1 mt-2;
+}
+.tiptap .ProseMirror ul {
+  @apply list-disc pl-5 my-1;
+}
+.tiptap .ProseMirror ol {
+  @apply list-decimal pl-5 my-1;
+}
+.tiptap .ProseMirror li {
+  @apply my-0.5;
+}
+.tiptap .ProseMirror a {
+  @apply text-blue-600 dark:text-blue-400 underline;
+}
+.tiptap .ProseMirror p {
+  @apply my-1;
+}
+
 .status-badge {
   @apply px-2.5 py-0.5 rounded-full text-xs font-medium border;
 }

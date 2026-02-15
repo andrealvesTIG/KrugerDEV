@@ -863,6 +863,51 @@ https://fridayreport.ai
   return sendEmail({ to: email, subject, text, html, cc: ["info@fridayreport.ai"] });
 }
 
+function sanitizeHtmlContent(html: string): string {
+  const sanitizeHtml = require('sanitize-html');
+  return sanitizeHtml(html, {
+    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'h2', 'h3', 'span'],
+    allowedAttributes: {
+      a: ['href', 'target', 'rel', 'style'],
+      span: ['style'],
+      p: ['style'],
+      h2: ['style'],
+      h3: ['style'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
+  });
+}
+
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li>/gi, '- ')
+    .replace(/<\/h[23]>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function addInlineStylesToHtml(html: string): string {
+  return html
+    .replace(/<p>/g, '<p style="color: #374151; margin: 8px 0; line-height: 1.6;">')
+    .replace(/<h2>/g, '<h2 style="color: #1f2937; font-size: 18px; font-weight: 600; margin: 16px 0 8px;">')
+    .replace(/<h3>/g, '<h3 style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 12px 0 6px;">')
+    .replace(/<ul>/g, '<ul style="color: #374151; padding-left: 20px; margin: 8px 0;">')
+    .replace(/<ol>/g, '<ol style="color: #374151; padding-left: 20px; margin: 8px 0;">')
+    .replace(/<li>/g, '<li style="margin-bottom: 6px;">')
+    .replace(/<a /g, '<a style="color: #f97316; text-decoration: underline;" ')
+    .replace(/<strong>/g, '<strong style="font-weight: 600;">')
+    .replace(/<u>/g, '<u style="text-decoration: underline;">');
+}
+
 export async function sendUpgradeOfferEmail({
   to,
   userName,
@@ -879,10 +924,14 @@ export async function sendUpgradeOfferEmail({
     ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
     : process.env.APP_URL || "https://fridayreport.ai";
 
+  const sanitized = sanitizeHtmlContent(customMessage);
+  const styledMessage = addInlineStylesToHtml(sanitized);
+  const plainMessage = htmlToPlainText(sanitized);
+
   const text = `
 Hi ${userName},
 
-${customMessage}
+${plainMessage}
 
 Upgrade to a paid plan today and unlock:
 - Unlimited projects and portfolios
@@ -913,7 +962,9 @@ FridayReport.AI Team
   <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
     <h2 style="margin-top: 0; color: #1f2937;">Hi ${userName},</h2>
     
-    <p style="color: #374151; white-space: pre-line;">${customMessage}</p>
+    <div style="margin: 16px 0;">
+      ${styledMessage}
+    </div>
     
     <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 24px 0;">
       <h3 style="margin-top: 0; color: #1f2937; font-size: 16px;">What you get with a paid plan:</h3>

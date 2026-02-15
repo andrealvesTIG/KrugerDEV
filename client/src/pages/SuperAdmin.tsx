@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -1225,7 +1226,7 @@ function AllUsersTab() {
   };
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const [upgradeTargetUsers, setUpgradeTargetUsers] = useState<{ id: string; name: string; email: string }[]>([]);
-  const [upgradeMessage, setUpgradeMessage] = useState("We've noticed you're getting great value from FridayReport.AI! We'd love to help you unlock even more powerful features with one of our paid plans.");
+  const [upgradeMessage, setUpgradeMessage] = useState("<p>We've noticed you're getting great value from FridayReport.AI! We'd love to help you unlock even more powerful features with one of our paid plans.</p>");
   const pageSize = 15;
   
   const { data: users, isLoading } = useQuery<User[]>({
@@ -2010,7 +2011,7 @@ function AllUsersTab() {
       </CardContent>
 
       <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
-        <DialogContent data-testid="dialog-upgrade-offer" className="max-w-lg">
+        <DialogContent data-testid="dialog-upgrade-offer" className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="h-5 w-5 text-green-500" />
@@ -2037,15 +2038,15 @@ function AllUsersTab() {
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Message</label>
-              <Textarea
-                value={upgradeMessage}
-                onChange={(e) => setUpgradeMessage(e.target.value)}
-                rows={4}
-                className="resize-none"
-                data-testid="textarea-upgrade-message"
-              />
+              <div className="tiptap" data-testid="editor-upgrade-message">
+                <RichTextEditor
+                  content={upgradeMessage}
+                  onChange={setUpgradeMessage}
+                  placeholder="Write your personalized upgrade message..."
+                />
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
-                This message will be included in the email along with plan benefits and a link to explore plans.
+                Use the toolbar to format your message with bold, lists, links, and more. This content will appear in the HTML email.
               </p>
             </div>
           </div>
@@ -2058,7 +2059,7 @@ function AllUsersTab() {
                 userIds: upgradeTargetUsers.map(u => u.id),
                 customMessage: upgradeMessage,
               })}
-              disabled={sendUpgradeOffer.isPending || !upgradeMessage.trim()}
+              disabled={sendUpgradeOffer.isPending || !upgradeMessage || upgradeMessage === '<p></p>' || upgradeMessage.replace(/<[^>]*>/g, '').trim().length === 0}
               data-testid="button-confirm-upgrade"
             >
               {sendUpgradeOffer.isPending ? (
