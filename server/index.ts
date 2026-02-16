@@ -73,17 +73,21 @@ async function logApiRequest(
   errorMessage: string | null
 ) {
   try {
-    // Skip logging for monitoring endpoints to avoid infinite recursion
     if (path.startsWith('/api/admin/monitoring')) {
       return;
     }
     
+    const safeUserAgent = userAgent ?? null;
+    const safeIpAddress = ipAddress ?? null;
+    const safeUserId = userId ?? null;
+    const safeOrgId = organizationId ?? null;
+    const safeError = errorMessage ?? null;
+    
     await db.execute(sql`
       INSERT INTO api_request_logs (method, path, status_code, duration, user_id, organization_id, user_agent, ip_address, error_message)
-      VALUES (${method}, ${path}, ${statusCode}, ${duration}, ${userId}, ${organizationId}, ${userAgent}, ${ipAddress}, ${errorMessage})
+      VALUES (${method}, ${path}, ${statusCode}, ${duration}, ${safeUserId}, ${safeOrgId}, ${safeUserAgent}, ${safeIpAddress}, ${safeError})
     `);
   } catch (err) {
-    // Silently fail - we don't want logging failures to affect the app
     console.error('Failed to log API request:', err);
   }
 }
