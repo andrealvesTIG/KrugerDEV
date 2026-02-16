@@ -1,4 +1,5 @@
 import { differenceInDays, parseISO, addDays, format } from "date-fns";
+import { addWorkingDays, workingDaysBetween, isWorkingDay } from "./workingDays";
 
 export type DependencyType = "finish-to-start" | "start-to-start" | "finish-to-finish" | "start-to-finish" | "FS" | "SS" | "FF" | "SF";
 
@@ -22,7 +23,7 @@ export interface CPMDependency {
 
 export interface CPMResult {
   id: number;
-  ES: number; // Earliest Start (days from project start)
+  ES: number; // Earliest Start (working days from project start)
   EF: number; // Earliest Finish
   LS: number; // Latest Start
   LF: number; // Latest Finish
@@ -59,9 +60,20 @@ function getDurationDays(task: CPMTask): number {
   if (task.startDate && task.endDate) {
     const start = parseISO(task.startDate);
     const end = parseISO(task.endDate);
-    return Math.max(0, differenceInDays(end, start) + 1);
+    return Math.max(0, workingDaysBetween(start, end));
   }
   return 1; // Default duration
+}
+
+function workingDaysFromProjectStart(projectStart: Date, targetDate: Date): number {
+  if (targetDate <= projectStart) return 0;
+  const count = workingDaysBetween(projectStart, targetDate);
+  return count > 0 ? count - 1 : 0;
+}
+
+function dateFromWorkingDayOffset(baseDate: Date, offset: number): Date {
+  if (offset === 0) return baseDate;
+  return addWorkingDays(baseDate, offset);
 }
 
 interface GraphNode {
@@ -96,7 +108,6 @@ function detectCycle(
         const cycle = detectCycle(nodes, succ.taskId, visited, recStack, path);
         if (cycle) return cycle;
       } else if (recStack.has(succ.taskId)) {
-        // Found cycle - extract the cycle portion
         const cycleStart = path.indexOf(succ.taskId);
         return path.slice(cycleStart);
       }
@@ -114,7 +125,6 @@ function topologicalSort(nodes: Map<number, GraphNode>): { sorted: number[]; cyc
   const result: number[] = [];
   const nodeIds = Array.from(nodes.keys());
 
-  // Check for cycles first
   for (const id of nodeIds) {
     if (!visited.has(id)) {
       const cycle = detectCycle(nodes, id, visited, recStack, []);
@@ -124,7 +134,6 @@ function topologicalSort(nodes: Map<number, GraphNode>): { sorted: number[]; cyc
     }
   }
 
-  // Now do actual topological sort using Kahn's algorithm
   const inDegree = new Map<number, number>();
   for (const id of nodeIds) {
     inDegree.set(id, 0);
@@ -170,7 +179,6 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     };
   }
 
-  // Filter tasks with valid dates
   const validTasks = tasks.filter(t => t.startDate && t.endDate);
   if (validTasks.length === 0) {
     return {
@@ -181,13 +189,11 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     };
   }
 
-  // Determine project start date (earliest start among all tasks)
   const projectStartDate = validTasks.reduce((min, t) => {
     const start = parseISO(t.startDate!);
     return start < min ? start : min;
   }, parseISO(validTasks[0].startDate!));
 
-  // Build dependency graph
   const nodes = new Map<number, GraphNode>();
   const taskMap = new Map<number, CPMTask>();
 
@@ -195,14 +201,13 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     taskMap.set(task.id, task);
     const duration = getDurationDays(task);
     
-    // Check if task has pinned/fixed constraint
     let isPinned = false;
     let pinnedStart: number | undefined;
     if (task.constraintType && task.constraintDate) {
       const constraintDate = parseISO(task.constraintDate);
       if (task.constraintType === "Must Start On" || task.constraintType === "Start No Earlier Than") {
         isPinned = true;
-        pinnedStart = differenceInDays(constraintDate, projectStartDate);
+        pinnedStart = workingDaysFromProjectStart(projectStartDate, constraintDate);
       }
     }
 
@@ -221,7 +226,6 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     });
   }
 
-  // Build predecessor/successor relationships
   for (const dep of dependencies) {
     const succNode = nodes.get(dep.taskId);
     const predNode = nodes.get(dep.dependsOnTaskId);
@@ -235,7 +239,6 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     }
   }
 
-  // Topological sort with cycle detection
   const { sorted, cycle } = topologicalSort(nodes);
   if (cycle) {
     return {
@@ -248,23 +251,19 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     };
   }
 
-  // Forward Pass: Calculate ES and EF
+  // Forward Pass: Calculate ES and EF (in working day units)
   for (const taskId of sorted) {
     const node = nodes.get(taskId)!;
     
-    // If pinned, use pinned start
     if (node.isPinned && node.pinnedStart !== undefined) {
       node.ES = Math.max(node.ES, node.pinnedStart);
     }
     
-    // If no predecessors, ES starts at 0 (or pinned date)
     if (node.predecessors.length === 0 && !node.isPinned) {
-      // Use task's actual start date relative to project start
       const task = taskMap.get(taskId)!;
-      node.ES = differenceInDays(parseISO(task.startDate!), projectStartDate);
+      node.ES = workingDaysFromProjectStart(projectStartDate, parseISO(task.startDate!));
     }
     
-    // Calculate from predecessors
     for (const pred of node.predecessors) {
       const predNode = nodes.get(pred.taskId);
       if (!predNode) continue;
@@ -273,21 +272,20 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
       let candidateEF: number;
 
       switch (pred.type) {
-        case "FS": // Finish-to-Start: successor starts after predecessor finishes + lag
+        case "FS":
           candidateES = predNode.EF + pred.lag;
           node.ES = Math.max(node.ES, candidateES);
           break;
-        case "SS": // Start-to-Start: successor starts after predecessor starts + lag
+        case "SS":
           candidateES = predNode.ES + pred.lag;
           node.ES = Math.max(node.ES, candidateES);
           break;
-        case "FF": // Finish-to-Finish: successor finishes after predecessor finishes + lag
+        case "FF":
           candidateEF = predNode.EF + pred.lag;
-          // EF = max(EF, pred.EF + lag), then ES = EF - duration
           const impliedEF = Math.max(node.ES + node.duration, candidateEF);
           node.ES = Math.max(node.ES, impliedEF - node.duration);
           break;
-        case "SF": // Start-to-Finish: successor finishes after predecessor starts + lag
+        case "SF":
           candidateEF = predNode.ES + pred.lag;
           const impliedEF2 = Math.max(node.ES + node.duration, candidateEF);
           node.ES = Math.max(node.ES, impliedEF2 - node.duration);
@@ -298,16 +296,14 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     node.EF = node.ES + node.duration;
   }
 
-  // Find project finish (maximum EF)
   let projectFinishDays = 0;
   const allNodes = Array.from(nodes.values());
   for (const node of allNodes) {
     projectFinishDays = Math.max(projectFinishDays, node.EF);
   }
-  const projectFinishDate = addDays(projectStartDate, projectFinishDays);
+  const projectFinishDate = dateFromWorkingDayOffset(projectStartDate, projectFinishDays > 0 ? projectFinishDays - 1 : 0);
 
-  // Backward Pass: Calculate LS and LF
-  // Initialize terminal tasks (no successors) with LF = project finish
+  // Backward Pass
   for (const node of allNodes) {
     if (node.successors.length === 0) {
       node.LF = projectFinishDays;
@@ -315,12 +311,10 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     }
   }
 
-  // Traverse in reverse topological order
   for (let i = sorted.length - 1; i >= 0; i--) {
     const taskId = sorted[i];
     const node = nodes.get(taskId)!;
 
-    // Calculate from successors
     for (const succ of node.successors) {
       const succNode = nodes.get(succ.taskId);
       if (!succNode) continue;
@@ -329,21 +323,20 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
       let candidateLS: number;
 
       switch (succ.type) {
-        case "FS": // Finish-to-Start: pred must finish before succ starts - lag
+        case "FS":
           candidateLF = succNode.LS - succ.lag;
           node.LF = Math.min(node.LF, candidateLF);
           break;
-        case "SS": // Start-to-Start: pred must start before succ starts - lag
+        case "SS":
           candidateLS = succNode.LS - succ.lag;
-          // LS = min(LS, succ.LS - lag), then LF = LS + duration
           const impliedLS = Math.min(node.LF - node.duration, candidateLS);
           node.LF = Math.min(node.LF, impliedLS + node.duration);
           break;
-        case "FF": // Finish-to-Finish: pred must finish before succ finishes - lag
+        case "FF":
           candidateLF = succNode.LF - succ.lag;
           node.LF = Math.min(node.LF, candidateLF);
           break;
-        case "SF": // Start-to-Finish: pred must start before succ finishes - lag
+        case "SF":
           candidateLS = succNode.LF - succ.lag;
           const impliedLS2 = Math.min(node.LF - node.duration, candidateLS);
           node.LF = Math.min(node.LF, impliedLS2 + node.duration);
@@ -354,7 +347,6 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     node.LS = node.LF - node.duration;
   }
 
-  // Calculate Total Float and determine critical tasks
   const FLOAT_TOLERANCE = 0.0001;
   const results = new Map<number, CPMResult>();
   const finalNodes = Array.from(nodes.values());
@@ -371,20 +363,18 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
       LF: node.LF,
       TF: node.TF,
       isCritical,
-      esDate: format(addDays(projectStartDate, node.ES), "yyyy-MM-dd"),
-      efDate: format(addDays(projectStartDate, node.EF), "yyyy-MM-dd"),
-      lsDate: format(addDays(projectStartDate, node.LS), "yyyy-MM-dd"),
-      lfDate: format(addDays(projectStartDate, node.LF), "yyyy-MM-dd"),
+      esDate: format(dateFromWorkingDayOffset(projectStartDate, node.ES), "yyyy-MM-dd"),
+      efDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? node.EF - 1 : node.EF), "yyyy-MM-dd"),
+      lsDate: format(dateFromWorkingDayOffset(projectStartDate, node.LS), "yyyy-MM-dd"),
+      lfDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? node.LF - 1 : node.LF), "yyyy-MM-dd"),
     });
   }
 
-  // Build critical path chain
   const criticalPath: number[] = [];
   const criticalNodes = Array.from(nodes.values())
     .filter(n => Math.abs(n.TF) <= FLOAT_TOLERANCE)
     .sort((a, b) => a.ES - b.ES);
 
-  // Start from earliest critical task and follow the chain
   const visited = new Set<number>();
   for (const node of criticalNodes) {
     if (!visited.has(node.id)) {

@@ -49,6 +49,7 @@ import { Switch } from "@/components/ui/switch";
 import { useTaskHistory } from "@/hooks/use-tasks";
 import { Textarea } from "@/components/ui/textarea";
 import { format, addDays, differenceInDays, parseISO, isAfter, isBefore, startOfDay, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
+import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration } from "@/lib/workingDays";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -4609,7 +4610,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPlannerEditDialog, setShowPlannerEditDialog] = useState(false);
-  const [durationInput, setDurationInput] = useState<string>("7");
+  const [durationInput, setDurationInput] = useState<string>("1");
   const [isMilestone, setIsMilestone] = useState(false);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -4658,8 +4659,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       name: "",
       description: "",
       startDate: format(new Date(), 'yyyy-MM-dd'),
-      endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
-      durationDays: 7,
+      endDate: calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
+      durationDays: 1,
       progress: 0,
       status: "Not Started",
       assignee: "",
@@ -4687,14 +4688,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   // Compute numeric duration from input (supports empty string during typing)
   const durationDays = durationInput === "" ? null : parseInt(durationInput, 10);
   
-  // Sync endDate when startDate or durationDays changes
+  // Sync endDate when startDate or durationDays changes (working days)
   useEffect(() => {
     if (startDate && durationDays !== null && !isNaN(durationDays) && durationDays >= 0) {
-      const start = parseISO(startDate);
-      // Duration 0 = milestone (end date = start date)
-      // Duration 1+ = regular task (end date = start + duration - 1)
-      const end = durationDays === 0 ? start : addDays(start, durationDays - 1);
-      form.setValue("endDate", format(end, 'yyyy-MM-dd'));
+      if (durationDays === 0) {
+        form.setValue("endDate", startDate);
+      } else {
+        const newEnd = calculateEndDateFromWorkingDays(startDate, durationDays);
+        form.setValue("endDate", newEnd);
+      }
       form.setValue("durationDays", durationDays);
     }
   }, [startDate, durationDays, form]);
@@ -4715,7 +4717,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     }
   };
   
-  // Handle end date change - recalculate duration
+  // Handle end date change - recalculate duration using working days
   const handleEndDateChange = (newEndDate: string) => {
     form.setValue("endDate", newEndDate);
     if (startDate && newEndDate) {
@@ -4723,10 +4725,9 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       const end = parseISO(newEndDate);
       const diff = differenceInDays(end, start);
       if (diff >= 0) {
-        // Duration = diff + 1 (same day = 1 day duration, not 0)
-        const newDuration = diff + 1;
-        setDurationInput(String(newDuration));
-        form.setValue("durationDays", newDuration);
+        const newDuration = calculateDurationInWorkingDays(startDate, newEndDate);
+        setDurationInput(String(Math.max(1, newDuration)));
+        form.setValue("durationDays", Math.max(1, newDuration));
       }
     }
   };
@@ -4734,8 +4735,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const openEditDialog = (task: Task) => {
     setEditingTask(task);
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
-      ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
-      : 7);
+      ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
+      : 1);
     setDurationInput(String(taskDuration));
     setIsMilestone(task.isMilestone || false);
     form.reset({
@@ -4772,17 +4773,18 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
 
   const openCreateDialog = () => {
     setEditingTask(null);
-    setDurationInput("7");
+    setDurationInput("1");
     setIsMilestone(false);
     setSelectedResourceIds([]);
     lastInitializedTaskId.current = null; // Reset to allow re-initialization
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
     form.reset({
       projectId: projectId,
       name: "",
       description: "",
-      startDate: format(new Date(), 'yyyy-MM-dd'),
-      endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
-      durationDays: 7,
+      startDate: todayStr,
+      endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+      durationDays: 1,
       progress: 0,
       status: "Not Started",
       assignee: "",
@@ -5583,11 +5585,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           hideTimeline={true}
           isReadOnly={false}
           onCreateTask={(name) => {
+            const todayStr = format(new Date(), 'yyyy-MM-dd');
             createTask.mutate({
               projectId,
               name,
-              startDate: format(new Date(), 'yyyy-MM-dd'),
-              endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+              startDate: todayStr,
+              endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+              durationDays: 1,
               status: "Not Started",
               progress: 0,
             });
@@ -5605,11 +5609,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           projectEndDate={projectEndDate}
           isReadOnly={false}
           onCreateTask={(name) => {
+            const todayStr = format(new Date(), 'yyyy-MM-dd');
             createTask.mutate({
               projectId,
               name,
-              startDate: format(new Date(), 'yyyy-MM-dd'),
-              endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+              startDate: todayStr,
+              endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+              durationDays: 1,
               status: "Not Started",
               progress: 0,
             });
@@ -6327,40 +6333,39 @@ function ProjectGanttTaskRowMeta({
       [field]: value,
     };
     
-    // Duration semantics (consistent throughout):
+    // Duration semantics (working days - excludes weekends):
     // - 0 = milestone marker (treated as same-day, end = start)
-    // - 1 = same-day task (start == end, 1 working day)
-    // - N = N-day task (end = start + N - 1)
-    // When calculating from dates: duration = end - start + 1 (minimum 1 for same-day)
+    // - 1 = single working day task (start == end if start is a weekday)
+    // - N = N working-day task (end = N working days from start)
     
     // Auto-calculate duration when start or end date changes
     if (field === 'startDate') {
       if (value && task.endDate) {
         const start = parseISO(value as string);
         const end = parseISO(task.endDate);
-        const calculatedDuration = differenceInDays(end, start) + 1;
-        if (calculatedDuration >= 1) {
-          // Valid: start <= end - recalculate duration
-          updates.durationDays = calculatedDuration;
+        if (start <= end) {
+          const calculatedDuration = calculateDurationInWorkingDays(value as string, task.endDate);
+          updates.durationDays = Math.max(1, calculatedDuration);
         } else {
-          // Invalid: start moved past end - preserve duration, adjust end date
-          // Preserve 0 (milestone) if that was the original value
           const currentDuration = task.durationDays ?? 1;
           const effectiveDuration = currentDuration === 0 ? 0 : Math.max(1, currentDuration);
-          const newEnd = effectiveDuration === 0 ? start : addDays(start, effectiveDuration - 1);
-          updates.endDate = format(newEnd, 'yyyy-MM-dd');
+          if (effectiveDuration === 0) {
+            updates.endDate = value as string;
+          } else {
+            updates.endDate = calculateEndDateFromWorkingDays(value as string, effectiveDuration);
+          }
           updates.durationDays = effectiveDuration;
         }
       } else if (value && !task.endDate) {
-        // Start date set but no end date - use existing duration if any, otherwise 1 day
         const duration = task.durationDays ?? 1;
         const effectiveDuration = duration === 0 ? 0 : Math.max(1, duration);
-        const start = parseISO(value as string);
-        const newEnd = effectiveDuration === 0 ? start : addDays(start, effectiveDuration - 1);
-        updates.endDate = format(newEnd, 'yyyy-MM-dd');
+        if (effectiveDuration === 0) {
+          updates.endDate = value as string;
+        } else {
+          updates.endDate = calculateEndDateFromWorkingDays(value as string, effectiveDuration);
+        }
         updates.durationDays = effectiveDuration;
       } else if (!value) {
-        // Start date cleared - clear all date-related fields for consistency
         updates.endDate = null;
         updates.durationDays = null;
       }
@@ -6368,44 +6373,42 @@ function ProjectGanttTaskRowMeta({
       if (value && task.startDate) {
         const start = parseISO(task.startDate);
         const end = parseISO(value as string);
-        const calculatedDuration = differenceInDays(end, start) + 1;
-        if (calculatedDuration >= 1) {
-          // Valid: end >= start - recalculate duration
-          updates.durationDays = calculatedDuration;
+        if (end >= start) {
+          const calculatedDuration = calculateDurationInWorkingDays(task.startDate, value as string);
+          updates.durationDays = Math.max(1, calculatedDuration);
         } else {
-          // Invalid: end moved before start - notify user and don't save
           toast({
             title: "Invalid date",
             description: `End date cannot be before start date (${format(start, 'MM/dd/yyyy')})`,
             variant: "destructive"
           });
-          return; // Don't save - let user pick a valid date
+          return;
         }
       } else if (value && !task.startDate) {
-        // End date set but no start date - set start = end with existing or default duration
         const duration = task.durationDays ?? 1;
         const effectiveDuration = duration === 0 ? 0 : Math.max(1, duration);
-        const end = parseISO(value as string);
-        const newStart = effectiveDuration === 0 ? end : addDays(end, -(effectiveDuration - 1));
-        updates.startDate = format(newStart, 'yyyy-MM-dd');
+        if (effectiveDuration === 0) {
+          updates.startDate = value as string;
+        } else {
+          updates.startDate = calculateStartDateFromEndAndDuration(value as string, effectiveDuration);
+        }
         updates.durationDays = effectiveDuration;
       } else if (!value) {
-        // End date cleared - clear duration, keep start date (typical UX expectation)
         updates.durationDays = null;
       }
     }
-    // Auto-calculate end date when duration changes
+    // Auto-calculate end date when duration changes (working days)
     else if (field === 'durationDays') {
-      const duration = Math.max(0, (value as number) ?? 0); // Clamp to non-negative
+      const duration = Math.max(0, (value as number) ?? 0);
       updates.durationDays = duration;
       
       if (task.startDate) {
-        const start = parseISO(task.startDate);
-        // Duration 0 = milestone (end = start), Duration 1+ = end = start + duration - 1
-        const end = duration === 0 ? start : addDays(start, duration - 1);
-        updates.endDate = format(end, 'yyyy-MM-dd');
+        if (duration === 0) {
+          updates.endDate = task.startDate;
+        } else {
+          updates.endDate = calculateEndDateFromWorkingDays(task.startDate, duration);
+        }
       }
-      // If no start date, just store the duration - it will be applied when start is set
     }
     
     // Track the change for undo/redo if callback provided (track even if oldValue is undefined/null)
@@ -6777,10 +6780,10 @@ function ProjectGanttTaskRowMeta({
                 />
               );
             case 'durationDays':
-              // Calculate duration from dates if not stored
+              // Calculate duration from dates if not stored (working days)
               const calculatedDuration = task.durationDays ?? (
                 task.startDate && task.endDate 
-                  ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
+                  ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
                   : null
               );
               return (
@@ -8805,11 +8808,13 @@ function ProjectGanttView({
 
     const targetIndex = position === 'above' ? refIndex : refIndex + 1;
 
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
     createTask.mutate({
       projectId,
       name: 'New Task',
-      startDate: format(new Date(), 'yyyy-MM-dd'),
-      endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+      startDate: todayStr,
+      endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+      durationDays: 1,
       outlineLevel: referenceTask.outlineLevel || 1,
       parentId: referenceTask.parentId || null,
       status: 'Not Started',

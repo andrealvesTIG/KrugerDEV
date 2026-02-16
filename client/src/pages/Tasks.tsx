@@ -32,6 +32,7 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, P
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from "date-fns";
+import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays } from "@/lib/workingDays";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -60,7 +61,7 @@ export default function Tasks() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [durationInput, setDurationInput] = useState<string>("7");
+  const [durationInput, setDurationInput] = useState<string>("1");
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>("project");
   const [searchQuery, setSearchQuery] = useState("");
@@ -273,8 +274,8 @@ export default function Tasks() {
       name: "",
       description: "",
       startDate: format(new Date(), 'yyyy-MM-dd'),
-      endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
-      durationDays: 7,
+      endDate: calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
+      durationDays: 1,
       progress: 0,
       status: "Not Started",
       assignee: "",
@@ -289,9 +290,12 @@ export default function Tasks() {
   
   const recalculateEndDate = (newStartDate: string, newDuration: number | null) => {
     if (newStartDate && newDuration !== null && newDuration >= 0) {
-      const start = parseISO(newStartDate);
-      const end = newDuration === 0 ? start : addDays(start, newDuration - 1);
-      form.setValue("endDate", format(end, 'yyyy-MM-dd'), { shouldDirty: true, shouldValidate: true });
+      if (newDuration === 0) {
+        form.setValue("endDate", newStartDate, { shouldDirty: true, shouldValidate: true });
+      } else {
+        const newEnd = calculateEndDateFromWorkingDays(newStartDate, newDuration);
+        form.setValue("endDate", newEnd, { shouldDirty: true, shouldValidate: true });
+      }
       form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
     }
   };
@@ -309,8 +313,8 @@ export default function Tasks() {
   const openEditDialog = (task: Task) => {
     setEditingTask(task);
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
-      ? differenceInDays(parseISO(task.endDate), parseISO(task.startDate)) + 1 
-      : 7);
+      ? calculateDurationInWorkingDays(task.startDate, task.endDate) 
+      : 1);
     setDurationInput(String(taskDuration));
     form.reset({
       projectId: task.projectId,
@@ -331,16 +335,17 @@ export default function Tasks() {
 
   const openCreateDialog = () => {
     setEditingTask(null);
-    setDurationInput("7");
+    setDurationInput("1");
     setSelectedResourceIds([]);
     lastInitializedTaskId.current = null; // Reset to allow re-initialization
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
     form.reset({
       projectId: projects && projects.length > 0 ? projects[0].id : undefined as any,
       name: "",
       description: "",
-      startDate: format(new Date(), 'yyyy-MM-dd'),
-      endDate: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
-      durationDays: 7,
+      startDate: todayStr,
+      endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+      durationDays: 1,
       progress: 0,
       status: "Not Started",
       assignee: "",
