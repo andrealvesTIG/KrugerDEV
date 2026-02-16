@@ -28,6 +28,7 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import OpenAI from "openai";
+import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr } from "./lib/workingDays";
 
 const ENCRYPTION_KEY = process.env.SESSION_SECRET || 'fridayreport-default-encryption-key-32ch';
 function encryptApiKey(plaintext: string): string {
@@ -9176,14 +9177,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
-      // Calculate endDate from duration if provided and startDate is available
       if (input.durationDays !== undefined) {
         const startDate = input.startDate || previousTask.startDate;
         if (startDate) {
-          const start = new Date(startDate);
-          const endDate = new Date(start);
-          endDate.setDate(endDate.getDate() + input.durationDays - 1);
-          input.endDate = endDate.toISOString().split('T')[0];
+          const start = new Date(startDate + 'T00:00:00');
+          const end = calculateEndDate(start, input.durationDays);
+          input.endDate = formatDateStr(end);
         }
       }
       
@@ -9230,7 +9229,16 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         await recalculateProjectWBS(updated.projectId);
       }
       
-      res.json(updated);
+      const datesChanged = (input.startDate !== undefined && input.startDate !== previousTask.startDate) ||
+                           (input.endDate !== undefined && input.endDate !== previousTask.endDate) ||
+                           (input.durationDays !== undefined && input.durationDays !== previousTask.durationDays);
+      
+      let propagatedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
+      if (datesChanged && updated.projectId) {
+        propagatedTasks = await propagateScheduleForProject(updated.projectId);
+      }
+      
+      res.json({ ...updated, propagatedTasks });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: "Error updating task" });
@@ -9388,71 +9396,178 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  async function propagateScheduleForProject(projectId: number): Promise<{ taskId: number; newStartDate: string; newEndDate: string }[]> {
+    const allTasks = await storage.getTasksByProject(projectId);
+    const dependencies = await storage.getProjectDependencies(projectId);
+    if (dependencies.length === 0) return [];
+
+    const taskMap = new Map(allTasks.map(t => [t.id, { ...t }]));
+    const adjustedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
+    const allTaskIds = new Set(allTasks.map(t => t.id));
+
+    const predecessorDeps = new Map<number, typeof dependencies>();
+    for (const dep of dependencies) {
+      if (!allTaskIds.has(dep.taskId) || !allTaskIds.has(dep.dependsOnTaskId)) continue;
+      if (!predecessorDeps.has(dep.taskId)) {
+        predecessorDeps.set(dep.taskId, []);
+      }
+      predecessorDeps.get(dep.taskId)!.push(dep);
+    }
+
+    const successorIds = new Map<number, Set<number>>();
+    for (const dep of dependencies) {
+      if (!allTaskIds.has(dep.taskId) || !allTaskIds.has(dep.dependsOnTaskId)) continue;
+      if (!successorIds.has(dep.dependsOnTaskId)) {
+        successorIds.set(dep.dependsOnTaskId, new Set());
+      }
+      successorIds.get(dep.dependsOnTaskId)!.add(dep.taskId);
+    }
+
+    function normalizeDependencyType(depType: string | null): string {
+      return (depType || 'finish-to-start').toLowerCase().replace(/[\s_-]/g, '');
+    }
+
+    function getConstraintFromDep(dep: typeof dependencies[0]): { requiredStart: Date | null; requiredEnd: Date | null } {
+      const pred = taskMap.get(dep.dependsOnTaskId);
+      if (!pred) return { requiredStart: null, requiredEnd: null };
+
+      const predStart = pred.startDate ? new Date(pred.startDate + 'T00:00:00') : null;
+      const predEnd = pred.endDate ? new Date(pred.endDate + 'T00:00:00') : null;
+      const lag = dep.lagDays || 0;
+      const dtype = normalizeDependencyType(dep.dependencyType);
+
+      if (dtype === 'finishtostart' || dtype === 'fs') {
+        if (!predEnd) return { requiredStart: null, requiredEnd: null };
+        const base = nextWorkingDay(predEnd);
+        const adjusted = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        return { requiredStart: adjusted, requiredEnd: null };
+      }
+      if (dtype === 'starttostart' || dtype === 'ss') {
+        if (!predStart) return { requiredStart: null, requiredEnd: null };
+        const base = ensureWorkingDay(new Date(predStart));
+        const adjusted = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        return { requiredStart: adjusted, requiredEnd: null };
+      }
+      if (dtype === 'finishtofinish' || dtype === 'ff') {
+        if (!predEnd) return { requiredStart: null, requiredEnd: null };
+        const base = ensureWorkingDay(new Date(predEnd));
+        const adjusted = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        return { requiredStart: null, requiredEnd: adjusted };
+      }
+      if (dtype === 'starttofinish' || dtype === 'sf') {
+        if (!predStart) return { requiredStart: null, requiredEnd: null };
+        const base = ensureWorkingDay(new Date(predStart));
+        const adjusted = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        return { requiredStart: null, requiredEnd: adjusted };
+      }
+      return { requiredStart: null, requiredEnd: null };
+    }
+
+    const inDegree = new Map<number, number>();
+    for (const id of allTaskIds) inDegree.set(id, 0);
+    for (const dep of dependencies) {
+      if (allTaskIds.has(dep.taskId) && allTaskIds.has(dep.dependsOnTaskId)) {
+        inDegree.set(dep.taskId, (inDegree.get(dep.taskId) || 0) + 1);
+      }
+    }
+
+    const topoOrder: number[] = [];
+    const queue: number[] = [];
+    const tempDegree = new Map(inDegree);
+    for (const [id, deg] of tempDegree) {
+      if (deg === 0) queue.push(id);
+    }
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      topoOrder.push(id);
+      const succs = successorIds.get(id);
+      if (succs) {
+        for (const succId of succs) {
+          const d = (tempDegree.get(succId) || 1) - 1;
+          tempDegree.set(succId, d);
+          if (d === 0) queue.push(succId);
+        }
+      }
+    }
+
+    for (const taskId of topoOrder) {
+      const deps = predecessorDeps.get(taskId);
+      if (!deps || deps.length === 0) continue;
+
+      const successor = taskMap.get(taskId);
+      if (!successor) continue;
+
+      let maxRequiredStart: Date | null = null;
+      let maxRequiredEnd: Date | null = null;
+
+      for (const dep of deps) {
+        const { requiredStart, requiredEnd } = getConstraintFromDep(dep);
+        if (requiredStart && (!maxRequiredStart || requiredStart > maxRequiredStart)) {
+          maxRequiredStart = requiredStart;
+        }
+        if (requiredEnd && (!maxRequiredEnd || requiredEnd > maxRequiredEnd)) {
+          maxRequiredEnd = requiredEnd;
+        }
+      }
+
+      const currentStart = successor.startDate ? new Date(successor.startDate + 'T00:00:00') : null;
+      const currentEnd = successor.endDate ? new Date(successor.endDate + 'T00:00:00') : null;
+      const duration = successor.durationDays || (currentStart && currentEnd ? calculateDuration(currentStart, currentEnd) : 1);
+
+      let newStart: Date | null = null;
+      let newEnd: Date | null = null;
+
+      if (maxRequiredStart) {
+        if (!currentStart || currentStart < maxRequiredStart) {
+          newStart = maxRequiredStart;
+          newEnd = calculateEndDate(newStart, duration);
+        }
+      }
+
+      if (maxRequiredEnd) {
+        const effectiveEnd = newEnd || currentEnd;
+        if (!effectiveEnd || effectiveEnd < maxRequiredEnd) {
+          newEnd = maxRequiredEnd;
+          const effectiveStart = newStart || currentStart;
+          if (effectiveStart) {
+            newStart = effectiveStart;
+          } else {
+            newStart = addWorkingDays(newEnd, -(duration - 1));
+            newStart = ensureWorkingDay(newStart);
+          }
+        }
+      }
+
+      if (newStart && newEnd) {
+        if (newStart > newEnd) {
+          newEnd = calculateEndDate(newStart, duration);
+        }
+
+        const newStartStr = formatDateStr(newStart);
+        const newEndStr = formatDateStr(newEnd);
+
+        if (newStartStr !== successor.startDate || newEndStr !== successor.endDate) {
+          await storage.updateTask(taskId, { startDate: newStartStr, endDate: newEndStr });
+          const updated = { ...successor, startDate: newStartStr, endDate: newEndStr };
+          taskMap.set(taskId, updated);
+          adjustedTasks.push({ taskId, newStartDate: newStartStr, newEndDate: newEndStr });
+        }
+      }
+    }
+
+    return adjustedTasks;
+  }
+
   // Recalculate schedule - enforce all dependency date constraints
   app.post('/api/projects/:projectId/recalculate-schedule', async (req, res) => {
     try {
       const projectId = Number(req.params.projectId);
-      const tasks = await storage.getTasksByProject(projectId);
-      const dependencies = await storage.getProjectDependencies(projectId);
-      
-      // Build a map of task ID to task for quick lookup
-      const taskMap = new Map(tasks.map(t => [t.id, t]));
-      
-      // Track which tasks were adjusted
-      const adjustedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
-      
-      // Process dependencies in order (topological sort would be ideal, but simple iteration works for most cases)
-      // We may need multiple passes to handle chains of dependencies
-      let changesInPass = true;
-      let passCount = 0;
-      const maxPasses = 10; // Prevent infinite loops
-      
-      while (changesInPass && passCount < maxPasses) {
-        changesInPass = false;
-        passCount++;
-        
-        for (const dep of dependencies) {
-          const predecessorTask = taskMap.get(dep.dependsOnTaskId);
-          const dependentTask = taskMap.get(dep.taskId);
-          
-          if (!predecessorTask?.endDate || !dependentTask) continue;
-          
-          // Calculate the required start date (predecessor end + 1 day + lag)
-          const predecessorEnd = new Date(predecessorTask.endDate);
-          const requiredStart = new Date(predecessorEnd);
-          requiredStart.setDate(requiredStart.getDate() + 1 + (dep.lagDays || 0));
-          
-          const currentStart = dependentTask.startDate ? new Date(dependentTask.startDate) : null;
-          
-          // If current start is before required start, adjust it
-          if (!currentStart || currentStart < requiredStart) {
-            const currentEnd = dependentTask.endDate ? new Date(dependentTask.endDate) : null;
-            const duration = currentStart && currentEnd ? 
-              Math.ceil((currentEnd.getTime() - currentStart.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-            
-            const newStartDate = requiredStart.toISOString().split('T')[0];
-            const newEnd = new Date(requiredStart);
-            newEnd.setDate(newEnd.getDate() + duration);
-            const newEndDate = newEnd.toISOString().split('T')[0];
-            
-            // Update in database
-            await storage.updateTask(dep.taskId, { startDate: newStartDate, endDate: newEndDate });
-            
-            // Update in our local map for chain propagation
-            const updatedTask = { ...dependentTask, startDate: newStartDate, endDate: newEndDate };
-            taskMap.set(dep.taskId, updatedTask);
-            
-            adjustedTasks.push({ taskId: dep.taskId, newStartDate, newEndDate });
-            changesInPass = true;
-          }
-        }
-      }
+      const adjustedTasks = await propagateScheduleForProject(projectId);
       
       res.json({ 
         success: true, 
         adjustedCount: adjustedTasks.length,
-        adjustedTasks,
-        passCount 
+        adjustedTasks
       });
     } catch (err) {
       console.error("Error recalculating schedule:", err);
