@@ -9518,20 +9518,15 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       let newEnd: Date | null = null;
 
       if (maxRequiredStart) {
-        if (!currentStart || currentStart < maxRequiredStart) {
-          newStart = maxRequiredStart;
-          newEnd = calculateEndDate(newStart, duration);
-        }
+        newStart = maxRequiredStart;
+        newEnd = calculateEndDate(newStart, duration);
       }
 
       if (maxRequiredEnd) {
         const effectiveEnd = newEnd || currentEnd;
-        if (!effectiveEnd || effectiveEnd < maxRequiredEnd) {
+        if (!effectiveEnd || effectiveEnd.getTime() !== maxRequiredEnd.getTime()) {
           newEnd = maxRequiredEnd;
-          const effectiveStart = newStart || currentStart;
-          if (effectiveStart) {
-            newStart = effectiveStart;
-          } else {
+          if (!newStart) {
             newStart = addWorkingDays(newEnd, -(duration - 1));
             newStart = ensureWorkingDay(newStart);
           }
