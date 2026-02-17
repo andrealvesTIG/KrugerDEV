@@ -152,9 +152,10 @@ interface TaskRowProps {
   inputRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
   isDateInClosedPeriod: (date: Date) => boolean;
   getClosedPeriodName: (date: Date) => string | null;
+  taskColumnWidth?: number;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName }: TaskRowProps) {
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360 }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
   const isRowOvertime = rowTotal > 40;
   
@@ -167,7 +168,7 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
       transition={{ duration: 0.2, delay: index * 0.02 }}
       className="border-t border-border/50 hover:bg-muted/20 transition-colors group"
     >
-      <td className={`p-3 ${indented ? 'pl-10' : ''} w-[280px] min-w-[280px] max-w-[280px] align-top`}>
+      <td className={`p-3 ${indented ? 'pl-10' : ''} align-top`} style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}>
         <div className="flex items-start gap-2 w-full overflow-hidden">
           <ListTodo className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
           <div className="flex flex-col gap-0.5 min-w-0 flex-1">
@@ -342,9 +343,10 @@ const MAX_UNDO_HISTORY = 20;
 function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName }: TimesheetGridProps) {
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
-  const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<number> | null>(null);
   const [selectedCell, setSelectedCell] = useState<{ taskId: number; dateKey: string } | null>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const tableContainerRef = useRef<HTMLDivElement | null>(null);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Undo history
@@ -374,6 +376,14 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
       isUndoingRef.current = false;
     }, 100);
   }, [undoHistory, setGridData, setHasChanges]);
+
+  // Initialize collapsed projects to all collapsed by default
+  useEffect(() => {
+    if (collapsedProjects === null && groupByProject && assignedTasks.length > 0) {
+      const allProjectIds = new Set(assignedTasks.map(item => item.project.id));
+      setCollapsedProjects(allProjectIds);
+    }
+  }, [assignedTasks, groupByProject, collapsedProjects]);
 
   // Auto-save after 3 seconds of inactivity
   useEffect(() => {
@@ -504,7 +514,16 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     setSelectedCell({ taskId, dateKey });
   };
 
-  const [taskColumnWidth, setTaskColumnWidth] = useState(280);
+  const TASK_COL_WIDTH_KEY = "timesheet_task_column_width";
+  const DEFAULT_TASK_COL_WIDTH = 360;
+  const [taskColumnWidth, setTaskColumnWidth] = useState(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(TASK_COL_WIDTH_KEY) : null;
+      return saved ? Math.max(150, Math.min(800, Number(saved))) : DEFAULT_TASK_COL_WIDTH;
+    } catch {
+      return DEFAULT_TASK_COL_WIDTH;
+    }
+  });
   const isResizing = useRef(false);
 
   const startResizing = (e: React.MouseEvent) => {
@@ -512,6 +531,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", stopResizing);
     document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
     e.preventDefault();
   };
 
@@ -528,7 +548,15 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", stopResizing);
     document.body.style.cursor = "";
+    document.body.style.userSelect = "";
   };
+
+  // Persist task column width to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(TASK_COL_WIDTH_KEY, String(taskColumnWidth));
+    } catch {}
+  }, [taskColumnWidth]);
 
   // Sync grid data from server entries
   useEffect(() => {
@@ -687,7 +715,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
   const toggleProjectCollapse = (projectId: number) => {
     setCollapsedProjects(prev => {
-      const next = new Set(prev);
+      const next = new Set(prev || []);
       if (next.has(projectId)) {
         next.delete(projectId);
       } else {
@@ -758,10 +786,10 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
   return (
     <div className="space-y-4">
-      <div className="bg-card rounded-xl border border-border overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-muted/30">
+      <div ref={tableContainerRef} className="bg-card rounded-xl border border-border overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead className="sticky top-0 z-20 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.1)]" style={{ backgroundColor: 'hsl(var(--card))' }}>
+            <tr style={{ backgroundColor: 'hsl(var(--muted) / 0.3)' }}>
               <th 
                 className="text-left p-4 font-medium text-muted-foreground relative group" 
                 style={{ width: taskColumnWidth, minWidth: taskColumnWidth }}
@@ -853,7 +881,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
           <tbody>
             {groupByProject ? (
               groupedTasks.map((group, groupIndex) => {
-                const isCollapsed = collapsedProjects.has(group.project.id);
+                const isCollapsed = collapsedProjects?.has(group.project.id) ?? true;
                 const projectTotal = getProjectTotal(group.project.id);
                 
                 return (
@@ -917,6 +945,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             inputRefs={inputRefs}
                             isDateInClosedPeriod={isDateInClosedPeriod}
                             getClosedPeriodName={getClosedPeriodName}
+                            taskColumnWidth={taskColumnWidth}
                           />
                         );
                       })}
@@ -944,6 +973,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   inputRefs={inputRefs}
                   isDateInClosedPeriod={isDateInClosedPeriod}
                   getClosedPeriodName={getClosedPeriodName}
+                  taskColumnWidth={taskColumnWidth}
                 />
               ))
             )}
