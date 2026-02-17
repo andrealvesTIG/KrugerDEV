@@ -329,6 +329,7 @@ interface TimesheetGridProps {
   onAutoSave: () => void;
   isDateInClosedPeriod: (date: Date) => boolean;
   getClosedPeriodName: (date: Date) => string | null;
+  isFullscreen?: boolean;
 }
 
 const QUICK_TIME_PRESETS = [
@@ -340,7 +341,7 @@ const QUICK_TIME_PRESETS = [
 
 const MAX_UNDO_HISTORY = 20;
 
-function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName }: TimesheetGridProps) {
+function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName, isFullscreen = false }: TimesheetGridProps) {
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number> | null>(null);
@@ -785,8 +786,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   }
 
   return (
-    <div className="space-y-4">
-      <div ref={tableContainerRef} className="bg-card rounded-xl border border-border overflow-x-auto">
+    <div className={isFullscreen ? "flex flex-col h-full" : "space-y-4"}>
+      <div ref={tableContainerRef} className={`bg-card ${isFullscreen ? 'flex-1 min-h-0 overflow-auto' : 'rounded-xl border border-border overflow-x-auto'}`}>
         <table className="w-full border-collapse">
           <thead className="sticky top-0 z-20 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.1)]" style={{ backgroundColor: 'hsl(var(--card))' }}>
             <tr style={{ backgroundColor: 'hsl(var(--muted) / 0.3)' }}>
@@ -2363,6 +2364,16 @@ export default function Timesheets() {
   const [activeTab, setActiveTab] = useState("entry");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsFullscreen(false);
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isFullscreen]);
+
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [showReminder, setShowReminder] = useState(true);
@@ -3111,28 +3122,31 @@ export default function Timesheets() {
             </Button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 min-h-0 p-4 flex flex-col">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <TimesheetGrid
-              dates={dates}
-              assignedTasks={filteredAssignedTasks}
-              entries={entries}
-              onSave={handleSave}
-              isSaving={bulkUpsert.isPending}
-              viewMode={viewMode}
-              groupByProject={!filterProjectId}
-              gridData={gridData}
-              setGridData={setGridData}
-              hasChanges={hasChanges}
-              setHasChanges={setHasChanges}
-              onAutoSave={handleAutoSave}
-              isDateInClosedPeriod={isDateInClosedPeriod}
-              getClosedPeriodName={getClosedPeriodName}
-            />
+            <div className="flex-1 min-h-0 flex flex-col">
+              <TimesheetGrid
+                dates={dates}
+                assignedTasks={filteredAssignedTasks}
+                entries={entries}
+                onSave={handleSave}
+                isSaving={bulkUpsert.isPending}
+                viewMode={viewMode}
+                groupByProject={!filterProjectId}
+                gridData={gridData}
+                setGridData={setGridData}
+                hasChanges={hasChanges}
+                setHasChanges={setHasChanges}
+                onAutoSave={handleAutoSave}
+                isDateInClosedPeriod={isDateInClosedPeriod}
+                getClosedPeriodName={getClosedPeriodName}
+                isFullscreen
+              />
+            </div>
           )}
         </div>
       </div>
