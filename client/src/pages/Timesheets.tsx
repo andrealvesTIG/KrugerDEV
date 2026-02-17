@@ -347,6 +347,9 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   const [selectedCell, setSelectedCell] = useState<{ taskId: number; dateKey: string } | null>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
+  const theadRef = useRef<HTMLTableSectionElement | null>(null);
+  const fixedHeaderRef = useRef<HTMLDivElement | null>(null);
+  const isHeaderFixedRef = useRef(false);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Undo history
@@ -384,6 +387,46 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
       setCollapsedProjects(allProjectIds);
     }
   }, [assignedTasks, groupByProject, collapsedProjects]);
+
+  // Sticky header: detect when thead leaves viewport, show fixed clone
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    const thead = theadRef.current;
+    const fixedHeader = fixedHeaderRef.current;
+    if (!container || !thead || !fixedHeader) return;
+
+    const syncFixedHeader = () => {
+      const containerRect = container.getBoundingClientRect();
+      const theadH = thead.offsetHeight;
+      const shouldFix = containerRect.top < 0 && containerRect.bottom > theadH;
+
+      if (shouldFix !== isHeaderFixedRef.current) {
+        isHeaderFixedRef.current = shouldFix;
+        fixedHeader.style.display = shouldFix ? 'block' : 'none';
+      }
+
+      if (shouldFix) {
+        fixedHeader.style.left = `${containerRect.left}px`;
+        fixedHeader.style.width = `${container.clientWidth}px`;
+        const inner = fixedHeader.querySelector('[data-header-inner]') as HTMLElement;
+        if (inner) {
+          inner.style.transform = `translateX(-${container.scrollLeft}px)`;
+          inner.style.width = `${container.scrollWidth}px`;
+        }
+      }
+    };
+
+    window.addEventListener('scroll', syncFixedHeader, { passive: true });
+    window.addEventListener('resize', syncFixedHeader, { passive: true });
+    container.addEventListener('scroll', syncFixedHeader, { passive: true });
+    syncFixedHeader();
+
+    return () => {
+      window.removeEventListener('scroll', syncFixedHeader);
+      window.removeEventListener('resize', syncFixedHeader);
+      container.removeEventListener('scroll', syncFixedHeader);
+    };
+  }, []);
 
   // Auto-save after 3 seconds of inactivity
   useEffect(() => {
@@ -786,9 +829,76 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
   return (
     <div className="space-y-4">
+      {/* Fixed header clone - shown when scrolled past original */}
+      <div
+        ref={fixedHeaderRef}
+        style={{
+          display: 'none',
+          position: 'fixed',
+          top: 0,
+          zIndex: 50,
+          overflow: 'hidden',
+          backgroundColor: 'hsl(var(--card))',
+          boxShadow: '0 2px 8px -2px rgba(0,0,0,0.15)',
+          borderBottom: '1px solid hsl(var(--border))',
+        }}
+      >
+        <table data-header-inner className="border-collapse" style={{ tableLayout: 'fixed' }}>
+          <thead>
+            <tr style={{ backgroundColor: 'hsl(var(--muted) / 0.3)' }}>
+              <th
+                className="text-left p-4 font-medium text-muted-foreground"
+                style={{ width: taskColumnWidth, minWidth: taskColumnWidth }}
+              >
+                <span>Tasks</span>
+              </th>
+              {dates.map(date => {
+                const isTodayDate = isToday(date);
+                const isWeekendDay = isWeekend(date);
+                const dayTotal = getColumnTotal(formatDateKey(date));
+                const isDayOvertime = dayTotal > 8;
+                const isPeriodClosed = isDateInClosedPeriod(date);
+                return (
+                  <th key={formatDateKey(date)} className={`p-3 text-center min-w-[90px] ${
+                    isPeriodClosed ? "bg-destructive/5" :
+                    isTodayDate ? "bg-blue-500/10" : isWeekendDay ? "bg-muted/40" : ""
+                  }`}>
+                    <div className={`text-xs font-medium ${
+                      isPeriodClosed ? "text-destructive" :
+                      isTodayDate ? "text-blue-600 dark:text-blue-400" : isWeekendDay ? "text-muted-foreground/70" : "text-muted-foreground"
+                    }`}>
+                      {format(date, "EEE")}
+                    </div>
+                    <div className={`text-lg font-semibold ${
+                      isPeriodClosed ? "text-destructive" :
+                      isTodayDate ? "text-blue-600 dark:text-blue-400" : isWeekendDay ? "text-muted-foreground" : "text-foreground"
+                    }`}>
+                      {format(date, "d")}
+                    </div>
+                    <div className={`text-xs ${
+                      isDayOvertime ? "text-amber-600 font-medium" : isTodayDate ? "text-blue-500" : "text-muted-foreground"
+                    }`}>
+                      {dayTotal}h
+                    </div>
+                  </th>
+                );
+              })}
+              <th className="p-3 text-center min-w-[80px] bg-emerald-500/5">
+                <div className="text-xs font-medium text-emerald-600">Total</div>
+                <div className={`text-lg font-bold ${
+                  getGrandTotal() > 40 ? "text-amber-600" : "text-emerald-600"
+                }`}>
+                  {getGrandTotal()}h
+                </div>
+              </th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+
       <div ref={tableContainerRef} className="bg-card rounded-xl border border-border overflow-x-auto">
         <table className="w-full border-collapse">
-          <thead className="sticky top-0 z-20 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.1)]" style={{ backgroundColor: 'hsl(var(--card))' }}>
+          <thead ref={theadRef} style={{ backgroundColor: 'hsl(var(--card))' }}>
             <tr style={{ backgroundColor: 'hsl(var(--muted) / 0.3)' }}>
               <th 
                 className="text-left p-4 font-medium text-muted-foreground relative group" 
