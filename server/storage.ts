@@ -1046,7 +1046,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createProject(project: InsertProject): Promise<Project> {
-    const [newProject] = await db.insert(projects).values(project).returning();
+    const [newProject] = await db.insert(projects).values({
+      ...project,
+      portfolioId: project.portfolioId || null,
+    }).returning();
     return newProject;
   }
 
