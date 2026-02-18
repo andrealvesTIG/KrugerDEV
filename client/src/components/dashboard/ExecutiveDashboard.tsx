@@ -135,16 +135,25 @@ export function ExecutiveDashboard() {
   const totalBudget = projects?.reduce((sum, p) => sum + Number(p.budget || 0), 0) || 0;
   const avgCompletion = projects?.length ? Math.round(projects.reduce((s, p) => s + (p.completionPercentage || 0), 0) / projects.length) : 0;
   
-  const openRisks = allRisks.filter(r => r.status === "Open" || r.status === "Identified").length;
-  const highRisks = allRisks.filter(r => r.probability === "High" || r.impact === "High").length;
+  const filteredProjectIds = new Set(projects.map(p => p.id));
+  const filteredPortfolioIds = new Set(projects.map(p => p.portfolioId).filter(Boolean));
+  const hasActiveFilters = filters.portfolioId || filters.projectId || filters.health || filters.dateRange.from || filters.dateRange.to;
+
+  const filteredRisks = hasActiveFilters ? allRisks.filter(r => filteredProjectIds.has(r.projectId)) : allRisks;
+  const openRisks = filteredRisks.filter(r => r.status === "Open" || r.status === "Identified").length;
+  const highRisks = filteredRisks.filter(r => r.probability === "High" || r.impact === "High").length;
   // Filter out risks (itemType='risk') from issues count - only count actual issues
-  const actualIssues = allIssues.filter(i => i.itemType !== 'risk');
+  const filteredIssues = hasActiveFilters ? allIssues.filter(i => filteredProjectIds.has(i.projectId)) : allIssues;
+  const actualIssues = filteredIssues.filter(i => i.itemType !== 'risk');
   const openIssues = actualIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
   const criticalIssues = actualIssues.filter(i => i.priority === "Critical" || i.priority === "High").length;
   
-  const totalIntakes = intakes?.length || 0;
-  const intakesInReview = intakes?.filter(i => i.status === "draft" || i.status === "in_progress").length || 0;
-  const approvedIntakes = intakes?.filter(i => i.status === "approved").length || 0;
+  const filteredIntakes = hasActiveFilters && filters.portfolioId
+    ? (intakes || []).filter(i => i.portfolioId === filters.portfolioId)
+    : (intakes || []);
+  const totalIntakes = filteredIntakes.length;
+  const intakesInReview = filteredIntakes.filter(i => i.status === "draft" || i.status === "in_progress").length;
+  const approvedIntakes = filteredIntakes.filter(i => i.status === "approved").length;
 
   const healthData = [
     { name: "Healthy", value: healthyProjects, color: COLORS.Green },
@@ -351,7 +360,7 @@ export function ExecutiveDashboard() {
                 <Progress value={openRisks > 0 ? Math.min((highRisks / openRisks) * 100, 100) : 0} className="h-1.5" />
                 <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
                   <span>{highRisks} high priority</span>
-                  <span>{allRisks.length} total</span>
+                  <span>{filteredRisks.length} total</span>
                 </div>
               </div>
               <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
