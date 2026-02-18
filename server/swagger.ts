@@ -542,7 +542,7 @@ const spec = {
     },
     '/user/api-key/generate': {
       post: op('User Account', 'Generate new API key', {
-        responses: { ...r200('API key generated', { type: 'object', properties: { apiKey: { type: 'string' } } }), ...authRes },
+        responses: { ...r201('API key generated', { type: 'object', properties: { apiKey: { type: 'string' } } }), ...authRes },
       }),
     },
     '/user/account': {
@@ -835,7 +835,7 @@ const spec = {
       post: op('Admin', 'Add rule to billing plan', {
         parameters: [pathId()],
         requestBody: body({ type: 'object' }),
-        responses: { ...r201('Rule added'), ...createRes },
+        responses: { ...r201('Rule created'), ...createRes },
       }),
     },
     '/admin/plans/{planId}/rules/{ruleId}': {
@@ -1047,7 +1047,7 @@ const spec = {
       post: op('Portfolios', 'Add custom project to portfolio', {
         parameters: [pathId()],
         requestBody: body({ type: 'object', properties: { projectId: { type: 'integer' } } }),
-        responses: { ...r201('Project added'), ...createRes },
+        responses: { ...r201('Project added to portfolio'), ...createRes },
       }),
     },
     '/portfolios/{id}/custom-projects/{projectId}': {
@@ -1077,7 +1077,7 @@ const spec = {
     '/portfolios/{id}/risk-assessment': {
       post: op('Portfolios', 'Run AI risk assessment for portfolio', {
         parameters: [pathId()],
-        responses: { ...r200('Assessment generated', ref('RiskAssessment')), ...createRes },
+        responses: { ...r201('Risk assessment created', ref('RiskAssessment')), ...createRes },
       }),
     },
     '/portfolios/{id}/risk-assessment/latest': {
@@ -1166,7 +1166,7 @@ const spec = {
     '/projects/{id}/risk-assessment': {
       post: op('Projects', 'Run AI risk assessment for project', {
         parameters: [pathId()],
-        responses: { ...r200('Assessment generated', ref('RiskAssessment')), ...createRes },
+        responses: { ...r201('Risk assessment created', ref('RiskAssessment')), ...createRes },
       }),
     },
     '/projects/{id}/risk-assessment/latest': {
@@ -1472,7 +1472,7 @@ const spec = {
     '/resources/invite': {
       post: op('Resources', 'Invite resource via email', {
         requestBody: body({ type: 'object', properties: { email: { type: 'string' }, organizationId: { type: 'integer' } } }),
-        responses: { ...r200('Invitation sent'), ...createRes },
+        responses: { ...r201('Invitation sent'), ...createRes },
       }),
     },
     '/resources/{id}': {
@@ -1557,7 +1557,7 @@ const spec = {
       post: op('Resources', 'Add availability entry for resource', {
         parameters: [pathId('orgId'), pathId('resourceId')],
         requestBody: body({ type: 'object', properties: { startDate: { type: 'string', format: 'date' }, endDate: { type: 'string', format: 'date' }, hoursPerWeek: { type: 'number' } } }),
-        responses: { ...r201('Availability added'), ...createRes },
+        responses: { ...r201('Availability entry created'), ...createRes },
       }),
     },
     '/organizations/{orgId}/resource-availability': {
@@ -1611,7 +1611,7 @@ const spec = {
       }),
       post: op('Timesheets', 'Create timesheet entry', {
         requestBody: body(ref('TimesheetEntry')),
-        responses: { ...r201('Entry created', ref('TimesheetEntry')), ...inputRes },
+        responses: { ...r201('Timesheet entry created', ref('TimesheetEntry')), ...inputRes },
       }),
     },
     '/timesheets/{id}': {
@@ -1628,7 +1628,7 @@ const spec = {
     '/timesheets/bulk': {
       post: op('Timesheets', 'Create/update timesheet entries in bulk', {
         requestBody: body({ type: 'object', properties: { entries: { type: 'array', items: ref('TimesheetEntry') } } }),
-        responses: { ...r200('Bulk operation complete'), ...inputRes },
+        responses: { ...r201('Timesheet entries created'), ...inputRes },
       }),
     },
     '/timesheets/current-resource': {
@@ -2054,7 +2054,7 @@ const spec = {
     '/mpp-imports/upload': {
       post: op('MPP Imports', 'Upload MPP/XML/CSV file for import', {
         requestBody: { content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' }, projectId: { type: 'integer' }, organizationId: { type: 'integer' } } } } } },
-        responses: { ...r200('File uploaded and parsed', ref('MppImport')), ...inputRes },
+        responses: { ...r201('Import created', ref('MppImport')), ...inputRes },
       }),
     },
     '/mpp-imports/{id}/convert': {
@@ -2132,7 +2132,7 @@ const spec = {
     '/ai/generate-project': {
       post: op('AI', 'Generate project structure from description', {
         requestBody: body({ type: 'object', properties: { description: { type: 'string' }, organizationId: { type: 'integer' } } }),
-        responses: { ...r200('Generated project'), ...inputRes },
+        responses: { ...r201('Project generated'), ...inputRes },
       }),
     },
     '/ai/smart-create': {
@@ -2150,7 +2150,7 @@ const spec = {
     '/ai/smart-create/execute': {
       post: op('AI', 'Execute AI smart create', {
         requestBody: body({ type: 'object', properties: { plan: { type: 'object' }, organizationId: { type: 'integer' } } }),
-        responses: { ...r200('Execution result'), ...inputRes },
+        responses: { ...r201('Entities created'), ...inputRes },
       }),
     },
     '/ai/voice-usage': {
@@ -2216,7 +2216,7 @@ const spec = {
     '/billing/enterprise-inquiry': {
       post: op('Billing', 'Submit enterprise plan inquiry', {
         requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, message: { type: 'string' } } }),
-        responses: { ...r200('Inquiry submitted'), ...inputRes },
+        responses: { ...r201('Inquiry submitted'), ...inputRes },
       }),
     },
     '/billing/payment-method': {
@@ -2228,7 +2228,7 @@ const spec = {
     '/billing/subscription/paypal': {
       post: op('Billing', 'Create PayPal subscription', {
         requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, planId: { type: 'integer' }, subscriptionId: { type: 'string' } } }),
-        responses: { ...r200('PayPal subscription created'), ...inputRes },
+        responses: { ...r201('Subscription created'), ...inputRes },
       }),
     },
     '/paypal/setup': {
@@ -2270,7 +2270,7 @@ const spec = {
     '/custom-dashboards/generate': {
       post: op('Dashboards', 'Generate dashboard with AI', {
         requestBody: body({ type: 'object', properties: { prompt: { type: 'string' }, organizationId: { type: 'integer' } } }),
-        responses: { ...r200('Dashboard generated'), ...inputRes },
+        responses: { ...r201('Dashboard generated'), ...inputRes },
       }),
     },
     '/custom-dashboards/{id}': {
@@ -2572,7 +2572,7 @@ const spec = {
     '/demo-data/generate': {
       post: op('Demo Data', 'Generate demo data for organization', {
         requestBody: body({ type: 'object', properties: { organizationId: { type: 'integer' }, industry: { type: 'string' } } }),
-        responses: { ...r200('Demo data generated'), ...inputRes },
+        responses: { ...r201('Demo data generated'), ...inputRes },
       }),
     },
     '/demo-data/{organizationId}': {

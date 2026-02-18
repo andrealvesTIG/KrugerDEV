@@ -3828,7 +3828,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'Project not found or belongs to a different organization' });
       }
       await storage.addProjectToCustomPortfolio(portfolioId, projectId, userId);
-      res.json({ success: true });
+      res.status(201).json({ success: true, portfolioId, projectId });
     } catch (err) {
       res.status(500).json({ message: 'Failed to add project to custom portfolio' });
     }
@@ -3951,7 +3951,7 @@ export async function registerRoutes(
 
       await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_risk_assessment_${Date.now()}`, portfolio.organizationId);
 
-      res.json({
+      res.status(201).json({
         success: true,
         cached: false,
         assessment: {
@@ -4209,7 +4209,7 @@ export async function registerRoutes(
 
       await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_project_risk_assessment_${Date.now()}`, orgId);
 
-      res.json({
+      res.status(201).json({
         success: true,
         cached: false,
         assessment: {
@@ -10676,7 +10676,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         resourceId: Number(req.params.resourceId),
         ...req.body
       });
-      res.json(skill);
+      res.status(201).json(skill);
     } catch (err) {
       console.error("Error adding resource skill:", err);
       res.status(500).json({ message: "Error adding resource skill" });
@@ -10737,7 +10737,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         resourceId: Number(req.params.resourceId),
         ...req.body
       });
-      res.json(entry);
+      res.status(201).json(entry);
     } catch (err) {
       console.error("Error adding resource availability:", err);
       res.status(500).json({ message: "Error adding resource availability" });
@@ -11482,7 +11482,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         stats.intakes++;
       }
       
-      res.json({
+      res.status(201).json({
         success: true,
         message: `Demo data generated for ${org.name}`,
         stats,
@@ -11981,7 +11981,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         await storage.createMppImportTasks(taskRecords);
       }
 
-      res.json({
+      res.status(201).json({
         ...mppImport,
         taskCount: parsedTasks.length,
       });
@@ -13671,7 +13671,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
         createdRisks.push(risk);
       }
       
-      res.json({
+      res.status(201).json({
         success: true,
         project,
         tasks: createdTasks,
@@ -14554,7 +14554,7 @@ Return ONLY valid JSON.`;
         redirectTo = `/projects/${currentProjectId}`;
       }
 
-      res.json({
+      res.status(201).json({
         success: true,
         ...results,
         redirectTo,
@@ -14630,7 +14630,7 @@ Return ONLY valid JSON.`;
     
     const user = await storage.getUser(userId);
     
-    res.json({ 
+    res.status(201).json({ 
       success: true,
       apiKey,
       message: "API key generated. Use your email as username and this API key as password in Power BI Basic auth.",
@@ -15659,7 +15659,7 @@ Return ONLY valid JSON.`;
         organizationName
       );
       
-      res.json({ 
+      res.status(201).json({ 
         success: result.userSent || result.salesSent,
         userEmailSent: result.userSent,
         salesEmailSent: result.salesSent
@@ -15692,7 +15692,7 @@ Return ONLY valid JSON.`;
       }
       
       const subscription = await billingProvider.createSubscription({ planCode, userId });
-      res.json(subscription);
+      res.status(201).json(subscription);
     } catch (error) {
       console.error("Error creating subscription:", error);
       res.status(500).json({ message: "Failed to create subscription" });
@@ -15794,7 +15794,7 @@ Return ONLY valid JSON.`;
         await db.insert(planFeatures).values(featureValues);
       }
 
-      res.json(newPlan);
+      res.status(201).json(newPlan);
     } catch (error) {
       console.error("Error creating plan:", error);
       res.status(500).json({ message: "Failed to create plan" });
@@ -16023,7 +16023,7 @@ Return ONLY valid JSON.`;
         })
         .returning();
 
-      res.json(newRule);
+      res.status(201).json(newRule);
     } catch (error) {
       console.error("Error creating rule:", error);
       res.status(500).json({ message: "Failed to create rule" });
@@ -16758,7 +16758,7 @@ Return ONLY valid JSON.`;
               });
             }
 
-            res.json({ success: true, subscriptionId: newSub.id, organizationId });
+            res.status(201).json({ success: true, subscriptionId: newSub.id, organizationId });
           }
         } catch (error) {
           console.error("Failed to update subscription:", error);
@@ -17044,7 +17044,7 @@ Return ONLY valid JSON.`;
         .set({ totalReferrals: (refCode.totalReferrals || 0) + 1 })
         .where(eq(referralCodes.id, refCode.id));
       
-      res.json({ success: true, referral: newReferral });
+      res.status(201).json({ success: true, referral: newReferral });
     } catch (error) {
       console.error('Error tracking referral:', error);
       res.status(500).json({ message: 'Failed to track referral' });
@@ -17391,7 +17391,7 @@ Return ONLY valid JSON.`;
         status: 'Draft',
       });
 
-      res.json(entry);
+      res.status(201).json(entry);
     } catch (error) {
       console.error('Error creating timesheet entry:', error);
       res.status(500).json({ message: 'Failed to create timesheet entry' });
@@ -17558,7 +17558,7 @@ Return ONLY valid JSON.`;
         }
       }
 
-      res.json(results);
+      res.status(201).json(results);
     } catch (error) {
       console.error('Error bulk upserting timesheet entries:', error);
       res.status(500).json({ message: 'Failed to save timesheet entries' });
