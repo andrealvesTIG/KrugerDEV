@@ -325,9 +325,16 @@ async function seedDatabase() {
   if (portfolios.length === 0) {
     console.log("Seeding database with software development demo data...");
     
+    const orgs = await storage.getOrganizations();
+    const seedOrgId = orgs.length > 0 ? orgs[0].id : null;
+    if (!seedOrgId) {
+      console.log("No organizations found - skipping seed data.");
+      return;
+    }
+    
     // ==================== PORTFOLIOS ====================
     const mobilePortfolio = await storage.createPortfolio({
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "Mobile Applications",
       description: "Native and cross-platform mobile app development initiatives.",
       strategy: "React Native first with native modules for performance-critical features.",
@@ -335,7 +342,7 @@ async function seedDatabase() {
     });
 
     const webPlatformPortfolio = await storage.createPortfolio({
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "Web Platform",
       description: "Enterprise web applications and customer-facing portals.",
       strategy: "Modern React/TypeScript stack with microservices backend.",
@@ -343,7 +350,7 @@ async function seedDatabase() {
     });
 
     const infraPortfolio = await storage.createPortfolio({
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "Infrastructure & DevOps",
       description: "Cloud infrastructure, CI/CD pipelines, and developer tooling.",
       strategy: "AWS-first with Kubernetes orchestration and GitOps practices.",
@@ -355,7 +362,7 @@ async function seedDatabase() {
     // Mobile Portfolio Projects
     const ecommerceApp = await storage.createProject({
       portfolioId: mobilePortfolio.id,
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "E-Commerce Mobile App",
       description: "Full-featured shopping app with payment integration, push notifications, and AR product preview.",
       status: "Execution",
@@ -370,7 +377,7 @@ async function seedDatabase() {
 
     const bankingApp = await storage.createProject({
       portfolioId: mobilePortfolio.id,
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "Mobile Banking App v2.0",
       description: "Redesign of the banking app with biometric auth, real-time notifications, and investment tracking.",
       status: "Planning",
@@ -386,7 +393,7 @@ async function seedDatabase() {
     // Web Platform Projects
     const saasApp = await storage.createProject({
       portfolioId: webPlatformPortfolio.id,
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "SaaS Analytics Dashboard",
       description: "Real-time analytics platform with customizable dashboards, reports, and data visualizations.",
       status: "Execution",
@@ -401,7 +408,7 @@ async function seedDatabase() {
 
     const crmApp = await storage.createProject({
       portfolioId: webPlatformPortfolio.id,
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "CRM Platform Modernization",
       description: "Migrating legacy CRM to modern React frontend with GraphQL API.",
       status: "Execution",
@@ -416,7 +423,7 @@ async function seedDatabase() {
 
     const apiGateway = await storage.createProject({
       portfolioId: webPlatformPortfolio.id,
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "API Gateway Implementation",
       description: "Centralized API gateway with rate limiting, authentication, and request routing.",
       status: "Initiation",
@@ -432,7 +439,7 @@ async function seedDatabase() {
     // Infrastructure Projects
     const k8sMigration = await storage.createProject({
       portfolioId: infraPortfolio.id,
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "Kubernetes Migration",
       description: "Migrating microservices from EC2 to EKS with Helm charts and ArgoCD.",
       status: "Execution",
@@ -447,7 +454,7 @@ async function seedDatabase() {
 
     const cicdPipeline = await storage.createProject({
       portfolioId: infraPortfolio.id,
-      organizationId: 1,
+      organizationId: seedOrgId,
       name: "CI/CD Pipeline Overhaul",
       description: "Implementing GitHub Actions workflows with automated testing, security scanning, and deployments.",
       status: "Closing",
@@ -9213,11 +9220,11 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
-      if (input.durationDays !== undefined) {
+      if (input.durationDays != null) {
         const startDate = input.startDate || previousTask.startDate;
         if (startDate) {
           const start = new Date(startDate + 'T00:00:00');
-          const end = calculateEndDate(start, input.durationDays!);
+          const end = calculateEndDate(start, input.durationDays);
           input.endDate = formatDateStr(end);
         }
       }
