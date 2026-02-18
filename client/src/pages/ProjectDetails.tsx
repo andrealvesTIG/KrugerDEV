@@ -3428,6 +3428,8 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
   const [riskAssessmentId, setRiskAssessmentId] = useState<number | null>(null);
   const [riskShareToken, setRiskShareToken] = useState("");
   const [riskConfirmOpen, setRiskConfirmOpen] = useState(false);
+  const [selectedSuggestedRisks, setSelectedSuggestedRisks] = useState<Set<number>>(new Set());
+  const [isCreatingSuggested, setIsCreatingSuggested] = useState(false);
 
   const { data: latestProjectAssessment } = useQuery<{ riskScore: number; generatedAt: string; summary: string; shareToken: string; id: number; report: any } | null>({
     queryKey: ["/api/projects", projectId, "risk-assessment", "latest"],
@@ -3452,6 +3454,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
         setRiskReport(data.assessment.report);
         setRiskAssessmentId(data.assessment.id);
         setRiskShareToken(data.assessment.shareToken || "");
+        setSelectedSuggestedRisks(new Set());
         setRiskAssessmentDialogOpen(true);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "latest"] });
@@ -3471,6 +3474,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
       setRiskReport(latestProjectAssessment.report);
       setRiskAssessmentId(latestProjectAssessment.id);
       setRiskShareToken(latestProjectAssessment.shareToken || "");
+      setSelectedSuggestedRisks(new Set());
       setRiskAssessmentDialogOpen(true);
     } else {
       setRiskConfirmOpen(true);
@@ -4109,23 +4113,79 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
               {riskReport.topRisks && riskReport.topRisks.length > 0 && (
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Top Risks</CardTitle>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <CardTitle className="text-base">Top Risks</CardTitle>
+                      <div className="flex items-center gap-2">
+                        {selectedSuggestedRisks.size > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {selectedSuggestedRisks.size} selected
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            if (selectedSuggestedRisks.size === riskReport.topRisks.length) {
+                              setSelectedSuggestedRisks(new Set());
+                            } else {
+                              setSelectedSuggestedRisks(new Set(riskReport.topRisks.map((_: any, i: number) => i)));
+                            }
+                          }}
+                          data-testid="button-select-all-suggested-risks"
+                        >
+                          {selectedSuggestedRisks.size === riskReport.topRisks.length ? "Deselect All" : "Select All"}
+                        </Button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3" data-testid="display-project-top-risks">
-                      {riskReport.topRisks.map((risk: any, idx: number) => (
-                        <div key={idx} className="flex items-start gap-3 p-3 rounded-md bg-muted/50" data-testid={`project-top-risk-${idx}`}>
-                          <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">{risk.title}</p>
-                            <p className="text-xs text-muted-foreground mt-1">Impact: {risk.impact}</p>
-                            <p className="text-xs text-muted-foreground">Likelihood: {risk.likelihood}</p>
-                            {risk.mitigation && (
-                              <p className="text-xs text-primary mt-1">Mitigation: {risk.mitigation}</p>
+                      {riskReport.topRisks.map((risk: any, idx: number) => {
+                        const isSelected = selectedSuggestedRisks.has(idx);
+                        return (
+                          <div
+                            key={idx}
+                            className={cn(
+                              "flex items-start gap-3 p-3 rounded-md cursor-pointer transition-colors",
+                              isSelected ? "bg-primary/10 ring-1 ring-primary/30" : "bg-muted/50 hover:bg-muted/80"
                             )}
+                            onClick={() => {
+                              setSelectedSuggestedRisks(prev => {
+                                const next = new Set(prev);
+                                if (next.has(idx)) next.delete(idx);
+                                else next.add(idx);
+                                return next;
+                              });
+                            }}
+                            data-testid={`project-top-risk-${idx}`}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              className="mt-0.5 shrink-0"
+                              onCheckedChange={(checked) => {
+                                setSelectedSuggestedRisks(prev => {
+                                  const next = new Set(prev);
+                                  if (checked) next.add(idx);
+                                  else next.delete(idx);
+                                  return next;
+                                });
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`checkbox-suggested-risk-${idx}`}
+                            />
+                            <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">{risk.title}</p>
+                              <p className="text-xs text-muted-foreground mt-1">Impact: {risk.impact}</p>
+                              <p className="text-xs text-muted-foreground">Likelihood: {risk.likelihood}</p>
+                              {risk.mitigation && (
+                                <p className="text-xs text-primary mt-1">Mitigation: {risk.mitigation}</p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
@@ -4152,6 +4212,48 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
           )}
         </ScrollArea>
         <DialogFooter className="flex-row flex-wrap gap-2 pt-4 border-t">
+          {selectedSuggestedRisks.size > 0 && riskReport?.topRisks && (
+            <Button
+              onClick={async () => {
+                setIsCreatingSuggested(true);
+                const risksToCreate = riskReport.topRisks.filter((_: any, i: number) => selectedSuggestedRisks.has(i));
+                let created = 0;
+                for (const risk of risksToCreate) {
+                  const likelihoodMap: Record<string, string> = { "Very High": "Very High", "High": "High", "Medium": "Medium", "Low": "Low", "Very Low": "Very Low" };
+                  const impactMap: Record<string, string> = { "Very High": "Very High", "High": "High", "Medium": "Medium", "Low": "Low", "Very Low": "Very Low" };
+                  try {
+                    await new Promise<void>((resolve, reject) => {
+                      createRisk.mutate({
+                        projectId,
+                        title: risk.title,
+                        description: risk.impact ? `Impact: ${risk.impact}` : "",
+                        probability: likelihoodMap[risk.likelihood] || "Medium",
+                        impact: impactMap[risk.impactLevel] || impactMap[risk.impact] || "Medium",
+                        status: "Open",
+                        mitigationPlan: risk.mitigation || "",
+                        itemType: "risk",
+                      }, {
+                        onSuccess: () => { created++; resolve(); },
+                        onError: (err) => reject(err),
+                      });
+                    });
+                  } catch (err: any) {
+                    toast({ title: "Error", description: err?.message || `Failed to create risk: ${risk.title}`, variant: "destructive" });
+                  }
+                }
+                setIsCreatingSuggested(false);
+                setSelectedSuggestedRisks(new Set());
+                if (created > 0) {
+                  toast({ title: "Success", description: `${created} risk${created > 1 ? "s" : ""} created from suggestions` });
+                }
+              }}
+              disabled={isCreatingSuggested}
+              data-testid="button-create-suggested-risks"
+            >
+              {isCreatingSuggested ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+              Create {selectedSuggestedRisks.size} Risk{selectedSuggestedRisks.size > 1 ? "s" : ""}
+            </Button>
+          )}
           {riskAssessmentId && (
             <Button
               variant="outline"
