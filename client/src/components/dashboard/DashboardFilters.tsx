@@ -199,11 +199,11 @@ export function DashboardFilters({
             <Briefcase className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
             <SelectValue placeholder="Project" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[300px]">
             <SelectItem value="all">All Projects</SelectItem>
             {(filteredProjects.length > 0 ? filteredProjects : projects).map((p) => (
               <SelectItem key={p.id} value={p.id.toString()}>
-                {p.name}
+                <span className="truncate block max-w-[250px]">{p.name}</span>
               </SelectItem>
             ))}
           </SelectContent>
