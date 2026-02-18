@@ -1188,12 +1188,12 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       const user = await storage.getUser(userId);
       if (!user) {
-        return res.status(401).json({ message: 'User not found' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : undefined;
@@ -1383,7 +1383,7 @@ export async function registerRoutes(
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
       if (!userId || userId !== req.params.userId) {
-        return res.status(403).json({ message: "Unauthorized" });
+        return res.status(403).json({ message: "Access denied" });
       }
 
       const { avatarUrl, avatarEmoji } = req.body;
@@ -1420,7 +1420,7 @@ export async function registerRoutes(
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
       if (!userId || userId !== req.params.userId) {
-        return res.status(403).json({ message: "Unauthorized" });
+        return res.status(403).json({ message: "Access denied" });
       }
 
       const { ObjectStorageService } = await import("./replit_integrations/object_storage/objectStorage");
@@ -1441,7 +1441,7 @@ export async function registerRoutes(
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
       if (!userId || userId !== req.params.userId) {
-        return res.status(403).json({ message: "Unauthorized" });
+        return res.status(403).json({ message: "Access denied" });
       }
 
       if (!req.file) {
@@ -1516,7 +1516,7 @@ export async function registerRoutes(
     try {
       const currentUserId = getUserIdFromRequest(req);
       if (!currentUserId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
 
       // Check if current user is super admin
@@ -1713,7 +1713,7 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       // Check if user is org admin
@@ -1778,7 +1778,7 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       if (!await userHasOrgAccess(userId, orgId)) {
@@ -1808,7 +1808,7 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       if (!await userHasOrgAccess(userId, orgId)) {
@@ -1883,7 +1883,7 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       if (!await userHasOrgAccess(userId, orgId)) {
@@ -1902,7 +1902,7 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       const user = await storage.getUser(userId);
@@ -1922,7 +1922,7 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       const user = await storage.getUser(userId);
@@ -1948,7 +1948,7 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       const user = await storage.getUser(userId);
@@ -1966,7 +1966,7 @@ export async function registerRoutes(
   app.get('/api/admin/organizations/subscriptions', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const user = await storage.getUser(userId);
       if (!user || !hasAdminAccess(user)) return res.status(403).json({ message: 'Admin access required' });
 
@@ -1990,7 +1990,7 @@ export async function registerRoutes(
   app.post('/api/admin/send-upgrade-offer', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const adminUser = await storage.getUser(userId);
       if (!adminUser || !hasAdminAccess(adminUser)) return res.status(403).json({ message: 'Admin access required' });
 
@@ -2051,7 +2051,7 @@ export async function registerRoutes(
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       const user = await storage.getUser(userId);
@@ -2101,7 +2101,7 @@ export async function registerRoutes(
       const { planCode, bonusSeats, billingHidden } = req.body;
       
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       const user = await storage.getUser(userId);
@@ -2815,7 +2815,7 @@ export async function registerRoutes(
       }
       
       if (!currentUserId) {
-        return res.status(401).json({ message: 'Authentication required. Please log in first.' });
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
       // Look up the invite by token
@@ -3366,7 +3366,7 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "Authentication required" });
       }
       
       const shares = await storage.getExternalSharesForUser(userId);
@@ -3382,7 +3382,7 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "Authentication required" });
       }
       
       const shares = await storage.getExternalSharesForUser(userId);
@@ -3419,7 +3419,7 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "Authentication required" });
       }
       
       const shares = await storage.getExternalSharesForUser(userId);
@@ -3463,7 +3463,7 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "Authentication required" });
       }
       
       const shares = await storage.getExternalSharesForUser(userId);
@@ -3507,7 +3507,7 @@ export async function registerRoutes(
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "Authentication required" });
       }
       
       const shares = await storage.getExternalSharesForUser(userId);
@@ -3763,6 +3763,8 @@ export async function registerRoutes(
 
   app.put(api.portfolios.update.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const input = api.portfolios.update.input.parse(req.body);
       const portfolioId = Number(req.params.id);
       
@@ -3811,7 +3813,7 @@ export async function registerRoutes(
   app.post('/api/portfolios/:id/custom-projects', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const portfolioId = Number(req.params.id);
       const portfolio = await storage.getPortfolio(portfolioId);
       if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
@@ -3835,7 +3837,7 @@ export async function registerRoutes(
   app.delete('/api/portfolios/:id/custom-projects/:projectId', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const portfolioId = Number(req.params.id);
       const portfolio = await storage.getPortfolio(portfolioId);
       if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
@@ -3852,6 +3854,8 @@ export async function registerRoutes(
 
   app.get('/api/portfolios/:id/risks', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const risks = await storage.getPortfolioRisks(Number(req.params.id));
       res.json(risks);
     } catch (err) {
@@ -3861,6 +3865,8 @@ export async function registerRoutes(
 
   app.get('/api/portfolios/:id/issues', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const issues = await storage.getPortfolioIssues(Number(req.params.id));
       res.json(issues);
     } catch (err) {
@@ -3880,7 +3886,7 @@ export async function registerRoutes(
   app.post('/api/portfolios/:id/risk-assessment', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const portfolioId = Number(req.params.id);
       const portfolio = await storage.getPortfolio(portfolioId);
@@ -3966,7 +3972,7 @@ export async function registerRoutes(
   app.get('/api/portfolios/:id/risk-assessment/latest', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const portfolioId = Number(req.params.id);
       const assessment = await storage.getLatestPortfolioRiskAssessment(portfolioId);
@@ -3989,7 +3995,7 @@ export async function registerRoutes(
   app.get('/api/portfolios/:id/risk-assessment/history', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const portfolioId = Number(req.params.id);
       const portfolio = await storage.getPortfolio(portfolioId);
@@ -4010,7 +4016,7 @@ export async function registerRoutes(
   app.get('/api/portfolio-risk-assessments/org/:orgId', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const orgId = Number(req.params.orgId);
       const userOrgs = await storage.getUserOrganizations(userId);
@@ -4039,7 +4045,7 @@ export async function registerRoutes(
   app.get('/api/project-risk-assessments/org/:orgId', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const orgId = Number(req.params.orgId);
       const userOrgs = await storage.getUserOrganizations(userId);
@@ -4065,11 +4071,9 @@ export async function registerRoutes(
     }
   });
 
+  // Public endpoint - accessible via share token without authentication
   app.get('/api/portfolio-risk-assessments/share/:token', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
-
       const assessment = await storage.getPortfolioRiskAssessmentByShareToken(req.params.token);
       if (!assessment) return res.status(404).json({ message: "Report not found" });
 
@@ -4092,11 +4096,9 @@ export async function registerRoutes(
     }
   });
 
+  // Public endpoint - accessible via share token without authentication
   app.get('/api/portfolio-risk-assessments/share/:token/pdf', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
-
       const assessment = await storage.getPortfolioRiskAssessmentByShareToken(req.params.token);
       if (!assessment) return res.status(404).json({ message: "Report not found" });
 
@@ -4118,7 +4120,7 @@ export async function registerRoutes(
   app.get('/api/portfolios/:id/risk-assessment/:assessmentId/pdf', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const assessment = await storage.getLatestPortfolioRiskAssessment(Number(req.params.id));
       if (!assessment) return res.status(404).json({ message: "No assessment found" });
@@ -4142,7 +4144,7 @@ export async function registerRoutes(
   app.post('/api/projects/:id/risk-assessment', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const projectId = Number(req.params.id);
       const project = await storage.getProject(projectId);
@@ -4228,7 +4230,7 @@ export async function registerRoutes(
   app.get('/api/projects/:id/risk-assessment/latest', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const projectId = Number(req.params.id);
       const assessment = await storage.getLatestProjectRiskAssessment(projectId);
@@ -4251,7 +4253,7 @@ export async function registerRoutes(
   app.get('/api/projects/:id/risk-assessment/history', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const projectId = Number(req.params.id);
       const project = await storage.getProject(projectId);
@@ -4269,11 +4271,9 @@ export async function registerRoutes(
     }
   });
 
+  // Public endpoint - accessible via share token without authentication
   app.get('/api/project-risk-assessments/share/:token', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
-
       const assessment = await storage.getProjectRiskAssessmentByShareToken(req.params.token);
       if (!assessment) return res.status(404).json({ message: "Report not found" });
 
@@ -4296,11 +4296,9 @@ export async function registerRoutes(
     }
   });
 
+  // Public endpoint - accessible via share token without authentication
   app.get('/api/project-risk-assessments/share/:token/pdf', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
-
       const assessment = await storage.getProjectRiskAssessmentByShareToken(req.params.token);
       if (!assessment) return res.status(404).json({ message: "Report not found" });
 
@@ -4322,7 +4320,7 @@ export async function registerRoutes(
   app.get('/api/projects/:id/risk-assessment/:assessmentId/pdf', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
 
       const assessment = await storage.getLatestProjectRiskAssessment(Number(req.params.id));
       if (!assessment) return res.status(404).json({ message: "No assessment found" });
@@ -4343,6 +4341,8 @@ export async function registerRoutes(
 
   app.get('/api/portfolios/:id/overview', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const portfolio = await storage.getPortfolio(Number(req.params.id));
       if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
       
@@ -4432,6 +4432,8 @@ export async function registerRoutes(
   });
 
   app.get(api.projects.get.path, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const project = await storage.getProject(Number(req.params.id));
     if (!project) return res.status(404).json({ message: "Project not found" });
     
@@ -7401,6 +7403,8 @@ export async function registerRoutes(
   // Project History
   app.get(api.projects.getHistory.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.id);
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
@@ -8274,6 +8278,8 @@ Generated by FridayReport.AI
 
   app.put(api.risks.update.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const riskId = Number(req.params.id);
       const existing = await storage.getRisk(riskId);
       if (!existing) return res.status(404).json({ message: "Risk not found" });
@@ -8327,6 +8333,8 @@ Generated by FridayReport.AI
   // Risk History
   app.get(api.risks.getHistory.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const riskId = Number(req.params.id);
       const risk = await storage.getRisk(riskId);
       if (!risk) return res.status(404).json({ message: "Risk not found" });
@@ -8634,6 +8642,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   app.put(api.issues.update.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const issueId = Number(req.params.id);
       const existing = await storage.getIssue(issueId);
       if (!existing) return res.status(404).json({ message: "Issue not found" });
@@ -8687,6 +8697,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Issue History
   app.get(api.issues.getHistory.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const issueId = Number(req.params.id);
       const issue = await storage.getIssue(issueId);
       if (!issue) return res.status(404).json({ message: "Issue not found" });
@@ -8744,6 +8756,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Get portfolio escalated issues
   app.get('/api/portfolios/:id/escalated-items', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const portfolioId = Number(req.params.id);
       const portfolioProjects = await storage.getPortfolioProjects(portfolioId);
       const projectIds = portfolioProjects.map(p => p.id);
@@ -8989,6 +9003,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   }
 
   app.get(api.tasks.list.path, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const tasks = await storage.getTasks(Number(req.params.projectId));
     const enriched = await enrichTasksWithTimesheetHours(tasks);
     res.json(enriched);
@@ -8997,6 +9013,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Get single task by ID
   app.get('/api/tasks/:id', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const taskId = Number(req.params.id);
       if (isNaN(taskId)) {
         return res.status(400).json({ message: "Invalid task ID" });
@@ -9163,6 +9181,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   app.put(api.tasks.update.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const taskId = Number(req.params.id);
       const previousTask = await storage.getTask(taskId);
       if (!previousTask) {
@@ -9382,6 +9402,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   app.delete(api.tasks.removeDependency.path, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const taskId = Number(req.params.id);
     const dependsOnTaskId = Number(req.params.dependsOnTaskId);
     await storage.deleteTaskDependency(taskId, dependsOnTaskId);
@@ -9391,6 +9413,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Get all dependencies for a project (for CPM calculation)
   app.get('/api/projects/:projectId/dependencies', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
       const dependencies = await storage.getProjectDependencies(projectId);
       res.json(dependencies);
@@ -9559,6 +9583,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Recalculate schedule - enforce all dependency date constraints
   app.post('/api/projects/:projectId/recalculate-schedule', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
       const adjustedTasks = await propagateScheduleForProject(projectId);
       
@@ -9576,6 +9602,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Reorder tasks (drag and drop) - updates taskIndex for all affected tasks
   app.post('/api/projects/:projectId/tasks/reorder', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
       const { taskId, newIndex } = req.body as { taskId: number; newIndex: number };
       
@@ -9620,6 +9648,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Reindex tasks and recalculate WBS for a project
   app.post('/api/projects/:projectId/tasks/reindex', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
       
       // Get all tasks for the project
@@ -9704,6 +9734,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // Project Financials
   app.get(api.projectFinancials.list.path, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const projectId = Number(req.params.projectId);
     const project = await storage.getProject(projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
@@ -9743,6 +9775,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   app.put(api.projectFinancials.update.path, async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const id = Number(req.params.id);
       const existing = await storage.getProjectFinancial(id);
       if (!existing) return res.status(404).json({ message: "Financial record not found" });
@@ -9757,6 +9791,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   });
 
   app.delete(api.projectFinancials.delete.path, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const id = Number(req.params.id);
     const existing = await storage.getProjectFinancial(id);
     if (!existing) return res.status(404).json({ message: "Financial record not found" });
@@ -9769,6 +9805,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Get all cost items for a project (optionally filtered by fiscal year)
   app.get('/api/projects/:projectId/cost-items', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
       const fiscalYear = req.query.fiscalYear ? Number(req.query.fiscalYear) : undefined;
       const project = await storage.getProject(projectId);
@@ -9782,6 +9820,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // Get a single cost item
   app.get('/api/cost-items/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const item = await storage.getCostItem(Number(req.params.id));
     if (!item) return res.status(404).json({ message: "Cost item not found" });
     res.json(item);
@@ -9790,6 +9830,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Create a cost item
   app.post('/api/projects/:projectId/cost-items', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const projectId = Number(req.params.projectId);
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
@@ -9828,6 +9870,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Update a cost item
   app.put('/api/cost-items/:id', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const id = Number(req.params.id);
       const existing = await storage.getCostItem(id);
       if (!existing) return res.status(404).json({ message: "Cost item not found" });
@@ -9842,6 +9886,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   // Delete a cost item
   app.delete('/api/cost-items/:id', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
     const id = Number(req.params.id);
     const existing = await storage.getCostItem(id);
     if (!existing) return res.status(404).json({ message: "Cost item not found" });
@@ -9854,6 +9900,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Get all resources for an organization
   app.get('/api/resources', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
         return res.status(400).json({ message: "organizationId is required" });
@@ -9869,6 +9917,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Find potential duplicate resources for matching and merging
   app.get('/api/resources/duplicates', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const organizationId = Number(req.query.organizationId);
       if (!organizationId) {
         return res.status(400).json({ message: "Organization ID is required" });
@@ -9997,6 +10047,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   // Merge two resources - keep primary, transfer assignments from secondary, delete secondary
   app.post('/api/resources/merge', async (req, res) => {
     try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const { primaryId, secondaryId, organizationId } = req.body;
       
       if (!primaryId || !secondaryId || !organizationId) {
@@ -10224,7 +10276,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     try {
       const currentUserId = getUserIdFromRequest(req);
       if (!currentUserId) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "Authentication required" });
       }
       
       // Require email verification before creating
@@ -10717,7 +10769,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   app.post('/api/organizations/:orgId/resource-optimization', async (req, res) => {
     try {
       const userId = req.session?.userId || (req.user as any)?.id;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
       const orgId = Number(req.params.orgId);
       const memberships = await storage.getUserOrganizations(userId);
       const membership = memberships.find(m => m.organizationId === orgId);
@@ -10888,7 +10940,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   app.get('/api/onboarding/status', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
       const { getUserOnboardingStatus } = await import("./services/onboarding");
       const status = await getUserOnboardingStatus(userId);
       res.json(status);
@@ -10901,7 +10953,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   app.post('/api/onboarding/complete', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
       const { companyName, industry, createDemoData } = req.body;
       if (!companyName || typeof companyName !== 'string') {
         return res.status(400).json({ message: "Company name is required" });
@@ -10918,7 +10970,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   app.post('/api/onboarding/skip', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
       await db.update(users).set({ onboardingCompleted: true }).where(eq(users.id, userId));
       res.json({ success: true });
     } catch (err) {
@@ -10930,7 +10982,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   app.post('/api/onboarding/generate-sample-data', async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
       const userOrgs = await db.select().from(organizationMembers).where(eq(organizationMembers.userId, userId));
       if (userOrgs.length === 0) return res.status(400).json({ message: "No organization found. Please complete onboarding first." });
       const orgId = userOrgs[0].organizationId;
@@ -11638,12 +11690,12 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
       const user = await storage.getUser(userId);
       if (!user) {
-        return res.status(401).json({ message: "User not found" });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
       // Admin roles can always approve
@@ -11678,7 +11730,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       const userId = getUserIdFromRequest(req);
       
       if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
       const existing = await storage.getProjectIntake(id);
@@ -11696,7 +11748,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       // Check user permission - must be super_admin, org_admin/owner, or have isIntakeApprover flag
       const user = await storage.getUser(userId);
       if (!user) {
-        return res.status(401).json({ message: "User not found" });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
       const isSuperAdmin = hasAdminAccess(user);
@@ -11734,7 +11786,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       const { reason } = req.body;
       
       if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
       const existing = await storage.getProjectIntake(id);
@@ -11743,7 +11795,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       // Check user permission - must be super_admin, org_admin/owner, or have isIntakeApprover flag
       const user = await storage.getUser(userId);
       if (!user) {
-        return res.status(401).json({ message: "User not found" });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
       const isSuperAdmin = hasAdminAccess(user);
@@ -15105,7 +15157,7 @@ Return ONLY valid JSON.`;
   app.get('/api/billing/subscription', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     try {
@@ -15148,7 +15200,7 @@ Return ONLY valid JSON.`;
   app.get('/api/billing/usage', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     try {
@@ -15253,7 +15305,7 @@ Return ONLY valid JSON.`;
   app.get('/api/billing/ai-costs', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     try {
@@ -15368,7 +15420,7 @@ Return ONLY valid JSON.`;
   app.get('/api/billing/history', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     try {
@@ -15392,7 +15444,7 @@ Return ONLY valid JSON.`;
   app.get('/api/billing/cycle-history', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     try {
@@ -15473,7 +15525,7 @@ Return ONLY valid JSON.`;
   app.get('/api/billing/credit-ledger', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     try {
@@ -15582,7 +15634,7 @@ Return ONLY valid JSON.`;
   app.post('/api/billing/enterprise-inquiry', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     try {
@@ -15622,7 +15674,7 @@ Return ONLY valid JSON.`;
   app.post('/api/billing/subscription', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     try {
@@ -15651,7 +15703,7 @@ Return ONLY valid JSON.`;
   app.patch('/api/billing/subscription/:id/plan', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     try {
@@ -15678,7 +15730,7 @@ Return ONLY valid JSON.`;
   app.post('/api/admin/plans', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -15753,7 +15805,7 @@ Return ONLY valid JSON.`;
   app.put('/api/admin/plans/reorder', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -15786,7 +15838,7 @@ Return ONLY valid JSON.`;
   app.put('/api/admin/plans/:id', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -15825,7 +15877,7 @@ Return ONLY valid JSON.`;
   app.post('/api/admin/plans/init-extra-seat-prices', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -15867,7 +15919,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/admin/plans/:id', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -15899,7 +15951,7 @@ Return ONLY valid JSON.`;
   app.get('/api/admin/plans/:id/rules', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -15942,7 +15994,7 @@ Return ONLY valid JSON.`;
   app.post('/api/admin/plans/:planId/rules', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -15982,7 +16034,7 @@ Return ONLY valid JSON.`;
   app.put('/api/admin/plans/:planId/rules/:ruleId', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -16018,7 +16070,7 @@ Return ONLY valid JSON.`;
   app.get('/api/admin/credit-costs', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -16042,7 +16094,7 @@ Return ONLY valid JSON.`;
   app.put('/api/admin/credit-costs/:resourceType', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -16085,7 +16137,7 @@ Return ONLY valid JSON.`;
   app.get('/api/admin/plans/:id/credits', async (req, res) => {
     const userId = req.session?.userId || (req.user as any)?.id;
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Authentication required" });
     }
 
     const user = await storage.getUser(userId);
@@ -16172,7 +16224,7 @@ Return ONLY valid JSON.`;
       app.get("/api/billing/payment-method", async (req, res) => {
         const userId = getUserIdFromRequest(req);
         if (!userId) {
-          return res.status(401).json({ message: "Unauthorized" });
+          return res.status(401).json({ message: "Authentication required" });
         }
         
         try {
@@ -16242,7 +16294,7 @@ Return ONLY valid JSON.`;
       app.post("/api/admin/paypal/sync-plans", async (req, res) => {
         const userId = getUserIdFromRequest(req);
         if (!userId) {
-          return res.status(401).json({ message: "Unauthorized" });
+          return res.status(401).json({ message: "Authentication required" });
         }
 
         const user = await storage.getUser(userId);
@@ -16447,7 +16499,7 @@ Return ONLY valid JSON.`;
       app.post("/api/billing/subscription/paypal", async (req, res) => {
         const userId = getUserIdFromRequest(req);
         if (!userId) {
-          return res.status(401).json({ message: "Unauthorized" });
+          return res.status(401).json({ message: "Authentication required" });
         }
 
         try {
@@ -16835,7 +16887,7 @@ Return ONLY valid JSON.`;
   app.get('/api/referral/my-code', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -16872,7 +16924,7 @@ Return ONLY valid JSON.`;
   app.get('/api/referral/stats', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17003,7 +17055,7 @@ Return ONLY valid JSON.`;
   app.post('/api/referral/request-payout', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17059,7 +17111,7 @@ Return ONLY valid JSON.`;
   app.get('/api/timesheets', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17094,7 +17146,7 @@ Return ONLY valid JSON.`;
   app.get('/api/timesheets/team', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17136,7 +17188,7 @@ Return ONLY valid JSON.`;
   app.get('/api/timesheets/approval', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17176,7 +17228,7 @@ Return ONLY valid JSON.`;
   app.get('/api/timesheets/assigned-tasks', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17235,7 +17287,7 @@ Return ONLY valid JSON.`;
   app.get('/api/timesheets/current-resource', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17279,7 +17331,7 @@ Return ONLY valid JSON.`;
   app.post('/api/timesheets', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17350,7 +17402,7 @@ Return ONLY valid JSON.`;
   app.post('/api/timesheets/bulk', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17517,7 +17569,7 @@ Return ONLY valid JSON.`;
   app.put('/api/timesheets/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17579,7 +17631,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/timesheets/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17616,7 +17668,7 @@ Return ONLY valid JSON.`;
   app.post('/api/timesheets/submit-week', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17647,7 +17699,7 @@ Return ONLY valid JSON.`;
   app.post('/api/timesheets/:id/approve', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17689,7 +17741,7 @@ Return ONLY valid JSON.`;
   app.post('/api/timesheets/:id/reject', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17732,7 +17784,7 @@ Return ONLY valid JSON.`;
   app.get('/api/timesheets/my-report', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17803,7 +17855,7 @@ Return ONLY valid JSON.`;
   app.get('/api/timesheet-periods', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17832,7 +17884,7 @@ Return ONLY valid JSON.`;
   app.get('/api/timesheet-periods/closed', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17856,7 +17908,7 @@ Return ONLY valid JSON.`;
   app.post('/api/timesheet-periods', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17895,7 +17947,7 @@ Return ONLY valid JSON.`;
   app.post('/api/timesheet-periods/:id/close', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17926,7 +17978,7 @@ Return ONLY valid JSON.`;
   app.post('/api/timesheet-periods/:id/reopen', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17957,7 +18009,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/timesheet-periods/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -17990,7 +18042,7 @@ Return ONLY valid JSON.`;
   app.get('/api/time-categories', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18050,7 +18102,7 @@ Return ONLY valid JSON.`;
   app.post('/api/time-categories', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18086,7 +18138,7 @@ Return ONLY valid JSON.`;
   app.put('/api/time-categories/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18115,7 +18167,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/time-categories/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18146,7 +18198,7 @@ Return ONLY valid JSON.`;
   app.get('/api/non-project-time', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18183,7 +18235,7 @@ Return ONLY valid JSON.`;
   app.post('/api/non-project-time', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18254,7 +18306,7 @@ Return ONLY valid JSON.`;
   app.put('/api/non-project-time/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18290,7 +18342,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/non-project-time/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18326,7 +18378,7 @@ Return ONLY valid JSON.`;
   app.get('/api/admin/referrals', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     const user = await storage.getUser(userId);
@@ -18363,7 +18415,7 @@ Return ONLY valid JSON.`;
   app.post('/api/dashboard/:type/export', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18404,7 +18456,7 @@ Return ONLY valid JSON.`;
   app.post('/api/dashboard/:type/share', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18476,7 +18528,7 @@ Return ONLY valid JSON.`;
   app.get('/api/custom-dashboards', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18502,7 +18554,7 @@ Return ONLY valid JSON.`;
   app.get('/api/custom-dashboards/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18527,7 +18579,7 @@ Return ONLY valid JSON.`;
   app.post('/api/custom-dashboards', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18558,7 +18610,7 @@ Return ONLY valid JSON.`;
   app.post('/api/custom-dashboards/generate', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18593,7 +18645,7 @@ Return ONLY valid JSON.`;
   app.patch('/api/custom-dashboards/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18625,7 +18677,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/custom-dashboards/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18648,7 +18700,7 @@ Return ONLY valid JSON.`;
   app.get('/api/consents/status', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18675,7 +18727,7 @@ Return ONLY valid JSON.`;
   app.get('/api/consents', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18691,7 +18743,7 @@ Return ONLY valid JSON.`;
   app.post('/api/consents', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18724,7 +18776,7 @@ Return ONLY valid JSON.`;
   app.post('/api/consents/accept-all', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18765,7 +18817,7 @@ Return ONLY valid JSON.`;
   app.get('/api/admin/consents', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18802,7 +18854,7 @@ Return ONLY valid JSON.`;
   app.get('/api/admin/consents/stats', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18833,7 +18885,7 @@ Return ONLY valid JSON.`;
   app.get('/api/organizations/:organizationId/custom-fields', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18850,7 +18902,7 @@ Return ONLY valid JSON.`;
   app.post('/api/organizations/:organizationId/custom-fields', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18870,7 +18922,7 @@ Return ONLY valid JSON.`;
   app.put('/api/custom-fields/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18887,7 +18939,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/custom-fields/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18908,7 +18960,7 @@ Return ONLY valid JSON.`;
   app.get('/api/projects/:projectId/custom-field-values', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18925,7 +18977,7 @@ Return ONLY valid JSON.`;
   app.put('/api/projects/:projectId/custom-field-values/:fieldDefinitionId', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18949,7 +19001,7 @@ Return ONLY valid JSON.`;
   app.put('/api/projects/:projectId/custom-field-values', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18976,7 +19028,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/projects/:projectId/custom-field-values/:fieldDefinitionId', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -18998,7 +19050,7 @@ Return ONLY valid JSON.`;
   app.get('/api/organizations/:organizationId/custom-tabs', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19015,7 +19067,7 @@ Return ONLY valid JSON.`;
   app.get('/api/custom-tabs/:id/full', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19035,7 +19087,7 @@ Return ONLY valid JSON.`;
   app.post('/api/organizations/:organizationId/custom-tabs', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19056,7 +19108,7 @@ Return ONLY valid JSON.`;
   app.put('/api/custom-tabs/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19073,7 +19125,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/custom-tabs/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19094,7 +19146,7 @@ Return ONLY valid JSON.`;
   app.get('/api/custom-tabs/:tabId/sections', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19111,7 +19163,7 @@ Return ONLY valid JSON.`;
   app.post('/api/custom-tabs/:tabId/sections', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19131,7 +19183,7 @@ Return ONLY valid JSON.`;
   app.put('/api/custom-tab-sections/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19148,7 +19200,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/custom-tab-sections/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19169,7 +19221,7 @@ Return ONLY valid JSON.`;
   app.get('/api/custom-tab-sections/:sectionId/fields', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19186,7 +19238,7 @@ Return ONLY valid JSON.`;
   app.post('/api/custom-tab-sections/:sectionId/fields', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19206,7 +19258,7 @@ Return ONLY valid JSON.`;
   app.put('/api/custom-tab-fields/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19223,7 +19275,7 @@ Return ONLY valid JSON.`;
   app.delete('/api/custom-tab-fields/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19240,7 +19292,7 @@ Return ONLY valid JSON.`;
   app.get('/api/project-field-definitions', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     try {
@@ -19258,7 +19310,7 @@ Return ONLY valid JSON.`;
 
   app.get('/api/organizations/:organizationId/scoring-criteria', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const organizationId = parseInt(req.params.organizationId);
@@ -19272,7 +19324,7 @@ Return ONLY valid JSON.`;
 
   app.post('/api/organizations/:organizationId/scoring-criteria', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const organizationId = parseInt(req.params.organizationId);
@@ -19290,7 +19342,7 @@ Return ONLY valid JSON.`;
 
   app.put('/api/scoring-criteria/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const id = parseInt(req.params.id);
@@ -19304,7 +19356,7 @@ Return ONLY valid JSON.`;
 
   app.delete('/api/scoring-criteria/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const id = parseInt(req.params.id);
@@ -19322,7 +19374,7 @@ Return ONLY valid JSON.`;
 
   app.get('/api/projects/:projectId/scores', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const projectId = parseInt(req.params.projectId);
@@ -19336,7 +19388,7 @@ Return ONLY valid JSON.`;
 
   app.post('/api/projects/:projectId/scores', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const projectId = parseInt(req.params.projectId);
@@ -19351,7 +19403,7 @@ Return ONLY valid JSON.`;
 
   app.delete('/api/project-scores/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const id = parseInt(req.params.id);
@@ -19369,7 +19421,7 @@ Return ONLY valid JSON.`;
 
   app.get('/api/projects/:projectId/benefits', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const projectId = parseInt(req.params.projectId);
@@ -19383,7 +19435,7 @@ Return ONLY valid JSON.`;
 
   app.post('/api/projects/:projectId/benefits', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const projectId = parseInt(req.params.projectId);
@@ -19401,7 +19453,7 @@ Return ONLY valid JSON.`;
 
   app.put('/api/project-benefits/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const id = parseInt(req.params.id);
@@ -19415,7 +19467,7 @@ Return ONLY valid JSON.`;
 
   app.delete('/api/project-benefits/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const id = parseInt(req.params.id);
@@ -19433,7 +19485,7 @@ Return ONLY valid JSON.`;
 
   app.get('/api/projects/:projectId/decisions', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const projectId = parseInt(req.params.projectId);
@@ -19447,7 +19499,7 @@ Return ONLY valid JSON.`;
 
   app.post('/api/projects/:projectId/decisions', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const projectId = parseInt(req.params.projectId);
@@ -19465,7 +19517,7 @@ Return ONLY valid JSON.`;
 
   app.put('/api/project-decisions/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const id = parseInt(req.params.id);
@@ -19479,7 +19531,7 @@ Return ONLY valid JSON.`;
 
   app.delete('/api/project-decisions/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const id = parseInt(req.params.id);
@@ -19498,7 +19550,7 @@ Return ONLY valid JSON.`;
   // Get lessons learned for a specific project
   app.get('/api/projects/:projectId/lessons-learned', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const projectId = parseInt(req.params.projectId);
@@ -19513,7 +19565,7 @@ Return ONLY valid JSON.`;
   // Get all lessons learned for an organization
   app.get('/api/organizations/:organizationId/lessons-learned', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const organizationId = parseInt(req.params.organizationId);
@@ -19528,7 +19580,7 @@ Return ONLY valid JSON.`;
   // Create a lesson learned
   app.post('/api/projects/:projectId/lessons-learned', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const projectId = parseInt(req.params.projectId);
@@ -19547,7 +19599,7 @@ Return ONLY valid JSON.`;
   // Update a lesson learned
   app.put('/api/lessons-learned/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const id = parseInt(req.params.id);
@@ -19562,7 +19614,7 @@ Return ONLY valid JSON.`;
   // Delete a lesson learned
   app.delete('/api/lessons-learned/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
 
     try {
       const id = parseInt(req.params.id);
@@ -20878,7 +20930,7 @@ Return ONLY valid JSON.`;
 
   app.get('/api/home/recent-activity', async (req, res) => {
     try {
-      if (!req.user) return res.status(401).json({ message: "Not authenticated" });
+      if (!req.user) return res.status(401).json({ message: "Authentication required" });
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
       if (!organizationId) return res.json([]);
 
@@ -20964,7 +21016,7 @@ Return ONLY valid JSON.`;
     try {
       const realUserId = req.session.userId;
       if (!realUserId) {
-        return res.status(401).json({ message: "Not authenticated" });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
       if (req.session.actingAsUserId) {
@@ -20984,7 +21036,7 @@ Return ONLY valid JSON.`;
 
       const [realUser] = await db.select().from(users).where(eq(users.id, realUserId)).limit(1);
       if (!realUser) {
-        return res.status(401).json({ message: "User not found" });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
       const isSuperAdmin = hasAdminAccess(realUser);
@@ -21039,7 +21091,7 @@ Return ONLY valid JSON.`;
     try {
       const realUserId = req.session.userId;
       if (!realUserId) {
-        return res.status(401).json({ message: "Not authenticated" });
+        return res.status(401).json({ message: "Authentication required" });
       }
 
       const wasActingAs = req.session.actingAsUserId;

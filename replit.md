@@ -76,3 +76,26 @@ Includes features for tracking resource skills with proficiency levels, resource
 - **Microsoft Planner**: Integration via Microsoft Graph API for importing and syncing projects and tasks (read-only tasks in the application).
 - **Microsoft Dynamics 365 Sales Hub**: Organization-scoped integration for importing invoices using OAuth 2.0 via MSAL.
 - **Analytics API**: REST endpoints for external analytics tools like Power BI, secured with API keys.
+
+## API Error Convention
+All API routes in `server/routes.ts` follow these HTTP status code conventions. **Always update `server/swagger.ts` when adding, modifying, or removing API routes.**
+
+### Status Codes
+- **400 Bad Request**: Invalid input, validation errors (Zod), missing required fields. Message describes the specific validation failure.
+- **401 Unauthorized**: No authenticated user session. Always use message `"Authentication required"`. Use `getUserIdFromRequest(req)` helper (line ~916 in routes.ts) to check auth.
+- **403 Forbidden**: User is authenticated but lacks permission. Use `"Access denied"` for generic cases, or specific messages like `"Admin access required"`, `"Not a member of this organization"`.
+- **404 Not Found**: Resource doesn't exist. Message describes what wasn't found.
+- **500 Internal Server Error**: Catch-all for unexpected errors in try/catch blocks.
+
+### Auth Check Pattern
+Every protected route must include this check near the top of the handler:
+```typescript
+const userId = getUserIdFromRequest(req);
+if (!userId) return res.status(401).json({ message: 'Authentication required' });
+```
+
+### Swagger/OpenAPI
+- The complete OpenAPI 3.0 spec is maintained in `server/swagger.ts` covering all ~400 routes.
+- Swagger UI is served at `/api-docs`, raw JSON spec at `/api-docs.json`.
+- When adding new routes, add corresponding entries in the swagger spec paths object.
+- Use the helper functions (`op()`, `pathId()`, `qInt()`, `qStr()`, `body()`) and reusable response patterns (`authRes`, `stdRes`, `idRes`, `fullRes`, `inputRes`, `createRes`, `updateRes`) defined at the top of swagger.ts.
