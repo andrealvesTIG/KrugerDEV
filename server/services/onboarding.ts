@@ -339,7 +339,7 @@ export async function completeOnboarding(
     const existingSub = await db.select().from(subscriptions).where(eq(subscriptions.orgId, organization.id)).limit(1);
     if (existingSub.length === 0) {
       try {
-        const { billingProvider } = await import("./services/billing");
+        const { billingProvider } = await import("./billing");
         await billingProvider.createSubscription({
           planCode: "FREE",
           orgId: organization.id,
@@ -365,7 +365,7 @@ export async function completeOnboarding(
     });
 
     try {
-      const { billingProvider } = await import("./services/billing");
+      const { billingProvider } = await import("./billing");
       await billingProvider.createSubscription({
         planCode: "FREE",
         orgId: organization.id,
@@ -597,7 +597,7 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
       const existingSub = await db.select().from(subscriptions).where(eq(subscriptions.orgId, existingOrg.id)).limit(1);
       if (existingSub.length === 0) {
         try {
-          const { billingProvider } = await import("./services/billing");
+          const { billingProvider } = await import("./billing");
           await billingProvider.createSubscription({
             planCode: "FREE",
             orgId: existingOrg.id,
@@ -662,7 +662,7 @@ export async function ensureUserOrganization(userId: string, email: string): Pro
   });
 
   try {
-    const { billingProvider } = await import("./services/billing");
+    const { billingProvider } = await import("./billing");
     await billingProvider.createSubscription({
       planCode: "FREE",
       orgId: newOrg.id,

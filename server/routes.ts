@@ -8998,6 +8998,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   app.get('/api/tasks/:id', async (req, res) => {
     try {
       const taskId = Number(req.params.id);
+      if (isNaN(taskId)) {
+        return res.status(400).json({ message: "Invalid task ID" });
+      }
       const task = await storage.getTask(taskId);
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
