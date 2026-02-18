@@ -3430,6 +3430,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
   const [riskConfirmOpen, setRiskConfirmOpen] = useState(false);
   const [selectedSuggestedRisks, setSelectedSuggestedRisks] = useState<Set<number>>(new Set());
   const [isCreatingSuggested, setIsCreatingSuggested] = useState(false);
+  const [createdSuggestedIndices, setCreatedSuggestedIndices] = useState<Set<number>>(new Set());
 
   const { data: latestProjectAssessment } = useQuery<{ riskScore: number; generatedAt: string; summary: string; shareToken: string; id: number; report: any } | null>({
     queryKey: ["/api/projects", projectId, "risk-assessment", "latest"],
@@ -3455,6 +3456,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
         setRiskAssessmentId(data.assessment.id);
         setRiskShareToken(data.assessment.shareToken || "");
         setSelectedSuggestedRisks(new Set());
+        setCreatedSuggestedIndices(new Set());
         setRiskAssessmentDialogOpen(true);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "risk-assessment", "latest"] });
@@ -3475,6 +3477,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
       setRiskAssessmentId(latestProjectAssessment.id);
       setRiskShareToken(latestProjectAssessment.shareToken || "");
       setSelectedSuggestedRisks(new Set());
+      setCreatedSuggestedIndices(new Set());
       setRiskAssessmentDialogOpen(true);
     } else {
       setRiskConfirmOpen(true);
@@ -4110,7 +4113,22 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                 </Card>
               )}
 
-              {riskReport.topRisks && riskReport.topRisks.length > 0 && (
+              {riskReport.topRisks && riskReport.topRisks.length > 0 && (() => {
+                const existingRiskTitles = (risks || []).map((r: any) => r.title?.toLowerCase().trim()).filter(Boolean);
+                const isAlreadyCreated = (suggestedRisk: any, idx: number): boolean => {
+                  if (createdSuggestedIndices.has(idx)) return true;
+                  const suggestedTitle = suggestedRisk.title?.toLowerCase().trim();
+                  if (!suggestedTitle) return false;
+                  return existingRiskTitles.some((existing: string) => {
+                    if (existing === suggestedTitle) return true;
+                    const shorter = existing.length < suggestedTitle.length ? existing : suggestedTitle;
+                    const longer = existing.length < suggestedTitle.length ? suggestedTitle : existing;
+                    return longer.includes(shorter) && shorter.length > 5;
+                  });
+                };
+                const selectableCount = riskReport.topRisks.filter((r: any, i: number) => !isAlreadyCreated(r, i)).length;
+                const allSelectableSelected = selectableCount > 0 && selectedSuggestedRisks.size === selectableCount;
+                return (
                 <Card>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -4121,21 +4139,27 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                             {selectedSuggestedRisks.size} selected
                           </span>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs"
-                          onClick={() => {
-                            if (selectedSuggestedRisks.size === riskReport.topRisks.length) {
-                              setSelectedSuggestedRisks(new Set());
-                            } else {
-                              setSelectedSuggestedRisks(new Set(riskReport.topRisks.map((_: any, i: number) => i)));
-                            }
-                          }}
-                          data-testid="button-select-all-suggested-risks"
-                        >
-                          {selectedSuggestedRisks.size === riskReport.topRisks.length ? "Deselect All" : "Select All"}
-                        </Button>
+                        {selectableCount > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => {
+                              if (allSelectableSelected) {
+                                setSelectedSuggestedRisks(new Set());
+                              } else {
+                                const selectableIndices = new Set<number>();
+                                riskReport.topRisks.forEach((r: any, i: number) => {
+                                  if (!isAlreadyCreated(r, i)) selectableIndices.add(i);
+                                });
+                                setSelectedSuggestedRisks(selectableIndices);
+                              }
+                            }}
+                            data-testid="button-select-all-suggested-risks"
+                          >
+                            {allSelectableSelected ? "Deselect All" : "Select All"}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
@@ -4143,14 +4167,20 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                     <div className="space-y-3" data-testid="display-project-top-risks">
                       {riskReport.topRisks.map((risk: any, idx: number) => {
                         const isSelected = selectedSuggestedRisks.has(idx);
+                        const alreadyExists = isAlreadyCreated(risk, idx);
                         return (
                           <div
                             key={idx}
                             className={cn(
-                              "flex items-start gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                              isSelected ? "bg-primary/10 ring-1 ring-primary/30" : "bg-muted/50 hover:bg-muted/80"
+                              "flex items-start gap-3 p-3 rounded-md transition-colors",
+                              alreadyExists
+                                ? "bg-muted/30 opacity-60"
+                                : isSelected
+                                  ? "bg-primary/10 ring-1 ring-primary/30 cursor-pointer"
+                                  : "bg-muted/50 hover:bg-muted/80 cursor-pointer"
                             )}
                             onClick={() => {
+                              if (alreadyExists) return;
                               setSelectedSuggestedRisks(prev => {
                                 const next = new Set(prev);
                                 if (next.has(idx)) next.delete(idx);
@@ -4160,23 +4190,44 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                             }}
                             data-testid={`project-top-risk-${idx}`}
                           >
-                            <Checkbox
-                              checked={isSelected}
-                              className="mt-0.5 shrink-0"
-                              onCheckedChange={(checked) => {
-                                setSelectedSuggestedRisks(prev => {
-                                  const next = new Set(prev);
-                                  if (checked) next.add(idx);
-                                  else next.delete(idx);
-                                  return next;
-                                });
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              data-testid={`checkbox-suggested-risk-${idx}`}
-                            />
+                            {alreadyExists ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="shrink-0">
+                                    <Checkbox
+                                      checked={true}
+                                      disabled
+                                      className="mt-0.5"
+                                      data-testid={`checkbox-suggested-risk-${idx}`}
+                                    />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>Risk already created</TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Checkbox
+                                checked={isSelected}
+                                className="mt-0.5 shrink-0"
+                                onCheckedChange={(checked) => {
+                                  setSelectedSuggestedRisks(prev => {
+                                    const next = new Set(prev);
+                                    if (checked) next.add(idx);
+                                    else next.delete(idx);
+                                    return next;
+                                  });
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                data-testid={`checkbox-suggested-risk-${idx}`}
+                              />
+                            )}
                             <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium">{risk.title}</p>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium">{risk.title}</p>
+                                {alreadyExists && (
+                                  <Badge variant="outline" className="text-[10px]">Already exists</Badge>
+                                )}
+                              </div>
                               <p className="text-xs text-muted-foreground mt-1">Impact: {risk.impact}</p>
                               <p className="text-xs text-muted-foreground">Likelihood: {risk.likelihood}</p>
                               {risk.mitigation && (
@@ -4189,7 +4240,8 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                     </div>
                   </CardContent>
                 </Card>
-              )}
+                );
+              })()}
 
               {riskReport.recommendations && riskReport.recommendations.length > 0 && (
                 <Card>
@@ -4242,10 +4294,15 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                   }
                 }
                 setIsCreatingSuggested(false);
-                setSelectedSuggestedRisks(new Set());
                 if (created > 0) {
+                  setCreatedSuggestedIndices(prev => {
+                    const next = new Set(prev);
+                    selectedSuggestedRisks.forEach(i => next.add(i));
+                    return next;
+                  });
                   toast({ title: "Success", description: `${created} risk${created > 1 ? "s" : ""} created from suggestions` });
                 }
+                setSelectedSuggestedRisks(new Set());
               }}
               disabled={isCreatingSuggested}
               data-testid="button-create-suggested-risks"
