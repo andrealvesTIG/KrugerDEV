@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request as ExpressRequest } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -327,6 +327,7 @@ async function seedDatabase() {
     
     // ==================== PORTFOLIOS ====================
     const mobilePortfolio = await storage.createPortfolio({
+      organizationId: 1,
       name: "Mobile Applications",
       description: "Native and cross-platform mobile app development initiatives.",
       strategy: "React Native first with native modules for performance-critical features.",
@@ -334,6 +335,7 @@ async function seedDatabase() {
     });
 
     const webPlatformPortfolio = await storage.createPortfolio({
+      organizationId: 1,
       name: "Web Platform",
       description: "Enterprise web applications and customer-facing portals.",
       strategy: "Modern React/TypeScript stack with microservices backend.",
@@ -341,6 +343,7 @@ async function seedDatabase() {
     });
 
     const infraPortfolio = await storage.createPortfolio({
+      organizationId: 1,
       name: "Infrastructure & DevOps",
       description: "Cloud infrastructure, CI/CD pipelines, and developer tooling.",
       strategy: "AWS-first with Kubernetes orchestration and GitOps practices.",
@@ -352,6 +355,7 @@ async function seedDatabase() {
     // Mobile Portfolio Projects
     const ecommerceApp = await storage.createProject({
       portfolioId: mobilePortfolio.id,
+      organizationId: 1,
       name: "E-Commerce Mobile App",
       description: "Full-featured shopping app with payment integration, push notifications, and AR product preview.",
       status: "Execution",
@@ -366,6 +370,7 @@ async function seedDatabase() {
 
     const bankingApp = await storage.createProject({
       portfolioId: mobilePortfolio.id,
+      organizationId: 1,
       name: "Mobile Banking App v2.0",
       description: "Redesign of the banking app with biometric auth, real-time notifications, and investment tracking.",
       status: "Planning",
@@ -381,6 +386,7 @@ async function seedDatabase() {
     // Web Platform Projects
     const saasApp = await storage.createProject({
       portfolioId: webPlatformPortfolio.id,
+      organizationId: 1,
       name: "SaaS Analytics Dashboard",
       description: "Real-time analytics platform with customizable dashboards, reports, and data visualizations.",
       status: "Execution",
@@ -395,6 +401,7 @@ async function seedDatabase() {
 
     const crmApp = await storage.createProject({
       portfolioId: webPlatformPortfolio.id,
+      organizationId: 1,
       name: "CRM Platform Modernization",
       description: "Migrating legacy CRM to modern React frontend with GraphQL API.",
       status: "Execution",
@@ -409,6 +416,7 @@ async function seedDatabase() {
 
     const apiGateway = await storage.createProject({
       portfolioId: webPlatformPortfolio.id,
+      organizationId: 1,
       name: "API Gateway Implementation",
       description: "Centralized API gateway with rate limiting, authentication, and request routing.",
       status: "Initiation",
@@ -424,6 +432,7 @@ async function seedDatabase() {
     // Infrastructure Projects
     const k8sMigration = await storage.createProject({
       portfolioId: infraPortfolio.id,
+      organizationId: 1,
       name: "Kubernetes Migration",
       description: "Migrating microservices from EC2 to EKS with Helm charts and ArgoCD.",
       status: "Execution",
@@ -438,6 +447,7 @@ async function seedDatabase() {
 
     const cicdPipeline = await storage.createProject({
       portfolioId: infraPortfolio.id,
+      organizationId: 1,
       name: "CI/CD Pipeline Overhaul",
       description: "Implementing GitHub Actions workflows with automated testing, security scanning, and deployments.",
       status: "Closing",
@@ -2392,7 +2402,7 @@ export async function registerRoutes(
       const currentMember = members.find(m => m.userId === userId);
       
       // Also check if user is super_admin
-      const user = await storage.getUser(userId);
+      const user = await storage.getUser(userId!);
       const isSuperAdmin = hasAdminAccess(user);
       
       const isAdmin = currentMember?.role === 'org_admin' || currentMember?.role === 'owner' || isSuperAdmin;
@@ -2428,7 +2438,7 @@ export async function registerRoutes(
       // Check if user is org admin or super admin
       const members = await storage.getOrganizationMembers(orgId);
       const currentMember = members.find(m => m.userId === userId);
-      const user = await storage.getUser(userId);
+      const user = await storage.getUser(userId!);
       const isSuperAdmin = hasAdminAccess(user);
       
       if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
@@ -2489,7 +2499,7 @@ export async function registerRoutes(
       // Check if user is org admin or super admin
       const members = await storage.getOrganizationMembers(orgId);
       const currentMember = members.find(m => m.userId === userId);
-      const user = await storage.getUser(userId);
+      const user = await storage.getUser(userId!);
       const isSuperAdmin = hasAdminAccess(user);
       
       if (!isSuperAdmin && (!currentMember || !['org_admin', 'owner'].includes(currentMember.role))) {
@@ -2954,8 +2964,10 @@ export async function registerRoutes(
       
       // Get existing members to exclude from results
       const members = await storage.getOrganizationMembers(orgId);
+      const memberUserIds = members.map(m => m.userId);
+      const memberUsers = await Promise.all(memberUserIds.map(id => storage.getUser(id)));
       const memberEmails = new Set(
-        members.map(m => m.user?.email?.toLowerCase()).filter(Boolean) as string[]
+        memberUsers.map(u => u?.email?.toLowerCase()).filter(Boolean) as string[]
       );
       
       // Get pending invites to exclude from results
@@ -3223,7 +3235,7 @@ export async function registerRoutes(
             adminUser.email,
             requesterName,
             org.name,
-            request.message
+            request.message ?? undefined
           );
         }
       }
@@ -3796,7 +3808,7 @@ export async function registerRoutes(
 
   app.delete(api.portfolios.delete.path, async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('portfolio', Number(req.params.id), userId);
+    await storage.softDeleteItem('portfolio', Number(req.params.id), userId!);
     res.status(204).send();
   });
 
@@ -7341,7 +7353,7 @@ export async function registerRoutes(
 
   app.delete(api.projects.delete.path, async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('project', Number(req.params.id), userId);
+    await storage.softDeleteItem('project', Number(req.params.id), userId!);
     res.status(204).send();
   });
 
@@ -8327,7 +8339,7 @@ Generated by FridayReport.AI
 
   app.delete(api.risks.delete.path, async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('risk', Number(req.params.id), userId);
+    await storage.softDeleteItem('risk', Number(req.params.id), userId!);
     res.status(204).send();
   });
 
@@ -8519,7 +8531,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   app.delete(api.milestones.delete.path, async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('milestone', Number(req.params.id), userId);
+    await storage.softDeleteItem('milestone', Number(req.params.id), userId!);
     res.status(204).send();
   });
 
@@ -8691,7 +8703,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
   app.delete(api.issues.delete.path, async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    await storage.softDeleteItem('issue', Number(req.params.id), userId);
+    await storage.softDeleteItem('issue', Number(req.params.id), userId!);
     res.status(204).send();
   });
 
@@ -8742,9 +8754,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         changedBy: userId || undefined,
         changedByName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown' : 'System',
         changeType: 'updated',
-        changeDetails: escalate ? 'Escalated to portfolio' : 'De-escalated from portfolio',
-        previousValues: { escalatedToPortfolio: !escalate },
-        newValues: { escalatedToPortfolio: escalate },
+        changeSummary: escalate ? 'Escalated to portfolio' : 'De-escalated from portfolio',
+        previousValues: JSON.stringify({ escalatedToPortfolio: !escalate }),
+        newValues: JSON.stringify({ escalatedToPortfolio: escalate }),
       });
       
       res.json(updated);
@@ -9205,7 +9217,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         const startDate = input.startDate || previousTask.startDate;
         if (startDate) {
           const start = new Date(startDate + 'T00:00:00');
-          const end = calculateEndDate(start, input.durationDays);
+          const end = calculateEndDate(start, input.durationDays!);
           input.endDate = formatDateStr(end);
         }
       }
@@ -9275,7 +9287,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const task = await storage.getTask(taskId);
     const projectId = task?.projectId;
     
-    await storage.softDeleteItem('task', taskId, userId);
+    await storage.softDeleteItem('task', taskId, userId!);
     
     // Recalculate WBS after deletion
     if (projectId) {
@@ -11062,7 +11074,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       if (customIndustry && !template) {
         const { checkAndEnforceLimit, METER_CODES } = await import("./services/billing");
-        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, organizationId);
+        const limitCheck = await checkAndEnforceLimit(userId!, METER_CODES.AI_RUNS, 1, organizationId);
         if (!limitCheck.allowed) {
           return res.status(403).json({
             message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
@@ -11130,7 +11142,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           
           // Always track AI credit usage after successful API call, even for free accounts
           const { recordCreditUsage, RESOURCE_TYPES } = await import("./services/billing");
-          await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_demo_${Date.now()}`, organizationId);
+          await recordCreditUsage(userId!, RESOURCE_TYPES.AI_RUN, `ai_demo_${Date.now()}`, organizationId);
           
           const content = response.choices[0]?.message?.content || '{}';
           template = JSON.parse(content);
@@ -11358,7 +11370,6 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
                 recommendation: lessonTemplate.recommendation,
                 status: lessonTemplate.status,
                 dateIdentified: identifiedDate.toISOString().split('T')[0],
-                isDemo: true,
               });
               stats.lessonsLearned++;
             }
@@ -13308,7 +13319,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       const orgId = Number(req.params.orgId);
       
       // Check user has access to the organization (admin or owner only)
-      const membership = await storage.getOrganizationMember(orgId, userId);
+      const orgMembers = await storage.getOrganizationMembers(orgId);
+      const membership = orgMembers.find(m => m.userId === userId);
       const user = await storage.getUser(userId);
       const isSuperAdmin = hasAdminAccess(user);
       const isOrgAdmin = membership?.role === 'owner' || membership?.role === 'org_admin' || membership?.role === 'admin';
@@ -13358,7 +13370,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         }
       }
       
-      const totals = allResults.reduce((acc, r) => ({
+      const totals = allResults.reduce((acc, r: any) => ({
         totalCreated: acc.totalCreated + (r.totalCreated || 0),
         totalSkipped: acc.totalSkipped + (r.totalSkipped || 0),
         totalErrors: acc.totalErrors + (r.totalErrors || 0),
@@ -14571,7 +14583,7 @@ Return ONLY valid JSON.`;
 
   // Helper: Get user ID from either session or API key (Basic auth)
   // Power BI uses Basic auth where username=email and password=apiKey
-  async function getAnalyticsUserId(req: Request): Promise<string | null> {
+  async function getAnalyticsUserId(req: ExpressRequest): Promise<string | null> {
     // First try session-based auth
     const sessionUserId = getUserIdFromRequest(req);
     if (sessionUserId) return sessionUserId;
@@ -14728,7 +14740,7 @@ Return ONLY valid JSON.`;
             budget: Number(project.budget) || 0,
             startDate: project.startDate,
             endDate: project.endDate,
-            projectManager: project.projectManager,
+            projectManager: project.managerId,
             portfolioId: project.portfolioId,
             portfolioName: portfolio?.name || null,
             organizationId: orgId,
@@ -14852,7 +14864,7 @@ Return ONLY valid JSON.`;
               impact: risk.impact,
               status: risk.status,
               mitigationPlan: risk.mitigationPlan,
-              owner: risk.owner,
+              owner: risk.ownerId,
               projectId: project.id,
               projectName: project.name,
               organizationId: orgId,
@@ -15014,7 +15026,7 @@ Return ONLY valid JSON.`;
             programName: intake.programName,
             fundingSource: intake.fundingSource,
             estimatedBudget: intake.estimatedBudget,
-            strategicAlignment: intake.strategicAlignment,
+            strategicAlignment: (intake as any).strategicAlignment,
             organizationId: orgId,
             organizationName: org?.name || null,
             submitterId: intake.submitterId,
@@ -18291,7 +18303,7 @@ Return ONLY valid JSON.`;
         resourceId: userResource.id,
         categoryId,
         entryDate,
-        hours: hoursNum,
+        hours: String(hoursNum),
         notes,
         status: 'Draft'
       });
@@ -18327,8 +18339,8 @@ Return ONLY valid JSON.`;
 
       // Only allow updating hours and notes
       const { hours, notes } = req.body;
-      const updates: { hours?: number; notes?: string } = {};
-      if (hours !== undefined) updates.hours = Number(hours);
+      const updates: { hours?: string; notes?: string } = {};
+      if (hours !== undefined) updates.hours = String(Number(hours));
       if (notes !== undefined) updates.notes = notes;
 
       const updated = await storage.updateNonProjectTimeEntry(id, updates);
@@ -19649,7 +19661,7 @@ Return ONLY valid JSON.`;
   // Get monitoring dashboard overview
   app.get('/api/admin/monitoring/overview', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -19772,7 +19784,7 @@ Return ONLY valid JSON.`;
   // Get API request logs with pagination and filtering
   app.get('/api/admin/monitoring/api-logs', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -19826,7 +19838,7 @@ Return ONLY valid JSON.`;
   // Get user activity statistics
   app.get('/api/admin/monitoring/user-activity', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -19884,7 +19896,7 @@ Return ONLY valid JSON.`;
   // Get feature usage statistics
   app.get('/api/admin/monitoring/feature-usage', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -19973,7 +19985,7 @@ Return ONLY valid JSON.`;
   // Get performance metrics
   app.get('/api/admin/monitoring/performance', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -20048,7 +20060,7 @@ Return ONLY valid JSON.`;
   // Get database statistics
   app.get('/api/admin/monitoring/database', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -20109,7 +20121,7 @@ Return ONLY valid JSON.`;
   // Get organization usage statistics
   app.get('/api/admin/monitoring/organization-usage', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -20144,7 +20156,7 @@ Return ONLY valid JSON.`;
   // Comprehensive analytics dashboard for Super Admin
   app.get('/api/admin/analytics/dashboard', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -20498,6 +20510,7 @@ Return ONLY valid JSON.`;
         await sendEmail({
           to: 'support@fridayreport.ai',
           subject: `[Help Ticket #${ticket.id}] ${subject}`,
+          text: `New Help Ticket from ${ticketData.userName} (${ticketData.userEmail}): ${subject} - ${description}`,
           html: `
             <h2>New Help Ticket Submitted</h2>
             <p><strong>From:</strong> ${ticketData.userName} (${ticketData.userEmail})</p>
@@ -20531,7 +20544,7 @@ Return ONLY valid JSON.`;
   // Get all help tickets (superadmin only)
   app.get('/api/admin/help-tickets', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -20547,7 +20560,7 @@ Return ONLY valid JSON.`;
   // Get a single help ticket (superadmin only)
   app.get('/api/admin/help-tickets/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -20569,7 +20582,7 @@ Return ONLY valid JSON.`;
   // Update a help ticket (superadmin only)
   app.patch('/api/admin/help-tickets/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -20608,7 +20621,7 @@ Return ONLY valid JSON.`;
   // Delete a help ticket (superadmin only)
   app.delete('/api/admin/help-tickets/:id', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
 
@@ -20843,7 +20856,7 @@ Return ONLY valid JSON.`;
   // Admin endpoint to manually trigger scheduled report check (for testing/cron)
   app.post('/api/admin/report-subscriptions/check', async (req, res) => {
     const userId = getUserIdFromRequest(req);
-    if (!await requireSuperAdmin(userId)) {
+    if (!await requireSuperAdmin(userId ?? null)) {
       return res.status(403).json({ message: 'Super admin access required' });
     }
     
