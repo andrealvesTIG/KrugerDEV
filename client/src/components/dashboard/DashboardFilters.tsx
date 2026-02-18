@@ -139,13 +139,11 @@ export function DashboardFilters({
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
             <div className="flex">
-              <div className="border-r p-1.5 space-y-0.5">
+              <div className="border-r p-1 space-y-0">
                 {TIME_PRESETS.map((preset) => (
-                  <Button
+                  <button
                     key={preset.label}
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-[11px] h-6 px-2"
+                    className="block w-full text-left text-[10px] px-2 py-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                     onClick={() => {
                       const range = preset.getValue();
                       updateFilter("dateRange", range);
@@ -153,7 +151,7 @@ export function DashboardFilters({
                     }}
                   >
                     {preset.label}
-                  </Button>
+                  </button>
                 ))}
               </div>
               <div className="p-2">
