@@ -139,13 +139,13 @@ export function DashboardFilters({
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
             <div className="flex">
-              <div className="border-r p-2 space-y-1">
+              <div className="border-r p-1.5 space-y-0.5">
                 {TIME_PRESETS.map((preset) => (
                   <Button
                     key={preset.label}
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start text-xs h-7"
+                    className="w-full justify-start text-[11px] h-6 px-2"
                     onClick={() => {
                       const range = preset.getValue();
                       updateFilter("dateRange", range);
