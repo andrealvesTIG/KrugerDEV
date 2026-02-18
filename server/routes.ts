@@ -84,6 +84,62 @@ const imageUpload = multer({
   }
 });
 
+// Classify database/validation errors to return proper HTTP status codes
+function classifyError(err: unknown): { status: number; message: string } {
+  const errMsg = err instanceof Error ? err.message : String(err);
+  const errCode = (err as any)?.code;
+
+  // PostgreSQL constraint violations → 400 Bad Request
+  if (errCode === '23505') {
+    // Unique constraint violation
+    const detail = (err as any)?.detail || '';
+    const match = detail.match(/Key \((\w+)\)=\((.+?)\) already exists/);
+    if (match) {
+      return { status: 400, message: `A record with this ${match[1].replace(/_/g, ' ')} already exists` };
+    }
+    return { status: 400, message: 'A record with these values already exists' };
+  }
+  if (errCode === '23503') {
+    // Foreign key violation
+    const detail = (err as any)?.detail || '';
+    const match = detail.match(/Key \((\w+)\)=\((.+?)\) is not present in table "(\w+)"/);
+    if (match) {
+      return { status: 400, message: `Invalid ${match[1].replace(/_/g, ' ')}: referenced ${match[3].replace(/_/g, ' ')} does not exist` };
+    }
+    return { status: 400, message: 'Referenced record does not exist' };
+  }
+  if (errCode === '23502') {
+    // Not-null violation
+    const col = (err as any)?.column || '';
+    return { status: 400, message: `Missing required field: ${col.replace(/_/g, ' ')}` };
+  }
+  if (errCode === '23514') {
+    // Check constraint violation
+    const constraint = (err as any)?.constraint || '';
+    return { status: 400, message: `Value does not meet validation rules${constraint ? ` (${constraint})` : ''}` };
+  }
+  if (errCode === '22P02') {
+    // Invalid text representation (e.g., invalid integer)
+    return { status: 400, message: 'Invalid data format: one or more fields have incorrect types' };
+  }
+  if (errCode === '22003') {
+    // Numeric value out of range
+    return { status: 400, message: 'Numeric value is out of range' };
+  }
+  if (errCode === '22001') {
+    // String too long
+    return { status: 400, message: 'One or more text fields exceed the maximum length' };
+  }
+
+  // Zod validation errors
+  if (err instanceof z.ZodError) {
+    return { status: 400, message: err.errors.map(e => e.message).join('; ') };
+  }
+
+  // Default: genuine server error
+  return { status: 500, message: errMsg };
+}
+
 // Parse MPP file using MPXJ Java library
 function parseMppFile(fileBuffer: Buffer): Array<{
   taskId?: number;
@@ -1291,7 +1347,8 @@ export async function registerRoutes(
       res.json(sanitizeUser(updated));
     } catch (err) {
       console.error('Failed to update user role:', err);
-      res.status(500).json({ message: 'Failed to update user role' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update user role' : classified.message });
     }
   });
 
@@ -1321,7 +1378,8 @@ export async function registerRoutes(
       res.json(sanitizeUser(updated));
     } catch (err) {
       console.error('Failed to update technician status:', err);
-      res.status(500).json({ message: 'Failed to update technician status' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update technician status' : classified.message });
     }
   });
 
@@ -1349,7 +1407,8 @@ export async function registerRoutes(
       res.json(sanitizeUser(updated));
     } catch (err) {
       console.error('Failed to deactivate user:', err);
-      res.status(500).json({ message: 'Failed to deactivate user' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to deactivate user' : classified.message });
     }
   });
 
@@ -1372,7 +1431,8 @@ export async function registerRoutes(
       res.json(sanitizeUser(updated));
     } catch (err) {
       console.error('Failed to reactivate user:', err);
-      res.status(500).json({ message: 'Failed to reactivate user' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to reactivate user' : classified.message });
     }
   });
 
@@ -1391,7 +1451,8 @@ export async function registerRoutes(
         .returning();
       res.json(sanitizeUser(updated));
     } catch (err) {
-      res.status(500).json({ message: 'Failed to update user profile' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update user profile' : classified.message });
     }
   });
 
@@ -1428,7 +1489,8 @@ export async function registerRoutes(
       res.json(sanitizeUser(updated));
     } catch (err) {
       console.error("Error updating avatar:", err);
-      res.status(500).json({ message: 'Failed to update avatar' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update avatar' : classified.message });
     }
   });
 
@@ -1449,7 +1511,8 @@ export async function registerRoutes(
       res.json({ uploadURL, objectPath });
     } catch (err) {
       console.error("Error generating avatar upload URL:", err);
-      res.status(500).json({ message: 'Failed to generate upload URL' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to generate upload URL' : classified.message });
     }
   });
 
@@ -1524,7 +1587,8 @@ export async function registerRoutes(
       res.json({ objectPath: servePath, success: true });
     } catch (err) {
       console.error("Error uploading avatar:", err);
-      res.status(500).json({ message: 'Failed to upload avatar' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to upload avatar' : classified.message });
     }
   });
 
@@ -1555,7 +1619,8 @@ export async function registerRoutes(
       res.json({ success: true, message: 'User deleted successfully' });
     } catch (err) {
       console.error('Error deleting user:', err);
-      res.status(500).json({ message: 'Failed to delete user' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete user' : classified.message });
     }
   });
 
@@ -1616,7 +1681,8 @@ export async function registerRoutes(
       }
       res.status(201).json(org);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to create organization' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create organization' : classified.message });
     }
   });
 
@@ -1633,7 +1699,8 @@ export async function registerRoutes(
       const updated = await storage.updateOrganization(orgId, { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl });
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to update organization' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update organization' : classified.message });
     }
   });
 
@@ -1664,7 +1731,8 @@ export async function registerRoutes(
       }
       res.json(maskedConfig);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to get risk assessment config' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get risk assessment config' : classified.message });
     }
   });
 
@@ -1700,7 +1768,8 @@ export async function registerRoutes(
       const updated = await storage.updateOrganization(orgId, { riskAssessmentConfig: parsed.data });
       res.json(updated?.riskAssessmentConfig || parsed.data);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to update risk assessment config' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update risk assessment config' : classified.message });
     }
   });
 
@@ -1719,7 +1788,8 @@ export async function registerRoutes(
       res.json(integrations);
     } catch (err) {
       console.error('Error fetching organization integrations:', err);
-      res.status(500).json({ message: 'Failed to fetch integrations' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch integrations' : classified.message });
     }
   });
 
@@ -1767,7 +1837,8 @@ export async function registerRoutes(
       res.json({ tabOrder: updated.dashboardTabOrder, hiddenTabs: updated.dashboardHiddenTabs });
     } catch (err) {
       console.error('Error updating dashboard tab order:', err);
-      res.status(500).json({ message: 'Failed to update dashboard tab order' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update dashboard tab order' : classified.message });
     }
   });
 
@@ -1784,7 +1855,8 @@ export async function registerRoutes(
       const org = await storage.getOrganization(orgId);
       res.json({ tabOrder: org?.dashboardTabOrder || [], hiddenTabs: org?.dashboardHiddenTabs || [] });
     } catch (err) {
-      res.status(500).json({ message: 'Failed to get dashboard tab order' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get dashboard tab order' : classified.message });
     }
   });
 
@@ -1814,7 +1886,8 @@ export async function registerRoutes(
       console.error("Error stack:", err?.stack);
       console.error("Error message:", err?.message);
       console.error("PRIVATE_OBJECT_DIR:", process.env.PRIVATE_OBJECT_DIR);
-      res.status(500).json({ message: 'Failed to generate upload URL', error: err?.message || 'Unknown error' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to generate upload URL' : classified.message });
     }
   });
 
@@ -1889,7 +1962,8 @@ export async function registerRoutes(
       res.json({ objectPath: servePath, success: true });
     } catch (err) {
       console.error("Error uploading logo:", err);
-      res.status(500).json({ message: 'Failed to upload logo' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to upload logo' : classified.message });
     }
   });
 
@@ -1910,7 +1984,8 @@ export async function registerRoutes(
       const deactivated = await storage.deactivateOrganization(orgId, userId);
       res.json({ message: 'Organization deactivated', organization: deactivated });
     } catch (err) {
-      res.status(500).json({ message: 'Failed to deactivate organization' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to deactivate organization' : classified.message });
     }
   });
 
@@ -1930,7 +2005,8 @@ export async function registerRoutes(
       const deactivatedOrgs = await storage.getDeactivatedOrganizations();
       res.json(deactivatedOrgs);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to get deactivated organizations' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get deactivated organizations' : classified.message });
     }
   });
 
@@ -1954,7 +2030,8 @@ export async function registerRoutes(
       
       res.json(allMembers);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to get organization members' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get organization members' : classified.message });
     }
   });
 
@@ -1976,7 +2053,8 @@ export async function registerRoutes(
       const reactivated = await storage.reactivateOrganization(orgId);
       res.json({ message: 'Organization reactivated', organization: reactivated });
     } catch (err) {
-      res.status(500).json({ message: 'Failed to reactivate organization' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to reactivate organization' : classified.message });
     }
   });
 
@@ -1999,7 +2077,8 @@ export async function registerRoutes(
       res.json(allSubs);
     } catch (err) {
       console.error("Error fetching all org subscriptions:", err);
-      res.status(500).json({ message: 'Failed to fetch subscriptions' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch subscriptions' : classified.message });
     }
   });
 
@@ -2057,7 +2136,8 @@ export async function registerRoutes(
       res.json({ sent, failed, results });
     } catch (err) {
       console.error("Error sending upgrade offers:", err);
-      res.status(500).json({ message: 'Failed to send upgrade offers' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to send upgrade offers' : classified.message });
     }
   });
 
@@ -2106,7 +2186,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error fetching org billing:", err);
-      res.status(500).json({ message: 'Failed to fetch organization billing' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch organization billing' : classified.message });
     }
   });
 
@@ -2215,7 +2296,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error updating org billing:", err);
-      res.status(500).json({ message: 'Failed to update organization billing' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update organization billing' : classified.message });
     }
   });
 
@@ -2333,7 +2415,8 @@ export async function registerRoutes(
       
       res.status(201).json(member);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to add member' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to add member' : classified.message });
     }
   });
 
@@ -2354,7 +2437,8 @@ export async function registerRoutes(
       );
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to update member role' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update member role' : classified.message });
     }
   });
 
@@ -2426,7 +2510,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error fetching seat info:", err);
-      res.status(500).json({ message: 'Failed to fetch seat information' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch seat information' : classified.message });
     }
   });
 
@@ -2489,7 +2574,8 @@ export async function registerRoutes(
       res.json({ message: "Extra seats removed successfully", bonusSeats: newBonusSeats });
     } catch (error: any) {
       console.error('Error removing extra seats:', error);
-      res.status(500).json({ message: error.message || "Failed to remove extra seats" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to remove extra seats" : classified.message });
     }
   });
 
@@ -2568,7 +2654,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error purchasing extra seat:", err);
-      res.status(500).json({ message: 'Failed to purchase extra seat' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to purchase extra seat' : classified.message });
     }
   });
 
@@ -2741,7 +2828,8 @@ export async function registerRoutes(
       res.status(201).json(results);
     } catch (err) {
       console.error('Failed to create invites:', err);
-      res.status(500).json({ message: 'Failed to create invites' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create invites' : classified.message });
     }
   });
 
@@ -2758,7 +2846,8 @@ export async function registerRoutes(
       await storage.cancelOrganizationInvite(inviteId);
       res.status(204).send();
     } catch (err) {
-      res.status(500).json({ message: 'Failed to cancel invite' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to cancel invite' : classified.message });
     }
   });
 
@@ -2817,7 +2906,8 @@ export async function registerRoutes(
       res.json({ message: 'Invitation email resent successfully' });
     } catch (err) {
       console.error('Failed to resend invite:', err);
-      res.status(500).json({ message: 'Failed to resend invite' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to resend invite' : classified.message });
     }
   });
 
@@ -2903,7 +2993,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error('Failed to accept invite:', err);
-      res.status(500).json({ message: 'Failed to accept invitation' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to accept invitation' : classified.message });
     }
   });
 
@@ -2944,7 +3035,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error('Failed to get invite details:', err);
-      res.status(500).json({ message: 'Failed to get invitation details' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get invitation details' : classified.message });
     }
   });
 
@@ -3067,7 +3159,8 @@ export async function registerRoutes(
       res.json({ users: matchingUsers, source: 'internal' });
     } catch (err) {
       console.error('Failed to search directory:', err);
-      res.status(500).json({ message: 'Failed to search directory' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to search directory' : classified.message });
     }
   });
 
@@ -3135,7 +3228,8 @@ export async function registerRoutes(
       res.status(201).json(request);
     } catch (err) {
       console.error('Failed to create access request:', err);
-      res.status(500).json({ message: 'Failed to create access request' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create access request' : classified.message });
     }
   });
   
@@ -3176,7 +3270,8 @@ export async function registerRoutes(
       res.json(enrichedRequests);
     } catch (err) {
       console.error('Failed to get access requests:', err);
-      res.status(500).json({ message: 'Failed to get access requests' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get access requests' : classified.message });
     }
   });
   
@@ -3194,7 +3289,8 @@ export async function registerRoutes(
       res.json({ hasPendingRequest: !!request, request: request || null });
     } catch (err) {
       console.error('Failed to get access request status:', err);
-      res.status(500).json({ message: 'Failed to get access request status' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get access request status' : classified.message });
     }
   });
 
@@ -3250,7 +3346,8 @@ export async function registerRoutes(
       res.json({ message: 'Access request notification resent successfully' });
     } catch (err) {
       console.error('Failed to resend access request:', err);
-      res.status(500).json({ message: 'Failed to resend access request' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to resend access request' : classified.message });
     }
   });
   
@@ -3320,7 +3417,8 @@ export async function registerRoutes(
       res.json(updatedRequest);
     } catch (err) {
       console.error('Failed to approve access request:', err);
-      res.status(500).json({ message: 'Failed to approve access request' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to approve access request' : classified.message });
     }
   });
   
@@ -3374,7 +3472,8 @@ export async function registerRoutes(
       res.json(updatedRequest);
     } catch (err) {
       console.error('Failed to reject access request:', err);
-      res.status(500).json({ message: 'Failed to reject access request' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to reject access request' : classified.message });
     }
   });
 
@@ -3392,7 +3491,8 @@ export async function registerRoutes(
       res.json(shares);
     } catch (err) {
       console.error('Failed to get external shares:', err);
-      res.status(500).json({ message: 'Failed to get external shares' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external shares' : classified.message });
     }
   });
   
@@ -3429,7 +3529,8 @@ export async function registerRoutes(
       res.json(projects.filter(Boolean));
     } catch (err) {
       console.error('Failed to get external projects:', err);
-      res.status(500).json({ message: 'Failed to get external projects' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external projects' : classified.message });
     }
   });
   
@@ -3473,7 +3574,8 @@ export async function registerRoutes(
       res.json(tasks.filter(Boolean));
     } catch (err) {
       console.error('Failed to get external tasks:', err);
-      res.status(500).json({ message: 'Failed to get external tasks' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external tasks' : classified.message });
     }
   });
   
@@ -3517,7 +3619,8 @@ export async function registerRoutes(
       res.json(risks.filter(Boolean));
     } catch (err) {
       console.error('Failed to get external risks:', err);
-      res.status(500).json({ message: 'Failed to get external risks' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external risks' : classified.message });
     }
   });
   
@@ -3561,7 +3664,8 @@ export async function registerRoutes(
       res.json(issues.filter(Boolean));
     } catch (err) {
       console.error('Failed to get external issues:', err);
-      res.status(500).json({ message: 'Failed to get external issues' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get external issues' : classified.message });
     }
   });
 
@@ -3579,7 +3683,8 @@ export async function registerRoutes(
       res.json(items);
     } catch (err) {
       console.error('Failed to get recycle bin items:', err);
-      res.status(500).json({ message: 'Failed to get deleted items' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get deleted items' : classified.message });
     }
   });
 
@@ -3604,7 +3709,8 @@ export async function registerRoutes(
       res.json({ message: 'Item restored successfully' });
     } catch (err) {
       console.error('Failed to restore item:', err);
-      res.status(500).json({ message: 'Failed to restore item' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to restore item' : classified.message });
     }
   });
 
@@ -3625,7 +3731,8 @@ export async function registerRoutes(
       res.json({ message: 'Item permanently deleted' });
     } catch (err) {
       console.error('Failed to permanently delete item:', err);
-      res.status(500).json({ message: 'Failed to permanently delete item' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to permanently delete item' : classified.message });
     }
   });
 
@@ -3659,7 +3766,8 @@ export async function registerRoutes(
       res.json(results);
     } catch (err) {
       console.error('Search error:', err);
-      res.status(500).json({ message: 'Search failed' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Search failed' : classified.message });
     }
   });
 
@@ -3809,7 +3917,8 @@ export async function registerRoutes(
           field: err.errors[0].path.join('.'),
         });
       }
-      res.status(500).json({ message: "Internal server error" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Internal server error" : classified.message });
     }
   });
 
@@ -3825,7 +3934,8 @@ export async function registerRoutes(
       const projects = await storage.getPortfolioProjects(Number(req.params.id));
       res.json(projects);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to get portfolio projects' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio projects' : classified.message });
     }
   });
 
@@ -3849,7 +3959,8 @@ export async function registerRoutes(
       await storage.addProjectToCustomPortfolio(portfolioId, projectId, userId);
       res.status(201).json({ success: true, portfolioId, projectId });
     } catch (err) {
-      res.status(500).json({ message: 'Failed to add project to custom portfolio' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to add project to custom portfolio' : classified.message });
     }
   });
 
@@ -3867,7 +3978,8 @@ export async function registerRoutes(
       await storage.removeProjectFromCustomPortfolio(portfolioId, Number(req.params.projectId));
       res.json({ success: true });
     } catch (err) {
-      res.status(500).json({ message: 'Failed to remove project from custom portfolio' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to remove project from custom portfolio' : classified.message });
     }
   });
 
@@ -3878,7 +3990,8 @@ export async function registerRoutes(
       const risks = await storage.getPortfolioRisks(Number(req.params.id));
       res.json(risks);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to get portfolio risks' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio risks' : classified.message });
     }
   });
 
@@ -3889,7 +4002,8 @@ export async function registerRoutes(
       const issues = await storage.getPortfolioIssues(Number(req.params.id));
       res.json(issues);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to get portfolio issues' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio issues' : classified.message });
     }
   });
 
@@ -3898,7 +4012,8 @@ export async function registerRoutes(
       const milestones = await storage.getPortfolioMilestones(Number(req.params.id));
       res.json(milestones);
     } catch (err) {
-      res.status(500).json({ message: 'Failed to get portfolio milestones' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio milestones' : classified.message });
     }
   });
 
@@ -3984,7 +4099,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error generating portfolio risk assessment:", err);
-      res.status(500).json({ message: "Failed to generate risk assessment" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to generate risk assessment" : classified.message });
     }
   });
 
@@ -4007,7 +4123,8 @@ export async function registerRoutes(
         report,
       });
     } catch (err) {
-      res.status(500).json({ message: "Failed to get risk assessment" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to get risk assessment" : classified.message });
     }
   });
 
@@ -4028,7 +4145,8 @@ export async function registerRoutes(
       const history = await storage.getPortfolioRiskAssessmentHistory(portfolioId);
       res.json(history);
     } catch (err) {
-      res.status(500).json({ message: "Failed to get risk assessment history" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to get risk assessment history" : classified.message });
     }
   });
 
@@ -4057,7 +4175,8 @@ export async function registerRoutes(
         generatedAt: a.generatedAt,
       })));
     } catch (err) {
-      res.status(500).json({ message: "Failed to get risk assessments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to get risk assessments" : classified.message });
     }
   });
 
@@ -4086,7 +4205,8 @@ export async function registerRoutes(
         generatedAt: a.generatedAt,
       })));
     } catch (err) {
-      res.status(500).json({ message: "Failed to get project risk assessments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to get project risk assessments" : classified.message });
     }
   });
 
@@ -4111,7 +4231,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error serving shared risk assessment:", err);
-      res.status(500).json({ message: "Failed to load report" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to load report" : classified.message });
     }
   });
 
@@ -4132,7 +4253,8 @@ export async function registerRoutes(
       res.send(pdfBuffer);
     } catch (err) {
       console.error("Error serving shared risk assessment PDF:", err);
-      res.status(500).json({ message: "Failed to generate PDF" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to generate PDF" : classified.message });
     }
   });
 
@@ -4154,7 +4276,8 @@ export async function registerRoutes(
       res.setHeader('Content-Disposition', `inline; filename="risk-assessment-${assessment.portfolioId}.pdf"`);
       res.send(pdfBuffer);
     } catch (err) {
-      res.status(500).json({ message: "Failed to generate PDF" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to generate PDF" : classified.message });
     }
   });
 
@@ -4242,7 +4365,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error generating project risk assessment:", err);
-      res.status(500).json({ message: "Failed to generate risk assessment" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to generate risk assessment" : classified.message });
     }
   });
 
@@ -4265,7 +4389,8 @@ export async function registerRoutes(
         report,
       });
     } catch (err) {
-      res.status(500).json({ message: "Failed to get risk assessment" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to get risk assessment" : classified.message });
     }
   });
 
@@ -4286,7 +4411,8 @@ export async function registerRoutes(
       const history = await storage.getProjectRiskAssessmentHistory(projectId);
       res.json(history);
     } catch (err) {
-      res.status(500).json({ message: "Failed to get risk assessment history" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to get risk assessment history" : classified.message });
     }
   });
 
@@ -4311,7 +4437,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error serving shared project risk assessment:", err);
-      res.status(500).json({ message: "Failed to load report" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to load report" : classified.message });
     }
   });
 
@@ -4332,7 +4459,8 @@ export async function registerRoutes(
       res.send(pdfBuffer);
     } catch (err) {
       console.error("Error serving project risk assessment PDF:", err);
-      res.status(500).json({ message: "Failed to generate PDF" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to generate PDF" : classified.message });
     }
   });
 
@@ -4354,7 +4482,8 @@ export async function registerRoutes(
       res.setHeader('Content-Disposition', `inline; filename="project-risk-assessment-${assessment.projectId}.pdf"`);
       res.send(pdfBuffer);
     } catch (err) {
-      res.status(500).json({ message: "Failed to generate PDF" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to generate PDF" : classified.message });
     }
   });
 
@@ -4402,7 +4531,8 @@ export async function registerRoutes(
         }
       });
     } catch (err) {
-      res.status(500).json({ message: 'Failed to get portfolio overview' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get portfolio overview' : classified.message });
     }
   });
 
@@ -4559,7 +4689,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: err.errors[0].message });
       }
       console.error('Error creating project:', err);
-      return res.status(500).json({ message: "Failed to create project" });
+      const classified = classifyError(err);
+      return res.status(classified.status).json({ message: classified.status === 500 ? "Failed to create project" : classified.message });
     }
   });
 
@@ -4888,10 +5019,8 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Planner import error:", err);
       console.error("Planner import error stack:", err?.stack);
-      res.status(500).json({ 
-        message: "Failed to import from Planner", 
-        error: err?.message || String(err) 
-      });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to import from Planner" : classified.message });
     }
   });
 
@@ -5495,10 +5624,8 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Dataverse import error:", err);
       console.error("Dataverse import error stack:", err?.stack);
-      res.status(500).json({ 
-        message: "Failed to import from Planner Premium", 
-        error: err?.message || String(err) 
-      });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to import from Planner Premium" : classified.message });
     }
   });
 
@@ -7266,10 +7393,8 @@ export async function registerRoutes(
       });
     } catch (err: any) {
       console.error("Planner sync error:", err);
-      res.status(500).json({ 
-        message: "Failed to sync from Planner", 
-        error: err?.message || String(err) 
-      });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to sync from Planner" : classified.message });
     }
   });
 
@@ -7354,7 +7479,8 @@ export async function registerRoutes(
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      res.status(500).json({ message: "Error updating project" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating project" : classified.message });
     }
   });
 
@@ -7416,7 +7542,8 @@ export async function registerRoutes(
       });
     } catch (err) {
       console.error("Error converting project to editable:", err);
-      res.status(500).json({ message: "Error converting project to editable mode" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error converting project to editable mode" : classified.message });
     }
   });
 
@@ -7432,7 +7559,8 @@ export async function registerRoutes(
       const history = await storage.getProjectChangeLogs(projectId);
       res.json(history);
     } catch (err) {
-      res.status(500).json({ message: "Error fetching project history" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching project history" : classified.message });
     }
   });
 
@@ -7736,7 +7864,8 @@ export async function registerRoutes(
       }
     } catch (err) {
       console.error('Export error:', err);
-      res.status(500).json({ message: "Error exporting project" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error exporting project" : classified.message });
     }
   });
 
@@ -8215,7 +8344,8 @@ Generated by FridayReport.AI
       }
     } catch (err) {
       console.error('Error sending status report email:', err);
-      res.status(500).json({ message: "Error sending status report" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error sending status report" : classified.message });
     }
   });
 
@@ -8238,7 +8368,8 @@ Generated by FridayReport.AI
       res.json(history);
     } catch (err) {
       console.error('Error fetching status report history:', err);
-      res.status(500).json({ message: "Error fetching status report history" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching status report history" : classified.message });
     }
   });
 
@@ -8340,7 +8471,8 @@ Generated by FridayReport.AI
       res.json(updated);
     } catch (err) {
        if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-       res.status(500).json({ message: "Error" });
+       const classified = classifyError(err);
+       res.status(classified.status).json({ message: classified.status === 500 ? "Error" : classified.message });
     }
   });
 
@@ -8362,7 +8494,8 @@ Generated by FridayReport.AI
       const history = await storage.getRiskChangeLogs(riskId);
       res.json(history);
     } catch (err) {
-      res.status(500).json({ message: "Error fetching risk history" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching risk history" : classified.message });
     }
   });
 
@@ -8394,7 +8527,8 @@ Generated by FridayReport.AI
       res.json(converted);
     } catch (err) {
       console.error('Error converting risk to issue:', err);
-      res.status(500).json({ message: "Error converting risk to issue" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error converting risk to issue" : classified.message });
     }
   });
 
@@ -8460,7 +8594,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json({ suggestion });
     } catch (err: any) {
       console.error('Error generating AI mitigation suggestions:', err);
-      res.status(500).json({ message: err.message || "Error generating mitigation suggestions" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error generating mitigation suggestions" : classified.message });
     }
   });
 
@@ -8532,7 +8667,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      res.status(500).json({ message: "Error" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error" : classified.message });
     }
   });
 
@@ -8704,7 +8840,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      res.status(500).json({ message: "Error updating issue" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating issue" : classified.message });
     }
   });
 
@@ -8726,7 +8863,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const history = await storage.getIssueChangeLogs(issueId);
       res.json(history);
     } catch (err) {
-      res.status(500).json({ message: "Error fetching issue history" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching issue history" : classified.message });
     }
   });
 
@@ -8769,7 +8907,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(updated);
     } catch (err) {
       console.error('Error escalating issue:', err);
-      res.status(500).json({ message: "Error updating escalation status" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating escalation status" : classified.message });
     }
   });
 
@@ -8802,7 +8941,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json({ risks, issues });
     } catch (err) {
       console.error('Error fetching escalated items:', err);
-      res.status(500).json({ message: "Error fetching escalated items" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching escalated items" : classified.message });
     }
   });
 
@@ -9047,7 +9187,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(enriched);
     } catch (err) {
       console.error("Error fetching task:", err);
-      res.status(500).json({ message: "Error fetching task" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching task" : classified.message });
     }
   });
 
@@ -9284,7 +9425,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json({ ...updated, propagatedTasks });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      res.status(500).json({ message: "Error updating task" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating task" : classified.message });
     }
   });
 
@@ -9417,7 +9559,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      res.status(500).json({ message: "Error adding dependency" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error adding dependency" : classified.message });
     }
   });
 
@@ -9439,7 +9582,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const dependencies = await storage.getProjectDependencies(projectId);
       res.json(dependencies);
     } catch (err) {
-      res.status(500).json({ message: "Error fetching project dependencies" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching project dependencies" : classified.message });
     }
   });
 
@@ -9615,7 +9759,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       });
     } catch (err) {
       console.error("Error recalculating schedule:", err);
-      res.status(500).json({ message: "Error recalculating schedule" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error recalculating schedule" : classified.message });
     }
   });
 
@@ -9661,7 +9806,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       res.json({ message: "Tasks reordered successfully" });
     } catch (err) {
-      res.status(500).json({ message: "Error reordering tasks" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error reordering tasks" : classified.message });
     }
   });
 
@@ -9694,7 +9840,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       res.json({ message: "Tasks reindexed and WBS recalculated", count: sortedTasks.length });
     } catch (err) {
-      res.status(500).json({ message: "Error reindexing tasks" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error reindexing tasks" : classified.message });
     }
   });
 
@@ -9748,7 +9895,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       });
     } catch (err) {
       console.error('Error updating baselines:', err);
-      res.status(500).json({ message: "Error updating baselines" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating baselines" : classified.message });
     }
   });
 
@@ -9789,7 +9937,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.status(201).json(financial);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      res.status(500).json({ message: "Error creating financial record" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating financial record" : classified.message });
     }
   });
 
@@ -9806,7 +9955,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      res.status(500).json({ message: "Error updating financial record" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating financial record" : classified.message });
     }
   });
 
@@ -9834,7 +9984,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const items = await storage.getCostItems(projectId, fiscalYear);
       res.json(items);
     } catch (err) {
-      res.status(500).json({ message: "Error fetching cost items" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching cost items" : classified.message });
     }
   });
 
@@ -9883,7 +10034,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.status(201).json(item);
     } catch (err) {
       console.error("Error creating cost item:", err);
-      res.status(500).json({ message: "Error creating cost item" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating cost item" : classified.message });
     }
   });
 
@@ -9900,7 +10052,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(updated);
     } catch (err) {
       console.error("Error updating cost item:", err);
-      res.status(500).json({ message: "Error updating cost item" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating cost item" : classified.message });
     }
   });
 
@@ -9930,7 +10083,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(resourceList);
     } catch (err) {
       console.error("Error fetching resources:", err);
-      res.status(500).json({ message: "Error fetching resources" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching resources" : classified.message });
     }
   });
 
@@ -10060,7 +10214,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json({ duplicateGroups });
     } catch (err: any) {
       console.error("Error finding duplicates:", err);
-      res.status(500).json({ message: "Failed to find duplicates", error: err?.message });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to find duplicates" : classified.message });
     }
   });
 
@@ -10107,7 +10262,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       });
     } catch (err: any) {
       console.error("Error merging resources:", err);
-      res.status(500).json({ message: "Failed to merge resources", error: err?.message });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to merge resources" : classified.message });
     }
   });
 
@@ -10155,7 +10311,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(assignments);
     } catch (err) {
       console.error("Error fetching resource assignments:", err);
-      res.status(500).json({ message: "Failed to fetch resource assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch resource assignments" : classified.message });
     }
   });
 
@@ -10188,7 +10345,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(assignments);
     } catch (err) {
       console.error("Error fetching task assignments:", err);
-      res.status(500).json({ message: "Failed to fetch task assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch task assignments" : classified.message });
     }
   });
 
@@ -10212,7 +10370,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(assignments);
     } catch (err) {
       console.error("Error fetching issue assignments:", err);
-      res.status(500).json({ message: "Failed to fetch issue assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch issue assignments" : classified.message });
     }
   });
 
@@ -10264,7 +10423,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       res.status(201).json(resource);
     } catch (err) {
-      res.status(500).json({ message: "Error creating resource" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating resource" : classified.message });
     }
   });
 
@@ -10278,7 +10438,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const updated = await storage.updateResource(id, req.body);
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ message: "Error updating resource" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating resource" : classified.message });
     }
   });
 
@@ -10459,7 +10620,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       });
     } catch (err) {
       console.error("Error creating resource with invitation:", err);
-      res.status(500).json({ message: "Error creating resource with invitation" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating resource with invitation" : classified.message });
     }
   });
 
@@ -10472,7 +10634,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const assignments = await storage.getTaskResourceAssignments(taskId);
       res.json(assignments);
     } catch (err) {
-      res.status(500).json({ message: "Error fetching task assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching task assignments" : classified.message });
     }
   });
 
@@ -10549,7 +10712,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       res.json(assignments);
     } catch (err) {
-      res.status(500).json({ message: "Error updating task assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating task assignments" : classified.message });
     }
   });
 
@@ -10562,7 +10726,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const assignments = await storage.getIssueResourceAssignments(issueId);
       res.json(assignments);
     } catch (err) {
-      res.status(500).json({ message: "Error fetching issue assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching issue assignments" : classified.message });
     }
   });
 
@@ -10606,7 +10771,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       res.json(assignments);
     } catch (err) {
-      res.status(500).json({ message: "Error updating issue assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating issue assignments" : classified.message });
     }
   });
 
@@ -10619,7 +10785,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const assignments = await storage.getRiskResourceAssignments(riskId);
       res.json(assignments);
     } catch (err) {
-      res.status(500).json({ message: "Error fetching risk assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching risk assignments" : classified.message });
     }
   });
 
@@ -10663,7 +10830,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       res.json(assignments);
     } catch (err) {
-      res.status(500).json({ message: "Error updating risk assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating risk assignments" : classified.message });
     }
   });
 
@@ -10675,7 +10843,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(skills);
     } catch (err) {
       console.error("Error fetching resource skills:", err);
-      res.status(500).json({ message: "Error fetching resource skills" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching resource skills" : classified.message });
     }
   });
 
@@ -10685,7 +10854,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(skills);
     } catch (err) {
       console.error("Error fetching org resource skills:", err);
-      res.status(500).json({ message: "Error fetching resource skills" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching resource skills" : classified.message });
     }
   });
 
@@ -10699,7 +10869,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.status(201).json(skill);
     } catch (err) {
       console.error("Error adding resource skill:", err);
-      res.status(500).json({ message: "Error adding resource skill" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error adding resource skill" : classified.message });
     }
   });
 
@@ -10709,7 +10880,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(skill);
     } catch (err) {
       console.error("Error updating resource skill:", err);
-      res.status(500).json({ message: "Error updating resource skill" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating resource skill" : classified.message });
     }
   });
 
@@ -10719,7 +10891,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json({ success: true });
     } catch (err) {
       console.error("Error removing resource skill:", err);
-      res.status(500).json({ message: "Error removing resource skill" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error removing resource skill" : classified.message });
     }
   });
 
@@ -10731,7 +10904,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(entries);
     } catch (err) {
       console.error("Error fetching resource availability:", err);
-      res.status(500).json({ message: "Error fetching resource availability" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching resource availability" : classified.message });
     }
   });
 
@@ -10746,7 +10920,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(entries);
     } catch (err) {
       console.error("Error fetching org resource availability:", err);
-      res.status(500).json({ message: "Error fetching resource availability" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching resource availability" : classified.message });
     }
   });
 
@@ -10760,7 +10935,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.status(201).json(entry);
     } catch (err) {
       console.error("Error adding resource availability:", err);
-      res.status(500).json({ message: "Error adding resource availability" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error adding resource availability" : classified.message });
     }
   });
 
@@ -10770,7 +10946,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(entry);
     } catch (err) {
       console.error("Error updating resource availability:", err);
-      res.status(500).json({ message: "Error updating resource availability" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating resource availability" : classified.message });
     }
   });
 
@@ -10780,7 +10957,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json({ success: true });
     } catch (err) {
       console.error("Error removing resource availability:", err);
-      res.status(500).json({ message: "Error removing resource availability" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error removing resource availability" : classified.message });
     }
   });
 
@@ -10809,7 +10987,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(result);
     } catch (err: any) {
       console.error("Error generating resource optimization:", err);
-      res.status(500).json({ message: err.message || "Error generating resource optimization suggestions" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error generating resource optimization suggestions" : classified.message });
     }
   });
 
@@ -10900,7 +11079,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       });
     } catch (err) {
       console.error("Error fetching resource utilization:", err);
-      res.status(500).json({ message: "Error fetching resource utilization" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching resource utilization" : classified.message });
     }
   });
 
@@ -10922,7 +11102,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(allRisks);
     } catch (err) {
       console.error("Error fetching all risks:", err);
-      res.status(500).json({ message: "Error fetching risks" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching risks" : classified.message });
     }
   });
 
@@ -10937,7 +11118,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(allAssignments);
     } catch (err) {
       console.error("Error fetching resource assignments:", err);
-      res.status(500).json({ message: "Error fetching resource assignments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching resource assignments" : classified.message });
     }
   });
 
@@ -10952,7 +11134,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json([]);
     } catch (err) {
       console.error("Error fetching utilization:", err);
-      res.status(500).json({ message: "Error fetching utilization" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching utilization" : classified.message });
     }
   });
 
@@ -10966,7 +11149,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json(status);
     } catch (err) {
       console.error("Error getting onboarding status:", err);
-      res.status(500).json({ message: "Error checking onboarding status" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error checking onboarding status" : classified.message });
     }
   });
 
@@ -10983,7 +11167,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json({ success: true, demoDataCreated: !!createDemoData });
     } catch (err) {
       console.error("Error completing onboarding:", err);
-      res.status(500).json({ message: "Failed to complete onboarding" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to complete onboarding" : classified.message });
     }
   });
 
@@ -10995,7 +11180,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json({ success: true });
     } catch (err) {
       console.error("Error skipping onboarding:", err);
-      res.status(500).json({ message: "Failed to skip onboarding" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to skip onboarding" : classified.message });
     }
   });
 
@@ -11011,7 +11197,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       res.json({ success: true });
     } catch (err) {
       console.error("Error generating sample data:", err);
-      res.status(500).json({ message: "Failed to generate sample data" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to generate sample data" : classified.message });
     }
   });
 
@@ -11508,7 +11695,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       });
     } catch (err) {
       console.error('Error generating demo data:', err);
-      res.status(500).json({ message: 'Failed to generate demo data' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to generate demo data' : classified.message });
     }
   });
 
@@ -11547,7 +11735,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       });
     } catch (err) {
       console.error('Error removing demo data:', err);
-      res.status(500).json({ message: 'Failed to remove demo data' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to remove demo data' : classified.message });
     }
   });
 
@@ -11564,7 +11753,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(intakes);
     } catch (err) {
       console.error("Error fetching project intakes:", err);
-      res.status(500).json({ message: "Error fetching project intakes" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching project intakes" : classified.message });
     }
   });
 
@@ -11583,7 +11773,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(intake);
     } catch (err) {
       console.error("Error fetching project intake:", err);
-      res.status(500).json({ message: "Error fetching project intake" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching project intake" : classified.message });
     }
   });
 
@@ -11642,7 +11833,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(201).json(intake);
     } catch (err) {
       console.error("Error creating project intake:", err);
-      res.status(500).json({ message: "Error creating project intake" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating project intake" : classified.message });
     }
   });
 
@@ -11670,7 +11862,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(updated);
     } catch (err) {
       console.error("Error updating project intake:", err);
-      res.status(500).json({ message: "Error updating project intake" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating project intake" : classified.message });
     }
   });
 
@@ -11698,7 +11891,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(204).send();
     } catch (err) {
       console.error("Error deleting project intake:", err);
-      res.status(500).json({ message: "Error deleting project intake" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting project intake" : classified.message });
     }
   });
 
@@ -11738,7 +11932,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       return res.json({ canApprove: isIntakeApprover });
     } catch (err) {
       console.error("Error checking intake approval permission:", err);
-      res.status(500).json({ message: "Error checking permission" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error checking permission" : classified.message });
     }
   });
 
@@ -11793,7 +11988,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       });
     } catch (err) {
       console.error("Error approving project intake:", err);
-      res.status(500).json({ message: "Error approving project intake" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error approving project intake" : classified.message });
     }
   });
 
@@ -11841,7 +12037,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(updated);
     } catch (err) {
       console.error("Error rejecting project intake:", err);
-      res.status(500).json({ message: "Error rejecting project intake" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error rejecting project intake" : classified.message });
     }
   });
 
@@ -11858,7 +12055,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(imports);
     } catch (err) {
       console.error("Error fetching MPP imports:", err);
-      res.status(500).json({ message: "Error fetching MPP imports" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching MPP imports" : classified.message });
     }
   });
 
@@ -11870,7 +12068,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(tasks);
     } catch (err) {
       console.error("Error fetching MPP import tasks:", err);
-      res.status(500).json({ message: "Error fetching tasks" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching tasks" : classified.message });
     }
   });
 
@@ -12006,8 +12205,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       });
     } catch (err: any) {
       console.error("Error uploading MPP file:", err);
-      const errorMessage = err.message || "Error processing file";
-      res.status(500).json({ message: errorMessage });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error processing file" : classified.message });
     }
   });
 
@@ -12048,7 +12247,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       });
     } catch (err) {
       console.error("Error converting MPP import:", err);
-      res.status(500).json({ message: "Error converting import to project" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error converting import to project" : classified.message });
     }
   });
 
@@ -12129,7 +12329,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       return res.json(response);
     } catch (err: any) {
       console.error("Error syncing MPP import to project:", err?.message || err);
-      return res.status(500).json({ message: err?.message || "Error syncing import to project" });
+      const classified = classifyError(err);
+      return res.status(classified.status).json({ message: classified.status === 500 ? "Error syncing import to project" : classified.message });
     }
   });
 
@@ -12141,7 +12342,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json({ success: true });
     } catch (err) {
       console.error("Error deleting MPP import:", err);
-      res.status(500).json({ message: "Error deleting import" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting import" : classified.message });
     }
   });
 
@@ -12155,7 +12357,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(changeRequests);
     } catch (err) {
       console.error("Error fetching change requests:", err);
-      res.status(500).json({ message: "Error fetching change requests" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching change requests" : classified.message });
     }
   });
 
@@ -12201,7 +12404,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(201).json(changeRequest);
     } catch (err) {
       console.error("Error creating change request:", err);
-      res.status(500).json({ message: "Error creating change request" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating change request" : classified.message });
     }
   });
 
@@ -12225,7 +12429,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(changeRequest);
     } catch (err) {
       console.error("Error updating change request:", err);
-      res.status(500).json({ message: "Error updating change request" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating change request" : classified.message });
     }
   });
 
@@ -12237,7 +12442,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json({ success: true });
     } catch (err) {
       console.error("Error deleting change request:", err);
-      res.status(500).json({ message: "Error deleting change request" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting change request" : classified.message });
     }
   });
 
@@ -12251,7 +12457,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(documents);
     } catch (err) {
       console.error("Error fetching project documents:", err);
-      res.status(500).json({ message: "Error fetching documents" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching documents" : classified.message });
     }
   });
 
@@ -12298,7 +12505,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(201).json(document);
     } catch (err) {
       console.error("Error creating project document:", err);
-      res.status(500).json({ message: "Error creating document" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating document" : classified.message });
     }
   });
 
@@ -12310,7 +12518,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(document);
     } catch (err) {
       console.error("Error updating document:", err);
-      res.status(500).json({ message: "Error updating document" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating document" : classified.message });
     }
   });
 
@@ -12322,7 +12531,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json({ success: true });
     } catch (err) {
       console.error("Error deleting document:", err);
-      res.status(500).json({ message: "Error deleting document" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting document" : classified.message });
     }
   });
 
@@ -12351,7 +12561,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(comments);
     } catch (err) {
       console.error("Error fetching project comments:", err);
-      res.status(500).json({ message: "Error fetching comments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching comments" : classified.message });
     }
   });
 
@@ -12455,7 +12666,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(201).json(comment);
     } catch (err) {
       console.error("Error creating project comment:", err);
-      res.status(500).json({ message: "Error creating comment" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating comment" : classified.message });
     }
   });
 
@@ -12489,7 +12701,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json({ success: true });
     } catch (err) {
       console.error("Error deleting comment:", err);
-      res.status(500).json({ message: "Error deleting comment" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting comment" : classified.message });
     }
   });
 
@@ -12517,7 +12730,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(comments);
     } catch (err) {
       console.error("Error fetching billable status comments:", err);
-      res.status(500).json({ message: "Error fetching billable status comments" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching billable status comments" : classified.message });
     }
   });
 
@@ -12566,7 +12780,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(201).json(comment);
     } catch (err) {
       console.error("Error creating billable status comment:", err);
-      res.status(500).json({ message: "Error creating billable status comment" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating billable status comment" : classified.message });
     }
   });
 
@@ -12594,7 +12809,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(history);
     } catch (err) {
       console.error("Error fetching health status history:", err);
-      res.status(500).json({ message: "Error fetching health status history" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching health status history" : classified.message });
     }
   });
 
@@ -12618,7 +12834,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(invoices);
     } catch (err) {
       console.error("Error fetching organization invoices:", err);
-      res.status(500).json({ message: "Error fetching invoices" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching invoices" : classified.message });
     }
   });
 
@@ -12644,7 +12861,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(invoices);
     } catch (err) {
       console.error("Error fetching invoices:", err);
-      res.status(500).json({ message: "Error fetching invoices" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching invoices" : classified.message });
     }
   });
 
@@ -12691,7 +12909,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(201).json(invoice);
     } catch (err) {
       console.error("Error creating invoice:", err);
-      res.status(500).json({ message: "Error creating invoice" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating invoice" : classified.message });
     }
   });
 
@@ -12724,7 +12943,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(updated);
     } catch (err) {
       console.error("Error updating invoice:", err);
-      res.status(500).json({ message: "Error updating invoice" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating invoice" : classified.message });
     }
   });
 
@@ -12757,7 +12977,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(204).send();
     } catch (err) {
       console.error("Error deleting invoice:", err);
-      res.status(500).json({ message: "Error deleting invoice" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting invoice" : classified.message });
     }
   });
 
@@ -12790,7 +13011,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(notes);
     } catch (err) {
       console.error("Error fetching invoice notes:", err);
-      res.status(500).json({ message: "Error fetching invoice notes" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching invoice notes" : classified.message });
     }
   });
 
@@ -12840,7 +13062,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(201).json(note);
     } catch (err) {
       console.error("Error creating invoice note:", err);
-      res.status(500).json({ message: "Error creating invoice note" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating invoice note" : classified.message });
     }
   });
 
@@ -12870,7 +13093,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(views);
     } catch (err) {
       console.error("Error fetching project views:", err);
-      res.status(500).json({ message: "Error fetching project views" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching project views" : classified.message });
     }
   });
 
@@ -12931,7 +13155,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(201).json(view);
     } catch (err) {
       console.error("Error creating project view:", err);
-      res.status(500).json({ message: "Error creating project view" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating project view" : classified.message });
     }
   });
 
@@ -12988,7 +13213,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(updatedView);
     } catch (err) {
       console.error("Error updating project view:", err);
-      res.status(500).json({ message: "Error updating project view" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating project view" : classified.message });
     }
   });
 
@@ -13021,7 +13247,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(204).send();
     } catch (err) {
       console.error("Error deleting project view:", err);
-      res.status(500).json({ message: "Error deleting project view" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting project view" : classified.message });
     }
   });
 
@@ -13049,7 +13276,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json({ success: true });
     } catch (err) {
       console.error("Error setting default view:", err);
-      res.status(500).json({ message: "Error setting default view" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error setting default view" : classified.message });
     }
   });
 
@@ -13079,7 +13307,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(views);
     } catch (err) {
       console.error("Error fetching system project views:", err);
-      res.status(500).json({ message: "Error fetching system project views" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching system project views" : classified.message });
     }
   });
 
@@ -13110,7 +13339,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(views);
     } catch (err) {
       console.error("Error fetching all system project views:", err);
-      res.status(500).json({ message: "Error fetching system project views" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching system project views" : classified.message });
     }
   });
 
@@ -13166,7 +13396,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(201).json(view);
     } catch (err) {
       console.error("Error creating system project view:", err);
-      res.status(500).json({ message: "Error creating system project view" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating system project view" : classified.message });
     }
   });
 
@@ -13211,7 +13442,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(updatedView);
     } catch (err) {
       console.error("Error updating system project view:", err);
-      res.status(500).json({ message: "Error updating system project view" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating system project view" : classified.message });
     }
   });
 
@@ -13244,7 +13476,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.status(204).send();
     } catch (err) {
       console.error("Error deleting system project view:", err);
-      res.status(500).json({ message: "Error deleting system project view" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting system project view" : classified.message });
     }
   });
 
@@ -13262,7 +13495,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(notifications);
     } catch (err) {
       console.error("Error fetching notifications:", err);
-      res.status(500).json({ message: "Error fetching notifications" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching notifications" : classified.message });
     }
   });
 
@@ -13278,7 +13512,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json({ count });
     } catch (err) {
       console.error("Error fetching notification count:", err);
-      res.status(500).json({ message: "Error fetching notification count" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching notification count" : classified.message });
     }
   });
 
@@ -13295,7 +13530,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json({ success: true });
     } catch (err) {
       console.error("Error marking notification as read:", err);
-      res.status(500).json({ message: "Error marking notification as read" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error marking notification as read" : classified.message });
     }
   });
 
@@ -13311,7 +13547,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json({ success: true });
     } catch (err) {
       console.error("Error marking all notifications as read:", err);
-      res.status(500).json({ message: "Error marking all notifications as read" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error marking all notifications as read" : classified.message });
     }
   });
 
@@ -13345,7 +13582,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       });
     } catch (err) {
       console.error("Error running notification checks:", err);
-      res.status(500).json({ message: "Error running notification checks" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error running notification checks" : classified.message });
     }
   });
 
@@ -13391,7 +13629,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       });
     } catch (err) {
       console.error("Error running notification checks for all orgs:", err);
-      res.status(500).json({ message: "Error running notification checks" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error running notification checks" : classified.message });
     }
   });
 
@@ -13423,7 +13662,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(steps);
     } catch (err) {
       console.error("Error fetching intake workflow:", err);
-      res.status(500).json({ message: "Error fetching intake workflow configuration" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching intake workflow configuration" : classified.message });
     }
   });
 
@@ -13460,7 +13700,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(updatedSteps);
     } catch (err) {
       console.error("Error updating intake workflow:", err);
-      res.status(500).json({ message: "Error updating intake workflow configuration" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating intake workflow configuration" : classified.message });
     }
   });
 
@@ -13484,7 +13725,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
       res.json(steps);
     } catch (err) {
       console.error("Error resetting intake workflow:", err);
-      res.status(500).json({ message: "Error resetting intake workflow configuration" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error resetting intake workflow configuration" : classified.message });
     }
   });
 
@@ -13606,7 +13848,8 @@ Return ONLY valid JSON, no markdown or explanations.`;
         aiResult = JSON.parse(content);
       } catch (parseError) {
         console.error("Failed to parse AI response:", content);
-        return res.status(500).json({ message: "Failed to parse AI response" });
+        const classified = classifyError(parseError);
+        return res.status(classified.status).json({ message: classified.status === 500 ? "Failed to parse AI response" : classified.message });
       }
       
       // Calculate dates for tasks
@@ -13705,7 +13948,8 @@ Return ONLY valid JSON, no markdown or explanations.`;
       });
     } catch (err) {
       console.error("Error generating AI project:", err);
-      res.status(500).json({ message: "Failed to generate project with AI" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to generate project with AI" : classified.message });
     }
   });
 
@@ -13868,7 +14112,8 @@ Return ONLY valid JSON.`;
         aiResult = JSON.parse(content);
       } catch (parseError) {
         console.error("Failed to parse AI response:", content);
-        return res.status(500).json({ message: "Failed to parse AI response" });
+        const classified = classifyError(parseError);
+        return res.status(classified.status).json({ message: classified.status === 500 ? "Failed to parse AI response" : classified.message });
       }
       
       // Validate that there's something to create
@@ -14130,7 +14375,8 @@ Return ONLY valid JSON.`;
       });
     } catch (err) {
       console.error("Error with AI smart create:", err);
-      res.status(500).json({ message: "Failed to create with AI" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to create with AI" : classified.message });
     }
   });
 
@@ -14167,7 +14413,8 @@ Return ONLY valid JSON.`;
       return res.json({ success: true });
     } catch (error: any) {
       console.error("Error recording voice usage:", error);
-      return res.status(500).json({ message: error.message || "Failed to record voice usage" });
+      const classified = classifyError(error);
+      return res.status(classified.status).json({ message: classified.status === 500 ? "Failed to record voice usage" : classified.message });
     }
   });
 
@@ -14274,7 +14521,8 @@ Return ONLY valid JSON.`;
       try {
         aiResult = JSON.parse(content);
       } catch (parseError) {
-        return res.status(500).json({ message: "Failed to parse AI response" });
+        const classified = classifyError(parseError);
+        return res.status(classified.status).json({ message: classified.status === 500 ? "Failed to parse AI response" : classified.message });
       }
 
       const actions: any[] = [];
@@ -14332,7 +14580,8 @@ Return ONLY valid JSON.`;
       });
     } catch (err) {
       console.error("Error with AI smart create preview:", err);
-      res.status(500).json({ message: "Failed to preview AI actions" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to preview AI actions" : classified.message });
     }
   });
 
@@ -14582,7 +14831,8 @@ Return ONLY valid JSON.`;
       });
     } catch (err) {
       console.error("Error with AI smart create execute:", err);
-      res.status(500).json({ message: "Failed to create items" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to create items" : classified.message });
     }
   });
 
@@ -14696,7 +14946,8 @@ Return ONLY valid JSON.`;
       res.json({ success: true, message: "Account deleted successfully" });
     } catch (err) {
       console.error('Error deleting account:', err);
-      res.status(500).json({ message: 'Failed to delete account' });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete account' : classified.message });
     }
   });
 
@@ -14770,7 +15021,8 @@ Return ONLY valid JSON.`;
       res.json(allProjects);
     } catch (err) {
       console.error("Error fetching analytics projects:", err);
-      res.status(500).json({ message: "Error fetching analytics data" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching analytics data" : classified.message });
     }
   });
 
@@ -14829,7 +15081,8 @@ Return ONLY valid JSON.`;
       res.json(allPortfolios);
     } catch (err) {
       console.error("Error fetching analytics portfolios:", err);
-      res.status(500).json({ message: "Error fetching analytics data" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching analytics data" : classified.message });
     }
   });
 
@@ -14885,7 +15138,8 @@ Return ONLY valid JSON.`;
       res.json(allRisks);
     } catch (err) {
       console.error("Error fetching analytics risks:", err);
-      res.status(500).json({ message: "Error fetching analytics data" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching analytics data" : classified.message });
     }
   });
 
@@ -14940,7 +15194,8 @@ Return ONLY valid JSON.`;
       res.json(allIssues);
     } catch (err) {
       console.error("Error fetching analytics issues:", err);
-      res.status(500).json({ message: "Error fetching analytics data" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching analytics data" : classified.message });
     }
   });
 
@@ -14992,7 +15247,8 @@ Return ONLY valid JSON.`;
       res.json(allMilestones);
     } catch (err) {
       console.error("Error fetching analytics milestones:", err);
-      res.status(500).json({ message: "Error fetching analytics data" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching analytics data" : classified.message });
     }
   });
 
@@ -15045,7 +15301,8 @@ Return ONLY valid JSON.`;
       res.json(allIntakes);
     } catch (err) {
       console.error("Error fetching analytics intakes:", err);
-      res.status(500).json({ message: "Error fetching analytics data" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching analytics data" : classified.message });
     }
   });
 
@@ -15134,7 +15391,8 @@ Return ONLY valid JSON.`;
       res.json({ organizations: summaries });
     } catch (err) {
       console.error("Error fetching analytics summary:", err);
-      res.status(500).json({ message: "Error fetching analytics data" });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching analytics data" : classified.message });
     }
   });
 
@@ -15169,7 +15427,8 @@ Return ONLY valid JSON.`;
       res.json(plansWithRules);
     } catch (error) {
       console.error("Error fetching plans:", error);
-      res.status(500).json({ message: "Failed to fetch plans" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch plans" : classified.message });
     }
   });
 
@@ -15212,7 +15471,8 @@ Return ONLY valid JSON.`;
       res.json({ ...subscription, plan });
     } catch (error) {
       console.error("Error fetching subscription:", error);
-      res.status(500).json({ message: "Failed to fetch subscription" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch subscription" : classified.message });
     }
   });
 
@@ -15317,7 +15577,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error("Error fetching usage:", error);
-      res.status(500).json({ message: "Failed to fetch usage" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch usage" : classified.message });
     }
   });
 
@@ -15432,7 +15693,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error("Error fetching AI costs:", error);
-      res.status(500).json({ message: "Failed to fetch AI costs" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch AI costs" : classified.message });
     }
   });
 
@@ -15457,7 +15719,8 @@ Return ONLY valid JSON.`;
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching billing history:", error);
-      res.status(500).json({ message: "Failed to fetch billing history" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch billing history" : classified.message });
     }
   });
 
@@ -15537,7 +15800,8 @@ Return ONLY valid JSON.`;
       res.json(result);
     } catch (error) {
       console.error("Error fetching billing cycle history:", error);
-      res.status(500).json({ message: "Failed to fetch billing cycle history" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch billing cycle history" : classified.message });
     }
   });
 
@@ -15646,7 +15910,8 @@ Return ONLY valid JSON.`;
       res.json({ entries, total: Number(total) });
     } catch (error) {
       console.error("Error fetching credit ledger:", error);
-      res.status(500).json({ message: "Failed to fetch credit ledger" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch credit ledger" : classified.message });
     }
   });
 
@@ -15686,7 +15951,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error("Error sending enterprise inquiry:", error);
-      res.status(500).json({ message: "Failed to send inquiry" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to send inquiry" : classified.message });
     }
   });
 
@@ -15715,7 +15981,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(subscription);
     } catch (error) {
       console.error("Error creating subscription:", error);
-      res.status(500).json({ message: "Failed to create subscription" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to create subscription" : classified.message });
     }
   });
 
@@ -15740,7 +16007,8 @@ Return ONLY valid JSON.`;
       res.json(subscription);
     } catch (error) {
       console.error("Error changing plan:", error);
-      res.status(500).json({ message: "Failed to change plan" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to change plan" : classified.message });
     }
   });
 
@@ -15817,7 +16085,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(newPlan);
     } catch (error) {
       console.error("Error creating plan:", error);
-      res.status(500).json({ message: "Failed to create plan" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to create plan" : classified.message });
     }
   });
 
@@ -15850,7 +16119,8 @@ Return ONLY valid JSON.`;
       res.json({ success: true });
     } catch (error) {
       console.error("Error reordering plans:", error);
-      res.status(500).json({ message: "Failed to reorder plans" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to reorder plans" : classified.message });
     }
   });
 
@@ -15889,7 +16159,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error("Error updating plan:", error);
-      res.status(500).json({ message: "Failed to update plan" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to update plan" : classified.message });
     }
   });
 
@@ -15931,7 +16202,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error("Error initializing extra seat prices:", error);
-      res.status(500).json({ message: "Failed to initialize extra seat prices" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to initialize extra seat prices" : classified.message });
     }
   });
 
@@ -15963,7 +16235,8 @@ Return ONLY valid JSON.`;
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting plan:", error);
-      res.status(500).json({ message: "Failed to delete plan" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to delete plan" : classified.message });
     }
   });
 
@@ -16006,7 +16279,8 @@ Return ONLY valid JSON.`;
       res.json(rules);
     } catch (error) {
       console.error("Error fetching plan rules:", error);
-      res.status(500).json({ message: "Failed to fetch plan rules" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch plan rules" : classified.message });
     }
   });
 
@@ -16046,7 +16320,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(newRule);
     } catch (error) {
       console.error("Error creating rule:", error);
-      res.status(500).json({ message: "Failed to create rule" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to create rule" : classified.message });
     }
   });
 
@@ -16080,7 +16355,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error("Error updating rule:", error);
-      res.status(500).json({ message: "Failed to update rule" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to update rule" : classified.message });
     }
   });
 
@@ -16106,7 +16382,8 @@ Return ONLY valid JSON.`;
       res.json(costs);
     } catch (error) {
       console.error("Error fetching credit costs:", error);
-      res.status(500).json({ message: "Failed to fetch credit costs" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch credit costs" : classified.message });
     }
   });
 
@@ -16149,7 +16426,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error("Error updating credit cost:", error);
-      res.status(500).json({ message: "Failed to update credit cost" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to update credit cost" : classified.message });
     }
   });
 
@@ -16195,7 +16473,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error("Error fetching plan credits:", error);
-      res.status(500).json({ message: "Failed to fetch plan credits" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch plan credits" : classified.message });
     }
   });
 
@@ -16306,7 +16585,8 @@ Return ONLY valid JSON.`;
           });
         } catch (error) {
           console.error("Error fetching payment method:", error);
-          res.status(500).json({ message: "Failed to fetch payment method" });
+          const classified = classifyError(error);
+          res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch payment method" : classified.message });
         }
       });
 
@@ -16511,7 +16791,8 @@ Return ONLY valid JSON.`;
           res.json({ success: true, productId, paypalPlansFound: paypalPlanDetails.length, plans: results });
         } catch (error) {
           console.error("Failed to sync PayPal plans:", error);
-          res.status(500).json({ message: "Failed to sync PayPal plans" });
+          const classified = classifyError(error);
+          res.status(classified.status).json({ message: classified.status === 500 ? "Failed to sync PayPal plans" : classified.message });
         }
       });
 
@@ -16583,7 +16864,7 @@ Return ONLY valid JSON.`;
               
               if (!tokenRes.ok) {
                 console.error("Failed to get PayPal access token:", await tokenRes.text());
-                return res.status(500).json({ message: "Failed to authenticate with payment provider. Please try again." });
+        return res.status(500).json({ message: "Failed to authenticate with payment provider. Please try again." });
               }
               
               const tokenData = await tokenRes.json();
@@ -16667,7 +16948,8 @@ Return ONLY valid JSON.`;
               }
             } catch (verifyError) {
               console.error("PayPal verification error:", verifyError);
-              return res.status(500).json({ message: "Failed to verify subscription with PayPal. Please try again." });
+              const classified = classifyError(verifyError);
+              return res.status(classified.status).json({ message: classified.status === 500 ? "Failed to verify subscription with PayPal. Please try again." : classified.message });
             }
           }
           
@@ -16782,7 +17064,8 @@ Return ONLY valid JSON.`;
           }
         } catch (error) {
           console.error("Failed to update subscription:", error);
-          res.status(500).json({ message: "Failed to update subscription" });
+          const classified = classifyError(error);
+          res.status(classified.status).json({ message: classified.status === 500 ? "Failed to update subscription" : classified.message });
         }
       });
 
@@ -16936,7 +17219,8 @@ Return ONLY valid JSON.`;
       res.json(existingCode);
     } catch (error) {
       console.error('Error getting referral code:', error);
-      res.status(500).json({ message: 'Failed to get referral code' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get referral code' : classified.message });
     }
   });
 
@@ -17002,7 +17286,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error getting referral stats:', error);
-      res.status(500).json({ message: 'Failed to get referral stats' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get referral stats' : classified.message });
     }
   });
 
@@ -17028,7 +17313,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error validating referral code:', error);
-      res.status(500).json({ message: 'Failed to validate referral code' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to validate referral code' : classified.message });
     }
   });
 
@@ -17067,7 +17353,8 @@ Return ONLY valid JSON.`;
       res.status(201).json({ success: true, referral: newReferral });
     } catch (error) {
       console.error('Error tracking referral:', error);
-      res.status(500).json({ message: 'Failed to track referral' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to track referral' : classified.message });
     }
   });
 
@@ -17121,7 +17408,8 @@ Return ONLY valid JSON.`;
       res.json({ success: true, payout });
     } catch (error) {
       console.error('Error requesting payout:', error);
-      res.status(500).json({ message: 'Failed to request payout' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to request payout' : classified.message });
     }
   });
 
@@ -17158,7 +17446,8 @@ Return ONLY valid JSON.`;
       res.json(enrichedEntries);
     } catch (error) {
       console.error('Error getting timesheet entries:', error);
-      res.status(500).json({ message: 'Failed to get timesheet entries' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get timesheet entries' : classified.message });
     }
   });
 
@@ -17200,7 +17489,8 @@ Return ONLY valid JSON.`;
       res.json(enrichedEntries);
     } catch (error) {
       console.error('Error getting team timesheet entries:', error);
-      res.status(500).json({ message: 'Failed to get team timesheet entries' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get team timesheet entries' : classified.message });
     }
   });
 
@@ -17240,7 +17530,8 @@ Return ONLY valid JSON.`;
       res.json(enrichedEntries);
     } catch (error) {
       console.error('Error getting timesheet entries for approval:', error);
-      res.status(500).json({ message: 'Failed to get timesheet entries for approval' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get timesheet entries for approval' : classified.message });
     }
   });
 
@@ -17299,7 +17590,8 @@ Return ONLY valid JSON.`;
       res.json(filteredTasks);
     } catch (error) {
       console.error('Error getting assigned tasks:', error);
-      res.status(500).json({ message: 'Failed to get assigned tasks' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get assigned tasks' : classified.message });
     }
   });
 
@@ -17343,7 +17635,8 @@ Return ONLY valid JSON.`;
       res.json(userResource);
     } catch (error) {
       console.error('Error getting current resource:', error);
-      res.status(500).json({ message: 'Failed to get current resource' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get current resource' : classified.message });
     }
   });
 
@@ -17414,7 +17707,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(entry);
     } catch (error) {
       console.error('Error creating timesheet entry:', error);
-      res.status(500).json({ message: 'Failed to create timesheet entry' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create timesheet entry' : classified.message });
     }
   });
 
@@ -17581,7 +17875,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(results);
     } catch (error) {
       console.error('Error bulk upserting timesheet entries:', error);
-      res.status(500).json({ message: 'Failed to save timesheet entries' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to save timesheet entries' : classified.message });
     }
   });
 
@@ -17643,7 +17938,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error('Error updating timesheet entry:', error);
-      res.status(500).json({ message: 'Failed to update timesheet entry' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update timesheet entry' : classified.message });
     }
   });
 
@@ -17680,7 +17976,8 @@ Return ONLY valid JSON.`;
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting timesheet entry:', error);
-      res.status(500).json({ message: 'Failed to delete timesheet entry' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete timesheet entry' : classified.message });
     }
   });
 
@@ -17711,7 +18008,8 @@ Return ONLY valid JSON.`;
       res.json({ success: true });
     } catch (error) {
       console.error('Error submitting timesheet week:', error);
-      res.status(500).json({ message: 'Failed to submit timesheet week' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to submit timesheet week' : classified.message });
     }
   });
 
@@ -17753,7 +18051,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error('Error approving timesheet entry:', error);
-      res.status(500).json({ message: 'Failed to approve timesheet entry' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to approve timesheet entry' : classified.message });
     }
   });
 
@@ -17797,7 +18096,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error('Error rejecting timesheet entry:', error);
-      res.status(500).json({ message: 'Failed to reject timesheet entry' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to reject timesheet entry' : classified.message });
     }
   });
 
@@ -17865,7 +18165,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error getting timesheet report:', error);
-      res.status(500).json({ message: 'Failed to get timesheet report' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get timesheet report' : classified.message });
     }
   });
 
@@ -17896,7 +18197,8 @@ Return ONLY valid JSON.`;
       res.json(periods);
     } catch (error) {
       console.error('Error getting timesheet periods:', error);
-      res.status(500).json({ message: 'Failed to get timesheet periods' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get timesheet periods' : classified.message });
     }
   });
 
@@ -17920,7 +18222,8 @@ Return ONLY valid JSON.`;
       res.json(periods);
     } catch (error) {
       console.error('Error getting closed periods:', error);
-      res.status(500).json({ message: 'Failed to get closed periods' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get closed periods' : classified.message });
     }
   });
 
@@ -17959,7 +18262,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(period);
     } catch (error) {
       console.error('Error creating timesheet period:', error);
-      res.status(500).json({ message: 'Failed to create timesheet period' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create timesheet period' : classified.message });
     }
   });
 
@@ -17990,7 +18294,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error('Error closing timesheet period:', error);
-      res.status(500).json({ message: 'Failed to close timesheet period' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to close timesheet period' : classified.message });
     }
   });
 
@@ -18021,7 +18326,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error('Error reopening timesheet period:', error);
-      res.status(500).json({ message: 'Failed to reopen timesheet period' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to reopen timesheet period' : classified.message });
     }
   });
 
@@ -18052,7 +18358,8 @@ Return ONLY valid JSON.`;
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting timesheet period:', error);
-      res.status(500).json({ message: 'Failed to delete timesheet period' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete timesheet period' : classified.message });
     }
   });
 
@@ -18114,7 +18421,8 @@ Return ONLY valid JSON.`;
       res.json(categories);
     } catch (error) {
       console.error('Error getting time categories:', error);
-      res.status(500).json({ message: 'Failed to get time categories' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get time categories' : classified.message });
     }
   });
 
@@ -18150,7 +18458,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(category);
     } catch (error) {
       console.error('Error creating time category:', error);
-      res.status(500).json({ message: 'Failed to create time category' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create time category' : classified.message });
     }
   });
 
@@ -18179,7 +18488,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error('Error updating time category:', error);
-      res.status(500).json({ message: 'Failed to update time category' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update time category' : classified.message });
     }
   });
 
@@ -18208,7 +18518,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting time category:', error);
-      res.status(500).json({ message: 'Failed to delete time category' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete time category' : classified.message });
     }
   });
 
@@ -18247,7 +18558,8 @@ Return ONLY valid JSON.`;
       res.json(entries);
     } catch (error) {
       console.error('Error getting non-project time entries:', error);
-      res.status(500).json({ message: 'Failed to get non-project time entries' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get non-project time entries' : classified.message });
     }
   });
 
@@ -18318,7 +18630,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(entry);
     } catch (error) {
       console.error('Error creating non-project time entry:', error);
-      res.status(500).json({ message: 'Failed to create non-project time entry' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create non-project time entry' : classified.message });
     }
   });
 
@@ -18354,7 +18667,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error('Error updating non-project time entry:', error);
-      res.status(500).json({ message: 'Failed to update non-project time entry' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update non-project time entry' : classified.message });
     }
   });
 
@@ -18390,7 +18704,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting non-project time entry:', error);
-      res.status(500).json({ message: 'Failed to delete non-project time entry' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete non-project time entry' : classified.message });
     }
   });
 
@@ -18427,7 +18742,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error getting admin referral stats:', error);
-      res.status(500).json({ message: 'Failed to get referral stats' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get referral stats' : classified.message });
     }
   });
 
@@ -18468,7 +18784,8 @@ Return ONLY valid JSON.`;
       }
     } catch (error) {
       console.error('Error exporting dashboard:', error);
-      res.status(500).json({ message: 'Failed to export dashboard' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to export dashboard' : classified.message });
     }
   });
 
@@ -18538,7 +18855,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error sharing dashboard:', error);
-      res.status(500).json({ message: 'Failed to share dashboard' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to share dashboard' : classified.message });
     }
   });
 
@@ -18566,7 +18884,8 @@ Return ONLY valid JSON.`;
       res.json(dashboards);
     } catch (error) {
       console.error('Error fetching custom dashboards:', error);
-      res.status(500).json({ message: 'Failed to fetch custom dashboards' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch custom dashboards' : classified.message });
     }
   });
 
@@ -18591,7 +18910,8 @@ Return ONLY valid JSON.`;
       res.json(dashboard);
     } catch (error) {
       console.error('Error fetching custom dashboard:', error);
-      res.status(500).json({ message: 'Failed to fetch custom dashboard' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch custom dashboard' : classified.message });
     }
   });
 
@@ -18622,7 +18942,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(newDashboard);
     } catch (error) {
       console.error('Error creating custom dashboard:', error);
-      res.status(500).json({ message: 'Failed to create custom dashboard' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create custom dashboard' : classified.message });
     }
   });
 
@@ -18657,7 +18978,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(newDashboard);
     } catch (error) {
       console.error('Error generating custom dashboard:', error);
-      res.status(500).json({ message: 'Failed to generate custom dashboard' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to generate custom dashboard' : classified.message });
     }
   });
 
@@ -18689,7 +19011,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error('Error updating custom dashboard:', error);
-      res.status(500).json({ message: 'Failed to update custom dashboard' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update custom dashboard' : classified.message });
     }
   });
 
@@ -18710,7 +19033,8 @@ Return ONLY valid JSON.`;
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting custom dashboard:', error);
-      res.status(500).json({ message: 'Failed to delete custom dashboard' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete custom dashboard' : classified.message });
     }
   });
 
@@ -18739,7 +19063,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching consent status:', error);
-      res.status(500).json({ message: 'Failed to fetch consent status' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch consent status' : classified.message });
     }
   });
 
@@ -18755,7 +19080,8 @@ Return ONLY valid JSON.`;
       res.json(consents);
     } catch (error) {
       console.error('Error fetching consents:', error);
-      res.status(500).json({ message: 'Failed to fetch consents' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch consents' : classified.message });
     }
   });
 
@@ -18788,7 +19114,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(consent);
     } catch (error) {
       console.error('Error recording consent:', error);
-      res.status(500).json({ message: 'Failed to record consent' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to record consent' : classified.message });
     }
   });
 
@@ -18829,7 +19156,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error recording consents:', error);
-      res.status(500).json({ message: 'Failed to record consents' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to record consents' : classified.message });
     }
   });
 
@@ -18866,7 +19194,8 @@ Return ONLY valid JSON.`;
       res.json(consentsWithUsers);
     } catch (error) {
       console.error('Error fetching all consents:', error);
-      res.status(500).json({ message: 'Failed to fetch consents' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch consents' : classified.message });
     }
   });
 
@@ -18893,7 +19222,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching consent stats:', error);
-      res.status(500).json({ message: 'Failed to fetch consent statistics' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch consent statistics' : classified.message });
     }
   });
 
@@ -18914,7 +19244,8 @@ Return ONLY valid JSON.`;
       res.json(fields);
     } catch (error) {
       console.error('Error fetching custom fields:', error);
-      res.status(500).json({ message: 'Failed to fetch custom fields' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch custom fields' : classified.message });
     }
   });
 
@@ -18934,7 +19265,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(field);
     } catch (error) {
       console.error('Error creating custom field:', error);
-      res.status(500).json({ message: 'Failed to create custom field' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create custom field' : classified.message });
     }
   });
 
@@ -18951,7 +19283,8 @@ Return ONLY valid JSON.`;
       res.json(field);
     } catch (error) {
       console.error('Error updating custom field:', error);
-      res.status(500).json({ message: 'Failed to update custom field' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update custom field' : classified.message });
     }
   });
 
@@ -18968,7 +19301,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting custom field:', error);
-      res.status(500).json({ message: 'Failed to delete custom field' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete custom field' : classified.message });
     }
   });
 
@@ -18989,7 +19323,8 @@ Return ONLY valid JSON.`;
       res.json(values);
     } catch (error) {
       console.error('Error fetching custom field values:', error);
-      res.status(500).json({ message: 'Failed to fetch custom field values' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch custom field values' : classified.message });
     }
   });
 
@@ -19013,7 +19348,8 @@ Return ONLY valid JSON.`;
       res.json(fieldValue);
     } catch (error) {
       console.error('Error updating custom field value:', error);
-      res.status(500).json({ message: 'Failed to update custom field value' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update custom field value' : classified.message });
     }
   });
 
@@ -19040,7 +19376,8 @@ Return ONLY valid JSON.`;
       res.json(results);
     } catch (error) {
       console.error('Error updating custom field values:', error);
-      res.status(500).json({ message: 'Failed to update custom field values' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update custom field values' : classified.message });
     }
   });
 
@@ -19058,7 +19395,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting custom field value:', error);
-      res.status(500).json({ message: 'Failed to delete custom field value' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete custom field value' : classified.message });
     }
   });
 
@@ -19079,7 +19417,8 @@ Return ONLY valid JSON.`;
       res.json(tabs);
     } catch (error) {
       console.error('Error fetching custom tabs:', error);
-      res.status(500).json({ message: 'Failed to fetch custom tabs' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch custom tabs' : classified.message });
     }
   });
 
@@ -19099,7 +19438,8 @@ Return ONLY valid JSON.`;
       res.json(fullTab);
     } catch (error) {
       console.error('Error fetching custom tab:', error);
-      res.status(500).json({ message: 'Failed to fetch custom tab' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch custom tab' : classified.message });
     }
   });
 
@@ -19120,7 +19460,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(tab);
     } catch (error) {
       console.error('Error creating custom tab:', error);
-      res.status(500).json({ message: 'Failed to create custom tab' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create custom tab' : classified.message });
     }
   });
 
@@ -19137,7 +19478,8 @@ Return ONLY valid JSON.`;
       res.json(tab);
     } catch (error) {
       console.error('Error updating custom tab:', error);
-      res.status(500).json({ message: 'Failed to update custom tab' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update custom tab' : classified.message });
     }
   });
 
@@ -19154,7 +19496,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting custom tab:', error);
-      res.status(500).json({ message: 'Failed to delete custom tab' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete custom tab' : classified.message });
     }
   });
 
@@ -19175,7 +19518,8 @@ Return ONLY valid JSON.`;
       res.json(sections);
     } catch (error) {
       console.error('Error fetching custom tab sections:', error);
-      res.status(500).json({ message: 'Failed to fetch sections' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch sections' : classified.message });
     }
   });
 
@@ -19195,7 +19539,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(section);
     } catch (error) {
       console.error('Error creating custom tab section:', error);
-      res.status(500).json({ message: 'Failed to create section' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create section' : classified.message });
     }
   });
 
@@ -19212,7 +19557,8 @@ Return ONLY valid JSON.`;
       res.json(section);
     } catch (error) {
       console.error('Error updating custom tab section:', error);
-      res.status(500).json({ message: 'Failed to update section' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update section' : classified.message });
     }
   });
 
@@ -19229,7 +19575,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting custom tab section:', error);
-      res.status(500).json({ message: 'Failed to delete section' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete section' : classified.message });
     }
   });
 
@@ -19250,7 +19597,8 @@ Return ONLY valid JSON.`;
       res.json(fields);
     } catch (error) {
       console.error('Error fetching custom tab fields:', error);
-      res.status(500).json({ message: 'Failed to fetch fields' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch fields' : classified.message });
     }
   });
 
@@ -19270,7 +19618,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(field);
     } catch (error) {
       console.error('Error creating custom tab field:', error);
-      res.status(500).json({ message: 'Failed to create field' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create field' : classified.message });
     }
   });
 
@@ -19287,7 +19636,8 @@ Return ONLY valid JSON.`;
       res.json(field);
     } catch (error) {
       console.error('Error updating custom tab field:', error);
-      res.status(500).json({ message: 'Failed to update field' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update field' : classified.message });
     }
   });
 
@@ -19304,7 +19654,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting custom tab field:', error);
-      res.status(500).json({ message: 'Failed to delete field' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete field' : classified.message });
     }
   });
 
@@ -19320,7 +19671,8 @@ Return ONLY valid JSON.`;
       res.json(PROJECT_FIELD_DEFINITIONS);
     } catch (error) {
       console.error('Error fetching project field definitions:', error);
-      res.status(500).json({ message: 'Failed to fetch project field definitions' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch project field definitions' : classified.message });
     }
   });
 
@@ -19338,7 +19690,8 @@ Return ONLY valid JSON.`;
       res.json(criteria);
     } catch (error) {
       console.error('Error fetching scoring criteria:', error);
-      res.status(500).json({ message: 'Failed to fetch scoring criteria' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch scoring criteria' : classified.message });
     }
   });
 
@@ -19356,7 +19709,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(criteria);
     } catch (error) {
       console.error('Error creating scoring criteria:', error);
-      res.status(500).json({ message: 'Failed to create scoring criteria' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create scoring criteria' : classified.message });
     }
   });
 
@@ -19370,7 +19724,8 @@ Return ONLY valid JSON.`;
       res.json(criteria);
     } catch (error) {
       console.error('Error updating scoring criteria:', error);
-      res.status(500).json({ message: 'Failed to update scoring criteria' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update scoring criteria' : classified.message });
     }
   });
 
@@ -19384,7 +19739,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting scoring criteria:', error);
-      res.status(500).json({ message: 'Failed to delete scoring criteria' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete scoring criteria' : classified.message });
     }
   });
 
@@ -19402,7 +19758,8 @@ Return ONLY valid JSON.`;
       res.json(scores);
     } catch (error) {
       console.error('Error fetching project scores:', error);
-      res.status(500).json({ message: 'Failed to fetch project scores' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch project scores' : classified.message });
     }
   });
 
@@ -19417,7 +19774,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(result);
     } catch (error) {
       console.error('Error saving project score:', error);
-      res.status(500).json({ message: 'Failed to save project score' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to save project score' : classified.message });
     }
   });
 
@@ -19431,7 +19789,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting project score:', error);
-      res.status(500).json({ message: 'Failed to delete project score' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete project score' : classified.message });
     }
   });
 
@@ -19449,7 +19808,8 @@ Return ONLY valid JSON.`;
       res.json(benefits);
     } catch (error) {
       console.error('Error fetching project benefits:', error);
-      res.status(500).json({ message: 'Failed to fetch project benefits' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch project benefits' : classified.message });
     }
   });
 
@@ -19467,7 +19827,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(benefit);
     } catch (error) {
       console.error('Error creating project benefit:', error);
-      res.status(500).json({ message: 'Failed to create project benefit' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create project benefit' : classified.message });
     }
   });
 
@@ -19481,7 +19842,8 @@ Return ONLY valid JSON.`;
       res.json(benefit);
     } catch (error) {
       console.error('Error updating project benefit:', error);
-      res.status(500).json({ message: 'Failed to update project benefit' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update project benefit' : classified.message });
     }
   });
 
@@ -19495,7 +19857,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting project benefit:', error);
-      res.status(500).json({ message: 'Failed to delete project benefit' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete project benefit' : classified.message });
     }
   });
 
@@ -19513,7 +19876,8 @@ Return ONLY valid JSON.`;
       res.json(decisions);
     } catch (error) {
       console.error('Error fetching project decisions:', error);
-      res.status(500).json({ message: 'Failed to fetch project decisions' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch project decisions' : classified.message });
     }
   });
 
@@ -19531,7 +19895,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(decision);
     } catch (error) {
       console.error('Error creating project decision:', error);
-      res.status(500).json({ message: 'Failed to create project decision' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create project decision' : classified.message });
     }
   });
 
@@ -19545,7 +19910,8 @@ Return ONLY valid JSON.`;
       res.json(decision);
     } catch (error) {
       console.error('Error updating project decision:', error);
-      res.status(500).json({ message: 'Failed to update project decision' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update project decision' : classified.message });
     }
   });
 
@@ -19559,7 +19925,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting project decision:', error);
-      res.status(500).json({ message: 'Failed to delete project decision' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete project decision' : classified.message });
     }
   });
 
@@ -19578,7 +19945,8 @@ Return ONLY valid JSON.`;
       res.json(lessons);
     } catch (error) {
       console.error('Error fetching lessons learned:', error);
-      res.status(500).json({ message: 'Failed to fetch lessons learned' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch lessons learned' : classified.message });
     }
   });
 
@@ -19593,7 +19961,8 @@ Return ONLY valid JSON.`;
       res.json(lessons);
     } catch (error) {
       console.error('Error fetching all lessons learned:', error);
-      res.status(500).json({ message: 'Failed to fetch lessons learned' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch lessons learned' : classified.message });
     }
   });
 
@@ -19612,7 +19981,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(lesson);
     } catch (error) {
       console.error('Error creating lesson learned:', error);
-      res.status(500).json({ message: 'Failed to create lesson learned' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create lesson learned' : classified.message });
     }
   });
 
@@ -19627,7 +19997,8 @@ Return ONLY valid JSON.`;
       res.json(lesson);
     } catch (error) {
       console.error('Error updating lesson learned:', error);
-      res.status(500).json({ message: 'Failed to update lesson learned' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update lesson learned' : classified.message });
     }
   });
 
@@ -19642,7 +20013,8 @@ Return ONLY valid JSON.`;
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting lesson learned:', error);
-      res.status(500).json({ message: 'Failed to delete lesson learned' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete lesson learned' : classified.message });
     }
   });
 
@@ -19784,7 +20156,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching monitoring overview:', error);
-      res.status(500).json({ message: 'Failed to fetch monitoring data' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch monitoring data' : classified.message });
     }
   });
 
@@ -19838,7 +20211,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching API logs:', error);
-      res.status(500).json({ message: 'Failed to fetch API logs' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch API logs' : classified.message });
     }
   });
 
@@ -19896,7 +20270,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching user activity:', error);
-      res.status(500).json({ message: 'Failed to fetch user activity' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch user activity' : classified.message });
     }
   });
 
@@ -19985,7 +20360,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching feature usage:', error);
-      res.status(500).json({ message: 'Failed to fetch feature usage' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch feature usage' : classified.message });
     }
   });
 
@@ -20060,7 +20436,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching performance metrics:', error);
-      res.status(500).json({ message: 'Failed to fetch performance metrics' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch performance metrics' : classified.message });
     }
   });
 
@@ -20121,7 +20498,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching database stats:', error);
-      res.status(500).json({ message: 'Failed to fetch database statistics' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch database statistics' : classified.message });
     }
   });
 
@@ -20154,7 +20532,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching organization usage:', error);
-      res.status(500).json({ message: 'Failed to fetch organization usage' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch organization usage' : classified.message });
     }
   });
 
@@ -20459,7 +20838,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error('Error fetching analytics dashboard:', error);
-      res.status(500).json({ message: 'Failed to fetch analytics data' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch analytics data' : classified.message });
     }
   });
 
@@ -20544,7 +20924,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(ticket);
     } catch (error) {
       console.error('Error creating help ticket:', error);
-      res.status(500).json({ message: 'Failed to create help ticket' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create help ticket' : classified.message });
     }
   });
 
@@ -20560,7 +20941,8 @@ Return ONLY valid JSON.`;
       res.json(tickets);
     } catch (error) {
       console.error('Error fetching help tickets:', error);
-      res.status(500).json({ message: 'Failed to fetch help tickets' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch help tickets' : classified.message });
     }
   });
 
@@ -20582,7 +20964,8 @@ Return ONLY valid JSON.`;
       res.json(ticket);
     } catch (error) {
       console.error('Error fetching help ticket:', error);
-      res.status(500).json({ message: 'Failed to fetch help ticket' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch help ticket' : classified.message });
     }
   });
 
@@ -20621,7 +21004,8 @@ Return ONLY valid JSON.`;
       res.json(updatedTicket);
     } catch (error) {
       console.error('Error updating help ticket:', error);
-      res.status(500).json({ message: 'Failed to update help ticket' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update help ticket' : classified.message });
     }
   });
 
@@ -20638,7 +21022,8 @@ Return ONLY valid JSON.`;
       res.json({ message: 'Ticket deleted successfully' });
     } catch (error) {
       console.error('Error deleting help ticket:', error);
-      res.status(500).json({ message: 'Failed to delete help ticket' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete help ticket' : classified.message });
     }
   });
 
@@ -20675,7 +21060,8 @@ Return ONLY valid JSON.`;
       res.json(userSubscriptions);
     } catch (error) {
       console.error('Error fetching report subscriptions:', error);
-      res.status(500).json({ message: 'Failed to fetch report subscriptions' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch report subscriptions' : classified.message });
     }
   });
   
@@ -20722,7 +21108,8 @@ Return ONLY valid JSON.`;
       res.status(201).json(subscription);
     } catch (error) {
       console.error('Error creating report subscription:', error);
-      res.status(500).json({ message: 'Failed to create report subscription' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to create report subscription' : classified.message });
     }
   });
   
@@ -20781,7 +21168,8 @@ Return ONLY valid JSON.`;
       res.json(updated);
     } catch (error) {
       console.error('Error updating report subscription:', error);
-      res.status(500).json({ message: 'Failed to update report subscription' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update report subscription' : classified.message });
     }
   });
   
@@ -20817,7 +21205,8 @@ Return ONLY valid JSON.`;
       res.json({ message: 'Subscription deleted successfully' });
     } catch (error) {
       console.error('Error deleting report subscription:', error);
-      res.status(500).json({ message: 'Failed to delete report subscription' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete report subscription' : classified.message });
     }
   });
   
@@ -20856,7 +21245,8 @@ Return ONLY valid JSON.`;
       }
     } catch (error) {
       console.error('Error sending report:', error);
-      res.status(500).json({ message: 'Failed to send report' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to send report' : classified.message });
     }
   });
   
@@ -20872,7 +21262,8 @@ Return ONLY valid JSON.`;
       res.json({ message: `Sent ${sentCount} scheduled reports` });
     } catch (error) {
       console.error('Error checking scheduled reports:', error);
-      res.status(500).json({ message: 'Failed to check scheduled reports' });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to check scheduled reports' : classified.message });
     }
   });
 
@@ -21086,7 +21477,7 @@ Return ONLY valid JSON.`;
       req.session.save((err) => {
         if (err) {
           console.error("Failed to save session for act-as:", err);
-          return res.status(500).json({ message: "Failed to start delegate mode" });
+        return res.status(500).json({ message: "Failed to start delegate mode" });
         }
 
         console.log(`[delegate] User ${realUserId} (${realUser.email}) started acting as ${targetUserId} (${targetUser.email}) in org ${orgId}`);
@@ -21104,7 +21495,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error("Act-as start error:", error);
-      res.status(500).json({ message: "Failed to start delegate mode" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to start delegate mode" : classified.message });
     }
   });
 
@@ -21134,7 +21526,8 @@ Return ONLY valid JSON.`;
       });
     } catch (error) {
       console.error("Act-as stop error:", error);
-      res.status(500).json({ message: "Failed to stop delegate mode" });
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to stop delegate mode" : classified.message });
     }
   });
 
