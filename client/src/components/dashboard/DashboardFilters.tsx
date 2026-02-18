@@ -181,11 +181,11 @@ export function DashboardFilters({
             <FolderKanban className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
             <SelectValue placeholder="Portfolio" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[300px]">
             <SelectItem value="all">All Portfolios</SelectItem>
             {portfolios.map((p) => (
               <SelectItem key={p.id} value={p.id.toString()}>
-                {p.name}
+                <span className="truncate block max-w-[250px]">{p.name}</span>
               </SelectItem>
             ))}
           </SelectContent>
