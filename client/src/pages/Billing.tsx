@@ -237,8 +237,9 @@ export function BillingContent() {
             // Fetch plans to match PayPal plan ID to our plan code
             const plansRes = await fetch('/api/billing/plans', { credentials: 'include' });
             if (plansRes.ok) {
-              const plans = await plansRes.json();
-              const matchingPlan = plans.find((p: any) => p.paypalPlanId === planId);
+              const plansData = await plansRes.json();
+              const plansArr = plansData.plans || plansData;
+              const matchingPlan = plansArr.find((p: any) => p.paypalPlanId === planId);
               if (matchingPlan) {
                 finalPlanCode = matchingPlan.code;
               }
@@ -323,9 +324,10 @@ export function BillingContent() {
     };
   }
 
-  const { data: plans, isLoading: plansLoading } = useQuery<PlanWithRules[]>({
+  const { data: plansResponse, isLoading: plansLoading } = useQuery<{ plans: PlanWithRules[]; creditCosts: any[] }>({
     queryKey: ['/api/billing/plans'],
   });
+  const plans = plansResponse?.plans;
 
   const { data: subscription, isLoading: subscriptionLoading } = useQuery<Subscription & { plan?: Plan }>({
     queryKey: ['/api/billing/subscription', currentOrganization?.id],

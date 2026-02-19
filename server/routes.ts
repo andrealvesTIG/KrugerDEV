@@ -1244,6 +1244,18 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // Validate that common numeric route params are valid integers (prevents NaN SQL errors)
+  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId'];
+  for (const param of numericParams) {
+    app.param(param, (req, res, next, value) => {
+      const num = Number(value);
+      if (isNaN(num) || !Number.isInteger(num)) {
+        return res.status(400).json({ message: `Invalid ${param}: must be an integer` });
+      }
+      next();
+    });
+  }
+
   // Set up authentication first - Replit OAuth, Email/Password, Microsoft 365, and Google
   await setupReplitAuth(app);
   await setupEmailAuth(app);
@@ -15403,12 +15415,15 @@ Return ONLY valid JSON.`;
     try {
       const { plans, meters, planMeterRules } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
+      const { getAllCreditCosts } = await import("./services/billing");
       
       const allPlans = await db.select().from(plans).where(eq(plans.isActive, true));
       const allRules = await db
         .select()
         .from(planMeterRules)
         .innerJoin(meters, eq(planMeterRules.meterId, meters.id));
+
+      const creditCosts = await getAllCreditCosts();
       
       const plansWithRules = allPlans.map(plan => ({
         ...plan,
@@ -15424,7 +15439,7 @@ Return ONLY valid JSON.`;
           })),
       }));
       
-      res.json(plansWithRules);
+      res.json({ plans: plansWithRules, creditCosts });
     } catch (error) {
       console.error("Error fetching plans:", error);
       const classified = classifyError(error);

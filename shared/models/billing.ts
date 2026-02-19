@@ -4,7 +4,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./auth";
 
-export const planCodeEnum = ["FREE", "BASIC", "TEAM"] as const;
+export const planCodeEnum = ["FREE", "BASIC", "TEAM", "ENTERPRISE", "CUSTOM"] as const;
 export type PlanCode = typeof planCodeEnum[number];
 
 export const meterCodeEnum = ["credits", "ai_runs", "documents", "projects", "tasks"] as const;
@@ -16,10 +16,17 @@ export const resourceTypeEnum = [
   "task", 
   "issue",
   "risk",
+  "milestone",
   "document",
   "resource",
   "resource_assignment",
-  "ai_run"
+  "ai_run",
+  "portfolio",
+  "integration",
+  "report",
+  "intake",
+  "email",
+  "search"
 ] as const;
 export type ResourceType = typeof resourceTypeEnum[number];
 

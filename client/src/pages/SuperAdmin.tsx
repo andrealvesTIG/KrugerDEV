@@ -2455,9 +2455,10 @@ function PlansTab() {
   const [isSyncingPayPal, setIsSyncingPayPal] = useState(false);
   const [isInitializingSeats, setIsInitializingSeats] = useState(false);
 
-  const { data: plans, isLoading } = useQuery<PlanData[]>({
+  const { data: plansResponse, isLoading } = useQuery<{ plans: PlanData[]; creditCosts: any[] }>({
     queryKey: ['/api/billing/plans']
   });
+  const plans = plansResponse?.plans;
 
   const syncPayPalPlans = async () => {
     setIsSyncingPayPal(true);

@@ -1114,6 +1114,13 @@ export default function SignInPage() {
   );
 }
 
+interface CreditCostData {
+  resourceType: string;
+  creditCost: number;
+  displayName: string;
+  description: string | null;
+}
+
 interface PlanData {
   id: number;
   code: string;
@@ -1131,6 +1138,11 @@ interface PlanData {
   }[];
 }
 
+interface PlansResponse {
+  plans: PlanData[];
+  creditCosts: CreditCostData[];
+}
+
 function getMeterValue(rules: PlanData['meterRules'], meterCode: string): { quota: number | null; hasOverage: boolean } {
   const quota = rules.find(r => r.meterCode === meterCode && r.ruleType === 'INCLUDED_QUOTA');
   const hasOverage = rules.some(r => r.meterCode === meterCode && r.ruleType === 'METERED_OVERAGE');
@@ -1142,7 +1154,12 @@ function getHardCap(rules: PlanData['meterRules'], meterCode: string): number | 
   return cap?.hardCapUnits ?? null;
 }
 
-function getPlanFeatures(plan: PlanData): string[] {
+function getCreditCostForType(creditCosts: CreditCostData[], resourceType: string): number {
+  const cost = creditCosts.find(c => c.resourceType === resourceType);
+  return cost ? cost.creditCost / 100 : 1;
+}
+
+function getPlanFeatures(plan: PlanData, creditCosts: CreditCostData[]): string[] {
   const features: string[] = [];
   const rules = plan.meterRules;
   const isCustom = plan.code === 'CUSTOM';
@@ -1174,8 +1191,10 @@ function getPlanFeatures(plan: PlanData): string[] {
   const credits = getMeterValue(rules, 'credits');
   if (credits.quota && !isCustom) {
     const creditsVal = credits.quota;
-    const portfolios = Math.floor(creditsVal / 10);
-    const resources = Math.floor(creditsVal / 2);
+    const portfolioCost = getCreditCostForType(creditCosts, 'portfolio');
+    const resourceCost = getCreditCostForType(creditCosts, 'resource');
+    const portfolios = Math.floor(creditsVal / portfolioCost);
+    const resources = Math.floor(creditsVal / resourceCost);
     features.push(`${creditsVal.toLocaleString()} credits/month`);
     features.push(`~${portfolios} portfolios, ~${resources} resources`);
   } else if (isCustom) {
@@ -1204,9 +1223,12 @@ function getPlanFeatures(plan: PlanData): string[] {
 }
 
 function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
-  const { data: plans, isLoading } = useQuery<PlanData[]>({
+  const { data: plansResponse, isLoading } = useQuery<PlansResponse>({
     queryKey: ['/api/billing/plans'],
   });
+
+  const plans = plansResponse?.plans;
+  const creditCosts = plansResponse?.creditCosts ?? [];
 
   const sortedPlans = plans ? [...plans].sort((a, b) => {
     return (a.displayOrder ?? 999) - (b.displayOrder ?? 999);
@@ -1239,7 +1261,7 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
               const isPopular = plan.code === mostPopularCode;
               const isCustom = plan.code === 'CUSTOM';
               const isFree = plan.code === 'FREE';
-              const features = getPlanFeatures(plan);
+              const features = getPlanFeatures(plan, creditCosts);
               const priceDisplay = isCustom
                 ? 'Contact'
                 : plan.monthlyPriceCents != null
