@@ -4072,8 +4072,9 @@ export async function registerRoutes(
       const { DEFAULT_RISK_ASSESSMENT_CONFIG: DEFAULTS } = await import('@shared/schema');
       const riskConfig = { ...DEFAULTS, ...(orgForConfig?.riskAssessmentConfig || {}) };
 
+      const forceRecalculate = req.body?.force === true;
       const existing = await storage.getLatestPortfolioRiskAssessment(portfolioId);
-      if (existing) {
+      if (existing && !forceRecalculate) {
         const ageInDays = (Date.now() - new Date(existing.generatedAt!).getTime()) / (1000 * 60 * 60 * 24);
         if (ageInDays < riskConfig.cacheDays) {
           const cachedReport = JSON.parse(existing.reportJson);

@@ -82,10 +82,11 @@ export default function PortfolioDetails() {
   const [riskShareToken, setRiskShareToken] = useState<string>("");
   const [riskAssessmentId, setRiskAssessmentId] = useState<number | null>(null);
   const [riskConfirmOpen, setRiskConfirmOpen] = useState(false);
+  const [forceRecalculate, setForceRecalculate] = useState(false);
 
   const generateRiskAssessment = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/portfolios/${id}/risk-assessment`);
+    mutationFn: async (options?: { force?: boolean }) => {
+      const res = await apiRequest("POST", `/api/portfolios/${id}/risk-assessment`, { force: options?.force || false });
       return res.json();
     },
     onSuccess: (data: any) => {
@@ -158,6 +159,7 @@ export default function PortfolioDetails() {
   };
 
   const handleRecalculateRisk = () => {
+    setForceRecalculate(true);
     setRiskConfirmOpen(true);
   };
 
@@ -254,6 +256,8 @@ export default function PortfolioDetails() {
               generateRiskAssessment={generateRiskAssessment}
               riskConfirmOpen={riskConfirmOpen}
               setRiskConfirmOpen={setRiskConfirmOpen}
+              forceRecalculate={forceRecalculate}
+              setForceRecalculate={setForceRecalculate}
               riskDialogOpen={riskDialogOpen}
               setRiskDialogOpen={setRiskDialogOpen}
               riskReport={riskReport}
@@ -1106,7 +1110,7 @@ function PortfolioProjectsGanttView({ projects }: { projects: Project[] }) {
   );
 }
 
-function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalculateRisk, generateRiskAssessment, riskConfirmOpen, setRiskConfirmOpen, riskDialogOpen, setRiskDialogOpen, riskReport, riskAssessmentId, riskShareToken, getRiskScoreColor, getRiskScoreBg, getRiskScoreLabel }: {
+function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalculateRisk, generateRiskAssessment, riskConfirmOpen, setRiskConfirmOpen, forceRecalculate, setForceRecalculate, riskDialogOpen, setRiskDialogOpen, riskReport, riskAssessmentId, riskShareToken, getRiskScoreColor, getRiskScoreBg, getRiskScoreLabel }: {
   portfolioId: number;
   portfolioName: string;
   onRiskAssessmentClick: () => void;
@@ -1114,6 +1118,8 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
   generateRiskAssessment: any;
   riskConfirmOpen: boolean;
   setRiskConfirmOpen: (open: boolean) => void;
+  forceRecalculate: boolean;
+  setForceRecalculate: (v: boolean) => void;
   riskDialogOpen: boolean;
   setRiskDialogOpen: (open: boolean) => void;
   riskReport: any;
@@ -1472,7 +1478,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={riskConfirmOpen} onOpenChange={setRiskConfirmOpen}>
+      <AlertDialog open={riskConfirmOpen} onOpenChange={(open) => { setRiskConfirmOpen(open); if (!open) setForceRecalculate(false); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle data-testid="text-risk-confirm-title">Generate Risk Assessment</AlertDialogTitle>
@@ -1483,7 +1489,10 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-risk-confirm-cancel">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => generateRiskAssessment.mutate()}
+              onClick={() => {
+                generateRiskAssessment.mutate({ force: forceRecalculate });
+                setForceRecalculate(false);
+              }}
               disabled={generateRiskAssessment.isPending}
               data-testid="button-risk-confirm-generate"
             >
