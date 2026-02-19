@@ -5020,54 +5020,54 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       {/* Planner project banner */}
       {isPlannerProject && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
-            <div className="flex items-center gap-3">
-              <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6" />
-              <div>
-                <span className="font-medium">Synced from {isPremiumPlan ? "Planner Premium" : "Microsoft Planner"}</span>
-                <p className="text-sm text-muted-foreground">Tasks are fully editable. Click "Detach & Edit" to disconnect sync and manage tasks locally only.</p>
+          <div className="p-3 rounded-lg border bg-muted/50 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6 shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-medium">Synced from {isPremiumPlan ? "Planner Premium" : "Microsoft Planner"}</span>
+                  <p className="text-sm text-muted-foreground">Tasks are fully editable. Click "Detach & Edit" to disconnect sync and manage tasks locally only.</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <a 
-                href={(() => {
-                  if (!plannerPlanId) return "https://planner.cloud.microsoft";
-                  if (isPremiumPlan) {
-                    let url = `https://planner.cloud.microsoft/webui/premiumplan/${plannerPlanId}`;
-                    if (dataverseOrgId) {
-                      url += `/org/${dataverseOrgId}`;
+              <div className="flex items-center gap-2 flex-wrap">
+                <a 
+                  href={(() => {
+                    if (!plannerPlanId) return "https://planner.cloud.microsoft";
+                    if (isPremiumPlan) {
+                      let url = `https://planner.cloud.microsoft/webui/premiumplan/${plannerPlanId}`;
+                      if (dataverseOrgId) {
+                        url += `/org/${dataverseOrgId}`;
+                      }
+                      if (dataverseTenantId) {
+                        url += `?tid=${dataverseTenantId}`;
+                      }
+                      return url;
                     }
-                    if (dataverseTenantId) {
-                      url += `?tid=${dataverseTenantId}`;
-                    }
-                    return url;
-                  }
-                  return `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board`;
-                })()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-primary hover:underline flex items-center gap-1"
-              >
-                <ExternalLink className="h-3 w-3" />
-                {isPremiumPlan ? "Open in Project" : "Open in Planner"}
-              </a>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsMakeEditableDialogOpen(true)}
-                    data-testid="button-make-editable-planner"
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Detach & Edit
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-xs">
-                  <p>Detach this project from {isPremiumPlan ? "Project for the Web" : "Planner"} and make it fully editable. This removes the sync link but keeps all tasks and data.</p>
-                </TooltipContent>
-              </Tooltip>
-              <div className="flex flex-col items-end gap-1">
+                    return `https://planner.cloud.microsoft/webui/plan/${plannerPlanId}/view/board`;
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline flex items-center gap-1"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  {isPremiumPlan ? "Open in Project" : "Open in Planner"}
+                </a>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsMakeEditableDialogOpen(true)}
+                      data-testid="button-make-editable-planner"
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Detach & Edit
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <p>Detach this project from {isPremiumPlan ? "Project for the Web" : "Planner"} and make it fully editable. This removes the sync link but keeps all tasks and data.</p>
+                  </TooltipContent>
+                </Tooltip>
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -5078,13 +5078,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                   <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
                   {isSyncing ? "Syncing..." : "Sync Now"}
                 </Button>
-                {lastSyncedAt && (
-                  <span className="text-xs text-muted-foreground" data-testid="text-last-synced">
-                    Last Synced: {format(new Date(lastSyncedAt), "MM/dd/yyyy h:mm a")}
-                  </span>
-                )}
               </div>
             </div>
+            {lastSyncedAt && (
+              <p className="text-xs text-muted-foreground pl-9" data-testid="text-last-synced">
+                Last Synced: {format(new Date(lastSyncedAt), "MM/dd/yyyy h:mm a")}
+              </p>
+            )}
           </div>
           {syncError && (
             <div className="flex items-center justify-between p-3 rounded-lg border bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
