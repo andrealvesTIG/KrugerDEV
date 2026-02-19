@@ -3686,12 +3686,13 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
           )}
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}>
             <DialogTrigger asChild><Button size="sm" onClick={openCreateDialog} disabled={readOnly}><Plus className="mr-2 h-4 w-4" /> Add Risk</Button></DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden">
             <DialogHeader>
               <DialogTitle>{editingRisk ? "Edit Risk" : "Add New Risk"}</DialogTitle>
               <DialogDescription>{editingRisk ? "Modify the risk details below." : "Identify and track potential project risks."}</DialogDescription>
             </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+              <div className="space-y-4 pt-4 flex-1 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label>Title <span className="text-destructive">*</span></Label>
                 <Input {...form.register("title")} data-testid="input-risk-title" />
@@ -3863,7 +3864,8 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                 </div>
               )}
 
-              <DialogFooter className="flex justify-between gap-2">
+              </div>
+              <DialogFooter className="flex justify-between gap-2 pt-4 border-t mt-4 shrink-0">
                 <div>
                   {editingRisk && (
                     <Button 
