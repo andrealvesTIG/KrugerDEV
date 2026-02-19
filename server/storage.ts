@@ -71,7 +71,7 @@ import {
   customDashboards, apiRequestLogs, userActivityLogs, featureUsageLogs,
   errorLogs, helpTickets, simulationRuns, reportSubscriptions
 } from "@shared/schema";
-import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, or, ilike, sql, isNull, isNotNull, inArray, notInArray } from "drizzle-orm";
 import { 
   billingAuditLogs, 
   subscriptions, 
@@ -174,6 +174,7 @@ export interface IStorage {
   getTasks(projectId: number): Promise<Task[]>;
   getTasksByProject(projectId: number): Promise<Task[]>;
   getAllTasks(): Promise<Task[]>;
+  getTasksByOrganizationPaginated(organizationId: number, limit: number, offset: number, onlyTaskIds?: number[]): Promise<{ tasks: Task[]; total: number }>;
   getTask(id: number): Promise<Task | undefined>;
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: number, updates: UpdateTaskRequest): Promise<Task>;
@@ -1217,6 +1218,34 @@ export class DatabaseStorage implements IStorage {
 
   async getAllTasks(): Promise<Task[]> {
     return await db.select().from(tasks).where(isNull(tasks.deletedAt)).orderBy(desc(tasks.createdAt));
+  }
+
+  async getTasksByOrganizationPaginated(organizationId: number, limit: number, offset: number, onlyTaskIds?: number[]): Promise<{ tasks: Task[]; total: number }> {
+    const orgProjectIds = await db.select({ id: projects.id }).from(projects)
+      .where(and(eq(projects.organizationId, organizationId), isNull(projects.deletedAt)));
+    const projectIdList = orgProjectIds.map(p => p.id);
+    if (projectIdList.length === 0) return { tasks: [], total: 0 };
+
+    const conditions = [
+      isNull(tasks.deletedAt),
+      inArray(tasks.projectId, projectIdList),
+    ];
+    if (onlyTaskIds !== undefined) {
+      if (onlyTaskIds.length === 0) return { tasks: [], total: 0 };
+      conditions.push(inArray(tasks.id, onlyTaskIds));
+    }
+    const baseConditions = and(...conditions);
+
+    const [countResult] = await db.select({ count: sql<number>`count(*)::int` }).from(tasks).where(baseConditions);
+    const total = countResult?.count ?? 0;
+
+    const result = await db.select().from(tasks)
+      .where(baseConditions)
+      .orderBy(desc(tasks.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { tasks: result, total };
   }
 
   async getTask(id: number): Promise<Task | undefined> {

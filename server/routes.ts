@@ -9233,67 +9233,59 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   app.get(api.tasks.listAll.path, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     
-    // Deny access if user is not a member of any organization
     if (!await userHasAnyOrgAccess(userId)) {
       return res.json({ tasks: [], total: 0, hasMore: false });
     }
     
-    // Get user's accessible org IDs and filter tasks by project's organization
     const accessibleOrgIds = await getUserOrgIds(userId);
-    
-    // Support filtering by organization
     const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
-    
-    // Get all projects to determine which tasks belong to accessible orgs
-    const allProjects = await storage.getProjects();
-    
-    // Filter projects by organization if specified, otherwise use all accessible
-    let accessibleProjectIds: Set<number>;
-    if (organizationId !== null) {
-      // Verify user has access to this organization
-      if (!accessibleOrgIds.includes(organizationId)) {
-        return res.json({ tasks: [], total: 0, hasMore: false });
-      }
-      accessibleProjectIds = new Set(
-        allProjects
-          .filter(p => p.organizationId === organizationId)
-          .map(p => p.id)
-      );
-    } else {
-      accessibleProjectIds = new Set(
-        allProjects
-          .filter(p => p.organizationId === null || accessibleOrgIds.includes(p.organizationId))
-          .map(p => p.id)
-      );
-    }
-    
-    const allTasks = await storage.getAllTasks();
-    let filteredTasks = allTasks.filter(task => accessibleProjectIds.has(task.projectId));
-    
-    // For team_member role, further filter to only assigned tasks
-    // Apply filtering across all orgs where user has team_member role
-    if (userId) {
-      const userOrgs = await storage.getUserOrganizations(userId);
-      for (const membership of userOrgs) {
-        if (membership.role === 'team_member') {
-          const assignedTaskIds = await getTeamMemberTaskIds(userId, membership.organizationId);
-          // Get projects in this org to filter tasks
-          const orgProjects = allProjects.filter(p => p.organizationId === membership.organizationId);
-          const orgProjectIds = new Set(orgProjects.map(p => p.id));
-          filteredTasks = filteredTasks.filter(t => 
-            !orgProjectIds.has(t.projectId) || assignedTaskIds.includes(t.id)
-          );
-        }
-      }
-    }
-    
-    // Support pagination via query params
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
-    const total = filteredTasks.length;
-    const paginatedTasks = filteredTasks.slice(offset, offset + limit);
-    const hasMore = offset + limit < total;
     
+    // Determine which orgs to query
+    const targetOrgIds = organizationId !== null
+      ? (accessibleOrgIds.includes(organizationId) ? [organizationId] : [])
+      : accessibleOrgIds;
+    
+    if (targetOrgIds.length === 0) {
+      return res.json({ tasks: [], total: 0, hasMore: false });
+    }
+    
+    // Build per-org role map for team_member filtering
+    const userOrgs = userId ? await storage.getUserOrganizations(userId) : [];
+    const teamMemberOrgIds = new Set(
+      userOrgs.filter(m => m.role === 'team_member').map(m => m.organizationId)
+    );
+    
+    // For single org (most common case), use efficient DB-level pagination
+    if (targetOrgIds.length === 1) {
+      const orgId = targetOrgIds[0];
+      let onlyTaskIds: number[] | undefined;
+      if (teamMemberOrgIds.has(orgId) && userId) {
+        onlyTaskIds = await getTeamMemberTaskIds(userId, orgId);
+      }
+      const { tasks: paginatedTasks, total } = await storage.getTasksByOrganizationPaginated(
+        orgId, limit, offset, onlyTaskIds
+      );
+      const hasMore = offset + limit < total;
+      const enrichedTasks = await enrichTasksWithTimesheetHours(paginatedTasks);
+      return res.json({ tasks: enrichedTasks, total, hasMore });
+    }
+    
+    // Multi-org: aggregate per-org results then paginate in memory
+    let allFilteredTasks: Task[] = [];
+    for (const orgId of targetOrgIds) {
+      let onlyTaskIds: number[] | undefined;
+      if (teamMemberOrgIds.has(orgId) && userId) {
+        onlyTaskIds = await getTeamMemberTaskIds(userId, orgId);
+      }
+      const { tasks: orgTasks } = await storage.getTasksByOrganizationPaginated(orgId, 999999, 0, onlyTaskIds);
+      allFilteredTasks = allFilteredTasks.concat(orgTasks);
+    }
+    
+    const total = allFilteredTasks.length;
+    const paginatedTasks = allFilteredTasks.slice(offset, offset + limit);
+    const hasMore = offset + limit < total;
     const enrichedTasks = await enrichTasksWithTimesheetHours(paginatedTasks);
     res.json({ tasks: enrichedTasks, total, hasMore });
   });
