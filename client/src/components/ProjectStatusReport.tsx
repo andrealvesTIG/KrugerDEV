@@ -69,15 +69,16 @@ export function ProjectStatusReport({
   executiveSummary
 }: ProjectStatusReportProps) {
   const taskStats = useMemo(() => {
-    const completed = tasks.filter(t => t.status === "Completed" || t.progress === 100).length;
-    const inProgress = tasks.filter(t => t.status === "In Progress").length;
-    const notStarted = tasks.filter(t => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
-    const total = tasks.length || 1;
+    const leafTasks = tasks.filter(t => !t.isSummary);
+    const completed = leafTasks.filter(t => t.status === "Completed" || t.progress === 100).length;
+    const inProgress = leafTasks.filter(t => t.status === "In Progress").length;
+    const notStarted = leafTasks.filter(t => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
+    const total = leafTasks.length || 1;
     return {
       completed,
       inProgress,
       notStarted,
-      total: tasks.length,
+      total: leafTasks.length,
       completedPercent: (completed / total) * 100,
       inProgressPercent: (inProgress / total) * 100,
       notStartedPercent: (notStarted / total) * 100

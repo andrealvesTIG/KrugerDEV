@@ -473,10 +473,11 @@ export function ProjectStatusReportPDF({
   documents = [],
   executiveSummary,
 }: ProjectStatusReportPDFProps) {
-  const completed = tasks.filter((t) => t.status === "Completed" || t.progress === 100).length;
-  const inProgress = tasks.filter((t) => t.status === "In Progress").length;
-  const notStarted = tasks.filter((t) => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
-  const totalTasks = tasks.length || 1;
+  const leafTasks = tasks.filter((t) => !t.isSummary);
+  const completed = leafTasks.filter((t) => t.status === "Completed" || t.progress === 100).length;
+  const inProgress = leafTasks.filter((t) => t.status === "In Progress").length;
+  const notStarted = leafTasks.filter((t) => t.status === "Not Started" || (!t.status && t.progress === 0)).length;
+  const totalTasks = leafTasks.length || 1;
 
   const budget = financials.reduce((sum, f) => sum + parseFloat(f.budgetAmount || "0"), 0);
   const actual = financials.reduce((sum, f) => sum + parseFloat(f.actualAmount || "0"), 0);
@@ -647,7 +648,7 @@ export function ProjectStatusReportPDF({
             <View style={styles.pieChartContainer}>
               <View style={styles.pieChart}>
                 <View style={styles.pieCenter}>
-                  <Text style={styles.pieCenterText}>{tasks.length}</Text>
+                  <Text style={styles.pieCenterText}>{leafTasks.length}</Text>
                   <Text style={styles.pieCenterLabel}>Tasks</Text>
                 </View>
               </View>
@@ -825,7 +826,7 @@ export function ProjectStatusReportPDF({
 
         <View style={styles.statsGrid}>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{tasks.length}</Text>
+            <Text style={styles.statValue}>{leafTasks.length}</Text>
             <Text style={styles.statLabel}>Total Tasks</Text>
           </View>
           <View style={styles.statBox}>
