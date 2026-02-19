@@ -818,15 +818,15 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
                       onCheckedChange={() => handleToggleProject(project.id)}
                       className="flex-shrink-0"
                     />
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="font-medium truncate">{project.name}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{project.name}</p>
+                        <Badge variant="outline" className="text-xs flex-shrink-0">{project.status}</Badge>
+                        {project.health && (
+                          <Badge className={cn("text-xs flex-shrink-0", healthColors[project.health])}>{project.health}</Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground truncate">{project.description || "No description"}</p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Badge variant="outline" className="text-xs">{project.status}</Badge>
-                      {project.health && (
-                        <Badge className={cn("text-xs", healthColors[project.health])}>{project.health}</Badge>
-                      )}
                     </div>
                   </div>
                 ))}
