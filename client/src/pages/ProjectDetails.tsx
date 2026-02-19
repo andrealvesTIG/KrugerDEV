@@ -926,7 +926,7 @@ export default function ProjectDetails() {
             <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} readOnly={isProjectLocked} />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
-            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} urlTaskId={urlTaskId} readOnly={isProjectLocked} />
+            <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} urlTaskId={urlTaskId} readOnly={isProjectLocked} projectUpdatedAt={project.updatedAt} />
           </TabsContent>
           <TabsContent value="risks">
             <RisksTab projectId={project.id} projectName={project.name} portfolioId={project.portfolioId} urlRiskId={urlRiskId} readOnly={isProjectLocked} />
@@ -4556,7 +4556,7 @@ function computeWbsValues(tasks: Task[]): Map<number, string> {
   return wbsMap;
 }
 
-function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, readOnly = false }: { 
+function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, readOnly = false, projectUpdatedAt }: { 
   projectId: number; 
   projectName?: string; 
   projectStartDate?: string | null; 
@@ -4569,6 +4569,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   dataverseTenantId?: string | null;
   urlTaskId?: string | null;
   readOnly?: boolean;
+  projectUpdatedAt?: Date | string | null;
 }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
@@ -4587,6 +4588,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const isMsProjectImported = projectSource === "imported" && !!sourceFileUrl;
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(projectUpdatedAt ? new Date(projectUpdatedAt) : null);
   const hasSyncedRef = useRef(false);
   
   // MS Project re-import state
@@ -4657,6 +4659,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
         }
       } else {
         setSyncError(null);
+        setLastSyncedAt(new Date());
         queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
         queryClient.invalidateQueries({ queryKey: ['/api/resources'] });
         refetchTasks();
@@ -4687,6 +4690,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           });
           if (response.ok) {
             const data = await response.json();
+            setLastSyncedAt(new Date());
             queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
             toast({ 
               title: "Synced with Planner", 
@@ -5063,16 +5067,23 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                   <p>Detach this project from {isPremiumPlan ? "Project for the Web" : "Planner"} and make it fully editable. This removes the sync link but keeps all tasks and data.</p>
                 </TooltipContent>
               </Tooltip>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => handlePlannerSync(false)} 
-                disabled={isSyncing}
-                data-testid="button-sync-planner"
-              >
-                <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
-                {isSyncing ? "Syncing..." : "Sync Now"}
-              </Button>
+              <div className="flex flex-col items-end gap-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handlePlannerSync(false)} 
+                  disabled={isSyncing}
+                  data-testid="button-sync-planner"
+                >
+                  <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
+                  {isSyncing ? "Syncing..." : "Sync Now"}
+                </Button>
+                {lastSyncedAt && (
+                  <span className="text-xs text-muted-foreground" data-testid="text-last-synced">
+                    Last Synced: {format(new Date(lastSyncedAt), "MM/dd/yyyy h:mm a")}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           {syncError && (
