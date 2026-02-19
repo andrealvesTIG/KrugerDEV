@@ -1398,7 +1398,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
             </div>
           )}
           <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-2 relative z-10">
               <Label>Title</Label>
               <Input {...editForm.register("title")} data-testid="input-edit-risk-title" />
             </div>

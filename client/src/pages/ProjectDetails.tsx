@@ -3693,7 +3693,7 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
               <div className="space-y-4 pt-4 flex-1 overflow-y-auto pr-1">
-              <div className="space-y-2">
+              <div className="space-y-2 relative z-10">
                 <Label>Title <span className="text-destructive">*</span></Label>
                 <Input {...form.register("title")} data-testid="input-risk-title" />
                 {form.formState.errors.title && (
