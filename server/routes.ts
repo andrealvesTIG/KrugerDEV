@@ -141,7 +141,7 @@ function classifyError(err: unknown): { status: number; message: string } {
 }
 
 // Parse MPP file using MPXJ Java library
-function parseMppFile(fileBuffer: Buffer): Array<{
+interface ParsedMppTask {
   taskId?: number;
   wbs?: string;
   taskName: string;
@@ -155,7 +155,11 @@ function parseMppFile(fileBuffer: Buffer): Array<{
   isSummary?: boolean;
   isMilestone?: boolean;
   notes?: string;
-}> {
+  workHours?: number;
+  predecessors?: Array<{ predecessorTaskId: number; type: string; lagDays: number }>;
+}
+
+function parseMppFile(fileBuffer: Buffer): ParsedMppTask[] {
   const tempDir = os.tmpdir();
   const tempFile = path.join(tempDir, `mpp_${Date.now()}.mpp`);
   
@@ -206,25 +210,11 @@ function parseMppFile(fileBuffer: Buffer): Array<{
 }
 
 // Parse MSPDI XML (MS Project XML format)
-async function parseXmlMspdi(xmlContent: string): Promise<Array<{
-  taskId?: number;
-  wbs?: string;
-  taskName: string;
-  startDate?: string;
-  finishDate?: string;
-  duration?: string;
-  durationDays?: number;
-  percentComplete?: number;
-  outlineLevel?: number;
-  parentTaskId?: number;
-  isSummary?: boolean;
-  isMilestone?: boolean;
-  notes?: string;
-}>> {
+async function parseXmlMspdi(xmlContent: string): Promise<ParsedMppTask[]> {
   const parser = new xml2js.Parser({ explicitArray: false });
   const result = await parser.parseStringPromise(xmlContent);
   
-  const tasks: any[] = [];
+  const tasks: ParsedMppTask[] = [];
   
   // Handle MSPDI format (Microsoft Project XML)
   if (result.Project?.Tasks?.Task) {
@@ -248,6 +238,39 @@ async function parseXmlMspdi(xmlContent: string): Promise<Array<{
           durationDays = Math.ceil(parseInt(hoursMatch[1]) / 8);
         }
       }
+
+      // Parse Work field (e.g., "PT40H0M0S" for 40 hours of effort)
+      let workHours: number | undefined;
+      const workStr = task.Work || '';
+      if (workStr.startsWith('PT')) {
+        const workHoursMatch = workStr.match(/(\d+)H/);
+        const workMinsMatch = workStr.match(/(\d+)M/);
+        if (workHoursMatch || workMinsMatch) {
+          workHours = (workHoursMatch ? parseInt(workHoursMatch[1]) : 0) +
+                      (workMinsMatch ? parseInt(workMinsMatch[1]) / 60 : 0);
+        }
+      }
+
+      // Parse PredecessorLink elements
+      const predecessors: Array<{ predecessorTaskId: number; type: string; lagDays: number }> = [];
+      if (task.PredecessorLink) {
+        const predLinks = Array.isArray(task.PredecessorLink) ? task.PredecessorLink : [task.PredecessorLink];
+        for (const link of predLinks) {
+          const predUid = link.PredecessorUID ? parseInt(link.PredecessorUID) : undefined;
+          if (predUid === undefined || predUid === 0) continue;
+          // Type: 0=FF, 1=FS, 2=SF, 3=SS (MS Project convention)
+          const linkType = link.Type ? parseInt(link.Type) : 1;
+          const typeMap: Record<number, string> = { 0: 'FF', 1: 'FS', 2: 'SF', 3: 'SS' };
+          const type = typeMap[linkType] || 'FS';
+          // Lag in tenths of minutes in MSPDI
+          let lagDays = 0;
+          if (link.LinkLag) {
+            const lagTenthsMins = parseInt(link.LinkLag);
+            lagDays = Math.round(lagTenthsMins / (10 * 60 * 8)); // Convert to days (8h workday)
+          }
+          predecessors.push({ predecessorTaskId: predUid, type, lagDays });
+        }
+      }
       
       tasks.push({
         taskId: task.UID ? parseInt(task.UID) : undefined,
@@ -262,6 +285,8 @@ async function parseXmlMspdi(xmlContent: string): Promise<Array<{
         isSummary: task.Summary === '1' || task.Summary === 'true' || task.Summary === true,
         isMilestone: task.Milestone === '1' || task.Milestone === 'true' || task.Milestone === true,
         notes: task.Notes,
+        workHours,
+        predecessors,
       });
     }
   }
@@ -12153,21 +12178,7 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
         fileUrl = `/mpp-imports/${uniqueFilename}`;
       }
       
-      let parsedTasks: Array<{
-        taskId?: number;
-        wbs?: string;
-        taskName: string;
-        startDate?: string;
-        finishDate?: string;
-        duration?: string;
-        durationDays?: number;
-        percentComplete?: number;
-        outlineLevel?: number;
-        parentTaskId?: number;
-        isSummary?: boolean;
-        isMilestone?: boolean;
-        notes?: string;
-      }> = [];
+      let parsedTasks: ParsedMppTask[] = [];
 
       if (fileExt === 'mpp') {
         parsedTasks = parseMppFile(req.file.buffer);
@@ -12207,6 +12218,8 @@ Create 2 portfolios with 2-3 projects each. Make project names, tasks, risks, mi
           isSummary: task.isSummary || false,
           isMilestone: task.isMilestone || false,
           notes: task.notes,
+          workHours: task.workHours?.toString() || null,
+          predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
         }));
         await storage.createMppImportTasks(taskRecords);
       }

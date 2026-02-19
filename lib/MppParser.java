@@ -75,6 +75,45 @@ public class MppParser {
                 
                 json.append("\"isSummary\":").append(task.hasChildTasks()).append(",");
                 json.append("\"isMilestone\":").append(task.getMilestone()).append(",");
+
+                Duration work = task.getWork();
+                if (work != null) {
+                    double hours = work.convertUnits(TimeUnit.HOURS, projectFile.getProjectProperties()).getDuration();
+                    json.append("\"workHours\":").append(Math.round(hours * 100.0) / 100.0).append(",");
+                } else {
+                    json.append("\"workHours\":null,");
+                }
+
+                List<Relation> predecessors = task.getPredecessors();
+                if (predecessors != null && !predecessors.isEmpty()) {
+                    json.append("\"predecessors\":[");
+                    boolean firstPred = true;
+                    for (Relation rel : predecessors) {
+                        Task predTask = rel.getTargetTask();
+                        if (predTask == null || predTask.getID() == null || predTask.getID() == 0) continue;
+                        if (!firstPred) json.append(",");
+                        firstPred = false;
+                        json.append("{");
+                        json.append("\"predecessorTaskId\":").append(predTask.getID()).append(",");
+                        RelationType relType = rel.getType();
+                        String typeStr = "FS";
+                        if (relType == RelationType.START_START) typeStr = "SS";
+                        else if (relType == RelationType.FINISH_FINISH) typeStr = "FF";
+                        else if (relType == RelationType.START_FINISH) typeStr = "SF";
+                        json.append("\"type\":\"").append(typeStr).append("\",");
+                        Duration lag = rel.getLag();
+                        int lagDays = 0;
+                        if (lag != null) {
+                            lagDays = (int) Math.round(lag.convertUnits(TimeUnit.DAYS, projectFile.getProjectProperties()).getDuration());
+                        }
+                        json.append("\"lagDays\":").append(lagDays);
+                        json.append("}");
+                    }
+                    json.append("],");
+                } else {
+                    json.append("\"predecessors\":[],");
+                }
+
                 json.append("\"notes\":").append(escapeJson(task.getNotes()));
                 json.append("}");
             }

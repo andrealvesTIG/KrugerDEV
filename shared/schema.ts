@@ -1012,6 +1012,8 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   isSummary: boolean("is_summary").default(false), // Summary/parent task
   isMilestone: boolean("is_milestone").default(false),
   notes: text("notes"),
+  workHours: numeric("work_hours"), // Work/effort in hours from MPP
+  predecessors: text("predecessors"), // JSON array of predecessor relationships [{predecessorTaskId, type, lagDays}]
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -2798,16 +2798,27 @@ export class DatabaseStorage implements IStorage {
           ? new Date(new Date(startDate).getTime() + importedTask.durationDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
           : defaultEndDate);
 
+      const isSummary = importedTask.isSummary || false;
+      const isMilestone = importedTask.isMilestone || false;
+      const taskType = isSummary ? "Summary" : isMilestone ? "Milestone" : "Work";
+      const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
+
       const [newTask] = await db.insert(tasks).values({
         projectId: newProject.id,
         name: importedTask.taskName,
-        description: importedTask.notes || (importedTask.wbs ? `WBS: ${importedTask.wbs}` : undefined),
+        wbs: importedTask.wbs || undefined,
+        description: importedTask.notes || undefined,
         startDate,
         endDate,
         durationDays: importedTask.durationDays,
         progress: importedTask.percentComplete || 0,
         status: importedTask.percentComplete === 100 ? "Completed" : 
                 importedTask.percentComplete && importedTask.percentComplete > 0 ? "In Progress" : "Not Started",
+        outlineLevel: importedTask.outlineLevel || 1,
+        isSummary,
+        isMilestone,
+        taskType,
+        estimatedHours: workHoursStr,
         parentId: null, // Will update in second pass
       }).returning();
 
@@ -2830,15 +2841,58 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // Third pass: create task dependencies from predecessors
+    for (const importedTask of importedTasks) {
+      if (!importedTask.taskId) continue;
+      const newTaskId = taskIdMapping.get(importedTask.taskId);
+      if (!newTaskId) continue;
+
+      // Parse predecessors from stored JSON
+      let predecessorList: Array<{ predecessorTaskId: number; type: string; lagDays: number }> = [];
+      if (importedTask.predecessors) {
+        try {
+          predecessorList = typeof importedTask.predecessors === 'string' 
+            ? JSON.parse(importedTask.predecessors) 
+            : [];
+        } catch (e) {
+          predecessorList = [];
+        }
+      }
+
+      for (const pred of predecessorList) {
+        const depTaskId = taskIdMapping.get(pred.predecessorTaskId);
+        if (!depTaskId) continue;
+
+        const typeMap: Record<string, string> = {
+          'FS': 'finish-to-start',
+          'SS': 'start-to-start',
+          'FF': 'finish-to-finish',
+          'SF': 'start-to-finish',
+        };
+
+        try {
+          await db.insert(taskDependencies).values({
+            taskId: newTaskId,
+            dependsOnTaskId: depTaskId,
+            dependencyType: typeMap[pred.type] || 'finish-to-start',
+            lagDays: pred.lagDays || 0,
+          });
+        } catch (depError) {
+          console.log(`Skipped duplicate dependency: task ${newTaskId} -> ${depTaskId}`);
+        }
+      }
+    }
+
     // Update the import with the created project ID and task count
     const actualTaskCount = importedTasks.length;
     await db.update(mppImports)
       .set({ projectId: newProject.id, status: "converted", taskCount: actualTaskCount })
       .where(eq(mppImports.id, importId));
 
-    // Calculate and update project completion percentage based on tasks
-    const avgProgress = importedTasks.length > 0
-      ? Math.round(importedTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / importedTasks.length)
+    // Calculate and update project completion percentage based on non-summary tasks
+    const leafTasks = importedTasks.filter(t => !t.isSummary);
+    const avgProgress = leafTasks.length > 0
+      ? Math.round(leafTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / leafTasks.length)
       : 0;
     
     await db.update(projects)
@@ -2911,15 +2965,26 @@ export class DatabaseStorage implements IStorage {
           ? new Date(new Date(startDate).getTime() + importedTask.durationDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
           : defaultEndDate);
 
+      const isSummary = importedTask.isSummary || false;
+      const isMilestone = importedTask.isMilestone || false;
+      const taskType = isSummary ? "Summary" : isMilestone ? "Milestone" : "Work";
+      const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
+
       const taskData = {
         name: importedTask.taskName,
-        description: importedTask.notes || (importedTask.wbs ? `WBS: ${importedTask.wbs}` : undefined),
+        wbs: importedTask.wbs || undefined,
+        description: importedTask.notes || undefined,
         startDate,
         endDate,
         durationDays: importedTask.durationDays,
         progress: importedTask.percentComplete || 0,
         status: importedTask.percentComplete === 100 ? "Completed" : 
                 importedTask.percentComplete && importedTask.percentComplete > 0 ? "In Progress" : "Not Started",
+        outlineLevel: importedTask.outlineLevel || 1,
+        isSummary,
+        isMilestone,
+        taskType,
+        estimatedHours: workHoursStr,
       };
 
       // Try to match by WBS first, then by name
@@ -2966,6 +3031,47 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // Third pass: create task dependencies from predecessors
+    for (const importedTask of importedTasks) {
+      if (!importedTask.taskId) continue;
+      const newTaskId = taskIdMapping.get(importedTask.taskId);
+      if (!newTaskId) continue;
+
+      let predecessorList: Array<{ predecessorTaskId: number; type: string; lagDays: number }> = [];
+      if (importedTask.predecessors) {
+        try {
+          predecessorList = typeof importedTask.predecessors === 'string'
+            ? JSON.parse(importedTask.predecessors)
+            : [];
+        } catch (e) {
+          predecessorList = [];
+        }
+      }
+
+      for (const pred of predecessorList) {
+        const depTaskId = taskIdMapping.get(pred.predecessorTaskId);
+        if (!depTaskId) continue;
+
+        const typeMap: Record<string, string> = {
+          'FS': 'finish-to-start',
+          'SS': 'start-to-start',
+          'FF': 'finish-to-finish',
+          'SF': 'start-to-finish',
+        };
+
+        try {
+          await db.insert(taskDependencies).values({
+            taskId: newTaskId,
+            dependsOnTaskId: depTaskId,
+            dependencyType: typeMap[pred.type] || 'finish-to-start',
+            lagDays: pred.lagDays || 0,
+          });
+        } catch (depError) {
+          console.log(`Skipped duplicate dependency: task ${newTaskId} -> ${depTaskId}`);
+        }
+      }
+    }
+
     // Update the import record to link to this project
     await db.update(mppImports)
       .set({ 
@@ -2992,9 +3098,10 @@ export class DatabaseStorage implements IStorage {
       projectUpdates.endDate = validEndDates.sort().reverse()[0];
     }
 
-    // Calculate and update project completion percentage
-    const avgProgress = importedTasks.length > 0
-      ? Math.round(importedTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / importedTasks.length)
+    // Calculate and update project completion percentage based on non-summary tasks
+    const leafTasks = importedTasks.filter(t => !t.isSummary);
+    const avgProgress = leafTasks.length > 0
+      ? Math.round(leafTasks.reduce((sum, t) => sum + (t.percentComplete || 0), 0) / leafTasks.length)
       : project.completionPercentage || 0;
     
     projectUpdates.completionPercentage = avgProgress;
