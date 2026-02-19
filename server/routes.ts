@@ -3984,9 +3984,8 @@ export async function registerRoutes(
       const portfolio = await storage.getPortfolio(portfolioId);
       if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
       if (!portfolio.isCustom) return res.status(400).json({ message: 'Portfolio is not a custom portfolio' });
-      const memberships = await storage.getUserOrganizations(userId);
-      const isMember = memberships.find(m => m.organizationId === portfolio.organizationId);
-      if (!isMember) return res.status(403).json({ message: 'Not authorized for this organization' });
+      const hasAccess = await userHasOrgAccess(userId, portfolio.organizationId);
+      if (!hasAccess) return res.status(403).json({ message: 'Not authorized for this organization' });
       const { projectId } = req.body;
       if (!projectId) return res.status(400).json({ message: 'projectId is required' });
       const project = await storage.getProject(projectId);
@@ -4009,9 +4008,8 @@ export async function registerRoutes(
       const portfolio = await storage.getPortfolio(portfolioId);
       if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
       if (!portfolio.isCustom) return res.status(400).json({ message: 'Portfolio is not a custom portfolio' });
-      const memberships = await storage.getUserOrganizations(userId);
-      const isMember = memberships.find(m => m.organizationId === portfolio.organizationId);
-      if (!isMember) return res.status(403).json({ message: 'Not authorized for this organization' });
+      const hasAccess = await userHasOrgAccess(userId, portfolio.organizationId);
+      if (!hasAccess) return res.status(403).json({ message: 'Not authorized for this organization' });
       await storage.removeProjectFromCustomPortfolio(portfolioId, Number(req.params.projectId));
       res.json({ success: true });
     } catch (err) {
