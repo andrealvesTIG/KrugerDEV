@@ -787,7 +787,7 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
             </div>
           )}
 
-          <ScrollArea className="flex-1 min-h-[200px] max-h-[300px] border rounded-md overflow-x-hidden">
+          <div className="flex-1 min-h-[200px] max-h-[400px] border rounded-md overflow-y-auto">
             {filteredAvailableProjects.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
                 <FolderOpen className="h-8 w-8 mb-2" />
@@ -805,7 +805,7 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
                   <div
                     key={project.id}
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors overflow-hidden",
+                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
                       selectedProjectIds.includes(project.id)
                         ? "bg-primary/5 border-primary"
                         : "hover:bg-muted/50"
@@ -819,20 +819,14 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
                       className="flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium truncate">{project.name}</p>
-                        <Badge variant="outline" className="text-xs flex-shrink-0">{project.status}</Badge>
-                        {project.health && (
-                          <Badge className={cn("text-xs flex-shrink-0", healthColors[project.health])}>{project.health}</Badge>
-                        )}
-                      </div>
+                      <p className="font-medium truncate">{project.name}</p>
                       <p className="text-sm text-muted-foreground truncate">{project.description || "No description"}</p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </ScrollArea>
+          </div>
 
           {selectedProjectIds.length > 0 && (
             <p className="text-sm text-muted-foreground">
