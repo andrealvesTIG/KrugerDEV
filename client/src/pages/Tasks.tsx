@@ -26,6 +26,7 @@ import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Plus, Trash2, GanttChart, Columns3, Calendar as CalendarIcon, History, Clock, Filter, Layers, ChevronDown, ChevronRight, FolderKanban, Briefcase, MoreVertical, ZoomIn, ZoomOut, Check, X, Indent, Outdent, MoreHorizontal, Search, User as UserIcon, TrendingUp, TrendingDown, Timer, RefreshCw, Lock as LockIcon } from "lucide-react";
+import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -473,7 +474,7 @@ export default function Tasks() {
         resourceType={limitError?.resourceType}
         message={limitError?.message}
       />
-    <div className="space-y-4">
+    <PageTransition className="space-y-4">
       {(() => {
         const tasksWithEffort = (allTasks || []).filter(t => t.estimatedHours || t.actualHours);
         if (tasksWithEffort.length === 0) return null;
@@ -1093,7 +1094,7 @@ export default function Tasks() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageTransition>
     </>
   );
 }

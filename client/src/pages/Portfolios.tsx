@@ -26,6 +26,7 @@ import { insertPortfolioSchema } from "@shared/schema";
 import type { InsertPortfolio, Portfolio, Resource } from "@shared/schema";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { useToast } from "@/hooks/use-toast";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import { formatCurrency } from "@/lib/format";
@@ -162,14 +163,14 @@ export default function Portfolios() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <PageTransition className="space-y-8">
+      <FadeIn className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Portfolios</h1>
           <p className="mt-1 text-muted-foreground">Manage your strategic project groupings.</p>
         </div>
         <CreatePortfolioDialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen} organizationId={currentOrganization?.id} />
-      </div>
+      </FadeIn>
 
       {/* Search and Filters */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -218,7 +219,7 @@ export default function Portfolios() {
                 className="h-full"
               >
                 <Link href={`/portfolios/${portfolio.id}`} className="h-full block">
-                  <Card className="group cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-300 h-full flex flex-col" data-testid={`card-portfolio-${portfolio.id}`}>
+                  <Card className="group cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-300 h-full flex flex-col press-scale" data-testid={`card-portfolio-${portfolio.id}`}>
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between gap-2 min-w-0">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -549,7 +550,7 @@ export default function Portfolios() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageTransition>
   );
 }
 

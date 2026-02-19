@@ -49,6 +49,7 @@ import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format, startOfWeek, endOfWeek, addDays, isAfter, isBefore, parseISO, differenceInDays, formatDistanceToNow } from "date-fns";
 import type { Task, Issue, Project, Milestone } from "@shared/schema";
+import { PageTransition, FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/page-transition";
 
 function getStatusColor(status: string | null | undefined): string {
   switch (status?.toLowerCase()) {
@@ -388,8 +389,8 @@ export default function Home() {
   const taskCompletionRate = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
 
   return (
-    <div className="space-y-3 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <PageTransition className="space-y-3 p-4">
+      <FadeIn className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold text-foreground" data-testid="text-greeting">
             {greeting}, {user?.firstName || user?.username || "there"}
@@ -412,7 +413,7 @@ export default function Home() {
             Report Issue
           </Button>
         </div>
-      </div>
+      </FadeIn>
 
       {isEmptyState && (
         <div className="space-y-4" data-testid="onboarding-section">
@@ -593,78 +594,88 @@ export default function Home() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/10 flex-shrink-0">
-                <ListTodo className="h-4 w-4 text-blue-600" />
-              </div>
-              <div>
-                <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-active-tasks-count">{assignedTasks.length}</div>
-                <div className="text-xs text-muted-foreground">Active Tasks</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/10 flex-shrink-0">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-              </div>
-              <div>
-                <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-open-issues-count">{myIssues.length}</div>
-                <div className="text-xs text-muted-foreground">Open Issues</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-purple-500/10 flex-shrink-0">
-                <FolderOpen className="h-4 w-4 text-purple-600" />
-              </div>
-              <div>
-                <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-my-projects-count">{myProjects.length}</div>
-                <div className="text-xs text-muted-foreground">Projects</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-green-500/10 flex-shrink-0">
-                <Clock className="h-4 w-4 text-green-600" />
-              </div>
-              <div>
-                <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-hours-this-week">
-                  {totalHoursThisWeek}h
+      <StaggerContainer className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <StaggerItem>
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/10 flex-shrink-0">
+                  <ListTodo className="h-4 w-4 text-blue-600" />
                 </div>
-                <div className="text-xs text-muted-foreground">Hours / {weeklyTarget}h</div>
+                <div>
+                  <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-active-tasks-count">{assignedTasks.length}</div>
+                  <div className="text-xs text-muted-foreground">Active Tasks</div>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        {totalTasksCount > 0 && (
+            </CardContent>
+          </Card>
+        </StaggerItem>
+        <StaggerItem>
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/10 flex-shrink-0">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-open-issues-count">{myIssues.length}</div>
+                  <div className="text-xs text-muted-foreground">Open Issues</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </StaggerItem>
+        <StaggerItem>
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-purple-500/10 flex-shrink-0">
+                  <FolderOpen className="h-4 w-4 text-purple-600" />
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-my-projects-count">{myProjects.length}</div>
+                  <div className="text-xs text-muted-foreground">Projects</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </StaggerItem>
+        <StaggerItem>
           <Card className="border-0 shadow-sm">
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-md bg-green-500/10 flex-shrink-0">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <Clock className="h-4 w-4 text-green-600" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-task-completion-rate">{taskCompletionRate}%</div>
-                  <div className="text-xs text-muted-foreground">Completed</div>
+                <div>
+                  <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-hours-this-week">
+                    {totalHoursThisWeek}h
+                  </div>
+                  <div className="text-xs text-muted-foreground">Hours / {weeklyTarget}h</div>
                 </div>
               </div>
-              <Progress value={taskCompletionRate} className="mt-2 h-1" />
             </CardContent>
           </Card>
+        </StaggerItem>
+        {totalTasksCount > 0 && (
+          <StaggerItem>
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-green-500/10 flex-shrink-0">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xl font-bold text-foreground leading-tight" data-testid="text-task-completion-rate">{taskCompletionRate}%</div>
+                    <div className="text-xs text-muted-foreground">Completed</div>
+                  </div>
+                </div>
+                <Progress value={taskCompletionRate} className="mt-2 h-1" />
+              </CardContent>
+            </Card>
+          </StaggerItem>
         )}
-      </div>
+      </StaggerContainer>
 
       {!isEmptyState && totalTasksCount > 0 && taskStatusDistribution.length > 0 && (
         <Card className="border-0 shadow-sm" data-testid="card-task-status-breakdown">
@@ -1126,7 +1137,7 @@ export default function Home() {
         onOpenChange={setShowCreateIssue}
         projects={allProjects || []}
       />
-    </div>
+    </PageTransition>
   );
 }
 

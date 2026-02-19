@@ -42,6 +42,7 @@ import ExcelJS from "exceljs";
 import { ViewsDropdown, type ProjectFilterView } from "@/components/ViewsDropdown";
 import { useColumnState, sortData, type SortDirection, type ColumnSort } from "@/hooks/use-column-state";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
+import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 
 const PROJECT_STATUS_LIST = ["Initiation", "Planning", "Execution", "Monitoring", "Closing", "Billing", "Closed"];
 
@@ -408,8 +409,8 @@ export default function Projects() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <PageTransition className="space-y-8">
+      <FadeIn className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Projects</h1>
           <p className="mt-1 text-muted-foreground">Track execution and health of all initiatives.</p>
@@ -495,7 +496,7 @@ export default function Projects() {
             organizationId={currentOrganization?.id}
           />
         </div>
-      </div>
+      </FadeIn>
 
       {/* Filters Bar */}
       <div className="flex flex-col gap-4 sm:flex-row bg-card p-4 rounded-xl border border-border shadow-sm">
@@ -661,7 +662,7 @@ export default function Projects() {
                     transition={{ duration: 0.3, delay: index * 0.05 }}
                   >
                     <Link href={`/projects/${project.id}`}>
-                      <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer">
+                      <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer press-scale">
                         <div className={cn(
                           "absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-all duration-300 group-hover:w-2",
                           project.health === 'Green' && "bg-gradient-to-b from-emerald-400 to-emerald-600",
@@ -910,7 +911,7 @@ export default function Projects() {
               transition={{ duration: 0.3, delay: index * 0.05 }}
             >
               <Link href={`/projects/${project.id}`}>
-                <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer">
+                <div className="group relative flex flex-col gap-5 rounded-2xl border border-border bg-card p-7 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 sm:flex-row sm:items-center cursor-pointer press-scale">
                   
                   {/* Status Indicator Stripe */}
                   <div className={cn(
@@ -1207,7 +1208,7 @@ export default function Projects() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageTransition>
   );
 }
 
