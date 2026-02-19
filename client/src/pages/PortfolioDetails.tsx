@@ -766,6 +766,27 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
             />
           </div>
 
+          {isCustom && filteredAvailableProjects.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={filteredAvailableProjects.length > 0 && filteredAvailableProjects.every(p => selectedProjectIds.includes(p.id))}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    const allIds = filteredAvailableProjects.map(p => p.id);
+                    setSelectedProjectIds(prev => [...new Set([...prev, ...allIds])]);
+                  } else {
+                    const filteredIds = new Set(filteredAvailableProjects.map(p => p.id));
+                    setSelectedProjectIds(prev => prev.filter(id => !filteredIds.has(id)));
+                  }
+                }}
+                data-testid="checkbox-select-all-projects"
+              />
+              <span className="text-sm text-muted-foreground">
+                Select All ({filteredAvailableProjects.length})
+              </span>
+            </div>
+          )}
+
           <ScrollArea className="flex-1 min-h-[200px] max-h-[300px] border rounded-md overflow-x-hidden">
             {filteredAvailableProjects.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
