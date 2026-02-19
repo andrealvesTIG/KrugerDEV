@@ -3978,7 +3978,7 @@ export async function registerRoutes(
 
   app.post('/api/portfolios/:id/custom-projects', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const portfolioId = Number(req.params.id);
       const portfolio = await storage.getPortfolio(portfolioId);
@@ -4003,7 +4003,7 @@ export async function registerRoutes(
 
   app.delete('/api/portfolios/:id/custom-projects/:projectId', async (req, res) => {
     try {
-      const userId = req.session?.userId || (req.user as any)?.id;
+      const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const portfolioId = Number(req.params.id);
       const portfolio = await storage.getPortfolio(portfolioId);

@@ -509,11 +509,15 @@ function ProjectsTab({ portfolioId, organizationId, isCustom }: { portfolioId: n
     setIsAdding(true);
     try {
       if (isCustom) {
-        await Promise.all(
-          selectedProjectIds.map(projectId => 
-            apiRequest("POST", `/api/portfolios/${portfolioId}/custom-projects`, { projectId })
-          )
-        );
+        const batchSize = 5;
+        for (let i = 0; i < selectedProjectIds.length; i += batchSize) {
+          const batch = selectedProjectIds.slice(i, i + batchSize);
+          await Promise.all(
+            batch.map(projectId => 
+              apiRequest("POST", `/api/portfolios/${portfolioId}/custom-projects`, { projectId })
+            )
+          );
+        }
       } else {
         await Promise.all(
           selectedProjectIds.map(projectId => 
