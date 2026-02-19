@@ -1137,24 +1137,15 @@ function getMeterValue(rules: PlanData['meterRules'], meterCode: string): { quot
   return { quota: quota?.includedUnitsMonthly ?? null, hasOverage };
 }
 
+function getHardCap(rules: PlanData['meterRules'], meterCode: string): number | null {
+  const cap = rules.find(r => r.meterCode === meterCode && r.ruleType === 'HARD_CAP');
+  return cap?.hardCapUnits ?? null;
+}
+
 function getPlanFeatures(plan: PlanData): string[] {
   const features: string[] = [];
   const rules = plan.meterRules;
-
-  const credits = getMeterValue(rules, 'credits');
-  if (credits.quota) {
-    features.push(`${credits.quota.toLocaleString()} credits/month`);
-  }
-
-  const aiRuns = getMeterValue(rules, 'ai_runs');
-  if (aiRuns.quota) {
-    features.push(`${aiRuns.quota.toLocaleString()} AI runs/month`);
-  }
-
-  const docs = getMeterValue(rules, 'documents');
-  if (docs.quota) {
-    features.push(`${docs.quota.toLocaleString()} documents`);
-  }
+  const isCustom = plan.code === 'CUSTOM';
 
   if (plan.maxSeats) {
     features.push(plan.maxSeats === 1 ? `1 seat included` : `Up to ${plan.maxSeats} seats`);
@@ -1164,6 +1155,49 @@ function getPlanFeatures(plan: PlanData): string[] {
 
   if (plan.extraSeatPriceCents) {
     features.push(`$${plan.extraSeatPriceCents / 100}/extra seat`);
+  }
+
+  const projectsCap = getHardCap(rules, 'projects');
+  if (projectsCap && !isCustom) {
+    features.push(`Up to ${projectsCap.toLocaleString()} projects`);
+  } else if (isCustom) {
+    features.push("Unlimited projects");
+  }
+
+  const tasksCap = getHardCap(rules, 'tasks');
+  if (tasksCap && !isCustom) {
+    features.push(`Up to ${tasksCap.toLocaleString()} tasks`);
+  } else if (isCustom) {
+    features.push("Unlimited tasks");
+  }
+
+  const credits = getMeterValue(rules, 'credits');
+  if (credits.quota && !isCustom) {
+    const creditsVal = credits.quota;
+    const portfolios = Math.floor(creditsVal / 10);
+    const resources = Math.floor(creditsVal / 2);
+    features.push(`${creditsVal.toLocaleString()} credits/month`);
+    features.push(`~${portfolios} portfolios, ~${resources} resources`);
+  } else if (isCustom) {
+    features.push("Custom credit allocation");
+  }
+
+  const aiRuns = getMeterValue(rules, 'ai_runs');
+  if (aiRuns.quota && !isCustom) {
+    features.push(`${aiRuns.quota.toLocaleString()} AI runs/month`);
+  } else if (isCustom) {
+    features.push("Unlimited AI runs");
+  }
+
+  const docs = getMeterValue(rules, 'documents');
+  if (docs.quota && !isCustom) {
+    features.push(`${docs.quota.toLocaleString()} documents`);
+  } else if (isCustom) {
+    features.push("Unlimited documents");
+  }
+
+  if (credits.hasOverage && !isCustom) {
+    features.push("Pay-as-you-go overage");
   }
 
   return features;
