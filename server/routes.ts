@@ -20522,7 +20522,7 @@ Return ONLY valid JSON.`;
     }
   });
 
-  // Get organization usage statistics
+  // Get organization usage statistics (comprehensive dashboard)
   app.get('/api/admin/monitoring/organization-usage', async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!await requireSuperAdmin(userId ?? null)) {
@@ -20530,24 +20530,82 @@ Return ONLY valid JSON.`;
     }
 
     try {
-      // Organization usage statistics
-      const orgUsageResult = await db.execute(sql`
+      const orgDetailsResult = await db.execute(sql`
         SELECT 
           o.id,
           o.name,
           o.slug,
+          o.created_at,
+          p.code as plan_code,
+          p.name as plan_name,
+          s.status as sub_status,
+          s.bonus_seats,
+          s.current_period_start,
+          s.current_period_end,
           (SELECT COUNT(*) FROM organization_members om WHERE om.organization_id = o.id) as member_count,
-          (SELECT COUNT(*) FROM projects p WHERE p.organization_id = o.id AND p.deleted_at IS NULL) as project_count,
-          (SELECT COUNT(*) FROM tasks t INNER JOIN projects p ON t.project_id = p.id WHERE p.organization_id = o.id) as task_count,
+          (SELECT COUNT(*) FROM projects pr WHERE pr.organization_id = o.id AND pr.deleted_at IS NULL) as project_count,
+          (SELECT COUNT(*) FROM tasks t INNER JOIN projects pr ON t.project_id = pr.id WHERE pr.organization_id = o.id) as task_count,
+          (SELECT COUNT(*) FROM portfolios pf WHERE pf.organization_id = o.id AND pf.deleted_at IS NULL) as portfolio_count,
+          (SELECT COUNT(*) FROM risks r INNER JOIN projects pr ON r.project_id = pr.id WHERE pr.organization_id = o.id) as risk_count,
+          (SELECT COUNT(*) FROM milestones m INNER JOIN projects pr ON m.project_id = pr.id WHERE pr.organization_id = o.id) as milestone_count,
+          (SELECT COUNT(*) FROM issues i INNER JOIN projects pr ON i.project_id = pr.id WHERE pr.organization_id = o.id) as issue_count,
           (SELECT COUNT(*) FROM api_request_logs l WHERE l.organization_id = o.id AND l.created_at >= NOW() - INTERVAL '7 days') as api_requests_7d
         FROM organizations o
+        LEFT JOIN subscriptions s ON s.org_id = o.id
+        LEFT JOIN plans p ON p.id = s.plan_id
         WHERE o.deactivated_at IS NULL
-        ORDER BY api_requests_7d DESC
-        LIMIT 20
+        ORDER BY o.name
+      `);
+
+      const creditUsageResult = await db.execute(sql`
+        SELECT 
+          s.org_id,
+          m.code as meter_code,
+          m.name as meter_name,
+          ur.included_units,
+          ur.used_units,
+          ur.remaining_units,
+          ur.overage_units,
+          bc.period_start,
+          bc.period_end,
+          bc.status as cycle_status
+        FROM usage_rollups ur
+        JOIN billing_cycles bc ON bc.id = ur.billing_cycle_id
+        JOIN subscriptions s ON s.id = bc.subscription_id
+        JOIN meters m ON m.id = ur.meter_id
+        WHERE bc.status = 'OPEN'
+        ORDER BY s.org_id, m.code
+      `);
+
+      const totalsResult = await db.execute(sql`
+        SELECT
+          COUNT(DISTINCT o.id) as total_orgs,
+          (SELECT COUNT(*) FROM organization_members) as total_users,
+          (SELECT COUNT(*) FROM projects WHERE deleted_at IS NULL) as total_projects,
+          (SELECT COUNT(*) FROM tasks t INNER JOIN projects p ON t.project_id = p.id) as total_tasks,
+          (SELECT COUNT(*) FROM portfolios WHERE deleted_at IS NULL) as total_portfolios
+        FROM organizations o
+        WHERE o.deactivated_at IS NULL
+      `);
+
+      const planDistResult = await db.execute(sql`
+        SELECT 
+          COALESCE(p.name, 'No Plan') as plan_name,
+          COALESCE(p.code, 'none') as plan_code,
+          COUNT(o.id) as org_count
+        FROM organizations o
+        LEFT JOIN subscriptions s ON s.org_id = o.id
+        LEFT JOIN plans p ON p.id = s.plan_id
+        WHERE o.deactivated_at IS NULL
+        GROUP BY p.name, p.code
+        ORDER BY org_count DESC
       `);
 
       res.json({
-        organizations: orgUsageResult.rows,
+        organizations: orgDetailsResult.rows,
+        creditUsage: creditUsageResult.rows,
+        totals: totalsResult.rows[0],
+        planDistribution: planDistResult.rows,
       });
     } catch (error) {
       console.error('Error fetching organization usage:', error);

@@ -3787,8 +3787,45 @@ interface DatabaseStats {
   tableSizes: Array<{ table_name: string; total_size: string }>;
 }
 
+interface OrgAnalyticsOrg {
+  id: number;
+  name: string;
+  slug: string;
+  created_at: string;
+  plan_code: string | null;
+  plan_name: string | null;
+  sub_status: string | null;
+  bonus_seats: number;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  member_count: number;
+  project_count: number;
+  task_count: number;
+  portfolio_count: number;
+  risk_count: number;
+  milestone_count: number;
+  issue_count: number;
+  api_requests_7d: number;
+}
+
+interface OrgCreditUsage {
+  org_id: number;
+  meter_code: string;
+  meter_name: string;
+  included_units: number;
+  used_units: number;
+  remaining_units: number;
+  overage_units: number;
+  period_start: string;
+  period_end: string;
+  cycle_status: string;
+}
+
 interface OrgUsage {
-  organizations: Array<{ id: number; name: string; slug: string; member_count: number; project_count: number; task_count: number; api_requests_7d: number }>;
+  organizations: OrgAnalyticsOrg[];
+  creditUsage: OrgCreditUsage[];
+  totals: { total_orgs: number; total_users: number; total_projects: number; total_tasks: number; total_portfolios: number };
+  planDistribution: Array<{ plan_name: string; plan_code: string; org_count: number }>;
 }
 
 type MonitoringSubTab = 'overview' | 'api-logs' | 'users' | 'features' | 'performance' | 'database' | 'organizations';
@@ -4476,46 +4513,261 @@ function MonitoringTab() {
       return <div className="text-center text-muted-foreground py-8">No organization usage data yet</div>;
     }
 
+    const totals = orgUsage.totals;
+    const orgs = orgUsage.organizations ?? [];
+    const creditsByOrg = new Map<number, OrgCreditUsage[]>();
+    (orgUsage.creditUsage ?? []).forEach(cu => {
+      const list = creditsByOrg.get(cu.org_id) ?? [];
+      list.push(cu);
+      creditsByOrg.set(cu.org_id, list);
+    });
+
+    const totalObjects = Number(totals?.total_projects ?? 0) + Number(totals?.total_tasks ?? 0) + Number(totals?.total_portfolios ?? 0);
+
+    const getCreditsUsed = (orgId: number) => {
+      const credits = creditsByOrg.get(orgId)?.find(c => c.meter_code === 'credits');
+      return credits ? Number(credits.used_units) : 0;
+    };
+    const getCreditsIncluded = (orgId: number) => {
+      const credits = creditsByOrg.get(orgId)?.find(c => c.meter_code === 'credits');
+      return credits ? Number(credits.included_units) : 0;
+    };
+    const getAiRunsUsed = (orgId: number) => {
+      const ai = creditsByOrg.get(orgId)?.find(c => c.meter_code === 'ai_runs');
+      return ai ? Number(ai.used_units) : 0;
+    };
+    const getAiRunsIncluded = (orgId: number) => {
+      const ai = creditsByOrg.get(orgId)?.find(c => c.meter_code === 'ai_runs');
+      return ai ? Number(ai.included_units) : 0;
+    };
+
+    const getPlanVariant = (code: string | null): "default" | "secondary" | "outline" | "destructive" => {
+      switch (code) {
+        case 'ENTERPRISE': return 'default';
+        case 'TEAM': return 'default';
+        case 'BASIC': return 'secondary';
+        case 'CUSTOM': return 'outline';
+        case 'FREE': return 'secondary';
+        default: return 'destructive';
+      }
+    };
+
     return (
       <div className="space-y-6">
-        <Card>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Card data-testid="kpi-total-orgs">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5" />
+                Organizations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(Number(totals?.total_orgs ?? 0))}</div>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-total-users">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" />
+                Total Users
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(Number(totals?.total_users ?? 0))}</div>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-total-projects">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Globe className="h-3.5 w-3.5" />
+                Projects
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(Number(totals?.total_projects ?? 0))}</div>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-total-tasks">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <CheckCircle className="h-3.5 w-3.5" />
+                Tasks
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(Number(totals?.total_tasks ?? 0))}</div>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-total-objects">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <BarChart3 className="h-3.5 w-3.5" />
+                Total Objects
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(totalObjects)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Projects + Tasks + Portfolios</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-2" data-testid="card-plan-distribution">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Plan Distribution
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                {(orgUsage.planDistribution ?? []).map((pd) => (
+                  <Badge
+                    key={pd.plan_code}
+                    variant={getPlanVariant(pd.plan_code)}
+                    className="text-sm px-3 py-1.5 gap-1.5"
+                    data-testid={`plan-dist-${pd.plan_code}`}
+                  >
+                    <span className="font-semibold text-base">{Number(pd.org_count)}</span>
+                    {pd.plan_name}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-credit-summary">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Wallet className="h-4 w-4" />
+                Credits This Period
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const totalCreditsUsed = orgs.reduce((sum, org) => sum + getCreditsUsed(org.id), 0);
+                const totalCreditsIncluded = orgs.reduce((sum, org) => sum + getCreditsIncluded(org.id), 0);
+                const totalAiUsed = orgs.reduce((sum, org) => sum + getAiRunsUsed(org.id), 0);
+                const totalAiIncluded = orgs.reduce((sum, org) => sum + getAiRunsIncluded(org.id), 0);
+                return (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-muted-foreground">Credits</span>
+                        <span className="font-medium">{formatNumber(totalCreditsUsed)} / {formatNumber(totalCreditsIncluded)}</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all"
+                          style={{ width: `${totalCreditsIncluded > 0 ? Math.min((totalCreditsUsed / totalCreditsIncluded) * 100, 100) : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-muted-foreground">AI Runs</span>
+                        <span className="font-medium">{formatNumber(totalAiUsed)} / {formatNumber(totalAiIncluded)}</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full transition-all"
+                          style={{ width: `${totalAiIncluded > 0 ? Math.min((totalAiUsed / totalAiIncluded) * 100, 100) : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card data-testid="card-org-details-table">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
-              Organization Usage (Last 7 Days)
+              Organization Details
             </CardTitle>
-            <CardDescription>Top organizations by API requests</CardDescription>
+            <CardDescription>Comprehensive overview of all active organizations</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Organization</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead className="text-right">Members</TableHead>
-                  <TableHead className="text-right">Projects</TableHead>
-                  <TableHead className="text-right">Tasks</TableHead>
-                  <TableHead className="text-right">API Requests</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orgUsage.organizations?.map((org, i) => (
-                  <TableRow key={i} data-testid={`row-org-usage-${org.id}`}>
-                    <TableCell className="font-medium">{org.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{org.slug}</TableCell>
-                    <TableCell className="text-right">{formatNumber(Number(org.member_count))}</TableCell>
-                    <TableCell className="text-right">{formatNumber(Number(org.project_count))}</TableCell>
-                    <TableCell className="text-right">{formatNumber(Number(org.task_count))}</TableCell>
-                    <TableCell className="text-right font-bold">{formatNumber(Number(org.api_requests_7d))}</TableCell>
-                  </TableRow>
-                ))}
-                {(!orgUsage.organizations || orgUsage.organizations.length === 0) && (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">No data yet</TableCell>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead className="text-right">Users</TableHead>
+                    <TableHead className="text-right">Projects</TableHead>
+                    <TableHead className="text-right">Tasks</TableHead>
+                    <TableHead className="text-right">Portfolios</TableHead>
+                    <TableHead className="text-right">Risks</TableHead>
+                    <TableHead className="text-right">Credits Used</TableHead>
+                    <TableHead className="text-right">AI Runs</TableHead>
+                    <TableHead className="text-right">API (7d)</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {orgs.map((org) => {
+                    const creditsUsed = getCreditsUsed(org.id);
+                    const creditsIncluded = getCreditsIncluded(org.id);
+                    const aiUsed = getAiRunsUsed(org.id);
+                    const aiIncluded = getAiRunsIncluded(org.id);
+                    const creditPct = creditsIncluded > 0 ? (creditsUsed / creditsIncluded) * 100 : 0;
+                    return (
+                      <TableRow key={org.id} data-testid={`row-org-usage-${org.id}`}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{org.name}</div>
+                            <div className="text-xs text-muted-foreground">{org.slug}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getPlanVariant(org.plan_code)} className="text-xs">
+                            {org.plan_name || 'No Plan'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{formatNumber(Number(org.member_count))}</TableCell>
+                        <TableCell className="text-right">{formatNumber(Number(org.project_count))}</TableCell>
+                        <TableCell className="text-right">{formatNumber(Number(org.task_count))}</TableCell>
+                        <TableCell className="text-right">{formatNumber(Number(org.portfolio_count))}</TableCell>
+                        <TableCell className="text-right">{formatNumber(Number(org.risk_count))}</TableCell>
+                        <TableCell className="text-right">
+                          {creditsIncluded > 0 ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <span className={creditPct > 80 ? 'text-destructive font-semibold' : ''}>
+                                {formatNumber(creditsUsed)}
+                              </span>
+                              <span className="text-xs text-muted-foreground">/ {formatNumber(creditsIncluded)}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {aiIncluded > 0 ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <span>{formatNumber(aiUsed)}</span>
+                              <span className="text-xs text-muted-foreground">/ {formatNumber(aiIncluded)}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">{formatNumber(Number(org.api_requests_7d))}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {orgs.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center text-muted-foreground">No organization data available</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
