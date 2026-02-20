@@ -5467,14 +5467,14 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                                 const newProgress = v[0];
                                 field.onChange(newProgress);
                                 const currentStatus = form.getValues("status");
-                                if (currentStatus === "Not Started" && newProgress > 0) {
-                                  form.setValue("status", "In Progress");
-                                }
-                                if (newProgress === 100 && currentStatus !== "Completed") {
+                                if (newProgress === 100) {
                                   form.setValue("status", "Completed");
-                                }
-                                if (newProgress === 0 && currentStatus !== "Not Started") {
+                                } else if (newProgress === 0) {
                                   form.setValue("status", "Not Started");
+                                } else {
+                                  if (currentStatus === "Completed" || currentStatus === "Not Started") {
+                                    form.setValue("status", "In Progress");
+                                  }
                                 }
                               }}
                               min={0}
