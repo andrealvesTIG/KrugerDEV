@@ -114,7 +114,9 @@ Assessment criteria:
 - Score ${t.highMax + 1}-100: Critical risk - portfolio is at serious risk of failure
 
 Evaluate the following categories: ${cats}.
-Also evaluate: project health distribution, budget utilization, schedule adherence, open risks and issues, milestone completion rates, resource allocation, and cross-project dependencies.`;
+Also evaluate: project health distribution, budget utilization, schedule adherence, open risks and issues, milestone completion rates, resource allocation, and cross-project dependencies.
+
+IMPORTANT: Pay close attention to each risk's current status. Risks with status "Mitigated", "Closed", or "Accepted" have already been addressed and should NOT contribute significantly to the overall risk score. Only risks with status "Open", "Identified", or "In Mitigation" should be treated as active threats. If all or most risks have been mitigated/closed/accepted, the risk score should be significantly lower.`;
 
   if (config.customInstructions?.trim()) {
     prompt += `\n\nAdditional instructions from the organization:\n${config.customInstructions}`;
@@ -181,6 +183,8 @@ export async function generatePortfolioRiskAssessment(
       probability: r.probability,
       impact: r.impact,
       mitigationPlan: r.mitigationPlan,
+      responseStrategy: (r as any).responseStrategy,
+      residualRisk: (r as any).residualRisk,
       projectName: r.projectName,
     })),
     issues: issues.map(i => ({
@@ -206,7 +210,9 @@ export async function generatePortfolioRiskAssessment(
       },
       totalBudget: portfolioProjects.reduce((s, p) => s + Number(p.budget || 0), 0),
       totalSpent: portfolioProjects.reduce((s, p) => s + Number(p.actualCost || 0), 0),
-      openRisks: risks.filter(r => r.status === 'Open').length,
+      totalRisks: risks.length,
+      openRisks: risks.filter(r => r.status === 'Open' || r.status === 'Identified' || r.status === 'In Mitigation').length,
+      mitigatedRisks: risks.filter(r => r.status === 'Mitigated' || r.status === 'Closed' || r.status === 'Accepted').length,
       openIssues: issues.filter(i => i.status === 'Open' || i.status === 'In Progress').length,
       overdueMilestones: milestones.filter(m => !m.completed && m.dueDate && new Date(m.dueDate) < new Date()).length,
     },
