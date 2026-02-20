@@ -421,41 +421,6 @@ export function FeatureComparisonTab() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <CardTitle className="text-lg font-semibold">Score by Tool</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {TOOLS.map((tool, i) => {
-              const score = toolTotals[i];
-              const pct = Math.round((score / totalFeatures) * 100);
-              const isFirst = i === 0;
-              return (
-                <div key={tool} className="flex items-center gap-3" data-testid={`bar-tool-${i}`}>
-                  <div className="w-36 text-sm font-medium truncate flex items-center gap-2">
-                    {isFirst && <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
-                    <span className={isFirst ? "text-blue-700 dark:text-blue-300 font-semibold" : "text-foreground"}>{tool}</span>
-                  </div>
-                  <div className="flex-1 h-7 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 ${isFirst ? "bg-gradient-to-r from-blue-500 to-indigo-500" : "bg-muted-foreground/20"}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <div className="w-20 text-right">
-                    <span className={`text-sm font-semibold ${isFirst ? "text-blue-700 dark:text-blue-300" : "text-foreground"}`}>{score}/{totalFeatures}</span>
-                    <span className="text-xs text-muted-foreground ml-1">({pct}%)</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
             <CardTitle className="text-lg font-semibold">Detailed Feature Comparison</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
