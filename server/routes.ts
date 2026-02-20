@@ -1025,6 +1025,31 @@ function normalizeSearchStr(str: string | null | undefined): string {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+async function logUserActivity(
+  userId: string,
+  action: string,
+  entityType?: string,
+  entityId?: number,
+  metadata?: Record<string, any>,
+  req?: any
+) {
+  try {
+    const { userActivityLogs } = await import("@shared/schema");
+    const { db } = await import("./db");
+    await db.insert(userActivityLogs).values({
+      userId,
+      action,
+      entityType: entityType ?? null,
+      entityId: entityId ?? null,
+      metadata: metadata ?? null,
+      ipAddress: req?.ip ?? null,
+      userAgent: req?.headers?.['user-agent'] ?? null,
+    });
+  } catch (e) {
+    // Non-critical - don't let logging failures break the app
+  }
+}
+
 // Helper to check if user has elevated system role (super_admin or marketing)
 function hasAdminAccess(user: User | undefined | null): boolean {
   return user?.role === 'super_admin' || user?.role === 'marketing';
@@ -3907,6 +3932,10 @@ export async function registerRoutes(
       
       const portfolio = await storage.createPortfolio(portfolioData);
       
+      if (userId) {
+        logUserActivity(userId, 'create_portfolio', 'portfolio', portfolio.id, { name: portfolio.name, organizationId: portfolio.organizationId }, req);
+      }
+      
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("./services/billing");
@@ -4680,6 +4709,10 @@ export async function registerRoutes(
         updatedBy: userId || null,
       };
       const project = await storage.createProject(sanitizedInput);
+      
+      if (userId) {
+        logUserActivity(userId, 'create_project', 'project', project.id, { name: project.name, organizationId: project.organizationId }, req);
+      }
       
       // Record usage after successful creation
       if (userId) {
@@ -20291,6 +20324,156 @@ Return ONLY valid JSON.`;
       console.error('Error fetching user activity:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch user activity' : classified.message });
+    }
+  });
+
+  // Get comprehensive activity ledger - all user actions as a general ledger
+  app.get('/api/admin/monitoring/activity-ledger', async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!await requireSuperAdmin(userId ?? null)) {
+      return res.status(403).json({ message: 'Super admin access required' });
+    }
+
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = (page - 1) * limit;
+      const search = (req.query.search as string) || '';
+      const actionFilter = (req.query.action as string) || '';
+      const entityFilter = (req.query.entity as string) || '';
+      const userFilter = (req.query.userId as string) || '';
+      const sortCol = (req.query.sortCol as string) || 'created_at';
+      const sortDir = (req.query.sortDir as string) === 'asc' ? 'ASC' : 'DESC';
+      const days = parseInt(req.query.days as string) || 30;
+
+      const whereClauses: string[] = [
+        `l.method IN ('POST', 'PUT', 'PATCH', 'DELETE')`,
+        `l.created_at >= NOW() - INTERVAL '${days} days'`,
+        `l.path NOT LIKE '/api/admin/monitoring%'`,
+        `l.path NOT LIKE '/api/auth/session%'`,
+        `l.user_id IS NOT NULL`,
+      ];
+
+      if (userFilter) {
+        whereClauses.push(`l.user_id = '${userFilter.replace(/'/g, "''")}'`);
+      }
+      if (search) {
+        const s = search.replace(/'/g, "''");
+        whereClauses.push(`(
+          l.path ILIKE '%${s}%' 
+          OR u.email ILIKE '%${s}%' 
+          OR u.first_name ILIKE '%${s}%' 
+          OR u.last_name ILIKE '%${s}%'
+          OR o.name ILIKE '%${s}%'
+        )`);
+      }
+      if (actionFilter) {
+        const methodMap: Record<string, string> = { 'create': 'POST', 'update': 'PUT', 'delete': 'DELETE', 'patch': 'PATCH' };
+        if (actionFilter === 'update') {
+          whereClauses.push(`l.method IN ('PUT', 'PATCH')`);
+        } else if (methodMap[actionFilter]) {
+          whereClauses.push(`l.method = '${methodMap[actionFilter]}'`);
+        }
+      }
+      if (entityFilter) {
+        whereClauses.push(`l.path ILIKE '%/api/${entityFilter.replace(/'/g, "''")}%'`);
+      }
+
+      const allowedSortCols: Record<string, string> = {
+        'created_at': 'l.created_at',
+        'user': 'u.email',
+        'method': 'l.method',
+        'path': 'l.path',
+        'status': 'l.status_code',
+        'duration': 'l.duration',
+      };
+      const sortColumn = allowedSortCols[sortCol] || 'l.created_at';
+
+      const whereStr = whereClauses.join(' AND ');
+
+      const countResult = await db.execute(sql.raw(
+        `SELECT COUNT(*) as total FROM api_request_logs l
+         LEFT JOIN users u ON l.user_id = u.id
+         LEFT JOIN organizations o ON l.organization_id = o.id
+         WHERE ${whereStr}`
+      ));
+      const total = Number(countResult.rows[0]?.total || 0);
+
+      const logsResult = await db.execute(sql.raw(
+        `SELECT 
+          l.id,
+          l.method,
+          l.path,
+          l.status_code,
+          l.duration,
+          l.user_id,
+          l.organization_id,
+          l.ip_address,
+          l.user_agent,
+          l.request_body,
+          l.error_message,
+          l.created_at,
+          u.email as user_email,
+          u.first_name as user_first_name,
+          u.last_name as user_last_name,
+          u.profile_image_url as user_avatar,
+          o.name as org_name,
+          o.slug as org_slug
+        FROM api_request_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        LEFT JOIN organizations o ON l.organization_id = o.id
+        WHERE ${whereStr}
+        ORDER BY ${sortColumn} ${sortDir}
+        LIMIT ${limit} OFFSET ${offset}`
+      ));
+
+      const distinctUsersResult = await db.execute(sql.raw(
+        `SELECT DISTINCT l.user_id, u.email, u.first_name, u.last_name
+         FROM api_request_logs l
+         LEFT JOIN users u ON l.user_id = u.id
+         WHERE l.method IN ('POST', 'PUT', 'PATCH', 'DELETE')
+           AND l.created_at >= NOW() - INTERVAL '${days} days'
+           AND l.user_id IS NOT NULL
+         ORDER BY u.email
+         LIMIT 50`
+      ));
+
+      const summaryResult = await db.execute(sql.raw(
+        `SELECT 
+          COUNT(*) FILTER (WHERE method = 'POST') as creates,
+          COUNT(*) FILTER (WHERE method IN ('PUT', 'PATCH')) as updates,
+          COUNT(*) FILTER (WHERE method = 'DELETE') as deletes,
+          COUNT(*) FILTER (WHERE status_code >= 400) as errors,
+          COUNT(DISTINCT user_id) as unique_users
+        FROM api_request_logs
+        WHERE method IN ('POST', 'PUT', 'PATCH', 'DELETE')
+          AND created_at >= NOW() - INTERVAL '${days} days'
+          AND user_id IS NOT NULL
+          AND path NOT LIKE '/api/admin/monitoring%'`
+      ));
+
+      const sensitiveFields = ['password', 'token', 'secret', 'apiKey', 'api_key', 'accessToken', 'refreshToken', 'currentPassword', 'newPassword', 'confirmPassword'];
+      const sanitizedActivities = logsResult.rows.map((row: any) => {
+        if (row.request_body && typeof row.request_body === 'object') {
+          const sanitized = { ...row.request_body };
+          for (const field of sensitiveFields) {
+            if (field in sanitized) sanitized[field] = '[REDACTED]';
+          }
+          return { ...row, request_body: sanitized };
+        }
+        return row;
+      });
+
+      res.json({
+        activities: sanitizedActivities,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        users: distinctUsersResult.rows,
+        summary: summaryResult.rows[0] || { creates: 0, updates: 0, deletes: 0, errors: 0, unique_users: 0 },
+      });
+    } catch (error) {
+      console.error('Error fetching activity ledger:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch activity ledger' : classified.message });
     }
   });
 

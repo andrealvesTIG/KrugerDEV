@@ -3752,6 +3752,34 @@ interface UserActivity {
   dailyLogins: Array<{ date: string; unique_users: number }>;
 }
 
+interface ActivityEntry {
+  id: number;
+  method: string;
+  path: string;
+  status_code: number;
+  duration: number | null;
+  user_id: string;
+  organization_id: number | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  request_body: any;
+  error_message: string | null;
+  created_at: string;
+  user_email: string | null;
+  user_first_name: string | null;
+  user_last_name: string | null;
+  user_avatar: string | null;
+  org_name: string | null;
+  org_slug: string | null;
+}
+
+interface ActivityLedger {
+  activities: ActivityEntry[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+  users: Array<{ user_id: string; email: string; first_name: string; last_name: string }>;
+  summary: { creates: number; updates: number; deletes: number; errors: number; unique_users: number };
+}
+
 interface FeatureUsage {
   featureUsage: Array<{ feature: string; total_requests: number; get_requests: number; post_requests: number; update_requests: number; delete_requests: number }>;
   trend: Array<{ date: string; feature: string; count: number }>;
@@ -3821,6 +3849,15 @@ function MonitoringTab() {
   const [pathFilter, setPathFilter] = useState<string>('');
   const [orgSortCol, setOrgSortCol] = useState<string>('name');
   const [orgSortDir, setOrgSortDir] = useState<'asc' | 'desc'>('asc');
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [ledgerSearch, setLedgerSearch] = useState('');
+  const [ledgerActionFilter, setLedgerActionFilter] = useState('');
+  const [ledgerEntityFilter, setLedgerEntityFilter] = useState('');
+  const [ledgerUserFilter, setLedgerUserFilter] = useState('');
+  const [ledgerSortCol, setLedgerSortCol] = useState('created_at');
+  const [ledgerSortDir, setLedgerSortDir] = useState<'asc' | 'desc'>('desc');
+  const [ledgerDays, setLedgerDays] = useState(30);
+  const [ledgerExpandedRow, setLedgerExpandedRow] = useState<number | null>(null);
 
   const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<MonitoringOverview>({
     queryKey: ['/api/admin/monitoring/overview'],
@@ -3851,9 +3888,31 @@ function MonitoringTab() {
     enabled: subTab === 'organizations',
   });
 
+  const ledgerQueryString = new URLSearchParams({
+    page: String(ledgerPage),
+    limit: '50',
+    search: ledgerSearch,
+    action: ledgerActionFilter,
+    entity: ledgerEntityFilter,
+    userId: ledgerUserFilter,
+    sortCol: ledgerSortCol,
+    sortDir: ledgerSortDir,
+    days: String(ledgerDays),
+  }).toString();
+
+  const { data: activityLedger, isLoading: ledgerLoading, refetch: refetchLedger } = useQuery<ActivityLedger>({
+    queryKey: ['/api/admin/monitoring/activity-ledger', ledgerQueryString],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/monitoring/activity-ledger?${ledgerQueryString}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch activity ledger');
+      return res.json();
+    },
+    enabled: subTab === 'users',
+  });
+
   const handleRefresh = () => {
     refetchOverview();
-    if (subTab === 'users') refetchActivity();
+    if (subTab === 'users') { refetchActivity(); refetchLedger(); }
     if (subTab === 'features') refetchFeatures();
     if (subTab === 'performance') refetchPerf();
     if (subTab === 'database') refetchDb();
@@ -4113,8 +4172,85 @@ function MonitoringTab() {
     );
   };
 
+  const getActionLabel = (method: string) => {
+    switch (method) {
+      case 'POST': return 'Created';
+      case 'PUT': return 'Updated';
+      case 'PATCH': return 'Modified';
+      case 'DELETE': return 'Deleted';
+      default: return method;
+    }
+  };
+
+  const getActionColor = (method: string) => {
+    switch (method) {
+      case 'POST': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+      case 'PUT': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+      case 'PATCH': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
+      case 'DELETE': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+      default: return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  const getEntityFromPath = (path: string): string => {
+    const match = path.match(/^\/api\/(?:admin\/)?([^/]+)/);
+    if (!match) return 'Unknown';
+    const raw = match[1];
+    const labels: Record<string, string> = {
+      'projects': 'Project', 'portfolios': 'Portfolio', 'tasks': 'Task',
+      'risks': 'Risk', 'issues': 'Issue', 'milestones': 'Milestone',
+      'organizations': 'Organization', 'users': 'User', 'resources': 'Resource',
+      'timesheets': 'Timesheet', 'invoices': 'Invoice', 'notifications': 'Notification',
+      'billing': 'Billing', 'consents': 'Consent', 'help-tickets': 'Help Ticket',
+      'demo-data': 'Demo Data', 'ai': 'AI', 'auth': 'Auth', 'planner': 'Planner',
+      'mpp-imports': 'MPP Import', 'custom-dashboards': 'Dashboard',
+      'project-intakes': 'Intake', 'change-requests': 'Change Request',
+      'dynamics365': 'Dynamics 365', 'dataverse': 'Dataverse',
+      'chat': 'AI Chat', 'plans': 'Plan', 'paypal': 'PayPal',
+      'lessons-learned': 'Lesson', 'project-documents': 'Document',
+    };
+    return labels[raw] || raw.charAt(0).toUpperCase() + raw.slice(1).replace(/-/g, ' ');
+  };
+
+  const getEntityId = (path: string): string | null => {
+    const match = path.match(/\/(\d+)(?:\/|$)/);
+    return match ? match[1] : null;
+  };
+
+  const getActivityDescription = (entry: ActivityEntry): string => {
+    const entity = getEntityFromPath(entry.path);
+    const entityId = getEntityId(entry.path);
+    const action = getActionLabel(entry.method);
+    const subAction = entry.path.split('/').pop();
+    const isSubAction = subAction && !subAction.match(/^\d+$/) && entry.path.split('/').length > 4;
+    
+    if (isSubAction && subAction) {
+      const subLabel = subAction.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      return `${action} ${entity} ${subLabel}${entityId ? ` #${entityId}` : ''}`;
+    }
+    return `${action} ${entity}${entityId ? ` #${entityId}` : ''}`;
+  };
+
+  const getStatusBadgeVariant = (code: number): "default" | "secondary" | "destructive" | "outline" => {
+    if (code >= 200 && code < 300) return 'secondary';
+    if (code >= 300 && code < 400) return 'outline';
+    if (code >= 400 && code < 500) return 'destructive';
+    if (code >= 500) return 'destructive';
+    return 'outline';
+  };
+
+  const toggleLedgerSort = (col: string) => {
+    if (ledgerSortCol === col) {
+      setLedgerSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setLedgerSortCol(col);
+      setLedgerSortDir(col === 'created_at' ? 'desc' : 'asc');
+    }
+    setLedgerPage(1);
+  };
+
   const renderUserActivity = () => {
-    if (activityLoading) {
+    if (activityLoading || ledgerLoading) {
       return (
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -4122,81 +4258,399 @@ function MonitoringTab() {
       );
     }
 
-    if (!userActivity) {
-      return <div className="text-center text-muted-foreground py-8">No user activity data yet</div>;
-    }
+    const summary = activityLedger?.summary;
+    const activities = activityLedger?.activities ?? [];
+    const pagination = activityLedger?.pagination;
+    const availableUsers = activityLedger?.users ?? [];
+
+    const LedgerSortHead = ({ col, children, align }: { col: string; children: React.ReactNode; align?: string }) => (
+      <TableHead
+        className={`cursor-pointer select-none hover:text-foreground transition-colors ${align === 'right' ? 'text-right' : ''}`}
+        onClick={() => toggleLedgerSort(col)}
+        data-testid={`sort-ledger-${col}`}
+      >
+        <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+          {children}
+          {ledgerSortCol === col ? (
+            ledgerSortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+          ) : null}
+        </div>
+      </TableHead>
+    );
 
     return (
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Most Active Users (24h)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="text-right">Requests</TableHead>
-                  <TableHead className="text-right">Last Activity</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {userActivity.topUsers?.map((user, i) => (
-                  <TableRow key={i} data-testid={`row-active-user-${i}`}>
-                    <TableCell className="font-medium">
-                      {user.first_name || user.last_name 
-                        ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
-                        : 'Unknown'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{user.email || '-'}</TableCell>
-                    <TableCell className="text-right">{formatNumber(Number(user.request_count))}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{formatDate(user.last_activity)}</TableCell>
-                  </TableRow>
-                ))}
-                {(!userActivity.topUsers || userActivity.topUsers.length === 0) && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">No data yet</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Card data-testid="kpi-activity-creates">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5 text-green-600">
+                <Plus className="h-3.5 w-3.5" />
+                Creates
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(Number(summary?.creates ?? 0))}</div>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-activity-updates">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5 text-blue-600">
+                <Edit className="h-3.5 w-3.5" />
+                Updates
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(Number(summary?.updates ?? 0))}</div>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-activity-deletes">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5 text-red-600">
+                <Trash2 className="h-3.5 w-3.5" />
+                Deletes
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(Number(summary?.deletes ?? 0))}</div>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-activity-errors">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5 text-amber-600">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Errors
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(Number(summary?.errors ?? 0))}</div>
+            </CardContent>
+          </Card>
+          <Card data-testid="kpi-activity-unique-users">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" />
+                Active Users
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(Number(summary?.unique_users ?? 0))}</div>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
+        {userActivity && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Most Active Users (24h)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {userActivity.topUsers?.slice(0, 8).map((user, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm" data-testid={`row-active-user-${i}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium truncate">
+                          {user.first_name || user.last_name 
+                            ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                            : 'Unknown'}
+                        </span>
+                        <span className="text-muted-foreground text-xs truncate">{user.email || '-'}</span>
+                      </div>
+                      <Badge variant="secondary" className="text-xs ml-2 shrink-0">{formatNumber(Number(user.request_count))}</Badge>
+                    </div>
+                  ))}
+                  {(!userActivity.topUsers || userActivity.topUsers.length === 0) && (
+                    <div className="text-center text-muted-foreground text-sm py-2">No data yet</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Active Users By Hour (24h)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1.5">
+                  {userActivity.hourlyActive?.slice(0, 8).map((hour, i) => {
+                    const maxCount = Math.max(...userActivity.hourlyActive.map(h => Number(h.active_users)));
+                    const percentage = maxCount > 0 ? (Number(hour.active_users) / maxCount) * 100 : 0;
+                    return (
+                      <div key={i} className="flex items-center gap-2" data-testid={`bar-hourly-${i}`}>
+                        <span className="text-xs text-muted-foreground w-16">{format(new Date(hour.hour), 'h:mm a')}</span>
+                        <div className="flex-1 h-4 bg-muted rounded-sm overflow-hidden">
+                          <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${percentage}%` }} />
+                        </div>
+                        <span className="text-xs font-medium w-8 text-right">{Number(hour.active_users)}</span>
+                      </div>
+                    );
+                  })}
+                  {(!userActivity.hourlyActive || userActivity.hourlyActive.length === 0) && (
+                    <div className="text-center text-muted-foreground text-sm py-2">No data yet</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        <Card data-testid="card-activity-ledger">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Active Users By Hour (24h)
-            </CardTitle>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Activity Ledger
+                </CardTitle>
+                <CardDescription>
+                  Complete log of all user actions ({formatNumber(pagination?.total ?? 0)} entries)
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  Last {ledgerDays} days
+                </Badge>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search users, paths, organizations..."
+                  value={ledgerSearch}
+                  onChange={(e) => { setLedgerSearch(e.target.value); setLedgerPage(1); }}
+                  className="pl-8"
+                  data-testid="input-ledger-search"
+                />
+              </div>
+              <Select value={ledgerActionFilter} onValueChange={(v) => { setLedgerActionFilter(v === 'all' ? '' : v); setLedgerPage(1); }}>
+                <SelectTrigger className="w-[130px]" data-testid="select-ledger-action">
+                  <SelectValue placeholder="Action" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Actions</SelectItem>
+                  <SelectItem value="create">Creates</SelectItem>
+                  <SelectItem value="update">Updates</SelectItem>
+                  <SelectItem value="delete">Deletes</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={ledgerEntityFilter} onValueChange={(v) => { setLedgerEntityFilter(v === 'all' ? '' : v); setLedgerPage(1); }}>
+                <SelectTrigger className="w-[150px]" data-testid="select-ledger-entity">
+                  <SelectValue placeholder="Entity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Entities</SelectItem>
+                  <SelectItem value="projects">Projects</SelectItem>
+                  <SelectItem value="portfolios">Portfolios</SelectItem>
+                  <SelectItem value="tasks">Tasks</SelectItem>
+                  <SelectItem value="risks">Risks</SelectItem>
+                  <SelectItem value="issues">Issues</SelectItem>
+                  <SelectItem value="milestones">Milestones</SelectItem>
+                  <SelectItem value="organizations">Organizations</SelectItem>
+                  <SelectItem value="resources">Resources</SelectItem>
+                  <SelectItem value="billing">Billing</SelectItem>
+                  <SelectItem value="auth">Auth</SelectItem>
+                  <SelectItem value="ai">AI</SelectItem>
+                  <SelectItem value="demo-data">Demo Data</SelectItem>
+                  <SelectItem value="help-tickets">Help Tickets</SelectItem>
+                  <SelectItem value="plans">Plans</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={ledgerUserFilter} onValueChange={(v) => { setLedgerUserFilter(v === 'all' ? '' : v); setLedgerPage(1); }}>
+                <SelectTrigger className="w-[180px]" data-testid="select-ledger-user">
+                  <SelectValue placeholder="User" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {availableUsers.map(u => (
+                    <SelectItem key={u.user_id} value={u.user_id}>
+                      {u.first_name || u.last_name ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={String(ledgerDays)} onValueChange={(v) => { setLedgerDays(Number(v)); setLedgerPage(1); }}>
+                <SelectTrigger className="w-[120px]" data-testid="select-ledger-days">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Last 24h</SelectItem>
+                  <SelectItem value="7">Last 7 days</SelectItem>
+                  <SelectItem value="14">Last 14 days</SelectItem>
+                  <SelectItem value="30">Last 30 days</SelectItem>
+                  <SelectItem value="90">Last 90 days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {userActivity.hourlyActive?.slice(0, 12).map((hour, i) => {
-                const maxCount = Math.max(...userActivity.hourlyActive.map(h => Number(h.active_users)));
-                const percentage = maxCount > 0 ? (Number(hour.active_users) / maxCount) * 100 : 0;
-                return (
-                  <div key={i} className="flex items-center gap-3" data-testid={`bar-hourly-${i}`}>
-                    <span className="text-xs text-muted-foreground w-24">{format(new Date(hour.hour), 'h:mm a')}</span>
-                    <div className="flex-1 h-5 bg-muted rounded-sm overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500 transition-all duration-300" 
-                        style={{ width: `${percentage}%` }}
-                      />
+            {ledgerLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : activities.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                <Activity className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                <p>No activities found for the current filters</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <LedgerSortHead col="created_at">Timestamp</LedgerSortHead>
+                        <LedgerSortHead col="user">User</LedgerSortHead>
+                        <TableHead>Action</TableHead>
+                        <LedgerSortHead col="path">Details</LedgerSortHead>
+                        <TableHead>Organization</TableHead>
+                        <LedgerSortHead col="status" align="right">Status</LedgerSortHead>
+                        <LedgerSortHead col="duration" align="right">Duration</LedgerSortHead>
+                        <TableHead className="w-[40px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activities.map((entry) => (
+                        <>
+                          <TableRow
+                            key={entry.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setLedgerExpandedRow(ledgerExpandedRow === entry.id ? null : entry.id)}
+                            data-testid={`row-activity-${entry.id}`}
+                          >
+                            <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+                              {format(new Date(entry.created_at), 'MMM d, h:mm:ss a')}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium shrink-0">
+                                  {(entry.user_first_name || entry.user_email || '?').charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium truncate">
+                                    {entry.user_first_name || entry.user_last_name
+                                      ? `${entry.user_first_name || ''} ${entry.user_last_name || ''}`.trim()
+                                      : 'Unknown'}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground truncate">{entry.user_email}</div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getActionColor(entry.method)}`}>
+                                {getActionLabel(entry.method)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium">{getActivityDescription(entry)}</div>
+                                <div className="text-xs text-muted-foreground font-mono truncate max-w-[250px]">{entry.path}</div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {entry.org_name || '-'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={getStatusBadgeVariant(entry.status_code)} className="text-xs font-mono">
+                                {entry.status_code}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-xs text-muted-foreground">
+                              {entry.duration !== null ? `${entry.duration}ms` : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {ledgerExpandedRow === entry.id ? (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </TableCell>
+                          </TableRow>
+                          {ledgerExpandedRow === entry.id && (
+                            <TableRow key={`${entry.id}-detail`}>
+                              <TableCell colSpan={8} className="bg-muted/30 p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                  <div className="space-y-2">
+                                    <div>
+                                      <span className="text-muted-foreground">User ID:</span>
+                                      <span className="ml-2 font-mono text-xs">{entry.user_id}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">IP Address:</span>
+                                      <span className="ml-2 font-mono text-xs">{entry.ip_address || 'N/A'}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">Organization:</span>
+                                      <span className="ml-2">{entry.org_name ? `${entry.org_name} (${entry.org_slug})` : 'N/A'}</span>
+                                    </div>
+                                    {entry.error_message && (
+                                      <div>
+                                        <span className="text-destructive font-medium">Error:</span>
+                                        <span className="ml-2 text-destructive">{entry.error_message}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div>
+                                      <span className="text-muted-foreground">Full Path:</span>
+                                      <span className="ml-2 font-mono text-xs break-all">{entry.path}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">User Agent:</span>
+                                      <span className="ml-2 text-xs truncate block max-w-full">{entry.user_agent || 'N/A'}</span>
+                                    </div>
+                                    {entry.request_body && Object.keys(entry.request_body).length > 0 && (
+                                      <div>
+                                        <span className="text-muted-foreground">Request Body:</span>
+                                        <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-x-auto max-h-32">
+                                          {JSON.stringify(entry.request_body, null, 2)}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {pagination && pagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Page {pagination.page} of {pagination.totalPages} ({formatNumber(pagination.total)} entries)
                     </div>
-                    <span className="text-sm font-medium w-12 text-right">{Number(hour.active_users)}</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={pagination.page <= 1}
+                        onClick={() => setLedgerPage(p => Math.max(1, p - 1))}
+                        data-testid="btn-ledger-prev"
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={pagination.page >= pagination.totalPages}
+                        onClick={() => setLedgerPage(p => p + 1)}
+                        data-testid="btn-ledger-next"
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
-                );
-              })}
-              {(!userActivity.hourlyActive || userActivity.hourlyActive.length === 0) && (
-                <div className="text-center text-muted-foreground py-4">No data yet</div>
-              )}
-            </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
