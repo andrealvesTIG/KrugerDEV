@@ -1252,6 +1252,15 @@ function ProjectTimeline({
     } catch {}
   };
   
+  const taskProgress = useMemo(() => {
+    if (!tasks || tasks.length === 0) return { completedPercent: 0, pendingPercent: 0 };
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.status === 'Completed').length;
+    const completedPercent = (completed / total) * 100;
+    const pendingPercent = 100 - completedPercent;
+    return { completedPercent, pendingPercent };
+  }, [tasks]);
+
   // Calculate timeline range
   const timelineRange = useMemo(() => {
     if (!projectStart || !projectEnd) return null;
@@ -1639,15 +1648,26 @@ function ProjectTimeline({
                     {/* Background bar for this row */}
                     <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-3 bg-muted rounded-full" />
                     
-                    {/* Progress bar only on first row */}
-                    {rowIndex === 0 && timelineRange.todayPosition >= 0 && timelineRange.todayPosition <= 100 && (
-                      <div 
-                        className={cn(
-                          "absolute top-1/2 -translate-y-1/2 h-3 bg-slate-400 dark:bg-slate-600",
-                          timelineRange.todayPosition < 100 ? "rounded-l-full" : "rounded-full"
+                    {/* Progress bars: green for completed, red for pending */}
+                    {rowIndex === 0 && (
+                      <>
+                        {taskProgress.completedPercent > 0 && (
+                          <div 
+                            className="absolute top-1/2 -translate-y-1/2 h-3 bg-green-500 dark:bg-green-600 rounded-l-full"
+                            style={{ left: 0, width: `${taskProgress.completedPercent}%` }}
+                          />
                         )}
-                        style={{ left: 0, width: `${Math.max(1, timelineRange.todayPosition)}%` }}
-                      />
+                        {taskProgress.pendingPercent > 0 && taskProgress.completedPercent < 100 && (
+                          <div 
+                            className={cn(
+                              "absolute top-1/2 -translate-y-1/2 h-3 bg-red-400 dark:bg-red-500",
+                              taskProgress.completedPercent === 0 ? "rounded-l-full" : "",
+                              "rounded-r-full"
+                            )}
+                            style={{ left: `${taskProgress.completedPercent}%`, width: `${taskProgress.pendingPercent}%` }}
+                          />
+                        )}
+                      </>
                     )}
                   </div>
                 );
