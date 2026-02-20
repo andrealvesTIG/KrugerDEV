@@ -9380,6 +9380,32 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       const input = api.tasks.update.input.parse(req.body);
       
+      // Guardrails: sync status and progress
+      const incomingStatus = input.status ?? previousTask.status;
+      const incomingProgress = input.progress ?? previousTask.progress ?? 0;
+      
+      if (input.status !== undefined && input.status !== previousTask.status) {
+        if (input.status === "Not Started") {
+          input.progress = 0;
+        } else if (input.status === "Completed") {
+          input.progress = 100;
+        } else if (input.status === "In Progress" && previousTask.status === "Completed") {
+          if (input.progress === undefined) {
+            input.progress = 50;
+          }
+        }
+      } else if (input.progress !== undefined && input.progress !== (previousTask.progress ?? 0)) {
+        if (incomingStatus === "Not Started" && input.progress > 0) {
+          input.status = "In Progress";
+        }
+        if (incomingStatus === "In Progress" && input.progress === 100) {
+          input.status = "Completed";
+        }
+        if (incomingStatus === "In Progress" && input.progress === 0) {
+          input.status = "Not Started";
+        }
+      }
+      
       // Validate outline level is within bounds (1-6)
       if (input.outlineLevel !== undefined && input.outlineLevel !== null) {
         if (input.outlineLevel < 1) {
