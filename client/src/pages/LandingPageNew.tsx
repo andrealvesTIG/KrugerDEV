@@ -150,7 +150,7 @@ export default function LandingPageNew() {
         <div className="hidden sm:flex items-center gap-3 flex-wrap">
           <Button
             variant="ghost"
-            onClick={() => setLocation("/signin")}
+            onClick={() => setLocation("/auth")}
             data-testid="button-login"
           >
             Log in
@@ -177,7 +177,7 @@ export default function LandingPageNew() {
           <Button
             variant="ghost"
             className="w-full justify-start"
-            onClick={() => { setLocation("/signin"); setMobileMenuOpen(false); }}
+            onClick={() => { setLocation("/auth"); setMobileMenuOpen(false); }}
             data-testid="button-login-mobile"
           >
             Log in
