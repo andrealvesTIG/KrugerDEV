@@ -533,8 +533,8 @@ export default function SignInPage() {
       </section>
 
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30" data-testid="section-feature-comparison-signin">
-        <div className="max-w-7xl mx-auto dark">
-          <PublicFeatureComparison />
+        <div className="max-w-7xl mx-auto">
+          <PublicFeatureComparison variant="slate" />
         </div>
       </section>
 

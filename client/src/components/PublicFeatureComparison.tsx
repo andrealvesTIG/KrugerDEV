@@ -61,7 +61,7 @@ function ToolLogoPublic({ tool }: { tool: string }) {
 function StatusCell({ status }: { status: Status }) {
   if (status === "yes") return <CheckCircle2 className="h-5 w-5 text-emerald-500 mx-auto" />;
   if (status === "partial") return <AlertTriangle className="h-5 w-5 text-amber-500 mx-auto" />;
-  return <XCircle className="h-5 w-5 text-red-300 dark:text-red-400/40 mx-auto" />;
+  return <XCircle className="h-5 w-5 text-red-400/40 mx-auto" />;
 }
 
 interface FeatureRow {
@@ -113,7 +113,11 @@ const extendedFeatures: FeatureRow[] = [
   { name: "Magic link / passwordless sign-in", values: ["yes","no","no","no","yes","no","no"] },
 ];
 
-export function PublicFeatureComparison() {
+interface PublicFeatureComparisonProps {
+  variant?: "default" | "slate";
+}
+
+export function PublicFeatureComparison({ variant = "default" }: PublicFeatureComparisonProps) {
   const [showAll, setShowAll] = useState(false);
 
   const displayFeatures = showAll ? [...highlightFeatures, ...extendedFeatures] : highlightFeatures;
@@ -121,26 +125,57 @@ export function PublicFeatureComparison() {
   const fridayTotal = [...highlightFeatures, ...extendedFeatures].filter(f => f.values[0] === "yes").length;
   const totalFeatures = highlightFeatures.length + extendedFeatures.length;
 
+  const isSlate = variant === "slate";
+
+  const headlineClass = isSlate
+    ? "text-3xl md:text-4xl font-bold tracking-tight text-white"
+    : "text-3xl md:text-4xl font-bold tracking-tight text-foreground";
+
+  const subtitleClass = isSlate
+    ? "mt-3 text-base text-slate-300 max-w-2xl mx-auto"
+    : "mt-3 text-base text-muted-foreground max-w-2xl mx-auto";
+
+  const strongClass = isSlate ? "text-white" : "text-foreground";
+
+  const tableWrapperClass = isSlate
+    ? "overflow-x-auto rounded-xl border border-slate-600 bg-slate-800/50 shadow-lg"
+    : "overflow-x-auto rounded-xl border border-border bg-card shadow-lg";
+
+  const theadBg = isSlate ? "bg-slate-700/60" : "bg-muted/50";
+  const theadStickyBg = isSlate ? "bg-slate-700" : "bg-muted/50";
+  const thTextClass = isSlate ? "text-white" : "text-foreground";
+
+  const evenRowBg = isSlate ? "bg-slate-800/50" : "bg-background";
+  const oddRowBg = isSlate ? "bg-slate-700/30" : "bg-muted/20";
+  const stickyTdBg = isSlate ? "bg-inherit" : "bg-inherit";
+  const featureTextClass = isSlate ? "text-slate-100" : "text-foreground";
+
+  const fridayColBg = isSlate ? "bg-orange-500/10" : "bg-blue-50/50 dark:bg-blue-950/20";
+
+  const btnClass = isSlate
+    ? "border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white"
+    : "";
+
   return (
     <div data-testid="public-feature-comparison">
       <div className="text-center mb-10">
         <h2
-          className="text-3xl md:text-4xl font-bold tracking-tight text-foreground"
+          className={headlineClass}
           style={{ fontFamily: "var(--font-display)" }}
           data-testid="text-comparison-headline"
         >
           See how we compare
         </h2>
-        <p className="mt-3 text-base text-muted-foreground max-w-2xl mx-auto" data-testid="text-comparison-subtitle">
-          FridayReport.AI delivers <strong className="text-foreground">{fridayTotal} out of {totalFeatures}</strong> features across portfolio, project, and resource management — more than any competitor.
+        <p className={subtitleClass} data-testid="text-comparison-subtitle">
+          FridayReport.AI delivers <strong className={strongClass}>{fridayTotal} out of {totalFeatures}</strong> features across portfolio, project, and resource management — more than any competitor.
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-lg">
+      <div className={tableWrapperClass}>
         <table className="w-full text-sm" data-testid="table-public-comparison">
           <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="text-left px-4 py-4 font-semibold text-foreground min-w-[220px] sticky left-0 bg-muted/50 z-[9999]">Feature</th>
+            <tr className={`border-b ${isSlate ? "border-slate-600" : ""} ${theadBg}`}>
+              <th className={`text-left px-4 py-4 font-semibold ${thTextClass} min-w-[220px] sticky left-0 ${theadStickyBg} z-[9999]`}>Feature</th>
               {TOOLS.map((tool) => (
                 <th key={tool} className="text-center px-2 py-4 min-w-[56px]">
                   <Tooltip>
@@ -159,12 +194,12 @@ export function PublicFeatureComparison() {
             {displayFeatures.map((feat, idx) => (
               <tr
                 key={feat.name}
-                className={`border-b transition-colors ${idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}
+                className={`border-b ${isSlate ? "border-slate-700" : ""} transition-colors ${idx % 2 === 0 ? evenRowBg : oddRowBg}`}
                 data-testid={`row-feature-${idx}`}
               >
-                <td className="px-4 py-3 font-medium text-foreground sticky left-0 z-[9999] bg-inherit" data-testid={`text-feature-name-${idx}`}>{feat.name}</td>
+                <td className={`px-4 py-3 font-medium ${featureTextClass} sticky left-0 z-[9999] ${stickyTdBg}`} data-testid={`text-feature-name-${idx}`}>{feat.name}</td>
                 {feat.values.map((v, i) => (
-                  <td key={TOOLS[i]} className={`text-center px-2 py-3 ${i === 0 ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`} data-testid={`cell-status-${idx}-${i}`}>
+                  <td key={TOOLS[i]} className={`text-center px-2 py-3 ${i === 0 ? fridayColBg : ""}`} data-testid={`cell-status-${idx}-${i}`}>
                     <StatusCell status={v} />
                   </td>
                 ))}
@@ -177,6 +212,7 @@ export function PublicFeatureComparison() {
       <div className="flex justify-center mt-6">
         <Button
           variant="outline"
+          className={btnClass}
           onClick={() => setShowAll(!showAll)}
           data-testid="button-toggle-all-features"
         >
