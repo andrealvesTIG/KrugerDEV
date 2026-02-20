@@ -5434,7 +5434,17 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                       <div className="space-y-2">
                         <Label>Status</Label>
                         <Controller control={form.control} name="status" render={({field}) => (
-                          <Select onValueChange={field.onChange} value={field.value || "Not Started"}>
+                          <Select onValueChange={(val) => {
+                            const prevStatus = field.value;
+                            field.onChange(val);
+                            if (val === "Not Started") {
+                              form.setValue("progress", 0);
+                            } else if (val === "Completed") {
+                              form.setValue("progress", 100);
+                            } else if (val === "In Progress" && prevStatus === "Completed") {
+                              form.setValue("progress", 50);
+                            }
+                          }} value={field.value || "Not Started"}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Not Started">Not Started</SelectItem>
@@ -5453,7 +5463,20 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                           <div className="h-9 flex items-center">
                             <Slider
                               value={[field.value || 0]}
-                              onValueChange={(v) => field.onChange(v[0])}
+                              onValueChange={(v) => {
+                                const newProgress = v[0];
+                                field.onChange(newProgress);
+                                const currentStatus = form.getValues("status");
+                                if (currentStatus === "Not Started" && newProgress > 0) {
+                                  form.setValue("status", "In Progress");
+                                }
+                                if (newProgress === 100 && currentStatus !== "Completed") {
+                                  form.setValue("status", "Completed");
+                                }
+                                if (newProgress === 0 && currentStatus !== "Not Started") {
+                                  form.setValue("status", "Not Started");
+                                }
+                              }}
                               min={0}
                               max={100}
                               step={5}
