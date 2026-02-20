@@ -267,7 +267,7 @@ export default function LandingPageNew() {
           </div>
         </section>
 
-        <section className="py-16 max-w-[1400px] mx-auto" data-testid="section-feature-comparison">
+        <section className="py-16 px-6 md:px-12 lg:px-20 max-w-[1400px] mx-auto" data-testid="section-feature-comparison">
           <PublicFeatureComparison />
         </section>
 
