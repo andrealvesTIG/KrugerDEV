@@ -13,7 +13,7 @@ import { SiOracle, SiAsana, SiJira } from "react-icons/si";
 import fridayLogo from "../assets/logo-icon.png";
 import plannerLogo from "@assets/image_1771603592411.png";
 import smartsheetLogo from "@assets/image_1771603681527.png";
-import mondayLogo from "@assets/image_1771603733283.png";
+import mondayLogo from "@assets/image_1771603827456.png";
 
 type Status = "yes" | "partial" | "no";
 
