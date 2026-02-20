@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Button } from "@/components/ui/button";
 import { SiOracle, SiAsana, SiJira } from "react-icons/si";
 import fridayLogo from "../assets/logo-icon.png";
-import plannerLogo from "@assets/image_1771603592411.png";
+import plannerLogo from "@/assets/planner-logo.png";
 import smartsheetLogo from "@assets/image_1771603681527.png";
 import mondayLogo from "@assets/image_1771603827456.png";
 
