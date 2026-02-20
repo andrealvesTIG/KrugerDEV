@@ -485,8 +485,7 @@ export function FeatureComparisonTab() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-emerald-200 dark:border-emerald-800">
+      <Card className="border-emerald-200 dark:border-emerald-800">
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
               <Star className="h-5 w-5 text-emerald-500" />
@@ -504,35 +503,6 @@ export function FeatureComparisonTab() {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-amber-200 dark:border-amber-800">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Areas for Future Enhancement
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {categories.flatMap(cat =>
-                cat.features
-                  .filter(f => f.values[0] === "no")
-                  .map(f => ({ name: f.name, availableIn: TOOLS.filter((_, i) => i > 0 && f.values[i] === "yes") }))
-              ).map(gap => (
-                <div key={gap.name} className="flex items-start gap-2 text-sm" data-testid={`text-gap-${gap.name.slice(0, 20)}`}>
-                  <XCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-foreground font-medium">{gap.name}</span>
-                    <span className="text-muted-foreground ml-1.5 text-xs">
-                      Available in: {gap.availableIn.join(", ")}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       <Card>
         <CardHeader>
