@@ -20,10 +20,11 @@ const TOOLS = [
   "Jira",
 ];
 
-function ToolLogoPublic({ tool }: { tool: string }) {
+function ToolLogoPublic({ tool, variant = "default" }: { tool: string; variant?: "default" | "slate" }) {
   const dim = "h-8 w-8 md:h-10 md:w-10";
   const iconSize = "h-4 w-4 md:h-5 md:w-5";
   const textSize = "text-[9px] md:text-[11px]";
+  const blend = variant === "slate" ? "mix-blend-screen" : "";
 
   const brandIcon: Record<string, JSX.Element> = {
     "FridayReport.AI": (
@@ -35,13 +36,13 @@ function ToolLogoPublic({ tool }: { tool: string }) {
       </div>
     ),
     "MS Planner": (
-      <img src={plannerLogo} alt="MS Planner" className={`${dim} rounded-lg object-contain`} />
+      <img src={plannerLogo} alt="MS Planner" className={`${dim} rounded-lg object-contain ${blend}`} />
     ),
     "Smartsheet": (
       <img src={smartsheetLogo} alt="Smartsheet" className={`${dim} rounded-lg object-contain`} />
     ),
     "Monday.com": (
-      <img src={mondayLogo} alt="Monday.com" className={`${dim} rounded-lg object-contain`} />
+      <img src={mondayLogo} alt="Monday.com" className={`${dim} rounded-lg object-contain ${blend}`} />
     ),
     "Asana": (
       <div className={`${dim} rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center text-white`}>
@@ -181,7 +182,7 @@ export function PublicFeatureComparison({ variant = "default" }: PublicFeatureCo
                   <Tooltip>
                     <TooltipTrigger data-testid={`logo-${tool.replace(/[\s.]/g, "-").toLowerCase()}`}>
                       <div className="flex items-center justify-center">
-                        <ToolLogoPublic tool={tool} />
+                        <ToolLogoPublic tool={tool} variant={variant} />
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>{tool}</TooltipContent>
