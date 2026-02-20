@@ -4918,6 +4918,12 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
+        const startMs = new Date(taskStartDate).getTime();
+        const endMs = new Date(taskEndDate).getTime();
+        const diffDays = Math.ceil((endMs - startMs) / (1000 * 60 * 60 * 24));
+        const durationDays = Number.isFinite(diffDays) ? Math.max(0, diffDays) : 1;
+        const taskIsMilestone = durationDays === 0;
+
         const task = await storage.createTask({
           projectId: project.id,
           taskIndex,
@@ -4926,11 +4932,12 @@ export async function registerRoutes(
           priority: mapPlannerPriorityToProjectPriority(plannerTask.priority || 5),
           startDate: taskStartDate,
           endDate: taskEndDate,
+          durationDays,
           progress: plannerTask.percentComplete || 0,
           status: mapPlannerPercentToStatus(plannerTask.percentComplete || 0),
           phase: bucketName,
           outlineLevel: 1,
-          isMilestone: false,
+          isMilestone: taskIsMilestone,
           isSummary: false,
           isCritical: false,
           externalId: plannerTask.id,
@@ -5299,12 +5306,12 @@ export async function registerRoutes(
       
       // Helper to calculate duration in days
       const calculateDuration = (start: string | null, end: string | null): number => {
-        if (!start || !end) return 1; // Default to 1 day for Gantt chart visibility
+        if (!start || !end) return 1;
         const startDate = new Date(start);
         const endDate = new Date(end);
         const diffTime = endDate.getTime() - startDate.getTime();
         const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return Math.max(1, days); // Minimum 1 day for Gantt chart bars
+        return Math.max(0, days);
       };
 
       for (const dvTask of dataverseTasks) {
@@ -5338,10 +5345,14 @@ export async function registerRoutes(
         // Use msdyn_outlinelevel if available, otherwise calculate from WBS
         const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
         
-        // Calculate duration
-        const durationDays = dvTask.msdyn_duration 
-          ? Math.round(dvTask.msdyn_duration / (60 * 24)) // Duration is in minutes
-          : calculateDuration(taskStartDate, taskEndDate);
+        // Calculate duration - msdyn_duration is in minutes
+        let durationDays: number;
+        if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
+          durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
+        } else {
+          durationDays = calculateDuration(taskStartDate, taskEndDate);
+        }
+        const taskIsMilestone = durationDays === 0;
 
         const task = await storage.createTask({
           projectId: project.id,
@@ -5355,7 +5366,7 @@ export async function registerRoutes(
           progress,
           status,
           outlineLevel,
-          isMilestone: false,  // Don't auto-detect milestones - let users set this
+          isMilestone: taskIsMilestone,
           isSummary: false,
           isCritical: false,
           wbs: wbsId || null,
@@ -6000,12 +6011,12 @@ export async function registerRoutes(
         };
         
         const calculateDuration = (start: string | null, end: string | null): number => {
-          if (!start || !end) return 1; // Default to 1 day for Gantt chart visibility
+          if (!start || !end) return 1;
           const startDate = new Date(start);
           const endDate = new Date(end);
           const diffTime = endDate.getTime() - startDate.getTime();
           const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          return Math.max(1, days); // Minimum 1 day for Gantt chart bars
+          return Math.max(0, days);
         };
 
         // Create tasks from Dataverse
@@ -6040,9 +6051,13 @@ export async function registerRoutes(
           const wbsId = dvTask.msdyn_wbsid || '';
           // Initially set outlineLevel to 1, will recalculate from hierarchy later
           const outlineLevel = dvTask.msdyn_outlinelevel || (wbsId ? wbsId.split('.').length : 1);
-          const durationDays = dvTask.msdyn_duration 
-            ? Math.round(dvTask.msdyn_duration / (60 * 24))
-            : calculateDuration(taskStartDate, taskEndDate);
+          let durationDays: number;
+          if (dvTask.msdyn_duration !== null && dvTask.msdyn_duration !== undefined) {
+            durationDays = Math.round(dvTask.msdyn_duration / (60 * 24));
+          } else {
+            durationDays = calculateDuration(taskStartDate, taskEndDate);
+          }
+          const taskIsMilestone = durationDays === 0;
 
           const task = await storage.createTask({
             projectId: project.id,
@@ -6056,7 +6071,7 @@ export async function registerRoutes(
             progress,
             status,
             outlineLevel,
-            isMilestone: false,  // Don't auto-detect milestones - let users set this
+            isMilestone: taskIsMilestone,
             isSummary: false,
             isCritical: false,
             wbs: wbsId || null,
@@ -6982,6 +6997,12 @@ export async function registerRoutes(
           ? plannerTask.dueDateTime.split('T')[0] 
           : (plannerTask.startDateTime ? plannerTask.startDateTime.split('T')[0] : defaultEndDate);
 
+        const startMs = new Date(taskStartDate).getTime();
+        const endMs = new Date(taskEndDate).getTime();
+        const diffDays = Math.ceil((endMs - startMs) / (1000 * 60 * 60 * 24));
+        const durationDays = Number.isFinite(diffDays) ? Math.max(0, diffDays) : 1;
+        const taskIsMilestone = durationDays === 0;
+
         const task = await storage.createTask({
           projectId: project.id,
           taskIndex,
@@ -6990,11 +7011,12 @@ export async function registerRoutes(
           priority: mapPlannerPriorityToProjectPriority(plannerTask.priority || 5),
           startDate: taskStartDate,
           endDate: taskEndDate,
+          durationDays,
           progress: plannerTask.percentComplete || 0,
           status: mapPlannerPercentToStatus(plannerTask.percentComplete || 0),
           phase: bucketName,
           outlineLevel: 1,
-          isMilestone: false,
+          isMilestone: taskIsMilestone,
           isSummary: false,
           isCritical: false,
           externalId: plannerTask.id,
