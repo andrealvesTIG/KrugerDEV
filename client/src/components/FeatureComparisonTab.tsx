@@ -9,6 +9,7 @@ import {
   Trophy, Target, Shield, BarChart3, Briefcase, Clock, AlertOctagon, GitBranch,
   LineChart, DollarSign, Plug, Settings, Monitor, Layers, Star
 } from "lucide-react";
+import { SiOracle, SiAsana, SiJira } from "react-icons/si";
 
 type Status = "yes" | "partial" | "no";
 
@@ -44,6 +45,57 @@ const TOOL_COLORS: Record<string, string> = {
   "Asana": "bg-orange-500",
   "Jira": "bg-blue-500",
 };
+
+function ToolLogo({ tool, size = "md" }: { tool: string; size?: "sm" | "md" }) {
+  const dim = size === "sm" ? "h-6 w-6" : "h-8 w-8";
+  const iconSize = size === "sm" ? "h-3 w-3" : "h-4 w-4";
+  const textSize = size === "sm" ? "text-[8px]" : "text-[10px]";
+
+  const brandIcon: Record<string, JSX.Element> = {
+    "FridayReport.AI": (
+      <div className={`${dim} rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold ${textSize} shadow-sm`}>
+        FR
+      </div>
+    ),
+    "Oracle Primavera P6": (
+      <div className={`${dim} rounded-lg bg-red-600 flex items-center justify-center text-white shadow-sm`}>
+        <SiOracle className={iconSize} />
+      </div>
+    ),
+    "MS Project Online": (
+      <div className={`${dim} rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold ${textSize} shadow-sm`}>
+        MP
+      </div>
+    ),
+    "MS Planner": (
+      <div className={`${dim} rounded-lg bg-sky-500 flex items-center justify-center text-white font-bold ${textSize} shadow-sm`}>
+        PL
+      </div>
+    ),
+    "Smartsheet": (
+      <div className={`${dim} rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold ${textSize} shadow-sm`}>
+        SS
+      </div>
+    ),
+    "Monday.com": (
+      <div className={`${dim} rounded-lg bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center text-white font-bold ${textSize} shadow-sm`}>
+        M
+      </div>
+    ),
+    "Asana": (
+      <div className={`${dim} rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center text-white shadow-sm`}>
+        <SiAsana className={iconSize} />
+      </div>
+    ),
+    "Jira": (
+      <div className={`${dim} rounded-lg bg-blue-500 flex items-center justify-center text-white shadow-sm`}>
+        <SiJira className={iconSize} />
+      </div>
+    ),
+  };
+
+  return brandIcon[tool] || <div className={`${dim} rounded-lg bg-gray-400 flex items-center justify-center text-white font-bold ${textSize}`}>?</div>;
+}
 
 const categories: Category[] = [
   {
@@ -446,15 +498,12 @@ export function FeatureComparisonTab() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-left px-4 py-3 font-semibold text-foreground min-w-[280px] sticky left-0 bg-muted/50 z-10">Feature</th>
-                  {TOOLS.map((tool, i) => (
-                    <th key={tool} className="text-center px-2 py-3 min-w-[100px]">
+                  {TOOLS.map((tool) => (
+                    <th key={tool} className="text-center px-2 py-3 min-w-[60px]">
                       <Tooltip>
                         <TooltipTrigger>
-                          <div className="flex flex-col items-center gap-1">
-                            <div className={`h-2 w-2 rounded-full ${TOOL_COLORS[tool]}`} />
-                            <span className={`text-xs font-medium ${i === 0 ? "text-blue-700 dark:text-blue-300" : "text-muted-foreground"}`}>
-                              {i === 0 ? tool : (tool.length > 14 ? tool.split(" ").map(w => w[0]).join("") : tool)}
-                            </span>
+                          <div className="flex items-center justify-center">
+                            <ToolLogo tool={tool} size="md" />
                           </div>
                         </TooltipTrigger>
                         <TooltipContent>{tool}</TooltipContent>
@@ -514,11 +563,16 @@ export function FeatureComparisonTab() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-left px-4 py-3 font-semibold text-foreground min-w-[200px]">Category</th>
-                  {TOOLS.map((tool, i) => (
+                  {TOOLS.map((tool) => (
                     <th key={tool} className="text-center px-3 py-3">
-                      <span className={`text-xs font-medium ${i === 0 ? "text-blue-700 dark:text-blue-300" : "text-muted-foreground"}`}>
-                        {tool.length > 14 ? tool.split(" ").map(w => w[0]).join("") : tool}
-                      </span>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <div className="flex items-center justify-center">
+                            <ToolLogo tool={tool} size="sm" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>{tool}</TooltipContent>
+                      </Tooltip>
                     </th>
                   ))}
                 </tr>
