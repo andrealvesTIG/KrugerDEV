@@ -3859,6 +3859,26 @@ function MonitoringTab() {
   const [pathFilter, setPathFilter] = useState<string>('');
   const [orgSortCol, setOrgSortCol] = useState<string>('name');
   const [orgSortDir, setOrgSortDir] = useState<'asc' | 'desc'>('asc');
+
+  type OrgUsageColumnKey = 'name' | 'plan' | 'users' | 'projects' | 'tasks' | 'portfolios' | 'risks' | 'credits' | 'ai' | 'api';
+  const defaultOrgUsageCols: OrgUsageColumnKey[] = ['name', 'plan', 'users', 'projects', 'tasks', 'portfolios', 'risks', 'credits', 'ai', 'api'];
+  const [orgUsageCols, setOrgUsageCols] = useState<OrgUsageColumnKey[]>(defaultOrgUsageCols);
+  const orgUsageColLabels: Record<OrgUsageColumnKey, string> = {
+    name: 'Organization',
+    plan: 'Plan',
+    users: 'Users',
+    projects: 'Projects',
+    tasks: 'Tasks',
+    portfolios: 'Portfolios',
+    risks: 'Risks',
+    credits: 'Credits Used',
+    ai: 'AI Runs',
+    api: 'API (7d)',
+  };
+  const toggleOrgUsageCol = (col: OrgUsageColumnKey) => {
+    setOrgUsageCols(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
+  };
+  const hasOrgCol = (col: OrgUsageColumnKey) => orgUsageCols.includes(col);
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerActionFilter, setLedgerActionFilter] = useState('');
@@ -5517,27 +5537,60 @@ function MonitoringTab() {
 
         <Card data-testid="card-org-details-table">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Organization Details
-            </CardTitle>
-            <CardDescription>Comprehensive overview of all active organizations</CardDescription>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Organization Details
+                </CardTitle>
+                <CardDescription>Comprehensive overview of all active organizations</CardDescription>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" data-testid="btn-org-usage-columns">
+                    <Settings2 className="h-4 w-4 mr-1" />
+                    Fields
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>Visible Fields</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {(Object.keys(orgUsageColLabels) as OrgUsageColumnKey[]).map(col => (
+                    <DropdownMenuCheckboxItem
+                      key={col}
+                      checked={hasOrgCol(col)}
+                      onCheckedChange={() => toggleOrgUsageCol(col)}
+                      data-testid={`toggle-org-col-${col}`}
+                    >
+                      {orgUsageColLabels[col]}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setOrgUsageCols(defaultOrgUsageCols)}
+                    data-testid="btn-org-reset-cols"
+                  >
+                    Reset to Default
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <SortHeader col="name">Organization</SortHeader>
-                    <SortHeader col="plan">Plan</SortHeader>
-                    <SortHeader col="users" align="right">Users</SortHeader>
-                    <SortHeader col="projects" align="right">Projects</SortHeader>
-                    <SortHeader col="tasks" align="right">Tasks</SortHeader>
-                    <SortHeader col="portfolios" align="right">Portfolios</SortHeader>
-                    <SortHeader col="risks" align="right">Risks</SortHeader>
-                    <SortHeader col="credits" align="right">Credits Used</SortHeader>
-                    <SortHeader col="ai" align="right">AI Runs</SortHeader>
-                    <SortHeader col="api" align="right">API (7d)</SortHeader>
+                    {hasOrgCol('name') && <SortHeader col="name">Organization</SortHeader>}
+                    {hasOrgCol('plan') && <SortHeader col="plan">Plan</SortHeader>}
+                    {hasOrgCol('users') && <SortHeader col="users" align="right">Users</SortHeader>}
+                    {hasOrgCol('projects') && <SortHeader col="projects" align="right">Projects</SortHeader>}
+                    {hasOrgCol('tasks') && <SortHeader col="tasks" align="right">Tasks</SortHeader>}
+                    {hasOrgCol('portfolios') && <SortHeader col="portfolios" align="right">Portfolios</SortHeader>}
+                    {hasOrgCol('risks') && <SortHeader col="risks" align="right">Risks</SortHeader>}
+                    {hasOrgCol('credits') && <SortHeader col="credits" align="right">Credits Used</SortHeader>}
+                    {hasOrgCol('ai') && <SortHeader col="ai" align="right">AI Runs</SortHeader>}
+                    {hasOrgCol('api') && <SortHeader col="api" align="right">API (7d)</SortHeader>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -5549,55 +5602,63 @@ function MonitoringTab() {
                     const creditPct = creditsIncluded > 0 ? (creditsUsed / creditsIncluded) * 100 : 0;
                     return (
                       <TableRow key={org.id} data-testid={`row-org-usage-${org.id}`}>
-                        <TableCell>
-                          <a
-                            href={`/organizations/${org.id}`}
-                            className="block hover:underline"
-                            data-testid={`link-org-${org.id}`}
-                          >
-                            <div className="font-medium text-primary">{org.name}</div>
-                            <div className="text-xs text-muted-foreground">{org.slug}</div>
-                          </a>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getPlanVariant(org.plan_code)} className="text-xs">
-                            {org.plan_name || 'No Plan'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">{formatNumber(Number(org.member_count))}</TableCell>
-                        <TableCell className="text-right">{formatNumber(Number(org.project_count))}</TableCell>
-                        <TableCell className="text-right">{formatNumber(Number(org.task_count))}</TableCell>
-                        <TableCell className="text-right">{formatNumber(Number(org.portfolio_count))}</TableCell>
-                        <TableCell className="text-right">{formatNumber(Number(org.risk_count))}</TableCell>
-                        <TableCell className="text-right">
-                          {creditsIncluded > 0 ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <span className={creditPct > 80 ? 'text-destructive font-semibold' : ''}>
-                                {formatNumber(creditsUsed)}
-                              </span>
-                              <span className="text-xs text-muted-foreground">/ {formatNumber(creditsIncluded)}</span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {aiIncluded > 0 ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <span>{formatNumber(aiUsed)}</span>
-                              <span className="text-xs text-muted-foreground">/ {formatNumber(aiIncluded)}</span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">{formatNumber(Number(org.api_requests_7d))}</TableCell>
+                        {hasOrgCol('name') && (
+                          <TableCell>
+                            <a
+                              href={`/organizations/${org.id}`}
+                              className="block hover:underline"
+                              data-testid={`link-org-${org.id}`}
+                            >
+                              <div className="font-medium text-primary">{org.name}</div>
+                              <div className="text-xs text-muted-foreground">{org.slug}</div>
+                            </a>
+                          </TableCell>
+                        )}
+                        {hasOrgCol('plan') && (
+                          <TableCell>
+                            <Badge variant={getPlanVariant(org.plan_code)} className="text-xs">
+                              {org.plan_name || 'No Plan'}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {hasOrgCol('users') && <TableCell className="text-right">{formatNumber(Number(org.member_count))}</TableCell>}
+                        {hasOrgCol('projects') && <TableCell className="text-right">{formatNumber(Number(org.project_count))}</TableCell>}
+                        {hasOrgCol('tasks') && <TableCell className="text-right">{formatNumber(Number(org.task_count))}</TableCell>}
+                        {hasOrgCol('portfolios') && <TableCell className="text-right">{formatNumber(Number(org.portfolio_count))}</TableCell>}
+                        {hasOrgCol('risks') && <TableCell className="text-right">{formatNumber(Number(org.risk_count))}</TableCell>}
+                        {hasOrgCol('credits') && (
+                          <TableCell className="text-right">
+                            {creditsIncluded > 0 ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <span className={creditPct > 80 ? 'text-destructive font-semibold' : ''}>
+                                  {formatNumber(creditsUsed)}
+                                </span>
+                                <span className="text-xs text-muted-foreground">/ {formatNumber(creditsIncluded)}</span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {hasOrgCol('ai') && (
+                          <TableCell className="text-right">
+                            {aiIncluded > 0 ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <span>{formatNumber(aiUsed)}</span>
+                                <span className="text-xs text-muted-foreground">/ {formatNumber(aiIncluded)}</span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {hasOrgCol('api') && <TableCell className="text-right font-medium">{formatNumber(Number(org.api_requests_7d))}</TableCell>}
                       </TableRow>
                     );
                   })}
                   {orgs.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground">No organization data available</TableCell>
+                      <TableCell colSpan={orgUsageCols.length || 1} className="text-center text-muted-foreground">No organization data available</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
