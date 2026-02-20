@@ -10,6 +10,7 @@ import {
   LineChart, DollarSign, Plug, Settings, Monitor, Layers, Star
 } from "lucide-react";
 import { SiOracle, SiAsana, SiJira } from "react-icons/si";
+import fridayLogo from "../assets/logo-icon.png";
 
 type Status = "yes" | "partial" | "no";
 
@@ -53,9 +54,7 @@ function ToolLogo({ tool, size = "md" }: { tool: string; size?: "sm" | "md" }) {
 
   const brandIcon: Record<string, JSX.Element> = {
     "FridayReport.AI": (
-      <div className={`${dim} rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold ${textSize} shadow-sm`}>
-        FR
-      </div>
+      <img src={fridayLogo} alt="FridayReport.AI" className={`${dim} rounded-lg object-contain shadow-sm`} />
     ),
     "Oracle Primavera P6": (
       <div className={`${dim} rounded-lg bg-red-600 flex items-center justify-center text-white shadow-sm`}>
