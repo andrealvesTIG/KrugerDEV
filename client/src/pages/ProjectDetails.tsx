@@ -1639,10 +1639,10 @@ function ProjectTimeline({
             </div>
             
             {/* Timeline bars with padding for markers - multiple rows */}
-            <div className="relative mx-4" style={{ height: `${numRows * 36 + 16}px` }}>
+            <div className="relative mx-4" style={{ height: `${numRows * 36 + 20}px` }}>
               {/* Render each row */}
               {Array.from({ length: numRows }).map((_, rowIndex) => {
-                const rowTop = rowIndex * 36 + 18; // 36px per row, 18px initial offset for label space
+                const rowTop = rowIndex * 36 + 8; // 36px per row, 8px initial offset
                 return (
                   <div key={rowIndex} className="absolute inset-x-0" style={{ top: `${rowTop}px` }}>
                     {/* Background bar for this row */}
@@ -1690,7 +1690,7 @@ function ProjectTimeline({
               
               {/* Milestone markers distributed across rows */}
               {eventsWithRows.map((event) => {
-                const rowTop = event.row * 36 + 18; // Match row positioning
+                const rowTop = event.row * 36 + 8; // Match row positioning
                 
                 return (
                   <Tooltip key={`${event.type}-${event.id}`}>
@@ -1699,22 +1699,12 @@ function ProjectTimeline({
                         className="absolute flex flex-col items-center cursor-pointer z-20"
                         style={{ 
                           left: `${event.position}%`,
-                          top: `${rowTop - 12}px`,
+                          top: `${rowTop - 6}px`,
                           transform: 'translateX(-50%)',
                         }}
                         data-testid={`timeline-milestone-${event.id}`}
                       >
-                        {/* Label above the diamond */}
-                        {event.showLabel && (
-                          <span 
-                            className="text-[9px] text-muted-foreground truncate max-w-[80px] mb-0.5 leading-tight"
-                            title={event.title}
-                          >
-                            {event.title.length > 12 ? event.title.slice(0, 12) + '...' : event.title}
-                          </span>
-                        )}
-                        
-                        {/* Diamond marker */}
+                        {/* Diamond marker - overlaps the bar */}
                         <div 
                           className={cn(
                             "w-3 h-3 rounded-sm rotate-45 border-2 flex-shrink-0",
@@ -1723,6 +1713,16 @@ function ProjectTimeline({
                               : "bg-red-500 border-red-600"
                           )}
                         />
+                        
+                        {/* Label below the diamond */}
+                        {event.showLabel && (
+                          <span 
+                            className="text-[9px] text-muted-foreground truncate max-w-[80px] mt-1 leading-tight text-center"
+                            title={event.title}
+                          >
+                            {event.title.length > 12 ? event.title.slice(0, 12) + '...' : event.title}
+                          </span>
+                        )}
                       </div>
                     </TooltipTrigger>
                     <TooltipContent className="space-y-2">
@@ -1756,7 +1756,7 @@ function ProjectTimeline({
               })}
               
               {/* Start marker - F1 green checkered flag */}
-              <div className="absolute -left-5" style={{ top: '8px' }}>
+              <div className="absolute -left-5" style={{ top: '-2px' }}>
                 <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
                   <line x1="3" y1="2" x2="3" y2="22" stroke="#78716c" strokeWidth="1.5" strokeLinecap="round"/>
                   <path d="M4 3 C8 2, 12 4, 16 3 C18 2.5, 20 3, 21 3.5 L20 10.5 C18 11, 16 10.5, 14 11 C10 12, 6 10, 4 11 Z" fill="#22c55e" stroke="#16a34a" strokeWidth="0.5"/>
@@ -1771,7 +1771,7 @@ function ProjectTimeline({
               </div>
               
               {/* End marker - F1 black/white checkered flag */}
-              <div className="absolute -right-5" style={{ top: '8px' }}>
+              <div className="absolute -right-5" style={{ top: '-2px' }}>
                 <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
                   <line x1="3" y1="2" x2="3" y2="22" stroke="#78716c" strokeWidth="1.5" strokeLinecap="round"/>
                   <path d="M4 3 C8 2, 12 4, 16 3 C18 2.5, 20 3, 21 3.5 L20 10.5 C18 11, 16 10.5, 14 11 C10 12, 6 10, 4 11 Z" fill="white" stroke="#d1d5db" strokeWidth="0.5"/>
