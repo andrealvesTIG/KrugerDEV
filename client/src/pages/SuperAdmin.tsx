@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send, MoreHorizontal, Wrench } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { FeatureComparisonTab } from "@/components/FeatureComparisonTab";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import type { Organization, User } from "@shared/schema";
@@ -118,6 +119,10 @@ export default function SuperAdmin() {
             <HelpCircle className="h-4 w-4" />
             Help Tickets
           </TabsTrigger>
+          <TabsTrigger value="feature-comparison" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-feature-comparison">
+            <BarChart3 className="h-4 w-4" />
+            Feature Comparison
+          </TabsTrigger>
         </TabsList>
         <div className="mt-6">
           <TabsContent value="organizations">
@@ -143,6 +148,9 @@ export default function SuperAdmin() {
           </TabsContent>
           <TabsContent value="help-tickets">
             <HelpTicketsTab />
+          </TabsContent>
+          <TabsContent value="feature-comparison">
+            <FeatureComparisonTab />
           </TabsContent>
         </div>
       </Tabs>
