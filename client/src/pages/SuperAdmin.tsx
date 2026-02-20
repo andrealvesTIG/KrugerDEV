@@ -111,10 +111,6 @@ export default function SuperAdmin() {
             <Activity className="h-4 w-4" />
             Monitoring
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-analytics">
-            <TrendingUp className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
           <TabsTrigger value="help-tickets" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-help-tickets">
             <HelpCircle className="h-4 w-4" />
             Help Tickets
@@ -141,10 +137,24 @@ export default function SuperAdmin() {
             <ConsentsTab />
           </TabsContent>
           <TabsContent value="monitoring">
-            <MonitoringTab />
-          </TabsContent>
-          <TabsContent value="analytics">
-            <AnalyticsTab />
+            <Tabs defaultValue="system-health" className="w-full">
+              <TabsList className="bg-muted/50 p-1 rounded-lg mb-4">
+                <TabsTrigger value="system-health" className="rounded-md data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="subtab-system-health">
+                  <Activity className="h-4 w-4" />
+                  System Health
+                </TabsTrigger>
+                <TabsTrigger value="analytics" className="rounded-md data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="subtab-analytics">
+                  <TrendingUp className="h-4 w-4" />
+                  Analytics
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="system-health">
+                <MonitoringTab />
+              </TabsContent>
+              <TabsContent value="analytics">
+                <AnalyticsTab />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
           <TabsContent value="help-tickets">
             <HelpTicketsTab />
