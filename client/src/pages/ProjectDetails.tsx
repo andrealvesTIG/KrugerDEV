@@ -5027,8 +5027,11 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               <div className="flex items-center gap-3 min-w-0">
                 <img src={plannerLogoPath} alt="Microsoft Planner" className="h-6 w-6 shrink-0" />
                 <div className="min-w-0">
-                  <span className="font-medium">Synced from {isPremiumPlan ? "Planner Premium" : "Microsoft Planner"}</span>
-                  <p className="text-sm text-muted-foreground">Tasks are fully editable. Click "Detach & Edit" to disconnect sync and manage tasks locally only.</p>
+                  <span className="font-medium">Planner Premium Task Management Options:</span>
+                  <div className="mt-1 space-y-0.5">
+                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">1. Sync Now – Edit tasks in Planner; view-only in FridayReport</p>
+                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">2. Detach & Edit – Disconnect from Planner and continue managing tasks directly in FridayReport</p>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
