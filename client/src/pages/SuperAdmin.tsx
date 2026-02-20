@@ -109,7 +109,7 @@ export default function SuperAdmin() {
           </TabsTrigger>
           <TabsTrigger value="monitoring" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-monitoring">
             <Activity className="h-4 w-4" />
-            Monitoring
+            Analytics
           </TabsTrigger>
           <TabsTrigger value="help-tickets" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-2" data-testid="tab-help-tickets">
             <HelpCircle className="h-4 w-4" />
