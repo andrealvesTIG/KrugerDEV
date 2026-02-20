@@ -3456,8 +3456,8 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
   }, [latestProjectAssessment]);
 
   const generateProjectRiskAssessment = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/risk-assessment`);
+    mutationFn: async (options?: { force?: boolean }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/risk-assessment`, { force: options?.force ?? false });
       return res.json();
     },
     onSuccess: (data: any) => {
@@ -3490,11 +3490,15 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
       setCreatedSuggestedIndices(new Set());
       setRiskAssessmentDialogOpen(true);
     } else {
+      setRiskForceRecalculate(false);
       setRiskConfirmOpen(true);
     }
   };
 
+  const [riskForceRecalculate, setRiskForceRecalculate] = useState(false);
+
   const handleRecalculateProjectRisk = () => {
+    setRiskForceRecalculate(true);
     setRiskConfirmOpen(true);
   };
 
@@ -4065,7 +4069,10 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
         <AlertDialogFooter>
           <AlertDialogCancel data-testid="button-project-risk-cancel">Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => generateProjectRiskAssessment.mutate()}
+            onClick={() => {
+              generateProjectRiskAssessment.mutate({ force: riskForceRecalculate });
+              setRiskForceRecalculate(false);
+            }}
             disabled={generateProjectRiskAssessment.isPending}
             data-testid="button-project-risk-confirm"
           >
