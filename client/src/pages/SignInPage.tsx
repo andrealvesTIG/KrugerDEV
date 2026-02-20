@@ -51,6 +51,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { HoneypotField } from "@/components/HoneypotField";
 import { LandingFooter } from "@/components/layout/LandingFooter";
+import { PublicFeatureComparison } from "@/components/PublicFeatureComparison";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
 import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
@@ -530,6 +531,13 @@ export default function SignInPage() {
           </div>
         </div>
       </section>
+
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-700/30" data-testid="section-feature-comparison-signin">
+        <div className="max-w-7xl mx-auto dark">
+          <PublicFeatureComparison />
+        </div>
+      </section>
+
       {/* Value Proposition */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
