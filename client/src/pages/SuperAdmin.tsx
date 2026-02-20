@@ -3869,6 +3869,31 @@ function MonitoringTab() {
   const [ledgerDays, setLedgerDays] = useState(30);
   const [ledgerExpandedRow, setLedgerExpandedRow] = useState<number | null>(null);
 
+  type LedgerColumnKey = 'timestamp' | 'user' | 'action' | 'details' | 'organization' | 'status' | 'duration' | 'ip' | 'userAgent' | 'method' | 'entity' | 'path';
+  const defaultLedgerColumns: LedgerColumnKey[] = ['timestamp', 'user', 'action', 'details', 'organization', 'status', 'duration'];
+  const [ledgerColumns, setLedgerColumns] = useState<LedgerColumnKey[]>(defaultLedgerColumns);
+  const ledgerColumnLabels: Record<LedgerColumnKey, string> = {
+    timestamp: 'Timestamp',
+    user: 'User',
+    action: 'Action',
+    details: 'Details',
+    organization: 'Organization',
+    status: 'Status',
+    duration: 'Duration',
+    ip: 'IP Address',
+    userAgent: 'User Agent',
+    method: 'HTTP Method',
+    entity: 'Entity',
+    path: 'Path',
+  };
+  const toggleLedgerColumn = (col: LedgerColumnKey) => {
+    setLedgerColumns(prev =>
+      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+    );
+  };
+  const hasLedgerCol = (col: LedgerColumnKey) => ledgerColumns.includes(col);
+  const visibleLedgerColCount = ledgerColumns.length + 1;
+
   const [ovDays, setOvDays] = useState(1);
   const [ovMethod, setOvMethod] = useState('');
   const [ovStatus, setOvStatus] = useState('');
@@ -4671,6 +4696,35 @@ function MonitoringTab() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" data-testid="btn-ledger-columns">
+                      <Settings2 className="h-4 w-4 mr-1" />
+                      Fields
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel>Visible Fields</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {(Object.keys(ledgerColumnLabels) as LedgerColumnKey[]).map(col => (
+                      <DropdownMenuCheckboxItem
+                        key={col}
+                        checked={hasLedgerCol(col)}
+                        onCheckedChange={() => toggleLedgerColumn(col)}
+                        data-testid={`toggle-ledger-col-${col}`}
+                      >
+                        {ledgerColumnLabels[col]}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setLedgerColumns(defaultLedgerColumns)}
+                      data-testid="btn-ledger-reset-cols"
+                    >
+                      Reset to Default
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Badge variant="secondary" className="text-xs">
                   Last {ledgerDays} days
                 </Badge>
@@ -4763,13 +4817,18 @@ function MonitoringTab() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <LedgerSortHead col="created_at">Timestamp</LedgerSortHead>
-                        <LedgerSortHead col="user">User</LedgerSortHead>
-                        <TableHead>Action</TableHead>
-                        <LedgerSortHead col="path">Details</LedgerSortHead>
-                        <TableHead>Organization</TableHead>
-                        <LedgerSortHead col="status" align="right">Status</LedgerSortHead>
-                        <LedgerSortHead col="duration" align="right">Duration</LedgerSortHead>
+                        {hasLedgerCol('timestamp') && <LedgerSortHead col="created_at">Timestamp</LedgerSortHead>}
+                        {hasLedgerCol('user') && <LedgerSortHead col="user">User</LedgerSortHead>}
+                        {hasLedgerCol('action') && <TableHead>Action</TableHead>}
+                        {hasLedgerCol('method') && <TableHead>HTTP Method</TableHead>}
+                        {hasLedgerCol('details') && <LedgerSortHead col="path">Details</LedgerSortHead>}
+                        {hasLedgerCol('entity') && <TableHead>Entity</TableHead>}
+                        {hasLedgerCol('path') && <TableHead>Path</TableHead>}
+                        {hasLedgerCol('organization') && <TableHead>Organization</TableHead>}
+                        {hasLedgerCol('status') && <LedgerSortHead col="status" align="right">Status</LedgerSortHead>}
+                        {hasLedgerCol('duration') && <LedgerSortHead col="duration" align="right">Duration</LedgerSortHead>}
+                        {hasLedgerCol('ip') && <TableHead>IP Address</TableHead>}
+                        {hasLedgerCol('userAgent') && <TableHead>User Agent</TableHead>}
                         <TableHead className="w-[40px]"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -4782,46 +4841,77 @@ function MonitoringTab() {
                             onClick={() => setLedgerExpandedRow(ledgerExpandedRow === entry.id ? null : entry.id)}
                             data-testid={`row-activity-${entry.id}`}
                           >
-                            <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
-                              {format(new Date(entry.created_at), 'MMM d, h:mm:ss a')}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium shrink-0">
-                                  {(entry.user_first_name || entry.user_email || '?').charAt(0).toUpperCase()}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-sm font-medium truncate">
-                                    {entry.user_first_name || entry.user_last_name
-                                      ? `${entry.user_first_name || ''} ${entry.user_last_name || ''}`.trim()
-                                      : 'Unknown'}
+                            {hasLedgerCol('timestamp') && (
+                              <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+                                {format(new Date(entry.created_at), 'MMM d, h:mm:ss a')}
+                              </TableCell>
+                            )}
+                            {hasLedgerCol('user') && (
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium shrink-0">
+                                    {(entry.user_first_name || entry.user_email || '?').charAt(0).toUpperCase()}
                                   </div>
-                                  <div className="text-xs text-muted-foreground truncate">{entry.user_email}</div>
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-medium truncate">
+                                      {entry.user_first_name || entry.user_last_name
+                                        ? `${entry.user_first_name || ''} ${entry.user_last_name || ''}`.trim()
+                                        : 'Unknown'}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground truncate">{entry.user_email}</div>
+                                  </div>
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getActionColor(entry.method)}`}>
-                                {getActionLabel(entry.method)}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <div className="min-w-0">
-                                <div className="text-sm font-medium">{getActivityDescription(entry)}</div>
-                                <div className="text-xs text-muted-foreground font-mono truncate max-w-[250px]">{entry.path}</div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {entry.org_name || '-'}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Badge variant={getStatusBadgeVariant(entry.status_code)} className="text-xs font-mono">
-                                {entry.status_code}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right text-xs text-muted-foreground">
-                              {entry.duration !== null ? `${entry.duration}ms` : '-'}
-                            </TableCell>
+                              </TableCell>
+                            )}
+                            {hasLedgerCol('action') && (
+                              <TableCell>
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getActionColor(entry.method)}`}>
+                                  {getActionLabel(entry.method)}
+                                </span>
+                              </TableCell>
+                            )}
+                            {hasLedgerCol('method') && (
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs font-mono">{entry.method}</Badge>
+                              </TableCell>
+                            )}
+                            {hasLedgerCol('details') && (
+                              <TableCell>
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium">{getActivityDescription(entry)}</div>
+                                  <div className="text-xs text-muted-foreground font-mono truncate max-w-[250px]">{entry.path}</div>
+                                </div>
+                              </TableCell>
+                            )}
+                            {hasLedgerCol('entity') && (
+                              <TableCell className="text-sm">{getEntityFromPath(entry.path)}</TableCell>
+                            )}
+                            {hasLedgerCol('path') && (
+                              <TableCell className="font-mono text-xs max-w-[250px] truncate">{entry.path}</TableCell>
+                            )}
+                            {hasLedgerCol('organization') && (
+                              <TableCell className="text-sm text-muted-foreground">
+                                {entry.org_name || '-'}
+                              </TableCell>
+                            )}
+                            {hasLedgerCol('status') && (
+                              <TableCell className="text-right">
+                                <Badge variant={getStatusBadgeVariant(entry.status_code)} className="text-xs font-mono">
+                                  {entry.status_code}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {hasLedgerCol('duration') && (
+                              <TableCell className="text-right text-xs text-muted-foreground">
+                                {entry.duration !== null ? `${entry.duration}ms` : '-'}
+                              </TableCell>
+                            )}
+                            {hasLedgerCol('ip') && (
+                              <TableCell className="text-xs font-mono text-muted-foreground">{entry.ip_address || '-'}</TableCell>
+                            )}
+                            {hasLedgerCol('userAgent') && (
+                              <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{entry.user_agent || '-'}</TableCell>
+                            )}
                             <TableCell>
                               {ledgerExpandedRow === entry.id ? (
                                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -4832,7 +4922,7 @@ function MonitoringTab() {
                           </TableRow>
                           {ledgerExpandedRow === entry.id && (
                             <TableRow key={`${entry.id}-detail`}>
-                              <TableCell colSpan={8} className="bg-muted/30 p-4">
+                              <TableCell colSpan={visibleLedgerColCount} className="bg-muted/30 p-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                   <div className="space-y-2">
                                     <div>
