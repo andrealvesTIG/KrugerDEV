@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { SiOracle, SiAsana, SiJira } from "react-icons/si";
 import fridayLogo from "../assets/logo-icon.png";
+import plannerLogo from "@assets/image_1771603592411.png";
 
 type Status = "yes" | "partial" | "no";
 
@@ -60,9 +61,7 @@ function ToolLogo({ tool, size = "md" }: { tool: string; size?: "sm" | "md" }) {
       </div>
     ),
     "MS Planner": (
-      <div className={`${dim} rounded-lg bg-sky-500 flex items-center justify-center text-white font-bold ${textSize} shadow-sm`}>
-        PL
-      </div>
+      <img src={plannerLogo} alt="MS Planner" className={`${dim} rounded-lg object-contain shadow-sm`} />
     ),
     "Smartsheet": (
       <div className={`${dim} rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold ${textSize} shadow-sm`}>
