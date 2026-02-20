@@ -453,7 +453,7 @@ export function FeatureComparisonTab() {
                           <div className="flex flex-col items-center gap-1">
                             <div className={`h-2 w-2 rounded-full ${TOOL_COLORS[tool]}`} />
                             <span className={`text-xs font-medium ${i === 0 ? "text-blue-700 dark:text-blue-300" : "text-muted-foreground"}`}>
-                              {tool.length > 14 ? tool.split(" ").map(w => w[0]).join("") : tool}
+                              {i === 0 ? tool : (tool.length > 14 ? tool.split(" ").map(w => w[0]).join("") : tool)}
                             </span>
                           </div>
                         </TooltipTrigger>
