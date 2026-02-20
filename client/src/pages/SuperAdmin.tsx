@@ -3819,6 +3819,8 @@ function MonitoringTab() {
   const [apiLogsPage, setApiLogsPage] = useState(1);
   const [methodFilter, setMethodFilter] = useState<string>('');
   const [pathFilter, setPathFilter] = useState<string>('');
+  const [orgSortCol, setOrgSortCol] = useState<string>('name');
+  const [orgSortDir, setOrgSortDir] = useState<'asc' | 'desc'>('asc');
 
   const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<MonitoringOverview>({
     queryKey: ['/api/admin/monitoring/overview'],
@@ -4535,6 +4537,49 @@ function MonitoringTab() {
       }
     };
 
+    const toggleOrgSort = (col: string) => {
+      if (orgSortCol === col) {
+        setOrgSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+      } else {
+        setOrgSortCol(col);
+        setOrgSortDir('asc');
+      }
+    };
+
+    const sortedOrgs = [...orgs].sort((a, b) => {
+      const dir = orgSortDir === 'asc' ? 1 : -1;
+      switch (orgSortCol) {
+        case 'name': return dir * (a.name ?? '').localeCompare(b.name ?? '');
+        case 'plan': return dir * (a.plan_name ?? '').localeCompare(b.plan_name ?? '');
+        case 'users': return dir * (Number(a.member_count) - Number(b.member_count));
+        case 'projects': return dir * (Number(a.project_count) - Number(b.project_count));
+        case 'tasks': return dir * (Number(a.task_count) - Number(b.task_count));
+        case 'portfolios': return dir * (Number(a.portfolio_count) - Number(b.portfolio_count));
+        case 'risks': return dir * (Number(a.risk_count) - Number(b.risk_count));
+        case 'credits': return dir * (getCreditsUsed(a.id) - getCreditsUsed(b.id));
+        case 'ai': return dir * (getAiRunsUsed(a.id) - getAiRunsUsed(b.id));
+        case 'api': return dir * (Number(a.api_requests_7d) - Number(b.api_requests_7d));
+        default: return 0;
+      }
+    });
+
+    const SortHeader = ({ col, children, align }: { col: string; children: React.ReactNode; align?: string }) => (
+      <TableHead
+        className={`cursor-pointer select-none hover:text-foreground transition-colors ${align === 'right' ? 'text-right' : ''}`}
+        onClick={() => toggleOrgSort(col)}
+        data-testid={`sort-org-${col}`}
+      >
+        <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+          {children}
+          {orgSortCol === col ? (
+            orgSortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+          ) : (
+            <ArrowUp className="h-3 w-3 opacity-0 group-hover:opacity-30" />
+          )}
+        </div>
+      </TableHead>
+    );
+
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -4680,20 +4725,20 @@ function MonitoringTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead className="text-right">Users</TableHead>
-                    <TableHead className="text-right">Projects</TableHead>
-                    <TableHead className="text-right">Tasks</TableHead>
-                    <TableHead className="text-right">Portfolios</TableHead>
-                    <TableHead className="text-right">Risks</TableHead>
-                    <TableHead className="text-right">Credits Used</TableHead>
-                    <TableHead className="text-right">AI Runs</TableHead>
-                    <TableHead className="text-right">API (7d)</TableHead>
+                    <SortHeader col="name">Organization</SortHeader>
+                    <SortHeader col="plan">Plan</SortHeader>
+                    <SortHeader col="users" align="right">Users</SortHeader>
+                    <SortHeader col="projects" align="right">Projects</SortHeader>
+                    <SortHeader col="tasks" align="right">Tasks</SortHeader>
+                    <SortHeader col="portfolios" align="right">Portfolios</SortHeader>
+                    <SortHeader col="risks" align="right">Risks</SortHeader>
+                    <SortHeader col="credits" align="right">Credits Used</SortHeader>
+                    <SortHeader col="ai" align="right">AI Runs</SortHeader>
+                    <SortHeader col="api" align="right">API (7d)</SortHeader>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {orgs.map((org) => {
+                  {sortedOrgs.map((org) => {
                     const creditsUsed = getCreditsUsed(org.id);
                     const creditsIncluded = getCreditsIncluded(org.id);
                     const aiUsed = getAiRunsUsed(org.id);
@@ -4702,10 +4747,14 @@ function MonitoringTab() {
                     return (
                       <TableRow key={org.id} data-testid={`row-org-usage-${org.id}`}>
                         <TableCell>
-                          <div>
-                            <div className="font-medium">{org.name}</div>
+                          <a
+                            href={`/organizations/${org.id}`}
+                            className="block hover:underline"
+                            data-testid={`link-org-${org.id}`}
+                          >
+                            <div className="font-medium text-primary">{org.name}</div>
                             <div className="text-xs text-muted-foreground">{org.slug}</div>
-                          </div>
+                          </a>
                         </TableCell>
                         <TableCell>
                           <Badge variant={getPlanVariant(org.plan_code)} className="text-xs">
