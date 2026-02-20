@@ -20097,107 +20097,188 @@ Return ONLY valid JSON.`;
     }
 
     try {
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const days = Math.min(Math.max(Number(req.query.days) || 1, 1), 365);
+      const methodFilter = (req.query.method as string || '').toUpperCase();
+      const statusFilter = req.query.status as string || '';
+      const pathSearch = (req.query.path as string || '').trim();
+      const userIdFilter = req.query.userId as string || '';
+      const orgIdFilter = req.query.orgId as string || '';
 
-      // Get active users (users with activity in last 24 hours)
-      const activeUsersResult = await db.execute(sql`
-        SELECT COUNT(DISTINCT user_id) as count FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-      `);
-      const activeUsers24h = Number(activeUsersResult.rows[0]?.count || 0);
+      const intervalStr = `${days} days`;
 
-      // Get total requests today
-      const requestsTodayResult = await db.execute(sql`
-        SELECT COUNT(*) as count FROM api_request_logs 
-        WHERE DATE(created_at) = CURRENT_DATE
-      `);
-      const requestsToday = Number(requestsTodayResult.rows[0]?.count || 0);
+      const conditions: string[] = [`l.created_at >= NOW() - INTERVAL '${intervalStr}'`];
+      if (methodFilter && ['GET','POST','PUT','PATCH','DELETE'].includes(methodFilter)) {
+        conditions.push(`l.method = '${methodFilter}'`);
+      }
+      if (statusFilter === '2xx') conditions.push(`l.status_code >= 200 AND l.status_code < 300`);
+      else if (statusFilter === '3xx') conditions.push(`l.status_code >= 300 AND l.status_code < 400`);
+      else if (statusFilter === '4xx') conditions.push(`l.status_code >= 400 AND l.status_code < 500`);
+      else if (statusFilter === '5xx') conditions.push(`l.status_code >= 500`);
+      if (pathSearch) {
+        const escaped = pathSearch.replace(/'/g, "''");
+        conditions.push(`l.path ILIKE '%${escaped}%'`);
+      }
+      if (userIdFilter) {
+        const escaped = userIdFilter.replace(/'/g, "''");
+        conditions.push(`l.user_id = '${escaped}'`);
+      }
+      if (orgIdFilter && !isNaN(Number(orgIdFilter))) {
+        conditions.push(`l.organization_id = ${Number(orgIdFilter)}`);
+      }
 
-      // Get average response time
-      const avgResponseTimeResult = await db.execute(sql`
-        SELECT AVG(duration) as avg FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '24 hours' AND duration IS NOT NULL
-      `);
+      const whereClause = conditions.join(' AND ');
+      const simpleWhere = `created_at >= NOW() - INTERVAL '${intervalStr}'`;
+
+      const activeUsersResult = await db.execute(sql.raw(
+        `SELECT COUNT(DISTINCT l.user_id) as count FROM api_request_logs l WHERE ${whereClause}`
+      ));
+      const activeUsers = Number(activeUsersResult.rows[0]?.count || 0);
+
+      const requestsResult = await db.execute(sql.raw(
+        `SELECT COUNT(*) as count FROM api_request_logs l WHERE ${whereClause}`
+      ));
+      const requestsCount = Number(requestsResult.rows[0]?.count || 0);
+
+      const avgResponseTimeResult = await db.execute(sql.raw(
+        `SELECT AVG(l.duration) as avg FROM api_request_logs l WHERE ${whereClause} AND l.duration IS NOT NULL`
+      ));
       const avgResponseTime = Number(avgResponseTimeResult.rows[0]?.avg || 0).toFixed(0);
 
-      // Get error rate
-      const errorRateResult = await db.execute(sql`
-        SELECT 
-          COUNT(*) FILTER (WHERE status_code >= 400) as errors,
+      const errorRateResult = await db.execute(sql.raw(
+        `SELECT 
+          COUNT(*) FILTER (WHERE l.status_code >= 400) as errors,
           COUNT(*) as total
-        FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-      `);
+        FROM api_request_logs l WHERE ${whereClause}`
+      ));
       const errors = Number(errorRateResult.rows[0]?.errors || 0);
       const total = Number(errorRateResult.rows[0]?.total || 1);
       const errorRate = ((errors / total) * 100).toFixed(2);
 
-      // Get total users
       const totalUsersResult = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
       const totalUsers = Number(totalUsersResult.rows[0]?.count || 0);
 
-      // Get total organizations
       const totalOrgsResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM organizations WHERE deactivated_at IS NULL
       `);
       const totalOrganizations = Number(totalOrgsResult.rows[0]?.count || 0);
 
-      // Get total projects
       const totalProjectsResult = await db.execute(sql`
         SELECT COUNT(*) as count FROM projects WHERE deleted_at IS NULL
       `);
       const totalProjects = Number(totalProjectsResult.rows[0]?.count || 0);
 
-      // Get requests per day for last 7 days
-      const requestsPerDayResult = await db.execute(sql`
-        SELECT DATE(created_at) as date, COUNT(*) as count 
-        FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '7 days'
-        GROUP BY DATE(created_at) 
-        ORDER BY date DESC
-      `);
+      const requestsPerDayResult = await db.execute(sql.raw(
+        `SELECT DATE(l.created_at) as date, COUNT(*) as count 
+        FROM api_request_logs l
+        WHERE ${whereClause}
+        GROUP BY DATE(l.created_at) 
+        ORDER BY date DESC`
+      ));
 
-      // Get top endpoints
-      const topEndpointsResult = await db.execute(sql`
-        SELECT path, method, COUNT(*) as count, AVG(duration) as avg_duration
-        FROM api_request_logs 
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-        GROUP BY path, method 
+      const topEndpointsResult = await db.execute(sql.raw(
+        `SELECT l.path, l.method, COUNT(*) as count, AVG(l.duration) as avg_duration
+        FROM api_request_logs l
+        WHERE ${whereClause}
+        GROUP BY l.path, l.method 
         ORDER BY count DESC 
-        LIMIT 10
-      `);
+        LIMIT 15`
+      ));
 
-      // Get user registrations per day for last 30 days
-      const registrationsResult = await db.execute(sql`
-        SELECT DATE(created_at) as date, COUNT(*) as count 
+      const regDays = Math.max(days, 30);
+      const registrationsResult = await db.execute(sql.raw(
+        `SELECT DATE(created_at) as date, COUNT(*) as count 
         FROM users 
-        WHERE created_at >= NOW() - INTERVAL '30 days'
+        WHERE created_at >= NOW() - INTERVAL '${regDays} days'
         GROUP BY DATE(created_at) 
-        ORDER BY date DESC
-      `);
+        ORDER BY date DESC`
+      ));
 
-      // Get recent errors
-      const recentErrorsResult = await db.execute(sql`
-        SELECT path, status_code, error_message, COUNT(*) as count
-        FROM api_request_logs 
-        WHERE status_code >= 400 AND created_at >= NOW() - INTERVAL '24 hours'
-        GROUP BY path, status_code, error_message
+      const recentErrorsResult = await db.execute(sql.raw(
+        `SELECT l.path, l.status_code, l.error_message, COUNT(*) as count
+        FROM api_request_logs l
+        WHERE l.status_code >= 400 AND ${whereClause}
+        GROUP BY l.path, l.status_code, l.error_message
         ORDER BY count DESC
-        LIMIT 10
+        LIMIT 15`
+      ));
+
+      const methodBreakdownResult = await db.execute(sql.raw(
+        `SELECT l.method, COUNT(*) as count
+        FROM api_request_logs l
+        WHERE ${whereClause}
+        GROUP BY l.method
+        ORDER BY count DESC`
+      ));
+
+      const statusBreakdownResult = await db.execute(sql.raw(
+        `SELECT 
+          CASE 
+            WHEN l.status_code >= 200 AND l.status_code < 300 THEN '2xx'
+            WHEN l.status_code >= 300 AND l.status_code < 400 THEN '3xx'
+            WHEN l.status_code >= 400 AND l.status_code < 500 THEN '4xx'
+            WHEN l.status_code >= 500 THEN '5xx'
+            ELSE 'other'
+          END as status_group,
+          COUNT(*) as count
+        FROM api_request_logs l
+        WHERE ${whereClause}
+        GROUP BY status_group
+        ORDER BY count DESC`
+      ));
+
+      const topUsersResult = await db.execute(sql.raw(
+        `SELECT l.user_id, u.email, u.first_name, u.last_name, COUNT(*) as count
+        FROM api_request_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        WHERE ${whereClause} AND l.user_id IS NOT NULL
+        GROUP BY l.user_id, u.email, u.first_name, u.last_name
+        ORDER BY count DESC
+        LIMIT 10`
+      ));
+
+      const topOrgsResult = await db.execute(sql.raw(
+        `SELECT l.organization_id, o.name as org_name, COUNT(*) as count
+        FROM api_request_logs l
+        LEFT JOIN organizations o ON l.organization_id = o.id
+        WHERE ${whereClause} AND l.organization_id IS NOT NULL
+        GROUP BY l.organization_id, o.name
+        ORDER BY count DESC
+        LIMIT 10`
+      ));
+
+      const slowestEndpointsResult = await db.execute(sql.raw(
+        `SELECT l.path, l.method, AVG(l.duration) as avg_duration, COUNT(*) as count
+        FROM api_request_logs l
+        WHERE ${whereClause} AND l.duration IS NOT NULL
+        GROUP BY l.path, l.method
+        HAVING COUNT(*) >= 3
+        ORDER BY avg_duration DESC
+        LIMIT 10`
+      ));
+
+      const allUsersResult = await db.execute(sql.raw(
+        `SELECT DISTINCT l.user_id, u.email, u.first_name, u.last_name
+        FROM api_request_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        WHERE l.user_id IS NOT NULL AND l.created_at >= NOW() - INTERVAL '90 days'
+        ORDER BY u.email
+        LIMIT 100`
+      ));
+
+      const allOrgsResult = await db.execute(sql`
+        SELECT id, name FROM organizations WHERE deactivated_at IS NULL ORDER BY name LIMIT 100
       `);
 
       res.json({
         summary: {
-          activeUsers24h,
-          requestsToday,
+          activeUsers24h: activeUsers,
+          requestsToday: requestsCount,
           avgResponseTime: `${avgResponseTime}ms`,
           errorRate: `${errorRate}%`,
           totalUsers,
           totalOrganizations,
           totalProjects,
+          totalErrors: errors,
         },
         charts: {
           requestsPerDay: requestsPerDayResult.rows,
@@ -20205,6 +20286,15 @@ Return ONLY valid JSON.`;
         },
         topEndpoints: topEndpointsResult.rows,
         recentErrors: recentErrorsResult.rows,
+        methodBreakdown: methodBreakdownResult.rows,
+        statusBreakdown: statusBreakdownResult.rows,
+        topUsers: topUsersResult.rows,
+        topOrgs: topOrgsResult.rows,
+        slowestEndpoints: slowestEndpointsResult.rows,
+        filterOptions: {
+          users: allUsersResult.rows,
+          organizations: allOrgsResult.rows,
+        },
       });
     } catch (error) {
       console.error('Error fetching monitoring overview:', error);

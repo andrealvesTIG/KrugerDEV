@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send, MoreHorizontal, Wrench } from "lucide-react";
+import { Loader2, Trash2, Building2, Users, Plus, Edit, ShieldAlert, Crown, Database, Sparkles, Eraser, CreditCard, DollarSign, UserPlus, RotateCcw, ChevronDown, ChevronRight, Archive, Wallet, ArrowUp, ArrowDown, Search, Settings2, FileCheck, Activity, BarChart3, AlertTriangle, Clock, Globe, Zap, HardDrive, TrendingUp, RefreshCw, HelpCircle, MessageSquare, CheckCircle, XCircle, Eye, Download, Mail, Copy, Send, MoreHorizontal, Wrench, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FeatureComparisonTab } from "@/components/FeatureComparisonTab";
@@ -3737,6 +3737,7 @@ interface MonitoringOverview {
     totalUsers: number;
     totalOrganizations: number;
     totalProjects: number;
+    totalErrors: number;
   };
   charts: {
     requestsPerDay: Array<{ date: string; count: number }>;
@@ -3744,6 +3745,15 @@ interface MonitoringOverview {
   };
   topEndpoints: Array<{ path: string; method: string; count: number; avg_duration: number }>;
   recentErrors: Array<{ path: string; status_code: number; error_message: string | null; count: number }>;
+  methodBreakdown: Array<{ method: string; count: number }>;
+  statusBreakdown: Array<{ status_group: string; count: number }>;
+  topUsers: Array<{ user_id: string; email: string; first_name: string; last_name: string; count: number }>;
+  topOrgs: Array<{ organization_id: number; org_name: string; count: number }>;
+  slowestEndpoints: Array<{ path: string; method: string; avg_duration: number; count: number }>;
+  filterOptions: {
+    users: Array<{ user_id: string; email: string; first_name: string; last_name: string }>;
+    organizations: Array<{ id: number; name: string }>;
+  };
 }
 
 interface UserActivity {
@@ -3859,8 +3869,29 @@ function MonitoringTab() {
   const [ledgerDays, setLedgerDays] = useState(30);
   const [ledgerExpandedRow, setLedgerExpandedRow] = useState<number | null>(null);
 
-  const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<MonitoringOverview>({
-    queryKey: ['/api/admin/monitoring/overview'],
+  const [ovDays, setOvDays] = useState(1);
+  const [ovMethod, setOvMethod] = useState('');
+  const [ovStatus, setOvStatus] = useState('');
+  const [ovPath, setOvPath] = useState('');
+  const [ovUserId, setOvUserId] = useState('');
+  const [ovOrgId, setOvOrgId] = useState('');
+
+  const ovQueryString = new URLSearchParams({
+    days: String(ovDays),
+    ...(ovMethod && { method: ovMethod }),
+    ...(ovStatus && { status: ovStatus }),
+    ...(ovPath && { path: ovPath }),
+    ...(ovUserId && { userId: ovUserId }),
+    ...(ovOrgId && { orgId: ovOrgId }),
+  }).toString();
+
+  const { data: overview, isLoading: overviewLoading, isFetching: overviewFetching, refetch: refetchOverview } = useQuery<MonitoringOverview>({
+    queryKey: ['/api/admin/monitoring/overview', ovDays, ovMethod, ovStatus, ovPath, ovUserId, ovOrgId],
+    queryFn: async () => {
+      const r = await fetch(`/api/admin/monitoring/overview?${ovQueryString}`, { credentials: 'include' });
+      if (!r.ok) throw new Error(`Failed to fetch overview: ${r.status}`);
+      return r.json();
+    },
   });
 
   const { data: userActivity, isLoading: activityLoading, refetch: refetchActivity } = useQuery<UserActivity>({
@@ -3940,6 +3971,17 @@ function MonitoringTab() {
     }
   };
 
+  const ovHasFilters = ovMethod || ovStatus || ovPath || ovUserId || ovOrgId || ovDays !== 1;
+  const ovClearFilters = () => {
+    setOvDays(1);
+    setOvMethod('');
+    setOvStatus('');
+    setOvPath('');
+    setOvUserId('');
+    setOvOrgId('');
+  };
+  const ovTimeLabel = ovDays === 1 ? '24h' : ovDays === 7 ? '7d' : ovDays === 14 ? '14d' : ovDays === 30 ? '30d' : ovDays === 90 ? '90d' : `${ovDays}d`;
+
   const renderOverview = () => {
     if (overviewLoading) {
       return (
@@ -3957,25 +3999,125 @@ function MonitoringTab() {
       );
     }
 
+    const filterUsers = overview.filterOptions?.users ?? [];
+    const filterOrgs = overview.filterOptions?.organizations ?? [];
+    const methodBreakdown = overview.methodBreakdown ?? [];
+    const statusBreakdown = overview.statusBreakdown ?? [];
+    const ovTopUsers = overview.topUsers ?? [];
+    const ovTopOrgs = overview.topOrgs ?? [];
+    const slowEndpoints = overview.slowestEndpoints ?? [];
+
     return (
       <div className="space-y-6">
+        <Card data-testid="card-overview-filters">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={String(ovDays)} onValueChange={(v) => setOvDays(Number(v))}>
+                <SelectTrigger className="w-[120px]" data-testid="select-ov-days">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Last 24h</SelectItem>
+                  <SelectItem value="7">Last 7 days</SelectItem>
+                  <SelectItem value="14">Last 14 days</SelectItem>
+                  <SelectItem value="30">Last 30 days</SelectItem>
+                  <SelectItem value="90">Last 90 days</SelectItem>
+                  <SelectItem value="365">Last year</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={ovMethod || 'all'} onValueChange={(v) => setOvMethod(v === 'all' ? '' : v)}>
+                <SelectTrigger className="w-[120px]" data-testid="select-ov-method">
+                  <SelectValue placeholder="Method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Methods</SelectItem>
+                  <SelectItem value="GET">GET</SelectItem>
+                  <SelectItem value="POST">POST</SelectItem>
+                  <SelectItem value="PUT">PUT</SelectItem>
+                  <SelectItem value="PATCH">PATCH</SelectItem>
+                  <SelectItem value="DELETE">DELETE</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={ovStatus || 'all'} onValueChange={(v) => setOvStatus(v === 'all' ? '' : v)}>
+                <SelectTrigger className="w-[130px]" data-testid="select-ov-status">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="2xx">2xx Success</SelectItem>
+                  <SelectItem value="3xx">3xx Redirect</SelectItem>
+                  <SelectItem value="4xx">4xx Client Error</SelectItem>
+                  <SelectItem value="5xx">5xx Server Error</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="relative min-w-[180px] flex-1 max-w-[280px]">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Filter by path..."
+                  value={ovPath}
+                  onChange={(e) => setOvPath(e.target.value)}
+                  className="pl-8"
+                  data-testid="input-ov-path"
+                />
+              </div>
+              <Select value={ovUserId || 'all'} onValueChange={(v) => setOvUserId(v === 'all' ? '' : v)}>
+                <SelectTrigger className="w-[180px]" data-testid="select-ov-user">
+                  <SelectValue placeholder="User" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {filterUsers.map(u => (
+                    <SelectItem key={u.user_id} value={u.user_id}>
+                      {u.first_name || u.last_name ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={ovOrgId || 'all'} onValueChange={(v) => setOvOrgId(v === 'all' ? '' : v)}>
+                <SelectTrigger className="w-[180px]" data-testid="select-ov-org">
+                  <SelectValue placeholder="Organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Organizations</SelectItem>
+                  {filterOrgs.map(o => (
+                    <SelectItem key={o.id} value={String(o.id)}>
+                      {o.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {ovHasFilters && (
+                <Button variant="ghost" size="sm" onClick={ovClearFilters} className="text-muted-foreground" data-testid="btn-ov-clear">
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              )}
+              {overviewFetching && !overviewLoading && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <Card className="hover-elevate" data-testid="card-active-users">
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Users className="h-4 w-4" />
-                Active Users (24h)
+                Active Users
               </div>
               <div className="text-2xl font-bold mt-1">{formatNumber(overview.summary.activeUsers24h)}</div>
+              <div className="text-xs text-muted-foreground">{ovTimeLabel}</div>
             </CardContent>
           </Card>
           <Card className="hover-elevate" data-testid="card-requests-today">
             <CardContent className="pt-4 pb-3">
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Globe className="h-4 w-4" />
-                Requests Today
+                Requests
               </div>
               <div className="text-2xl font-bold mt-1">{formatNumber(overview.summary.requestsToday)}</div>
+              <div className="text-xs text-muted-foreground">{ovTimeLabel}</div>
             </CardContent>
           </Card>
           <Card className="hover-elevate" data-testid="card-avg-response">
@@ -3985,6 +4127,7 @@ function MonitoringTab() {
                 Avg Response
               </div>
               <div className="text-2xl font-bold mt-1">{overview.summary.avgResponseTime}</div>
+              <div className="text-xs text-muted-foreground">{ovTimeLabel}</div>
             </CardContent>
           </Card>
           <Card className="hover-elevate" data-testid="card-error-rate">
@@ -3994,6 +4137,7 @@ function MonitoringTab() {
                 Error Rate
               </div>
               <div className="text-2xl font-bold mt-1">{overview.summary.errorRate}</div>
+              <div className="text-xs text-muted-foreground">{formatNumber(overview.summary.totalErrors)} errors</div>
             </CardContent>
           </Card>
           <Card className="hover-elevate" data-testid="card-total-users">
@@ -4025,12 +4169,93 @@ function MonitoringTab() {
           </Card>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Method Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {methodBreakdown.length > 0 ? methodBreakdown.map((m, i) => {
+                  const methodColors: Record<string, string> = { GET: 'bg-blue-500', POST: 'bg-green-500', PUT: 'bg-amber-500', PATCH: 'bg-orange-500', DELETE: 'bg-red-500' };
+                  const maxCount = Math.max(...methodBreakdown.map(x => Number(x.count)));
+                  const pct = maxCount > 0 ? (Number(m.count) / maxCount) * 100 : 0;
+                  return (
+                    <div key={i} className="flex items-center gap-2" data-testid={`bar-method-${i}`}>
+                      <span className="text-xs font-medium w-14">{m.method}</span>
+                      <div className="flex-1 h-4 bg-muted rounded-sm overflow-hidden">
+                        <div className={`h-full ${methodColors[m.method] || 'bg-muted-foreground'} transition-all duration-300`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs font-medium w-12 text-right">{formatNumber(Number(m.count))}</span>
+                    </div>
+                  );
+                }) : <div className="text-center text-muted-foreground text-xs py-2">No data</div>}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Status Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {statusBreakdown.length > 0 ? statusBreakdown.map((s, i) => {
+                  const statusColors: Record<string, string> = { '2xx': 'bg-green-500', '3xx': 'bg-blue-400', '4xx': 'bg-amber-500', '5xx': 'bg-red-500' };
+                  const maxCount = Math.max(...statusBreakdown.map(x => Number(x.count)));
+                  const pct = maxCount > 0 ? (Number(s.count) / maxCount) * 100 : 0;
+                  return (
+                    <div key={i} className="flex items-center gap-2" data-testid={`bar-status-${i}`}>
+                      <span className="text-xs font-medium w-14">{s.status_group}</span>
+                      <div className="flex-1 h-4 bg-muted rounded-sm overflow-hidden">
+                        <div className={`h-full ${statusColors[s.status_group] || 'bg-muted-foreground'} transition-all duration-300`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs font-medium w-12 text-right">{formatNumber(Number(s.count))}</span>
+                    </div>
+                  );
+                }) : <div className="text-center text-muted-foreground text-xs py-2">No data</div>}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Top Users ({ovTimeLabel})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1.5">
+                {ovTopUsers.length > 0 ? ovTopUsers.slice(0, 6).map((u, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm" data-testid={`row-ov-user-${i}`}>
+                    <span className="truncate text-xs">
+                      {u.first_name || u.last_name ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : (u.email || 'Unknown')}
+                    </span>
+                    <Badge variant="secondary" className="text-xs ml-1 shrink-0">{formatNumber(Number(u.count))}</Badge>
+                  </div>
+                )) : <div className="text-center text-muted-foreground text-xs py-2">No data</div>}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Top Organizations ({ovTimeLabel})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1.5">
+                {ovTopOrgs.length > 0 ? ovTopOrgs.slice(0, 6).map((o, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm" data-testid={`row-ov-org-${i}`}>
+                    <span className="truncate text-xs">{o.org_name || 'Unknown'}</span>
+                    <Badge variant="secondary" className="text-xs ml-1 shrink-0">{formatNumber(Number(o.count))}</Badge>
+                  </div>
+                )) : <div className="text-center text-muted-foreground text-xs py-2">No data</div>}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <TrendingUp className="h-5 w-5" />
-                Top Endpoints (24h)
+                Top Endpoints ({ovTimeLabel})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -4044,7 +4269,7 @@ function MonitoringTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {overview.topEndpoints?.slice(0, 8).map((ep, i) => (
+                  {overview.topEndpoints?.slice(0, 10).map((ep, i) => (
                     <TableRow key={i} data-testid={`row-endpoint-${i}`}>
                       <TableCell className="font-mono text-xs max-w-[200px] truncate">{ep.path}</TableCell>
                       <TableCell>
@@ -4070,7 +4295,7 @@ function MonitoringTab() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <AlertTriangle className="h-5 w-5 text-destructive" />
-                Recent Errors (24h)
+                Errors ({ovTimeLabel})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -4083,7 +4308,7 @@ function MonitoringTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {overview.recentErrors?.slice(0, 8).map((err, i) => (
+                  {overview.recentErrors?.slice(0, 10).map((err, i) => (
                     <TableRow key={i} data-testid={`row-error-${i}`}>
                       <TableCell className="font-mono text-xs max-w-[200px] truncate">{err.path}</TableCell>
                       <TableCell>
@@ -4107,23 +4332,60 @@ function MonitoringTab() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
+                <Zap className="h-5 w-5 text-amber-500" />
+                Slowest Endpoints ({ovTimeLabel})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Endpoint</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead className="text-right">Avg Time</TableHead>
+                    <TableHead className="text-right">Calls</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {slowEndpoints.slice(0, 8).map((ep, i) => (
+                    <TableRow key={i} data-testid={`row-slow-${i}`}>
+                      <TableCell className="font-mono text-xs max-w-[200px] truncate">{ep.path}</TableCell>
+                      <TableCell>
+                        <Badge variant={ep.method === 'GET' ? 'secondary' : ep.method === 'POST' ? 'default' : 'outline'}>
+                          {ep.method}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">{formatDuration(ep.avg_duration)}</TableCell>
+                      <TableCell className="text-right">{formatNumber(Number(ep.count))}</TableCell>
+                    </TableRow>
+                  ))}
+                  {slowEndpoints.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">No data yet</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <BarChart3 className="h-5 w-5" />
-                Requests Per Day (Last 7 Days)
+                Requests Per Day
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {overview.charts.requestsPerDay?.map((day, i) => {
+                {overview.charts.requestsPerDay?.slice(0, 14).map((day, i) => {
                   const maxCount = Math.max(...overview.charts.requestsPerDay.map(d => Number(d.count)));
                   const percentage = maxCount > 0 ? (Number(day.count) / maxCount) * 100 : 0;
                   return (
                     <div key={i} className="flex items-center gap-3" data-testid={`bar-requests-${i}`}>
                       <span className="text-xs text-muted-foreground w-24">{format(new Date(day.date), 'MMM d')}</span>
-                      <div className="flex-1 h-6 bg-muted rounded-sm overflow-hidden">
-                        <div 
-                          className="h-full bg-primary transition-all duration-300" 
-                          style={{ width: `${percentage}%` }}
-                        />
+                      <div className="flex-1 h-5 bg-muted rounded-sm overflow-hidden">
+                        <div className="h-full bg-primary transition-all duration-300" style={{ width: `${percentage}%` }} />
                       </div>
                       <span className="text-sm font-medium w-16 text-right">{formatNumber(Number(day.count))}</span>
                     </div>
@@ -4135,31 +4397,29 @@ function MonitoringTab() {
               </div>
             </CardContent>
           </Card>
+        </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <UserPlus className="h-5 w-5" />
-                User Registrations (Last 30 Days)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {overview.charts.userRegistrations?.slice(0, 7).map((day, i) => {
-                  const maxCount = Math.max(...overview.charts.userRegistrations.map(d => Number(d.count)));
-                  const percentage = maxCount > 0 ? (Number(day.count) / maxCount) * 100 : 0;
-                  return (
-                    <div key={i} className="flex items-center gap-3" data-testid={`bar-registrations-${i}`}>
-                      <span className="text-xs text-muted-foreground w-24">{format(new Date(day.date), 'MMM d')}</span>
-                      <div className="flex-1 h-6 bg-muted rounded-sm overflow-hidden">
-                        <div 
-                          className="h-full bg-green-500 transition-all duration-300" 
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-medium w-16 text-right">{formatNumber(Number(day.count))}</span>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <UserPlus className="h-5 w-5" />
+              User Registrations
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {overview.charts.userRegistrations?.slice(0, 14).map((day, i) => {
+                const maxCount = Math.max(...overview.charts.userRegistrations.map(d => Number(d.count)));
+                const percentage = maxCount > 0 ? (Number(day.count) / maxCount) * 100 : 0;
+                return (
+                  <div key={i} className="flex items-center gap-3" data-testid={`bar-registrations-${i}`}>
+                    <span className="text-xs text-muted-foreground w-24">{format(new Date(day.date), 'MMM d')}</span>
+                    <div className="flex-1 h-5 bg-muted rounded-sm overflow-hidden">
+                      <div className="h-full bg-green-500 transition-all duration-300" style={{ width: `${percentage}%` }} />
                     </div>
-                  );
+                    <span className="text-sm font-medium w-16 text-right">{formatNumber(Number(day.count))}</span>
+                  </div>
+                );
                 })}
                 {(!overview.charts.userRegistrations || overview.charts.userRegistrations.length === 0) && (
                   <div className="text-center text-muted-foreground py-4">No data yet</div>
@@ -4167,7 +4427,6 @@ function MonitoringTab() {
               </div>
             </CardContent>
           </Card>
-        </div>
       </div>
     );
   };
